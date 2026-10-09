@@ -15,7 +15,7 @@ import { meanReading } from "./readings";
 import { badges } from "./rollup";
 import { attentionDevices, type AttentionSource } from "./attention";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
-import { layerHides, type LayerId } from "./layers";
+import { devsHave, layerHides, type LayerId, type PlanSel } from "./layers";
 import type { DetailLevel } from "./detail";
 import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
@@ -25,7 +25,7 @@ export interface StateOverlay { [entityId: string]: { state: string; attributes:
 export interface RenderOpts {
   /** S11.3: the room the card has picked (its left panel shows it); drawn with an outline, class `picked`. The editor draws its own selection in an overlay and never passes this. */
   selectedRoom?: number;
-  scale: number; selection?: { t: string; i: number } | null; showNames?: boolean;
+  scale: number; selection?: PlanSel | null; showNames?: boolean;
   /** S24.6: the families not drawn (`layers.ts`): their devices, unlinked appliances and, for "furniture", every piece.
    *  What `selection` or `keep` names is drawn anyway. Omitted or empty, everything is drawn, byte for byte as before. */
   hiddenLayers?: readonly LayerId[];
@@ -1684,7 +1684,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const needs = attentionDevices(f, o.state, o.attention); // S25 fix B: what the Overview's Attention lists stays a dot at far
   const ringCx = spiderAt.size ? [...spiderAt.values()].reduce((a, p) => a + p[0], 0) / spiderAt.size : 0;
   f.devices.forEach((d, i) => {
-    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    const sel = (o.selection?.t === "dev" && o.selection.i === i) || devsHave(o.selection, i); // S26.4: one device, or a member of a multi-selection
     if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
     if (iconHidden(d)) return;
     const floorAt = centreOf(d, i);

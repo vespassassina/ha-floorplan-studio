@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+- Studio: a disabled Undo or Redo is dimmed, and stays dimmed under the pointer.
+- Studio: Escape cancels a drag of one device, or of several, at once, also while Help or Place is open; the device goes back, no undo step is left and the selection stays.
+- Studio: a typed wall length goes along the exact 15 degree ray, also with the pointer close to the last point, and ends on whole centimetres.
+- Studio: Escape during a drag of several devices cancels the drag and puts them back.
+- Studio: a right-click on an Outline row of a selected group keeps the group and gives the same menu as the plan.
+- Studio: a disabled button (Link 0, Show all) is dimmed and shows a not-allowed cursor.
+- Studio: Controlled by on several devices counts only the lights that change, and says "Nothing to bind" when none would; the heading and Delete count the same devices.
+- Studio: a context menu opened near the foot of the window moves up to fit instead of shrinking to a short scrolling box.
+- Studio: Help opens in the Add, Place and Link modes too.
+- Studio: Link mode closes when the plan changes under it (a delete, an Undo, a Redo), so Apply can never bind lights you did not choose.
+- Studio: a wall drawn on a 15 degree ray ends on whole centimetres.
+- Studio: drawing a wall onto a corner joins it, also when the corner is off the 15 degree rays.
+- Studio: Edit, Link lights to switches now previews first. A Link mode in the Inspector lists each unbound light with the switch it would get, in the selection, else the selected room, else the floor. Untick what should stay, Apply binds the rest in one undo step.
+- Studio: a Lock box on a device, a piece of furniture and an unlinked appliance. On a wall, door and opening it now reads "Lock (keeps its length)".
+- Studio: menus tidy up. Opening a submenu closes its siblings; a menu box takes the room below its button and scrolls past it. Add holds only buttons and submenus (Furniture and Unlinked device are submenus now; furniture reads "Patio, wood"). View has one Labels submenu, and the version moved to the Help panel.
+- Studio: Undo, Redo, Save and Fit to window show their key at the right edge, for the platform (⌘Z on a Mac, Ctrl+Z elsewhere).
+- Studio: "Fix plan" is "Lock plan". A neutral pill with a lock reads "Plan locked" or "Plan editable"; the warning colour shows only on hover.
+
+- Studio: one context menu per object on the plan. A right-click on a device, a multi-selection, stairs, a line, a door, an opening, a wall, furniture, a room or the empty canvas opens a menu in the same order. Device and selection menus offer Lock (a locked device does not move when dragged), Delete, Controlled by..., Select same type and Hide this type; the canvas offers Add device here..., Select all devices and Zoom to fit; a room offers Select devices inside. A wall's Add an opening is now Add door, Add window and Add opening; Fix is now Lock.
+- Studio (internal): pure bulk edits for devices (bind lights, remove, move, lock), ready for multi-select. No visible change yet.
+
+- Layout: a device may carry `locked: true`, so it will not be moved by a drag. The file check refuses a value that is not true or false.
+- Studio: Fix plan holds geometry only. With it on, names, titles, colours, textures, areas and entity links can still be edited (one undo step each); corners, walls, doors and windows, kinds, heights, stairs and furniture stay refused.
+- Studio (core): the plan can draw a multi-selection of devices, each with the selection stroke, even on a hidden layer. Nothing in the Studio selects more than one yet.
+- Studio: one context-menu model (`ctxItems`) lists what a right-click offers on each of the twelve targets, in one order. Not wired into the menus yet.
+- Studio (internal): `snapRay` puts a drawn point on the nearest 15 degree ray from the last point. Not wired to the pointer yet.
+- Studio (internal): `Draw` keeps a typed length ("350" cm or "3.5m") and `placeTyped` adds the next point that far along the pointer direction. Not wired to the keys yet.
+- Studio: select many devices on the plan. Shift+click toggles any device in or out of the selection (it was lights and motion sensors of one kind); Shift+drag from the plan draws a dashed rectangle and adds every drawn device inside it, also with the view turned; Ctrl or Cmd+A selects every drawn device on the floor; Escape clears the selection. A device on a hidden Layer is not taken. A plain drag still pans.
+- Studio: a multi-selection moves and deletes as one. Drag any member and every unlocked member follows, in one undo step; Delete or Backspace removes them all, in one undo step. A locked device does not move, alone or in a group.
+- Studio: the Inspector has tabs, Selection, Place and Add. Place devices (a room's Home Assistant area) and Add, Device open in the side panel instead of floating over the plan, so the plan does not move and the buttons stay in view.
+- Studio: with several devices selected the panel counts them by type and offers Controlled by (binds every light to one switch, says how many others it left alone), Lock (ticked, unticked or half-ticked when mixed) and Delete n. Each is one undo step.
+- Studio: the Outline offers the plan's context menu. Right-click a device or room row, or press the Menu key (or Shift+F10) on it, and the same menu opens as on the plan, with the same items in the same order.
+- Studio: a status bar under the canvas reads the facts of the moment: what is selected, its room, the snap, the floor and the zoom ("4 selected · Living · Snap 10 cm · Ground · 100 %"). While you draw it shows the 15° step; with Alt held it says "Snap off"; a turned view says so; a locked plan says "Plan locked" with an Unlock button.
+
+- Studio: one word, Lock. The banner after a refused edit reads "The plan is locked." with an Unlock button, the command list says Lock plan or Unlock plan, and no menu, panel, banner or message says Fix, Unfix or "length locked" any more.
+- Studio: the guide has two new steps, drawing to a length (15 degree steps, typed lengths) and working on many devices at once.
+- Studio: binding 20 lights to one switch takes three actions (Shift+drag over them, Controlled by, the switch), and one Undo takes it back. A test walks it with the real pointer.
+
 ## 0.23.1 - 2026-10-09
 
 - Card and studio: a closed door or glass door is a thick line, 1.6 times the wall it sits in (never thicker than an external wall, so it stays flush there). It was as thin as the wall and read as a hairline. An open door is still a hole; windows, alerts and 2.5D are unchanged.
@@ -731,3 +769,5 @@ First release.
 - Lovelace card: lights, switches, sensors, cameras, thermostats, doors, monitored devices. Three themes.
 - The card script is added to every dashboard by the integration; no manual resource.
 - Installed and updated through HACS.
+- Studio: drawing snaps the segment from the last point to a 15 degree ray (Alt: free). A corner or an alignment with an earlier point still wins. Type digits (or `3.5m`) while drawing: the length shows at the rubber band, Enter places the point that far toward the pointer, Backspace takes back a digit, Escape clears the typed value and a second Escape cancels the drawing.
+- Studio: press `?` on the plan to open or close Help. In a text field it types a question mark.

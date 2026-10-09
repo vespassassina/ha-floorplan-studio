@@ -257,7 +257,7 @@ export class EditorState {
   // ---- floors: whole-layout snapshots, one undo step each, nothing recorded when refused ----
 
   /**
-   * "Fix plan" (2026-10-06): while on, nothing of the plan changes, only devices (lights and the rest). View state, like
+   * "Lock plan" (2026-10-06, named Fix plan until Sprint 26): while on, the plan's geometry holds still; devices, names, colours and links can still be edited. View state, like
    * `viewRot`: not in the layout and not an undo step. Every writer below asks `planOpen()` first; `planBlocked` says the
    * last one was refused, so the editor can tell the person why nothing happened.
    */
@@ -267,8 +267,24 @@ export class EditorState {
   /** A writer that says no for its own reason (an empty title, the last floor) clears the flag first, so an earlier
    *  refusal is never blamed on the lock (Opus re-check of task/s22-fix). */
   private fresh(): true { this.planBlocked = false; return true; }
-  /** The floor with its devices and objects (heater, TV...) taken out: what a plan lock holds still. Walls, rooms, doors, windows, areas, stairs and furniture are the plan. */
-  private static plan(f: Floor): string { return JSON.stringify({ ...f, devices: [], unlinked: [], rooms: f.rooms.map((r) => ({ ...r, scenes: undefined, haScenes: undefined })) }); } // scenes are what a room offers, not its shape: a fixed plan still takes them (2026-10-07)
+  /**
+   * What a plan lock holds still: the floor's geometry (S26.3, supersedes the 2026-10-06 rule). Points, walls, openings,
+   * kinds, heights, stairs, furniture. Left out, so they stay editable: devices and objects, every name and title, colours
+   * and textures, the HA area and floor id, and every entity link (a room's sensors, scenes and entity, a door's sensors,
+   * locks and cover, a piece of furniture's entity). Scenes stay out as before (2026-10-07).
+   */
+  private static plan(f: Floor): string {
+    const drop = <T extends object>(o: T, keys: string[]): object => { const c: Record<string, unknown> = { ...(o as Record<string, unknown>) }; for (const k of keys) delete c[k]; return c; };
+    const paint = ["name", "color", "texture", "textureRot", "textureScale"];
+    return JSON.stringify({
+      ...drop(f, ["title", "ha", "devices", "unlinked"]),
+      rooms: f.rooms.map((r) => drop(r, [...paint, "area", "entity", "temps", "humidity", "motion", "scenes", "haScenes"])),
+      stairs: f.stairs.map((t) => drop(t, paint)),
+      doors: f.doors.map((d) => drop(d, ["name", "sensors", "vibration", "locks", "cover"])),
+      extras: f.extras.map((x) => drop(x, ["name"])),
+      furniture: f.furniture.map((m) => drop(m, ["name", "entity"])),
+    });
+  }
 
   /** Adds a floor last and selects it, with the outline (and its wall kinds), and the stairs, of the first floor (the lowest) and nothing else, so a house is not traced twice. Deep copies; the stairs get ids of the new floor. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
   addFloor(title: string): string {
@@ -300,7 +316,7 @@ export class EditorState {
   /** Changes the title only; the key stays. False for an empty title, the same title or an unknown key. */
   renameFloor(key: string, title: string): boolean {
     const t = title.trim();
-    if (!this.fresh() || !t || !hasOwn(this.layout.floors, key) || this.layout.floors[key].title === t || !this.planOpen()) return false;
+    if (!this.fresh() || !t || !hasOwn(this.layout.floors, key) || this.layout.floors[key].title === t) return false; // a title is a name: the plan lock lets it through (S26.3)
     this.snapshot();
     this.layout.floors[key].title = t;
     return true;
@@ -334,6 +350,9 @@ export class EditorState {
     if (this.hist.length > MAX_HISTORY) this.hist.shift();
     this.fut = [];
   }
+
+  /** Takes back the snapshot a drag made on its first move, when the drag is cancelled (Escape): no undo step is left. The redo stack it cleared stays cleared. */
+  dropSnapshot() { this.hist.pop(); }
 
   /** One undoable change to the current floor. `fn` gets a copy and may return a new floor. Returns false, and records nothing, when the floor did not change. */
   edit(fn: (f: Floor) => Floor | void): boolean {
@@ -471,7 +490,7 @@ export class EditorState {
    * bad or nothing changes.
    */
   paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string; rot?: number; scale?: number } | null): boolean {
-    if (!this.planOpen()) return false;
+    this.planBlocked = false; // colour and texture are not geometry: the plan lock lets them through (S26.3)
     const next: Layout = structuredClone(this.layout);
     const shape = next.floors[this.floor][on][i];
     if (!shape) return false;

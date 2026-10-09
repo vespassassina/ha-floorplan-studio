@@ -187,8 +187,8 @@ test("a command from the search runs what the menu runs: Fix plan off", async ({
   await expect(page.locator("#fixPlan")).toBeChecked();
   await page.locator(`${EDITOR} .canvas > svg`).click({ position: { x: 5, y: 5 } });
   await page.keyboard.press("/");
-  await page.keyboard.type("unfix plan");
-  await expect(page.locator(`${EDITOR} fp-search [role="option"]`).first()).toContainText("Unfix plan");
+  await page.keyboard.type("unlock plan");
+  await expect(page.locator(`${EDITOR} fp-search [role="option"]`).first()).toContainText("Unlock plan");
   await page.keyboard.press("Enter");
   await expect(page.locator("#fixPlan")).not.toBeChecked();
 });

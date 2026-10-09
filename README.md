@@ -36,8 +36,8 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
   buttons) and as a read-only preview in the editor: walls rise, furniture
   becomes boxes, the near walls are cut down so every room shows. A Tilt
   slider turns it from top-down to side-on.
-- A switch to hide every name and value (`labels: false` on the card, View,
-  Show names and text in the editor), so only items and sensors are left.
+- A switch to hide every name and value (`labels: false` on the card, View, Labels,
+  Names and values in the editor), so only items and sensors are left.
 - Turn the plan in 45 degree steps with two buttons on the card (smooth, text
   stays upright; `rotation` sets the start). The card remembers each viewer's
   zoom, position, rotation, 2D or 2.5D and theme in their browser, and a Reset

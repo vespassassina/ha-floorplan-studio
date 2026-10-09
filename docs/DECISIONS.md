@@ -2,6 +2,182 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: a disabled Undo or Redo is dimmer than an enabled one (Opus re-check 5)
+
+- `.btn:disabled{opacity:.5}` and `.btn.light{opacity:.6}` have the same specificity and the second comes later, so a disabled Undo was .6 like an enabled one, and under the pointer `.btn.light:hover` took it to 1. Added `.btn.light:disabled{opacity:.35}` and put `:not(:disabled)` on the light hover and focus rule; the other hover rules in the editor (`.lockplan`, `.lrow`, `.ti`, `.opt`, `.door-hit-open`) are not on buttons that can be disabled. Computed-style pair in `editor.spec.ts` for light, ha and blueprint: disabled lower than enabled, and unchanged under the pointer. It supersedes (e) of 'small defects' for the `.light` buttons only.
+
+## 2026-10-09: Escape cancels a device drag first, one device or many (Opus re-check 3 and 4)
+
+- The Escape chain asked Help and Place before the drag, so with either open the group kept dragging and committed. A drag of devices is now the first thing Escape checks after the menus (`cancelDeviceDrag`). It supersedes (a) of 'small defects of the Sprint 26 review', which handled the group only after the panels.
+- A single-device drag took its undo snapshot on the first move, and Escape only cleared the selection. Now Escape puts the device back, drops the drag and takes the snapshot back (`EditorState.dropSnapshot`); the selection stays. The redo stack that snapshot cleared stays cleared: a drag that began is an edit that began.
+
+## 2026-10-09: a typed length follows the exact ray and ends on whole cm (Opus re-check 1 and 2)
+
+- The typed direction came from the whole-cm aim point, so the nearer the pointer the further off the wall went: zoomed in, a pointer 40 cm out typed 350 and gave 14.38 degrees. It now comes from the unrounded ray point (`rayPoint`, kept as `rayAim` by `snapDraw`; `snapRay` is `rayPoint` rounded). It supersedes 'a typed length takes its direction from the rounded aim' of R1a.
+- The typed end was fractional (`[789.03, 536.93]`). `Draw.placeTyped` now rounds the end point, as every snapped point is. Cost: the length differs from the typed one by under 0.71 cm (each coordinate is off by up to half a cm) and the angle by up to 0.116 degree over 350 cm; so the tests allow 0.12 degree, not the 0.05 asked. Along 0 and 90 degrees the end is whole already and stays exact (0.01 kept). The schema asks for finite numbers only, so whole cm is a choice for consistency, not a rule.
+
+## 2026-10-09: small defects of the Sprint 26 review (a to g)
+
+- (a) Escape during a group drag puts the devices back (`replaceFloor(base)`), drops the drag and keeps the selection; the history was never touched, so there is no undo step. A second Escape clears the selection as before.
+- (b) A right-click on an Outline row that is a member of the multi-selection keeps the selection and opens the multi-selection menu, as the plan does. Any other row selects its object first, as before.
+- (e) A disabled `.btn` is dimmed (opacity .5) with a not-allowed cursor, for every button, so "Link 0" no longer looks live. It was already disabled; nothing said so to the eye. Computed-style pair in `link-mode.spec.ts`.
+- (f) The docstring of `planLocked` in `state.ts` says Lock plan, not Fix plan.
+- (g) Not fixed, reported: the status bar sits over the foot of the canvas (S26.22) and covers the bottom row of the ruler (about 20 px at 1024 wide, the label "8" in the demo). The ruler spans the view, so a roomier fit would not clear it; only a shorter canvas or a ruler that skips the bar would, and the first one broke two specs in S26.22. Left as it is.
+- (c) The multi-device heading counts the devices that exist (`mine`), as Delete does; a stale index or a repeat no longer makes them differ.
+- (d) Controlled by counts the lights that change, not all of them: ten already bound and ten not says "Bound 10". When none would change it says "Nothing to bind: the lights already have it" ("Nothing to clear: no light is linked" for the clear), writes nothing and makes no undo step.
+
+## 2026-10-09: a context menu near the foot shifts up instead of shrinking (Opus review R5)
+
+- The menu top was clamped to `innerHeight - 120` and the height then capped to what was left, so at 1024x768 a right-click near the canvas foot gave a 112 px scrolling strip. The cap is now the window (`100vh - 16px`) and `fitCtxMenu`, run from `updated()`, moves the menu up by how far its foot is past the window, to 8 px at most from the top. Only a menu taller than the window scrolls. The height is only known after the render, so a measure-and-move is simpler than guessing it from the item count.
+
+## 2026-10-09: Help shows in every Inspector mode (Opus review R3)
+
+- Help was drawn only in the Selection mode, so `?` and the Help button did nothing visible in Add, Place or Link. `asideView` now puts the guide first whatever the mode is. Escape closes Help before it closes the mode (the order of the keys moved up), and a click on a tab closes Help and goes to that tab. The mode and its state are kept under Help.
+
+## 2026-10-09: any edit, Undo or Redo closes Link mode (Opus review R2)
+
+- The Link scope is device indices. Select Alpha and Beta of four, open Link, press Delete: Gamma and Delta slid into indices 0 and 1 and the preview offered them; Apply would have bound lights nobody chose. Undo did the same. The mode now remembers the floor object it opened on and closes in `willUpdate` when `st.f` is another object (every edit, Undo, Redo and drag makes one). This supersedes 'an Undo or an edit shows at once' of S26.23: a preview that cannot survive its own scope is closed, not repaired. Scoping by device id was the alternative; it would still leave a room scope pointing at a moved room.
+
+## 2026-10-09: a ray-snapped point is whole centimetres (Opus review R1a)
+
+- `snapRay` returned `200.00000000000003` for a vertical wall. It now rounds the point to whole cm, as `round()` does for every other draw snap. The cost: the angle is exact only to half a cm over the run, so the tests that read an angle at 0.01° now allow 0.1° (0.3° for a typed length, which takes its direction from the rounded aim), and assert `Number.isInteger` on the ends.
+
+## 2026-10-09: a corner beats the 15 degree ray; every free click while drawing lands on a ray (Opus review R1b)
+
+- The 15° ray snap read "the corner snap gave the plain grid point" as "nothing caught the pointer". A corner on a grid point, 18° off the ray, was thrown to (509, 283) and the walls did not join. `snapDraw` now asks the corner search itself (`cornerHit`, split out of `snapCorner`), so a corner always wins.
+- **Intent, recorded:** every free click while drawing is forced onto a 15° ray from the last point unless Alt is held or a corner or an alignment caught it. That is the design of S26.12, not a side effect. It moved the Backspace room test's input from [200,668] to [295,700].
+
+## 2026-10-09: Sprint 26 in one place: multi-select, Lock, Inspector modes, status bar, typed length, snap (S26.24, S26.25)
+
+The decisions below, each in its own entry, add up to this. Summary so a later reader need not read twelve entries.
+
+- **Multi-select.** Shift on the plan is a marquee; Shift+click toggles any device; a group moves, locks and deletes as one undo step through `bulk.ts`. Selecting writes nothing.
+- **Lock.** One word. The plan toggle holds geometry; a device, furniture piece or unlinked appliance has a Lock box; wall, door and opening say "Lock (keeps its length)". No rendered string says Fix, Unfix or "length locked". The banner reads "The plan is locked." with an Unlock button. Ids (`#fixPlan`, `#bannerUnfix`, `cmd:fix`) stay: they are not read by anyone, and renaming them would churn 30 tests for no reader's gain. `bannerLevel` matches "is locked" as an error, where it matched "is fixed".
+- **Inspector modes.** Selection, Place, Add and Link are tabs of the aside; nothing floats over the plan.
+- **Status bar.** Facts on the canvas foot from `statusFacts`; messages stay in the banner.
+- **Typed length and snap.** 15 degree rays after the corner snaps, Alt off; digits typed while drawing place the next point at that length.
+- **The sweep.** `one-word.spec.ts` walks every shadow root after opening each menu, the Help guide, the command search, the banner, each context menu and each panel, in both plan states, and fails on the words. The scene-save refusal text is not reachable from the DOM (Save works under the lock since S26.3), so it is changed in the source and not swept.
+- **Exit test.** `bind-twenty.spec.ts`: Shift+drag, Controlled by, the switch; 20 lights bound; one Undo unbinds all 20. The three actions are counted in the test.
+
+## 2026-10-09: Link lights with a preview (S26.23)
+
+- Edit, Link lights to switches no longer writes at once. It opens a fourth Inspector mode, Link (a tab that shows only while the mode is open). The rows are `linkSuggestions(st, scope)` in `bulk.ts`: the same rule `autoLinkLights` used (unbound light, not a `switch_as_x` wrapper, a uniquely suggested switch), so the preview and the old one-shot cannot disagree. `EditorState.autoLinkLights` stays, with its tests; no button calls it now.
+- **Scope is fixed when the mode opens** (`linkScopeFor`): selected devices, else the selected room (lights whose point `roomAt` puts in it), else the floor. Any other selection is the floor. The rows themselves are recomputed from the live layout on every render, so an Undo or an edit shows at once. Ticks are kept by device id, all on at the start.
+- Apply is one `st.edit` over `applyLinks`: one undo step, none when nothing is ticked (the button is off). A refusal by the plan lock goes through `refused()`. The mode closes after Apply, Escape, the X or a floor change, and falls back to Selection when Home Assistant data is gone.
+- The old Playwright test of S8.7 clicks Apply now; it is the one test changed.
+
+## 2026-10-09: the status bar (S26.22)
+
+- `statusFacts(st, { alt, drawing })` in `status-bar.ts` is the one source of the text; the host only draws it and keeps `altDown`. Order: selection (a name for one, "N selected" for several), its room (the one room they all stand in; none when they span rooms; a selected room is named once), snap, the 15° step, "Turned n°", the floor, the zoom, then "Plan locked".
+- **The 15° step shows only while drawing and without Alt.** It has no meaning on a plain pointer, and a permanent "15°" would read as a setting. Alt shows "Snap off", as the pointer does with it held; a grid of 0 reads the same.
+- **Zoom 100 % is the whole floor in view** (`viewBoxFor` against the view, the same ratio `centreOn` uses), so a fit reads 100 % on any plan.
+- **The bar sits on the foot of the canvas, over the plan, with `pointer-events:none`** (the Unlock button takes clicks). A first version was a row under the editing area; it made the host taller, so a click below the canvas, which used to land outside the editor and let go of the selection, landed inside it. Two older specs (`editor.spec.ts` "wall under an opening", "rotated flight") click there and failed. The bar now adds no height and passes clicks to the plan under it. Facts only: refusals and messages stay in the banner.
+- Alt is heard on the host (keydown and keyup, finding 6) and forgotten when the window loses focus.
+
+## 2026-10-09: the Outline offers the plan's menu (S26.21)
+
+- A right-click on a device or room row selects that object (through `goTo`, as a click on the row does) and opens the menu `ctxTargetFor` gives for it, at the pointer. The Menu key or Shift+F10 on a focused row opens it under the row. No new menu code: `ctxMenuView` and `ctxItems` are the only source, so the two lists cannot differ.
+- Floor, "No room", area and unplaced-entity rows have no menu; the browser's own shows. A room of a kind with no menu (`ctxTargetFor` returns canvas) opens none either.
+- Side effect, same as a click on the row: the view centres on the object.
+
+## 2026-10-09: `?` opens Help (S26.13)
+
+- The key is handled in the editor host's `onKey`, after the text-field check (INPUT, SELECT, TEXTAREA) and guarded by `takesTyping`, so the Outline filter and every other field keep the character. It toggles, like the Help button, and works while drawing too (it is not a typed character). Ctrl, Cmd and Alt chords are left alone.
+- The test presses `?` itself: Playwright's `Shift+/` sends the key `/`, which is the search chord.
+
+## 2026-10-09: typed lengths and 15 degree steps while drawing (S26.12)
+
+- **`snapDraw` runs `snapCorner` first, then `snapRay` only when that returned the plain grid point.** A corner, a T onto an edge or an alignment with an earlier point of the shape changes the result, so it wins inside its 14 px reach; otherwise the point goes on the nearest 15 degree ray from the last point. Alt turns the ray off with the other snaps. Shift keeps its meaning. The ray point is not rounded to whole cm (its length is on the grid).
+- **Typing belongs to draw mode once a point exists.** Digits, a dot and `m` go to `Draw.type`; a letter or a second dot is ignored. Enter with typed text places the point (`placeTyped`) toward the last aim of the pointer (`aim`, kept because a click clears `hover`); without typed text it finishes as before. A refused value (0, over 10 000 cm, no direction) keeps the field and says why in the status line. Escape clears the typed text first, a second Escape cancels; Backspace takes back a digit before it takes back a point.
+- The field is `.dr-typed` text in the overlay, upright under a turned view, with a halo, `pointer-events:none` by class rule.
+- Tests draw on a plan made blank through Reset: a blank layout cannot be loaded (an outline needs 3 points).
+
+## 2026-10-09: select many on the plan (S26.10, S26.11)
+
+- **Shift on the plan is a marquee.** Shift+press on the background, a room, stairs or furniture starts it; Shift on a corner, wall, door or device keeps its meaning (detach a corner, toggle a device). A Shift+click without a drag selects what a plain click would (a room, stairs, furniture) and leaves a device selection alone. Furniture starts it too, since lights sit among furniture.
+- **The rectangle is taken back through the view's turn**: four client corners through `toSvg`, then `marqueeHits`. The overlay draws the same four plan-space points as `.marquee`, so a turned plan shows it upright. A device counts as drawn when its icon exists and is not `display:none` (Layers, and the far detail level that drops idle icons); the DOM is the one source for "drawn", so the hit-test cannot disagree with the pixels.
+- **Shift+click toggles any device**, not only lights and motion of one kind. The group panel already says "Shift+click more of the same kind to group" for a mixed set, and `groupKind` decides.
+- **A drag on a member moves every unlocked member** with `moveDevices`, the delta rounded to the snap grid (Alt: 1 cm), 4 px before it starts. It records its step with `commitLiveEdit`, so a drag that ends where it began leaves none. A click on a member without a drag narrows the selection to it. A group of only locked members, or one locked device, takes the press (selection) and no drag.
+- **Escape** drops a marquee in progress, otherwise clears any selection. **Ctrl or Cmd+A** is ignored in a text field and while drawing.
+- `.marquee` and the typed-length field live in the host's `static styles` beside `.dr`, since the overlay is the host's.
+## 2026-10-09: Lock in every panel (S26.16)
+
+- The device, furniture and unlinked panels get a Lock box in Appearance (`lockBox`): ticked writes `locked: true`, unticked deletes the key, one undo step each. A wall, door and opening keep `lockField`, now worded "Lock (keeps its length)". No panel says Fix or "length locked".
+- Known edge, not changed here: `EditorState.plan()` counts a furniture piece's `locked` as geometry, so under Lock plan the furniture box (and the context-menu Lock) is refused. A device's and an unlinked appliance's `locked` are outside the compare. Left for Diego to call; it is one key in `plan()`.
+
+## 2026-10-09: the Inspector on a multi-selection (S26.15)
+
+- `devsPanel` counts by type (most first), then Controlled by when a light is in the selection, Create group as before, Lock, Delete n. Each action is a single `commit` over `bulk.ts`, so one undo step; the note is `Bound 20 lights; 2 others left alone` (`Cleared` for none). "Others" are the non-lights, plus a light that is the pick itself.
+- Controlled by offers the first selected light's choices (floor-scoped, so the same for every light) and shows the switch the lights share, "(mixed)" when they differ. No Motion entries in bulk: that flow is per light.
+- Lock is a checkbox: ticked when every device is locked, half-ticked when some are; a click on a mixed box locks all. The name list folds into a closed "Devices" section; 22 names pushed the actions out of view.
+
+## 2026-10-09: the Inspector has modes (S26.14)
+
+- The aside gets three tabs: Selection, Place, Add. `asideMode` in the host replaces `placePos` and `addDevPos`; Place and Add are no longer floating, draggable panels (`.fpanel`), they are bodies of the aside (`.imode`), so opening one moves nothing on the canvas. Ids (`#placePanel`, `#addDevPanel`, `#placeClose`, `#addDevClose`, `#placeGo`) are kept.
+- Place needs a room: its tab is off until the selection is a room with something to place, or a Place mode already holds one. Leaving for Selection keeps the ticks; the Escape key and the X return to Selection. Switching floor closes Place, as before.
+- Add stays a mode after a pick (S8.5: place many in a row); the Selection tab shows what was placed. The Left column tablist label is now named in `studio-layers.spec.ts`, since the aside has a tablist too.
+- State stays in the host, which `hass` updates do not reset (panel test). Dropped with the popups: the drag by the head, and the 780/660 px widths (S8.8); two tests changed with them, on purpose.
+## 2026-10-09: menu clean-up, keys, Lock plan (S26.17-19)
+
+- Menus: a box gets `max-height` from the room under its button (minus its padding and border, since max-height is the content box) and scrolls. Sibling subs close through one `onSubToggle`. Add has no `select`: Furniture and Unlinked device are submenus of buttons (`#addFurn-<symbol>`, `#addUnlDev-<type>`); furniture names come from `FURNITURE_LABELS`. The Group light picker (`#motLightGrp`) is a sub too.
+- View keeps one Labels submenu (`#names`, `#labels`). The installed version is in the Help panel (`#version`), so `panels.ts` took two lines; `editor-app.ts` was not touched.
+- Keys: `MENU_KEYS` and `chordLabel` in `guide.ts`; `Mod` is ⌘ on a Mac, Ctrl elsewhere. Only Undo, Redo, Save and Fit to window carry one. Left out: Search, Select all, Delete, Help "?" (not menu items yet, or their keys land in other lanes), and the context menu (lane D owns `ctxItems`). Space is shown on Fit to window; it also turns the view upright.
+- Lock plan: the lock is a CSS mask (a data-URI SVG on a span), not an inline `<svg>`: an inline one came first in the shadow root and 105 tests, helpers included, take `querySelector("svg")` to be the plan. A test pins the plan as the first svg. Label and tooltip change with the state; the id `#fixPlan` stays so other tests still find it. Accessible name is the constant "Lock plan", state is `checked`. On is ink on paper, hover is the warning colour. The command list and the banner still say Fix plan (S26.24).
+## 2026-10-09: every context menu comes from `ctxItems` (S26.20)
+
+- `ctxMenuView` builds each menu from `ctxItems(kind, facts)` and maps an item id to an action in `runItem`; labels, order, keys and disabled state are the model's. Twelve targets, all open a menu: a hit with no menu of its own (a room kind with none, a hidden edge, the background) opens the canvas menu, a corner handle opens none. `ctxTargetFor` (in `ctx-menu.ts`) turns a hit into the target and sets the selection; the host only keeps `hitOf` and `edgeNear`.
+- Supersedes the menus of S4.18, S4.27 and S4.31 where they differ: Change colour is gone from the room menu (the panel has it); Add an opening, a submenu of five, is three items (Add door, Add window, Add opening), so Open doorway and Slit window are in the Add menu only; Fix and Unfix are Lock and Unlock; a door, opening, furniture piece and unlinked object gain Delete.
+- A right-click on a device that belongs to the selection keeps the selection (target `devs`); on any other device it selects that one. Lock on a selection unlocks only when every member is locked.
+- A locked device selects but does not start a drag.
+- The room's unplaced Home Assistant entities stay as buttons under its items (a quick Place); they are not model items.
+- Rename, Controlled by... focus the panel field (`#rn`, `#vbound`...); a device has no name field, so Rename says the name comes from Home Assistant. The F2 key shown on Rename is not bound here.
+- Add device here... keeps the click point in the host (`addAt`) for the next device the Add panel places; closing the panel clears it.
+
+## 2026-10-09: the editor host is split (S26.9)
+
+- `toolbar.ts`, `ctx-menu.ts` and `inspector.ts` take the host as `h` and export their own `css`; `static styles` is an array. Pure move: no test edited.
+- Members these modules call lost `private`. The pointer, key and focus handlers stay in the host.
+- Kept in the host: `openCtxMenuAt` (it needs `hitOf`) and the Place and Add device state (the Escape, focus-out and drag handlers read it).
+- CSS order is kept inside each block; the blocks moved only past rules that never share an element and a property with them.
+
+## 2026-10-09: bulk device writers (S26.2)
+
+- `src/editor/bulk.ts`: `bindLights`, `removeDevices`, `moveDevices`, `lockDevices`, `reindexAfterRemove`. Each returns a new floor (`bindLights` also `skipped`), never touches its input, and returns an equal floor when nothing changes, so `EditorState.edit` records no step. Indices are cleaned first: integers in range, distinct.
+- `skipped` counts the listed devices left alone: non-lights, and a light whose own entity is the one asked for (`validate` refuses `bound === entity`). Junk entity text changes nothing and is not counted.
+- `moveDevices` also leaves a device where it is when the move would pass `COORD_LIMIT`, so no result fails `validate` (finding 12). `lockDevices(false)` deletes `locked: true` and leaves a stored `false` as written, so unlocking an unlocked device is not a change.
+
+## 2026-10-09: devices can be locked (S26.1)
+
+- `Device.locked?: boolean`, schema stays v2: an old card ignores the field. Same key as a wall, door, opening, furniture piece and unlinked object, so Lock is one word everywhere. `validate` reports anything but a boolean (`"yes"`, `1`, `null`); `migrate` leaves the value as written and `validate` judges it, as it does for the other `locked` fields. What a lock stops is decided in later tasks (a drag, alone or in a group).
+## 2026-10-09: Fix plan holds geometry only (S26.3)
+
+Supersedes the `plan()` rule of 2026-10-06 ("Fix plan": nothing of the plan changes) and the scenes carve-out of 2026-10-07, which this generalises.
+- **What stays locked:** points, walls, openings, edge and room kinds, heights, stairs, furniture, the outline. A change to any of them is refused with `planBlocked`, as before.
+- **What goes through:** every name and title (room, floor, door, extra, stairs, furniture), colour and texture, the HA area and floor id, and every entity link (a room's `entity`, sensors and scenes; a door's sensors, locks and cover; a piece of furniture's `entity`). One undo step each. Reason (Studio review, U3): the lock told a person they could not rename a room, and names and colours are not what a lock protects.
+- **How:** `EditorState.plan()` serialises the floor without those fields. `renameFloor` and `paint` no longer ask `planOpen()`. Order, add, delete and rotate of floors stay refused.
+- **Not done here:** `editor-app.ts` still refuses the texture rotation and scale sliders under the lock (`rotateTexture`, `scaleTexture`), and `replaceFloor` still drops a live non-device change under the lock, so those two sliders stay blocked until the Inspector tasks rewire them.
+## 2026-10-09: the plan draws a multi-selection (S26.4)
+
+- `RenderOpts.selection` is a `PlanSel` (`layers.ts`): `{ t, i }` as before, or `{ t: "devs", is }`. One helper, `devsHave`, answers "is device i in it" for both the draw (`.sel`) and `layerHides` (a selected member is drawn under a hidden layer), so the plan and the hit-test cannot differ.
+- A list with junk (not an array, `NaN`, 1.5, strings) selects only its integer members that exist; a non-list selects nothing. Without `devs` the markup is byte for byte as before.
+## 2026-10-09: one context-menu model (S26.6)
+
+- `ctxItems(target, facts)` in `src/editor/ctx-items.ts` is pure: ids and labels only, the host maps an id to an action. Twelve targets in `CTX_TARGETS`, so a new one fails the iterating test until its list is written.
+- Lock is offered on device, devices, wall, door, opening, furniture and unlinked; not on room, edge, stairs or extra (no `locked` field, and Lock plan holds geometry). Stairs and extras get Delete only.
+- Items that read HA (Place devices from area, Add device here) are `disabled` without it, not hidden, so the menu keeps its shape.
+- "Delete n" only for two or more devices; junk counts give plain "Delete".
+- Not wired into `editor-app.ts` here: that is the later host split.
+## 2026-10-09: typed length lives in `Draw` (S26.8)
+
+- `Draw.typed` is the buffer. `type(ch)` takes digits, one dot and a closing `m` (false otherwise, buffer capped at 8 characters); a minus cannot be typed. `untype()` drops the last character. `typedCm` reads it: "350" is cm, "3.5m" metres; empty, 0, over 10 000 cm (10 000 itself is fine) is null.
+- `placeTyped(toward)` goes through `click`, so an opening still finishes on its second point and the 1 cm duplicate rule holds. Refused (returns "ignore", nothing added, buffer kept) with no length, no point yet, or the pointer on the last point (no direction). A point added by `click`, `cancel` or `finish` clears the buffer.
+- The point is not rounded: a typed 350 along a diagonal has fractional coordinates, so the segment is 350 cm to float precision.
+
+## 2026-10-09: `snapRay` snaps to the nearest ray (S26.7)
+
+- `snapRay(from, p, stepDeg, grid)` in `src/editor/draw.ts` takes the nearest multiple of `stepDeg` by plain rounding of the angle, then rounds the length to the grid (0 means 1 cm). The plan's example "352 gives 0" is wrong for a 15 degree step: 352 is 8 from 360 and 7 from 345, so it gives 345; 353 and up give 0. The test says so.
+- Junk (non-finite numbers, a step of 0 or less) and `p` on `from` return `p` unchanged. Nothing throws.
+
 ## 2026-10-09: Sprint 25 re-check fixes (Opus)
 
 Supersedes B and D of the entry below, and "`detail` is not part of the view-memory storage key" in the entry after it.

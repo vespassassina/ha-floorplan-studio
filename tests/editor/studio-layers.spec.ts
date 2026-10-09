@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { Layout } from "../../src/core/schema";
+import { pickUnlinked } from "./menu-helpers";
 
 // S24.6 (U6, U17): Layers replace Filter. One eye per family in the left column; one click hides, alt-click shows only
 // that family. A line in the toolbar says what is hidden. Placing or finding something on a hidden layer says so and
@@ -49,7 +50,7 @@ test("the Filter menu is gone; a Layers tab sits beside Outline with one eye per
   await load(page);
   await expect(page.locator(`${EDITOR} #filter`)).toHaveCount(0);
   await expect(page.locator(`${EDITOR} [data-filter]`)).toHaveCount(0);
-  const tabs = await page.locator(`${EDITOR} [role="tablist"] [role="tab"]`).allInnerTexts();
+  const tabs = await page.locator(`${EDITOR} [role="tablist"][aria-label="Left column"] [role="tab"]`).allInnerTexts();
   expect(tabs.map((t) => t.trim())).toEqual(["Outline", "Layers"]);
   await openLayers(page);
   await expect(page.locator(`${EDITOR} #tabLayers`)).toHaveAttribute("aria-selected", "true");
@@ -301,7 +302,7 @@ test("S24.R10a: adding an appliance under a hidden layer names its type as peopl
   await clickAt(page, `${EDITOR} #layersPanel [data-layer="computing"]`);
   for (const [type, text] of [["ups", "Added UPS; hidden by Layers"], ["server", "Added server; hidden by Layers"]] as const) {
     await clickAt(page, `${EDITOR} #mAdd > summary`);
-    await page.locator(`${EDITOR} #addUnlDev`).selectOption(type);
+    await pickUnlinked(page, type);
     await expect(page.locator(`${EDITOR} #status`)).toHaveText(text);
   }
 });
