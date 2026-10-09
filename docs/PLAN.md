@@ -2950,7 +2950,7 @@ Lane A, pointer and keys (`editor-app.ts` handlers only, plus new spec files):
       (`moveDevices`), one undo step; Delete or Backspace removes them all (`removeDevices`), one undo step; a locked
       device does not follow a drag, alone or in a group. Test: real drag of 3 lights, all moved by the same delta, one
       Undo restores all; Delete 3, one Undo; a locked member stays put.
-- [ ] S26.12 Typed lengths and 15° steps while drawing. `snapDraw` uses `snapRay` after the corner and alignment snaps;
+- [x] S26.12 Typed lengths and 15° steps while drawing. `snapDraw` uses `snapRay` after the corner and alignment snaps;
       Alt turns it off. Digits typed while drawing show in a small field at the rubber band; Enter places the point
       (`placeTyped`). Test: draw a wall with the pointer at 17°, the segment is at 15°; Alt held, it is not; type 350,
       Enter: the segment is 350 cm; Escape clears the typed value, a second Escape cancels.

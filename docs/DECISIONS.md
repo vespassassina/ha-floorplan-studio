@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: typed lengths and 15 degree steps while drawing (S26.12)
+
+- **`snapDraw` runs `snapCorner` first, then `snapRay` only when that returned the plain grid point.** A corner, a T onto an edge or an alignment with an earlier point of the shape changes the result, so it wins inside its 14 px reach; otherwise the point goes on the nearest 15 degree ray from the last point. Alt turns the ray off with the other snaps. Shift keeps its meaning. The ray point is not rounded to whole cm (its length is on the grid).
+- **Typing belongs to draw mode once a point exists.** Digits, a dot and `m` go to `Draw.type`; a letter or a second dot is ignored. Enter with typed text places the point (`placeTyped`) toward the last aim of the pointer (`aim`, kept because a click clears `hover`); without typed text it finishes as before. A refused value (0, over 10 000 cm, no direction) keeps the field and says why in the status line. Escape clears the typed text first, a second Escape cancels; Backspace takes back a digit before it takes back a point.
+- The field is `.dr-typed` text in the overlay, upright under a turned view, with a halo, `pointer-events:none` by class rule.
+- Tests draw on a plan made blank through Reset: a blank layout cannot be loaded (an outline needs 3 points).
+
 ## 2026-10-09: select many on the plan (S26.10, S26.11)
 
 - **Shift on the plan is a marquee.** Shift+press on the background, a room, stairs or furniture starts it; Shift on a corner, wall, door or device keeps its meaning (detach a corner, toggle a device). A Shift+click without a drag selects what a plain click would (a room, stairs, furniture) and leaves a device selection alone. Furniture starts it too, since lights sit among furniture.

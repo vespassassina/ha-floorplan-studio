@@ -16,7 +16,7 @@ import { buildOutline, deviceNodeId, filterOutline, outlineKey, outlineView, vis
 import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
 import { furnitureNear, roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
-import { Draw, applyShape, type AreaPreset, type DrawKind } from "./draw";
+import { Draw, applyShape, snapRay, type AreaPreset, type DrawKind } from "./draw";
 import { restoreScene, tryScene } from "./scene-try";
 import { cleanSceneItem } from "./room-scenes-ops";
 import type { SceneItem } from "../core";
@@ -73,7 +73,7 @@ const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
 /** Where the measure grid reads zero: the top-left corner of the floor's outline (lowest x, lowest y). A floor with no outline has none, so its zero is the layout's own. */
 export const planZero = (f: Floor): Pt => (f.outline.length ? [Math.min(...f.outline.map((p) => p[0])), Math.min(...f.outline.map((p) => p[1]))] : [0, 0]);
-const DRAW_HINT = "Click to add points, double-click or Enter to finish, Esc to cancel";
+const DRAW_HINT = "Click to add points (15° steps, Alt: free), type a length and Enter, double-click or Enter to finish, Esc to cancel";
 const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 /** Does this point reference a corner of a zone? A zone never joins another polygon. */
 const isZoneRef = (f: Floor, ref: PtRef) => "poly" in ref && ref.poly[0] === "r" && (f.rooms[+ref.poly.slice(1)]?.kind === "zone" || f.rooms[+ref.poly.slice(1)]?.free === true); // a zone or a free room is never stitched
@@ -184,6 +184,8 @@ export class FloorplanStudioEditor extends LitElement {
   /** S4.19: the same, for the texture-scale slider. */
   private textureScaleGesture: Layout | null = null;
   private hover: Pt | null = null;
+  /** S26.12: the last aim of the pointer while drawing; a typed length goes this way even after a click cleared `hover`. */
+  private aim: Pt | null = null;
   /**
    * S4.18: the right-click context menu — a room, zone or structure, or (S4.27) a wall: a room/outline edge or a
    * free-standing wall. Its screen position and its target. Closed (null) by an outside click, Escape or scroll.
@@ -496,6 +498,8 @@ export class FloorplanStudioEditor extends LitElement {
     .dr{fill:none;stroke:var(--fp-window);stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke;pointer-events:none}
     .dp{fill:var(--fp-bg);stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .dp.first{fill:var(--fp-window)}
+    /* S26.12: the typed length at the rubber band. A halo so it reads over a fill; never takes a click. */
+    .dr-typed{fill:var(--fp-window);stroke:var(--fp-bg);stroke-width:4px;paint-order:stroke;font-weight:600;pointer-events:none;user-select:none}
     /* S26.10: the Shift+drag rectangle. See-through, dashed, never takes a click (a class rule: an attribute would lose to .canvas svg rules, finding 18). */
     .marquee{fill:var(--fp-window);fill-opacity:.12;stroke:var(--fp-window);stroke-width:1.5;stroke-dasharray:5 3;vector-effect:non-scaling-stroke;pointer-events:none}
     .grp{font-size:.8em;opacity:.7}
@@ -935,7 +939,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   private onMove = (ev: PointerEvent) => {
     const d = this.drag, st = this.st;
-    if (!d && this.draw) { this.hover = this.snapDraw(this.draw, this.toSvg(ev), ev.altKey); this.requestUpdate(); return; }
+    if (!d && this.draw) { this.hover = this.aim = this.snapDraw(this.draw, this.toSvg(ev), ev.altKey); this.requestUpdate(); return; }
     if (!d) return;
     if (d.type === "pan") {
       // Screen movement past a few pixels means this is a drag, not a (possibly right-button) click — same threshold "room" uses.
@@ -1688,9 +1692,15 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.st.helpOpen) { ev.preventDefault(); this.toggleHelp(); return; }
     if (this.draw) {
       // Draw mode owns these keys: Delete must not remove the item that was selected before.
-      if (ev.key === "Enter") { ev.preventDefault(); this.finishDraw(); }
+      // S26.12: digits, a dot and an m type a length; Enter places it, Backspace and Escape take it back before they act on the points.
+      const dr = this.draw;
+      if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey && dr.points.length && dr.type(ev.key)) { ev.preventDefault(); this.requestUpdate(); }
+      else if (ev.key === "Enter" && dr.typed) { ev.preventDefault(); this.placeTyped(); }
+      else if (ev.key === "Enter") { ev.preventDefault(); this.finishDraw(); }
+      else if (ev.key === "Escape" && dr.typed) { ev.preventDefault(); dr.typed = ""; this.status = DRAW_HINT; this.requestUpdate(); }
       else if (ev.key === "Escape") { ev.preventDefault(); this.stopDraw("Drawing cancelled"); }
-      else if (ev.key === "Backspace") { ev.preventDefault(); this.draw.backspace(); this.requestUpdate(); }
+      else if (ev.key === "Backspace" && dr.typed) { ev.preventDefault(); dr.untype(); this.requestUpdate(); }
+      else if (ev.key === "Backspace") { ev.preventDefault(); dr.backspace(); this.requestUpdate(); }
       return;
     }
     // S26.10: Escape drops a marquee in progress, else the selection.
@@ -2046,7 +2056,7 @@ export class FloorplanStudioEditor extends LitElement {
   startDraw(kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
     if (this.st.planLocked) { this.planFixed(); return; }
     this.draw = new Draw(kind, wall, area);
-    this.hover = null;
+    this.hover = this.aim = null;
     this.st.sel = null;
     this.st.confirmDelete = false;
     this.status = DRAW_HINT;
@@ -2056,13 +2066,29 @@ export class FloorplanStudioEditor extends LitElement {
   /** Leaves draw mode and forgets the points and the rubber band. Nothing is written. */
   private stopDraw(status = "Drawing cancelled") {
     if (!this.draw) return;
-    this.draw = null; this.hover = null;
+    this.draw = null; this.hover = this.aim = null;
     this.status = status;
     this.requestUpdate();
   }
   /** A snapped point for draw mode. A zone snaps to the grid only: its corners never join other shapes (S1.8). */
   private snapDraw(d: Draw, p: Pt, alt: boolean): Pt {
-    return this.snapCorner(this.st.f, p, NOWHERE, NO_REF, alt, d.points, d.kind === "zone");
+    const s = this.snapCorner(this.st.f, p, NOWHERE, NO_REF, alt, d.points, d.kind === "zone");
+    // S26.12: after a first point the segment goes on the nearest 15 degree ray, unless a corner or an alignment with an earlier
+    // point caught the pointer first (then the point is not the plain grid one) or Alt is held.
+    const last = d.points[d.points.length - 1];
+    if (alt || !last) return s;
+    const g = this.st.snapGrid || 1, free: Pt = [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g];
+    return s[0] === free[0] && s[1] === free[1] ? snapRay(last, p, 15, this.st.snapGrid) : s;
+  }
+  /** S26.12: Enter with a typed length: the next point that far from the last, toward the pointer. */
+  private placeTyped() {
+    const d = this.draw;
+    if (!d) return;
+    const toward = this.aim ?? this.hover;
+    const r = toward ? d.placeTyped(toward) : "ignore";
+    if (r === "ignore") { this.status = `"${d.typed}" does not fit: type a length over 0 and up to 10000 cm, with the pointer away from the last point`; this.requestUpdate(); return; }
+    this.hover = null;
+    if (r === "finish") this.finishDraw(); else this.requestUpdate();
   }
   /** Where and when a pointer press finished a shape: its dblclick, if the browser sends one, must not edit the plan. */
   private finished: { t: number; x: number; y: number; presses: number } | null = null;
@@ -2083,7 +2109,7 @@ export class FloorplanStudioEditor extends LitElement {
     const d = this.draw;
     if (!d) return;
     const shape = d.finish(), floor = this.st.floor;
-    this.draw = null; this.hover = null;
+    this.draw = null; this.hover = this.aim = null;
     if (!shape) { this.status = "Drawing cancelled: too few points"; this.requestUpdate(); return; }
     let sel: Sel = null, note = "";
     if (this.st.edit((f) => { const r = applyShape(f, floor, shape); sel = r.sel; note = r.note ?? ""; return r.floor; })) {
@@ -2696,6 +2722,11 @@ export class FloorplanStudioEditor extends LitElement {
       const pt = (p: Pt) => `${num(p[0])},${num(p[1])}`, path = dr.rubber(this.hover ?? dr.points[dr.points.length - 1]) ?? [];
       o.push(`<polyline class="dr" data-draw="path" points="${path.map(pt).join(" ")}"/>`);
       if (dr.polygon && dr.points.length >= 2 && this.hover) o.push(`<line class="dr" data-draw="close" x1="${num(this.hover[0])}" y1="${num(this.hover[1])}" x2="${num(dr.points[0][0])}" y2="${num(dr.points[0][1])}"/>`);
+      if (dr.typed) {
+        // S26.12: the typed length, upright at the pointer; "350" reads as cm, "3.5m" as it was typed.
+        const at = this.hover ?? this.aim ?? dr.points[dr.points.length - 1], shown = dr.typed.endsWith("m") ? dr.typed : `${dr.typed} cm`; // typed holds digits, a dot and an m only
+        o.push(`<text class="dr-typed" x="${num(at[0] + 10 * k)}" y="${num(at[1] - 10 * k)}"${upright(at[0], at[1])} font-size="${num(14 * k)}">${shown}</text>`);
+      }
       dr.points.forEach((p, i) => o.push(`<circle class="dp${i === 0 ? " first" : ""}" data-dp="${i}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num((i === 0 ? 6 : 4) * k)}"/>`));
     }
     // S26.10: the marquee, as the four plan-space corners of the screen rectangle; the turned plan turns it back upright.
