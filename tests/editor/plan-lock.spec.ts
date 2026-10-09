@@ -16,17 +16,18 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
 });
 
-test("a plan with rooms opens fixed, and the switch is loud: ticked, red, with a lock", async ({ page }) => {
+// S26.19: this test used to pin the loud red pill with an emoji lock ("Fix plan"); the toggle is neutral now. The full
+// pair (colours, hover, name) is in lock-plan-toggle.spec.ts.
+test("a plan with rooms opens locked: the toggle is ticked and says so", async ({ page }) => {
   await page.goto("/standalone.html");
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await expect(page.locator("#fixPlan")).toBeChecked();
-  const label = page.locator("label.fixplan");
+  const label = page.locator("label.lockplan");
   await expect(label).toHaveClass(/\bon\b/);
-  await expect(label).toContainText("🔒");
-  expect(await label.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(192, 57, 43)");
+  await expect(label).toContainText("Plan locked");
   await page.locator("#fixPlan").uncheck();
   await expect(label).not.toHaveClass(/\bon\b/);
-  expect(await label.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+  await expect(label).toContainText("Plan editable");
 });
 
 test("adding furniture while the plan is fixed shows a red banner with a close button, and adds nothing", async ({ page }) => {

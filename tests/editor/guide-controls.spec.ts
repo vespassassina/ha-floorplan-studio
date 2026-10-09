@@ -20,7 +20,8 @@ test("every control the guide names exists in the editor under that name", async
   const collect = () => page.evaluate((tag) => {
     const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
     const out: string[] = [];
-    root.querySelectorAll("button, summary, option, label").forEach((el) => out.push(el.textContent ?? ""));
+    // S26.18: a key at the item's right edge (Save ⌘S) is not part of its name.
+    root.querySelectorAll("button, summary, option, label").forEach((el) => { const c = el.cloneNode(true) as Element; c.querySelectorAll(".kbd").forEach((k) => k.remove()); out.push(c.textContent ?? ""); });
     root.querySelectorAll("[aria-label], [title]").forEach((el) => { out.push(el.getAttribute("aria-label") ?? ""); out.push(el.getAttribute("title") ?? ""); });
     return out;
   }, EDITOR);
@@ -35,8 +36,8 @@ test("every control the guide names exists in the editor under that name", async
   expect(missing).toEqual([]);
 });
 
-test("the guide tells a first-time user about Fix plan, since the plan opens fixed", async () => {
-  expect(guideControls()).toContain("Fix plan");
+test("the guide tells a first-time user about the Plan locked toggle, since the plan opens locked", async () => {
+  expect(guideControls()).toContain("Plan locked");
 });
 
 test("the Help panel shows each named control in bold, without the brackets", async ({ page }) => {

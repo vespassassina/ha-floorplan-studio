@@ -249,7 +249,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 
 | Studio control | In the card | Why |
 |---|---|---|
-| `#labels` Show names and text | yes | the Labels toggle |
+| `#labels` Names and values | yes | the Labels toggle |
 | `#names` Names | yes | the Device names toggle (`Aa`), config `names` |
 | `#thSub` Theme | yes | the Theme dropdown |
 | `#fit` Fit to window | yes | the Fit button (Home view on a pinned card) |

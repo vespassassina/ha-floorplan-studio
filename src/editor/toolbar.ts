@@ -1,6 +1,6 @@
 import { css, html, nothing } from "lit";
 import { live } from "./live-keep";
-import { DETAIL_LABELS, DETAIL_MODES, FURNITURE_SYMBOLS, UNLINKED_TYPES, WALL_KINDS, layersSummary } from "../core";
+import { DETAIL_LABELS, DETAIL_MODES, FURNITURE_SYMBOLS, UI_ICONS, UNLINKED_TYPES, WALL_KINDS, layersSummary } from "../core";
 import type { FurnitureSymbol, HaData } from "../core";
 import "../card/search-box";
 import { TYPE_LABELS, WALL_LABELS, typeMenu } from "./panels";
@@ -9,7 +9,7 @@ import type { SearchEntry } from "../core/search";
 import { MENU_KEYS, chordLabel } from "./guide";
 import type { FloorplanStudioEditor } from "./editor-app";
 
-/** The toolbar's own styles: the bar, its menus and submenus, the Fix plan pill, the search box slot. */
+/** The toolbar's own styles: the bar, its menus and submenus, the Lock plan pill, the search box slot. */
 export const toolbarCss = css`
     .bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 0}
     /* S8.10: the floor chips stay left (in normal flow, no longer followed by a .grow spacer — that span's own
@@ -68,8 +68,14 @@ export const toolbarCss = css`
        the packed block's right edge, and every item after status keeps a fixed distance from that right edge, so
        Filter's x never moves when the status text changes — see the "moves no button" acceptance test). max-width
        still caps an extreme message so text-overflow:ellipsis clips it instead of ever forcing a wrap. */
-    .fixplan{display:inline-flex;align-items:center;gap:6px;margin:0;padding:3px 10px;border:2px solid currentColor;border-radius:999px;font-size:.9em;font-weight:600;opacity:1;white-space:nowrap;cursor:pointer}
-    .fixplan.on{background:#c0392b;border-color:#c0392b;color:#fff}
+    /* S26.19: the plan lock is the normal state, so it is quiet: a pill with a drawn lock, ink-filled when locked like any
+       pressed button, the warning colour only under the pointer. The checkbox stays in the page (tests and screen readers
+       reach it) but draws nothing of its own. */
+    .lockplan{position:relative;display:inline-flex;align-items:center;gap:6px;margin:0;padding:3px 10px;border:1px solid var(--fp-idle);border-radius:999px;font-size:.9em;font-weight:600;background:transparent;color:inherit;white-space:nowrap;cursor:pointer}
+    .lockplan>input{position:absolute;left:0;top:0;width:1px;height:1px;margin:0;padding:0;border:0;opacity:0}
+    .lockplan.on{background:var(--fp-ink);border-color:var(--fp-ink);color:var(--fp-bg)}
+    .lockplan:hover{background:var(--fp-warn);border-color:var(--fp-warn);color:var(--fp-on-light)}
+    .lockplan:has(>input:focus-visible){outline:2px solid var(--fp-primary);outline-offset:2px}
 `;
 
 
@@ -141,7 +147,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
         <div class="bar-right">
         <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
              a button after it (see .status's own comment above). -->
-        <label class="fixplan ${st.planLocked ? "on" : ""}" title="Lock the plan: walls, rooms, areas, doors, windows, stairs and furniture stay as they are. Devices and objects can still be added, moved and removed"><input type="checkbox" id="fixPlan" .checked=${live(st.planLocked)} @change=${(e: Event) => h.setPlanLocked((e.target as HTMLInputElement).checked)}> ${st.planLocked ? "🔒" : "🔓"} Fix plan</label>
+        <label class="lockplan ${st.planLocked ? "on" : ""}" title=${st.planLocked ? "The plan is locked: walls, rooms, doors, windows, stairs and furniture stay as they are. Click to unlock it. Devices and objects can still be added, moved and removed" : "The plan is editable. Click to lock it: walls, rooms, doors, windows, stairs and furniture then stay as they are"}><input type="checkbox" id="fixPlan" aria-label="Lock plan" .checked=${live(st.planLocked)} @change=${(e: Event) => h.setPlanLocked((e.target as HTMLInputElement).checked)}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d=${st.planLocked ? UI_ICONS.lock : UI_ICONS.lockOpen}></path></svg><span>${st.planLocked ? "Plan locked" : "Plan editable"}</span></label>
         ${hiddenNote ? html`<button class="btn layers-note" id="layersNote" title="Open the Layers tab" @click=${h.openLayers}>${hiddenNote}</button>` : nothing}
         <details class="menu" id="mAdd" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Add</summary><div class="box">
           <details class="sub" id="addOpenings" @toggle=${onSubToggle}><summary class="btn">Openings</summary>

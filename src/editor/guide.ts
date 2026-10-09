@@ -42,7 +42,7 @@ export function guideControls(steps: readonly GuideStep[] = GUIDE_STEPS): string
  * what they will see happen, never "canvas", "polygon" or "viewport".
  */
 export const GUIDE_STEPS: GuideStep[] = [
-  { title: "Unlock the plan", body: "A plan with rooms opens fixed, so nothing moves by mistake. Untick [Fix plan] at the top to change walls, rooms, doors and furniture. Devices can be added and moved either way." },
+  { title: "Unlock the plan", body: "A plan with rooms opens locked, so nothing moves by mistake. Click [Plan locked] at the top to unlock it, then you can change walls, rooms, doors and furniture. Names, colours and devices can be changed either way." },
   { title: "Draw the outside wall", body: "Open [Draw], then [Areas], then [Draw outline]. Click each corner of your home in order, going around the outside." },
   { title: "Close the outline", body: "Click back on the very first corner you placed, or press Enter. The shape fills in grey once it is closed. If it looks wrong, press Escape and start over." },
   { title: "Add the walls inside", body: "Open [Draw], then [Wall], and pick a kind, such as [Internal wall]. Click one end of the wall, then the other end. Keep clicking to add more walls. Press Escape when you are done." },

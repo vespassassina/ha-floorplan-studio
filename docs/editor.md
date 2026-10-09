@@ -27,8 +27,7 @@ Left to right:
   Device, inside Add, is the catalog of every device on this layout, placed
   or not.
 - **Draw** — freehand outline/room drawing mode.
-- **View** — how the plan looks while you work: the installed version at the
-  top, then snap grid, measure grid, lengths, names, Show names and text,
+- **View** — how the plan looks while you work: snap grid, measure grid, lengths, a Labels submenu (Device names, Names and values),
   Preview night, theme, Detail (Auto, Full or Minimal), Re-center and Fit to window. The editor draws the plan
   flat only; 2.5D (and soon 3D) is a way to look, so it lives in the card.
   Everything here that is about looking, not editing, is in the card too:
@@ -48,11 +47,11 @@ Left to right:
   an error). A long message is cut with an ellipsis; hover it for the full
   text.
 
-![The Add menu open: Openings, Wall and Areas submenus, then Furniture and Unlinked device selects.](img/editor-add-menu.png)
+![The Add menu open: Openings, Wall and Areas submenus, then Furniture and Unlinked device submenus.](img/editor-add-menu.png)
 
-## Show names and text
+## Names and values
 
-View, Show names and text hides every room, zone and structure name and every
+View, Labels, Names and values hides every room, zone and structure name and every
 sensor value on the plan, leaving icons and state. It does
 not touch the Names button (device names, off by default), the Lengths and
 the measure grid, which are editor aids rather than plan text. It is not an undo step, is not saved in the layout and goes back to

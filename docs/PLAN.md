@@ -2971,16 +2971,16 @@ Lane B, the Inspector (`inspector.ts`, `panels.ts`):
       layout has `locked: true`, one undo step; no panel text says Fix or "length locked".
 
 Lane C, menus (`toolbar.ts`, `src/editor/guide.ts`, `src/core/icons.ts`):
-- [ ] S26.17 (U5, U7, U8) Menu clean-up. Opening a submenu closes its siblings; a menu box never runs past the
+- [x] S26.17 (U5, U7, U8) Menu clean-up. Opening a submenu closes its siblings; a menu box never runs past the
       viewport (it scrolls); Add holds only buttons and submenus (Furniture and Unlinked device become submenus of
       buttons, furniture names through a table: "Patio, wood"); View has one Labels submenu (Device names, Names and
       values) and the version moves under Help. Test: real clicks at 1024x768, each menu's box inside the viewport;
       two subs never open at once; no `select` inside a menu; every furniture label has no hyphen; `#version` not in
       View. `guide-controls.spec.ts` follows any renamed control.
-- [ ] S26.18 (U22) Every menu item with a key shows it at its right edge (Undo ⌘Z or Ctrl+Z, Save, Search, Fit,
+- [x] S26.18 (U22) Every menu item with a key shows it at its right edge (Undo ⌘Z or Ctrl+Z, Save, Search, Fit,
       Select all, Delete, Help ?). Test: each listed item's text ends in its key for the platform; a key named in a menu
       works when pressed (one per item, real keyboard).
-- [ ] S26.19 (U2) Lock plan, not Fix plan. A neutral toggle with an inline SVG lock (no emoji), "Plan locked" or "Plan
+- [x] S26.19 (U2) Lock plan, not Fix plan. A neutral toggle with an inline SVG lock (no emoji), "Plan locked" or "Plan
       editable"; the warning colour only on hover. Test: computed-style pair, the toggle's background is not
       `--fp-danger` (or the red it had) when on; its accessible name; the guide step names it.
 
