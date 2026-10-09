@@ -7,6 +7,7 @@
 - Layout: a device may carry `locked: true`, so it will not be moved by a drag. The file check refuses a value that is not true or false.
 - Studio: Fix plan holds geometry only. With it on, names, titles, colours, textures, areas and entity links can still be edited (one undo step each); corners, walls, doors and windows, kinds, heights, stairs and furniture stay refused.
 - Studio (core): the plan can draw a multi-selection of devices, each with the selection stroke, even on a hidden layer. Nothing in the Studio selects more than one yet.
+- Studio: one context-menu model (`ctxItems`) lists what a right-click offers on each of the twelve targets, in one order. Not wired into the menus yet.
 
 ## 0.23.1 - 2026-10-09
 

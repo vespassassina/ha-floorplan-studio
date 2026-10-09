@@ -22,6 +22,13 @@ Supersedes the `plan()` rule of 2026-10-06 ("Fix plan": nothing of the plan chan
 
 - `RenderOpts.selection` is a `PlanSel` (`layers.ts`): `{ t, i }` as before, or `{ t: "devs", is }`. One helper, `devsHave`, answers "is device i in it" for both the draw (`.sel`) and `layerHides` (a selected member is drawn under a hidden layer), so the plan and the hit-test cannot differ.
 - A list with junk (not an array, `NaN`, 1.5, strings) selects only its integer members that exist; a non-list selects nothing. Without `devs` the markup is byte for byte as before.
+## 2026-10-09: one context-menu model (S26.6)
+
+- `ctxItems(target, facts)` in `src/editor/ctx-items.ts` is pure: ids and labels only, the host maps an id to an action. Twelve targets in `CTX_TARGETS`, so a new one fails the iterating test until its list is written.
+- Lock is offered on device, devices, wall, door, opening, furniture and unlinked; not on room, edge, stairs or extra (no `locked` field, and Lock plan holds geometry). Stairs and extras get Delete only.
+- Items that read HA (Place devices from area, Add device here) are `disabled` without it, not hidden, so the menu keeps its shape.
+- "Delete n" only for two or more devices; junk counts give plain "Delete".
+- Not wired into `editor-app.ts` here: that is the later host split.
 
 ## 2026-10-09: Sprint 25 re-check fixes (Opus)
 

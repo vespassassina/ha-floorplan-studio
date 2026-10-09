@@ -2908,7 +2908,7 @@ Wave 1, pure modules (parallel; one worktree each, two chained where noted; none
       counts. Junk never throws and never hits. Test: an axis box, a 45° turned quad that a bounding-box test gets
       wrong, skip, NaN corners, an empty floor.
       Files: `src/editor/selection.ts`, `tests/editor/selection.test.ts`.
-- [ ] S26.6 (U19) One context-menu model. `ctxItems(target, facts)` in a new `src/editor/ctx-items.ts` returns the
+- [x] S26.6 (U19) One context-menu model. `ctxItems(target, facts)` in a new `src/editor/ctx-items.ts` returns the
       ordered `{ id, label, key?, disabled? }` for each target: canvas, room, edge, wall, door, opening, stairs, extra,
       furn, unl, dev, devs. Order from the review (Exhibit 14), only what exists: device: Rename, Controlled by… (a
       light), Select same type, Hide this type, Lock or Unlock, Delete; several: Controlled by… (any light), Lock or
