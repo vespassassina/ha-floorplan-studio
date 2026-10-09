@@ -2781,3 +2781,52 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       sensor in volts is not read as %.
 - [x] S24.R11 `render.ts` drops its private copy of the Layers rule and imports `layerHides`; `src/core/index.ts`
       exports it. No behaviour change: the existing Layers tests stay green.
+
+## Sprint 25 (0.23.0): scale on the plan
+
+Branch `task/s25-scale`. Diego, 2026-10-09: "semantic zoom, allow a config in the view menu." Answers (defaults taken):
+three detail levels; the View menu offers a mode, Auto, Always full or Always minimal, in Studio and card; kept per viewer
+in the browser, with a card YAML key for the default. Goal: a 437-device house reads at fit zoom (rooms and what is wrong
+in them) and shows everything when you zoom in. Rules: one draw path (finding 8); per-type rules iterate `DEVICE_TYPES`
+(finding 17); every CSS rule that matters gets its `getComputedStyle` pair (finding 10); real `page.mouse` (finding 3);
+look at `npm run shots` (finding 16); the Studio and the card get every view feature (parity). Out of scope: Inspector,
+marquee, lock (sprint 26); floor offset (27); 3D shadows (28); card chrome and phone sheet (29).
+
+Levels (zoom is relative to the floor at fit, `1` = whole floor): far below 1.6, mid from 1.6 to below 3.2, near from
+3.2. Far: rooms, room names, room badges; devices that are on, alerting or unavailable stay as dots. Mid: device icons,
+room names, badges. Near: everything, with device labels and readings. Mode `full` is always near; `minimal` is always
+far; `auto` follows zoom. Thresholds are constants in core, not settings.
+
+Wave 1, core (parallel):
+- [ ] S25.1 `detailLevel(zoom, mode)` in `src/core/detail.ts`: returns `far | mid | near`; unknown or non-finite input
+      falls back to `near` (finding 1). Exported. Test: the three bands at their edges (1.59, 1.6, 3.19, 3.2), the
+      modes pin, junk input.
+- [ ] S25.2 `renderFloor` takes `detail` and writes `data-detail` on the plan root; every level rule is CSS keyed on it,
+      so editor and card cannot differ. Test: a render per level; a `getComputedStyle` pair per rule (far hides an off
+      lamp's icon and keeps an on lamp's dot; mid hides device labels; near hides nothing); an iteration over
+      `DEVICE_TYPES` so a new type has to say what it does at far.
+- [ ] S25.3 Room badges with rollups. `roomRollup(room, states)` in core: counts of lights on, alerts, open doors and
+      windows, motion; a badge per room drawn by `renderFloor` at far and mid, hidden at near. Test: counts for a room
+      with mixed states; the badge text; an empty room has no badge; the escape payload `"><script>` in a name.
+- [ ] S25.4 Labels placed in CSS px. A label keeps its on-screen size and offset at any zoom; placement is computed
+      from the view scale, not from cm. Test: at zoom 1 and 6 the label's `getBoundingClientRect` height is the same
+      (asymmetric values), and 11 px floor holds.
+
+Wave 2, view and behaviour (after wave 1):
+- [ ] S25.5 Spiderfy. Devices closer than a touch target fan out on tap into a ring with their labels; Escape or a tap
+      elsewhere folds them. Test: two stacked lamps, a real click on the stack opens the ring, a real click on one
+      acts on that one; Escape folds.
+- [ ] S25.6 Incremental render. A state update for one entity rewrites only that device's nodes. Test: a mutation
+      observer on the plan root sees changes under one device group only after one `hass` update, and none for an
+      unrelated entity; the full render still happens on layout change.
+- [ ] S25.7 Studio View menu: a Detail group with Auto, Full, Minimal; kept in the browser, per viewer; the toolbar shows
+      the pinned mode when it is not Auto. Test: real clicks, the plan root's `data-detail` follows, survives reload,
+      one undo stack untouched.
+- [ ] S25.8 Card: the same control (a Detail button beside Layers in the chrome), same storage rule, and `detail:
+      auto|full|minimal` in the card YAML as the default (untrusted config: bad value falls back to `auto`). The card
+      config editor offers it. Test: real clicks; YAML default; a stored viewer choice wins over YAML.
+- [ ] S25.9 Docs: `docs/card.md`, `docs/editor.md`, `docs/SPEC.md` (levels, thresholds, the key), CHANGELOG,
+      DECISIONS.
+
+Review (one Opus pass on the integrated build) then fixes with their tests; exit test: one sensor update writes only its
+device, on the stress house.
