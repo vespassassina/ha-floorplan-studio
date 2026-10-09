@@ -64,6 +64,8 @@ export function bindDeviceActions(
     getUnlinked?: (index: number) => Unlinked | undefined;
     /** A linked furniture piece (`g[data-f][data-linked]`, `pieceDevice`) by its index in the floor's `furniture`. */
     getPiece?: (index: number) => Furniture | undefined;
+    /** S25.5: asked on the tap of a device icon, before its popup. True means the tap was a stack's and the host fanned it out; nothing else happens. */
+    stack?: (index: number) => boolean;
     /** What a press lands on, when the DOM cannot say (the 3D view picks with a ray): an element that carries `data-x`,
      *  `data-d` or `data-u`, or null. Replaces the lookup of the event's target. */
     resolve?: (e: PointerEvent) => Element | null;
@@ -163,15 +165,17 @@ export function bindDeviceActions(
     const i = Number(target.getAttribute("data-x"));
     const d = Number.isFinite(i) ? getDevice(i) : undefined;
     if (!d) return;
+    // S25.5: a tap on a stack of devices fans it out first, whatever the device would do on its own.
+    const solo = (act: () => void) => () => { if (!opts?.stack?.(i)) act(); };
     if (d.type === "vacuum") {
       // Its tap opens its own dialog, which is the question: the robot is never started by a bare tap.
-      arm(() => opts?.openVacuumDialog?.(d));
+      arm(solo(() => opts?.openVacuumDialog?.(d)));
       return;
     }
     const own = d.entity;
     // A media player has its own, better panel: a tap is its more-info, as for a speaker or TV placed as an appliance (Diego, 2026-10-07).
-    if (own?.startsWith("media_player.")) { arm(() => fireEvent(host, "hass-more-info", { entityId: own }), () => fireEvent(host, "hass-more-info", { entityId: own })); return; }
-    arm(popup({ device: d, index: i }), own ? () => fireEvent(host, "hass-more-info", { entityId: own }) : undefined);
+    if (own?.startsWith("media_player.")) { arm(solo(() => fireEvent(host, "hass-more-info", { entityId: own })), () => fireEvent(host, "hass-more-info", { entityId: own })); return; }
+    arm(solo(popup({ device: d, index: i })), own ? () => fireEvent(host, "hass-more-info", { entityId: own }) : undefined);
   };
 
   const onMove = (e: Event) => {
