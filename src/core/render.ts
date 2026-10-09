@@ -414,7 +414,7 @@ ${THEME_EXTRAS}
    (drawn first, same data-d, at the old fixed 22 cm) keeps the click target exactly as wide as it always was. */
 .door-hit{stroke:transparent;pointer-events:stroke;cursor:move}
 /* S23.7: plan symbols. A door's or window's own line is quiet while it is closed and not selected; the symbol is a 1 px
-   leaf and swing arc (door, glass) or three hairlines (window, slit), red only while open, alarmed or its cover is open. */
+   leaf (door, glass; no swing arc since S23.F6) or three hairlines (window, slit), red only while open, alarmed or its cover is open. */
 .door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .door-sym.k-glass{stroke:var(--fp-glass)} .door-sym.k-window,.door-sym.k-slit{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
 /* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
@@ -692,9 +692,9 @@ const OUTDOOR_KINDS: readonly RoomKind[] = ["garden", "terrace", "pavement", "wa
 const ringArea = (p: Pt[]) => Math.abs(p.reduce((n, q, k) => n + q[0] * p[(k + 1) % p.length][1] - p[(k + 1) % p.length][0] * q[1], 0)) / 2;
 
 /** S23.7: the `d` of a door's or window's plan symbol, or "" when it has none (sealed, open, a zero-length or broken door).
- *  A door: a leaf from the hinge `a`, square to the wall and |ab| long, then a quarter arc of radius |ab| back to `b`. It
- *  swings to the room side: the side whose probe point is in an indoor room, else in any room, else the smaller room, else
- *  the left of a to b. A window: three hairlines along the opening, at the wall's two faces and its middle; a slit's span
+ *  A door: a leaf from the hinge `a`, square to the wall and |ab| long, on the room side: the side whose probe point is in
+ *  an indoor room, else in any room, else the smaller room, else the left of a to b. No swing arc: S23.F6 dropped it
+ *  (Diego, 2026-10-08). A window: three hairlines along the opening, at the wall's two faces and its middle; a slit's span
  *  its narrower band (SLIT_BAND). */
 function doorSymbol(f: Floor, kind: unknown, a: Pt, b: Pt): string {
   const len = dist(a, b);
@@ -712,10 +712,8 @@ function doorSymbol(f: Floor, kind: unknown, a: Pt, b: Pt): string {
   };
   const right: Pt = [-left[0], -left[1]], L = sideOf(left), R = sideOf(right);
   const goRight = R.indoor !== L.indoor ? R.indoor : R.any !== L.any ? R.any : R.area < L.area;
-  const n = goRight ? right : left, tip: Pt = [a[0] + n[0] * len, a[1] + n[1] * len];
-  // From the leaf (n) to the wall (u): clockwise on screen (y down) when n x u > 0, SVG's sweep-flag 1.
-  const sweep = n[0] * u[1] - n[1] * u[0] > 0 ? 1 : 0;
-  return `M${num(a[0])} ${num(a[1])}L${num(tip[0])} ${num(tip[1])}A${num(len)} ${num(len)} 0 0 ${sweep} ${num(b[0])} ${num(b[1])}`;
+  const n = goRight ? right : left;
+  return `M${num(a[0])} ${num(a[1])}L${num(a[0] + n[0] * len)} ${num(a[1] + n[1] * len)}`;
 }
 
 /** S1 (Opus review of S23): a window's pane and jambs, or null for any other kind. The wall is cut wider than the room

@@ -3,8 +3,8 @@ import demo from "../../demo/layout.json";
 import type { Door, Floor, Layout, Pt, Room, RoomKind } from "../../src/core/schema";
 import { renderFloor } from "../../src/core/render";
 
-// S23.7: plan symbols. A door is a gap in the wall, a 1 px leaf from the hinge (a) and a 90 degree swing arc to b, on the
-// room side; a window is three hairlines across the wall. One draw path (finding 8): the card and the editor both call this.
+// S23.7: plan symbols. A door is a gap in the wall and a 1 px leaf from the hinge (a), square to the wall, on the room
+// side; a window is three hairlines across the wall. S23.F6: no swing arc (Diego, 2026-10-08). One draw path (finding 8): the card and the editor both call this.
 
 const ground = (demo as unknown as Layout).floors.ground;
 const box = (id: string, kind: RoomKind, x0: number, y0: number, x1: number, y1: number, wk = "wall"): Room =>
@@ -23,35 +23,37 @@ describe("S23.7 plan symbols", () => {
   const hallAbove = [box("hall", "room", 0, 0, 400, 300), box("pav", "pavement", 0, 300, 400, 400, "boundary")];
   const hallBelow = [box("pav", "pavement", 0, 0, 400, 300, "boundary"), box("hall", "room", 0, 300, 400, 600)];
 
-  it("a door is a leaf from the hinge a, |ab| long, square to the wall, and an arc of radius |ab| back to b", () => {
+  it("a door is only a leaf from the hinge a, |ab| long, square to the wall: no swing arc", () => {
     const html = renderFloor(floor(hallAbove, [door("door", [100, 300], [190, 300])]), opts);
     const m = symOf(html)!;
     expect(m, "a door symbol").toBeTruthy();
     expect(m[1].split(" ")).toEqual(expect.arrayContaining(["door-sym", "k-door"]));
     const d = m[2];
-    expect(d).toMatch(/^M[^LA]+L[^LA]+A[^LA]+$/); // one leaf, one arc
-    const [mx, my, lx, ly] = nums(d.slice(0, d.indexOf("A")));
-    const [rx, ry, , , , ex, ey] = nums(d.slice(d.indexOf("A") + 1));
-    expect([mx, my]).toEqual([100, 300]); // the hinge is a
-    expect([lx, ly]).toEqual([100, 210]); // the leaf goes into the hall (up), 90 long
-    expect([rx, ry]).toEqual([90, 90]); // a quarter circle of radius |ab| ...
-    expect([ex, ey]).toEqual([190, 300]); // ... that ends at b
+    expect(d).toMatch(/^M[^MLAa]+L[^MLAa]+$/); // one straight leaf, nothing after it
+    expect(nums(d)).toEqual([100, 300, 100, 210]); // from the hinge a into the hall (up), 90 long
   });
 
-  it("the swing goes to the room side, whichever side that is, and an indoor room wins over an outdoor one", () => {
+  it("no door kind draws an arc, in 2D or 2.5D, and the wall still has its gap (S23.F6)", () => {
+    const kinds: Door["kind"][] = ["door", "glass", "window", "slit", "sealed", "open"];
+    const doors = kinds.map((k, i) => door(k, [i * 60, 300], [i * 60 + 50, 300]));
+    for (const view of ["2d", "2.5d"] as const) {
+      const html = renderFloor(floor(hallAbove, doors), { ...opts, view } as never);
+      for (const [, , d] of html.matchAll(/<path data-ds="(\d+)" class="[^"]*" d="([^"]*)"/g)) expect(d, `${view}: ${d}`).not.toMatch(/[Aa]/);
+      expect(html, view).not.toMatch(/<(circle|ellipse)[^>]*data-ds=/);
+      expect(symOf(html, 0), `${view}: a door keeps its leaf`).toBeTruthy();
+      expect(symOf(html, 1), `${view}: a glass door keeps its leaf`).toBeTruthy();
+    }
+    const mask = renderFloor(floor(hallAbove, doors), opts).match(/<mask id="fp-open-mask-[^"]*"[^>]*>(.*?)<\/mask>/)![1];
+    expect(mask).toContain('x1="0" y1="300" x2="50" y2="300"'); // the door's gap
+    expect(mask).toContain('x1="60" y1="300" x2="110" y2="300"'); // the glass door's gap
+  });
+
+  it("the leaf goes to the room side, whichever side that is, and an indoor room wins over an outdoor one", () => {
     const below = nums(symOf(renderFloor(floor(hallBelow, [door("door", [100, 300], [190, 300])]), opts))![2]);
     expect(below.slice(2, 4)).toEqual([100, 390]); // the hall is below now: the leaf goes down
     // the hinge is always a: the same door given b to a hinges at the other end
     const flipped = nums(symOf(renderFloor(floor(hallAbove, [door("door", [190, 300], [100, 300])]), opts))![2]);
     expect(flipped.slice(0, 4)).toEqual([190, 300, 190, 210]);
-  });
-
-  it("the arc's sweep flag turns it from the leaf to b, on both sides", () => {
-    // leaf up (0,-1) to b along +x: clockwise on screen, sweep 1; leaf down to b along +x: counter-clockwise, sweep 0
-    const up = symOf(renderFloor(floor(hallAbove, [door("door", [100, 300], [190, 300])]), opts))![2];
-    const down = symOf(renderFloor(floor(hallBelow, [door("door", [100, 300], [190, 300])]), opts))![2];
-    expect(up).toMatch(/A90 90 0 0 1 190 300$/);
-    expect(down).toMatch(/A90 90 0 0 0 190 300$/);
   });
 
   it("a window is three hairlines along the opening, at the wall's two faces and its middle", () => {
@@ -71,10 +73,10 @@ describe("S23.7 plan symbols", () => {
     expect(segs.map((s) => nums(s)[1]).sort((p, q) => p - q)).toEqual([-2, 0, 2]); // 10 cm * SLIT_BAND .4
   });
 
-  it("a glass door swings like a door; sealed and open doorways draw no symbol", () => {
+  it("a glass door draws a leaf like a door; sealed and open doorways draw no symbol", () => {
     const html = renderFloor(floor(hallAbove, [door("glass", [100, 300], [190, 300]), door("sealed", [200, 300], [290, 300]), door("open", [300, 300], [390, 300])]), opts);
     expect(symOf(html, 0)![1]).toContain("k-glass");
-    expect(symOf(html, 0)![2]).toContain("A");
+    expect(nums(symOf(html, 0)![2])).toEqual([100, 300, 100, 210]);
     expect(symOf(html, 1)).toBeNull();
     expect(symOf(html, 2)).toBeNull();
   });
@@ -153,7 +155,7 @@ describe("S23.7 plan symbols", () => {
 
   it("2.5D draws the same symbols on the floor", () => {
     const html = renderFloor(floor(hallAbove, [door("door", [100, 300], [190, 300]), door("window", [100, 0], [300, 0])]), { ...opts, view: "2.5d" } as never);
-    expect(symOf(html, 0)![2]).toContain("A");
+    expect(nums(symOf(html, 0)![2])).toEqual([100, 300, 100, 210]);
     expect(symOf(html, 1)![2].match(/M/g)).toHaveLength(3);
   });
 

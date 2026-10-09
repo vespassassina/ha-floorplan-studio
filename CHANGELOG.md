@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card and studio: doors lose their swing arc. A door is the gap in the wall and its thin leaf into the room.
+
 ## 0.22.0 - 2026-10-09
 
 - Card: low batteries show up as Home Assistant reports them. A Zigbee2MQTT `battery` attribute, a battery sensor or low-battery sensor placed on the plan, and the battery sensor of a placed device's own HA device all count. A home battery's charge still does not.
