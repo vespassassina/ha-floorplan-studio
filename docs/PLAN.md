@@ -2816,7 +2816,7 @@ Wave 2, view and behaviour (after wave 1):
 - [ ] S25.5 Spiderfy. Devices closer than a touch target fan out on tap into a ring with their labels; Escape or a tap
       elsewhere folds them. Test: two stacked lamps, a real click on the stack opens the ring, a real click on one
       acts on that one; Escape folds.
-- [ ] S25.6 Incremental render. A state update for one entity rewrites only that device's nodes. Test: a mutation
+- [x] S25.6 Incremental render. A state update for one entity rewrites only that device's nodes. Test: a mutation
       observer on the plan root sees changes under one device group only after one `hass` update, and none for an
       unrelated entity; the full render still happens on layout change.
 - [x] S25.7 Studio View menu: a Detail group with Auto, Full, Minimal; kept in the browser, per viewer; the toolbar shows

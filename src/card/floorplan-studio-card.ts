@@ -1,5 +1,5 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
-import { unsafeSVG } from "lit/directives/unsafe-svg.js";
+import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
 import { ALL_OFF_TITLE, DETAIL_LABELS, DETAIL_MODES, detailFor, parseDetailMode, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
@@ -1374,8 +1374,8 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /**
-   * S7.8: each render replaces every node under the <svg> (unsafeSVG), so `.dev-person`'s transform transition would
-   * never fire on its own: the new node starts where it ends. For each person that moved, the new node is put back
+   * S7.8: a render once replaced every node under the <svg>, so `.dev-person`'s transform transition would never fire on
+   * its own: the new node started where it ended. Since S25.6 the node is kept and only its style changes, but the FLIP stays: it also covers a full render. For each person that moved, the new node is put back
    * where the old one stood, its style is flushed, and then it is given its new place, so the class rule animates the
    * move (a FLIP). Under prefers-reduced-motion the rule has no transition and the person jumps.
    */
@@ -1418,7 +1418,7 @@ export class FloorplanStudioCard extends LitElement {
 
     const svg = this.shadowRoot?.querySelector("svg") ?? null;
     if (svg !== this._actionsSvg) {
-      // Lit keeps the <svg> element itself across renders (only unsafeSVG's content is replaced), so binding
+      // Lit keeps the <svg> element itself across renders (only its content is patched, S25.6), so binding
       // once per element, not once per render, avoids piling up duplicate listeners (S2.2 "Break it": no
       // debounce, but also no double-firing from a stale second listener).
       this._unbindActions?.();
@@ -2914,7 +2914,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
+    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" ${planPatch(body)}></svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
     return html`${this._floorChips()}${stage}${note}${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(this._viewPick())}</div>` : null}${stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
