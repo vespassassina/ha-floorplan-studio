@@ -281,7 +281,7 @@ group nested in a solarized one keeps its own ink. Device and
 extra names and values keep `--fp-text`. Room names
 are 12k, outdoor and zone names 10k, weight 500, outdoor names in italic. The font is `--fp-font`: Home Assistant's body
 font, else system-ui. Values use tabular figures and a narrow space before the unit. On the card a name is never under
-11 px, and a shrunk name never under that floor either (S23.2; `px` in `renderFloor`, measured at fit, not at zoom).
+11 px, and a shrunk name never under that floor either (S23.2; `px` in `renderFloor`, measured at fit, not at zoom). Labels keep that size at any zoom (S25.4): `zoom` in `renderFloor`, the view's width at fit over the width on show, divides a label's plan size and offsets; icons and discs still grow with the view.
 Every device icon sits on a disc three units wider than the icon (the halo), and is drawn above everything else on the
 plan, room names included. A name stays in its own room (S23.3): it goes only where its whole box is inside the room and
 inside no smaller named room, clear of icons and other text. It tries the centroid (or the room's pole of

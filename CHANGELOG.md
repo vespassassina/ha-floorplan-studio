@@ -2,7 +2,11 @@
 
 ## Unreleased
 
+<<<<<<< HEAD
 - Plan: semantic zoom, first part. The plan root carries `data-detail` (far, mid, near) from the zoom against the floor at fit: far drops idle devices and keeps lit, alerting and unavailable ones as dots; far and mid drop device names and readings. Not on yet: the mode is `full` until the View menu arrives, so nothing changes on screen.
+=======
+- Card: names and labels keep their size on screen when you zoom in or out. They no longer grow with the plan; the 11 px floor still holds.
+>>>>>>> task/s25-labels
 
 ## 0.22.1 - 2026-10-09
 
