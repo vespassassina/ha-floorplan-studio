@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { renderFloor, FLOORPLAN_CSS } from "../../src/core/render";
 import { DEVICE_TYPES } from "../../src/core/schema";
-import { ATTENTION_RULE } from "../../src/core/attention";
-import type { DeviceType, Floor } from "../../src/core/schema";
+import { ATTENTION_RULE, attention } from "../../src/core/attention";
+import type { DeviceType, Floor, Layout } from "../../src/core/schema";
 
 // S25.2: renderFloor writes the level on the plan root; every level rule is CSS keyed on it.
 const FLOOR = {
@@ -74,5 +74,33 @@ describe("every device type states its far behaviour (finding 17)", () => {
   it("the stylesheet has the far, mid and near-less rules", () => {
     expect(FLOORPLAN_CSS).toContain('[data-detail="far"]');
     expect(FLOORPLAN_CSS).toContain('[data-detail="mid"]');
+  });
+});
+
+describe("S25 fix B2: the plan reads the same attention result as the Overview", () => {
+  // A Zigbee2MQTT contact: binary_sensor.z2m off, its battery a separate diagnostic sensor on the same HA device. Only the
+  // registry shows it, so renderFloor must be handed the card's result (attention(layout, states, hass.entities)).
+  const stt = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-09T10:00:00Z" });
+  const f = {
+    title: "T", outline: [[0, 0], [1000, 0], [1000, 1000], [0, 1000]], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], unlinked: [],
+    rooms: [{ id: "hall", name: "Hall", area: "", kind: "room", pts: [[0, 0], [1000, 0], [1000, 1000], [0, 1000]], wk: ["wall", "wall", "wall", "wall"] }],
+    devices: [{ id: "c", type: "contact", entity: "binary_sensor.z2m", x: 500, y: 500 }],
+  } as unknown as Floor;
+  const state = { "binary_sensor.z2m": stt("off"), "sensor.z2m_battery": stt("2", { device_class: "battery", unit_of_measurement: "%" }) };
+  const reg = { "binary_sensor.z2m": { device_id: "dev1" }, "sensor.z2m_battery": { device_id: "dev1", entity_category: "diagnostic" } };
+  const layout = { floors: { g: f } } as unknown as Layout;
+  it("without the card's result the plan cannot see the battery (the registry-less fallback)", () => {
+    expect(renderFloor(f, { scale: 1, detail: "far", state })).not.toContain("needs-attention");
+  });
+  it("with it: the dot is drawn, and the room badge counts what the Overview counts", () => {
+    const a = attention(layout, state, reg);
+    expect(a.items.filter((i) => i.room === "Hall")).toHaveLength(1); // the Overview's Hall rows
+    const svg = renderFloor(f, { scale: 1, detail: "far", state, attention: { floor: "g", result: a } });
+    expect(svg).toMatch(/data-x="0" class="[^"]*\bneeds-attention\b/);
+    expect(svg).toMatch(/data-rb="0"[^>]*>.*?rb-alert[^>]*>.*?<text[^>]*>1<\/text>/);
+  });
+  it("another floor's items are not read", () => {
+    const a = attention(layout, state, reg);
+    expect(renderFloor(f, { scale: 1, detail: "far", state, attention: { floor: "other", result: a } })).not.toContain("needs-attention");
   });
 });

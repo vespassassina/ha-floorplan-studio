@@ -618,6 +618,9 @@ export class FloorplanStudioCard extends LitElement {
     if (c.walls !== undefined) seed.push(["walls", c.walls]);
     if (c.labels !== undefined) seed.push(["labels", c.labels]);
     if (c.names !== undefined) seed.push(["names", c.names]);
+    // A stored pick must not outlive a config that now says something else (S25 review): detail and kiosk decide the default.
+    if (c.detail !== undefined) seed.push(["detail", c.detail]);
+    if (c.kiosk !== undefined) seed.push(["kiosk", c.kiosk]);
     return `fp-view:${tag(JSON.stringify(seed))}`;
   }
 
@@ -2990,6 +2993,7 @@ export class FloorplanStudioCard extends LitElement {
       around: floorsAroundKey(this._layout!, this._floorKey()!),
       selectedRoom: this._picked() ?? undefined,
       hiddenLayers: this._hiddenLayers,
+      attention: this._attention() ? { floor: this._floorKey()!, result: this._attention()! } : undefined, // the Overview's own result, with the registry
       detail: detailFor(fit, box, this._detailMode()), // S25.2: the level for this zoom and mode
       spider: this._spiderSpots(f, fit, box, rotate), // S25.5: a fanned stack, or nothing
       keep: this._keptHere(),

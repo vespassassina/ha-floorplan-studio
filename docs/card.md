@@ -406,7 +406,7 @@ Zoom 1 is the whole floor at fit.
 
 | Level | Zoom | What is drawn |
 |---|---|---|
-| far | below 1.6 | rooms, room names and room badges; a device that is on, alerting or unavailable stays as a dot, and so does one the Overview lists under Attention (an unlocked or jammed lock, a low battery, an open contact); other idle devices go |
+| far | below 1.6 | rooms, room names and room badges; a device that is on, alerting or unavailable stays as a dot, and so does one the Overview lists under Attention (an unlocked or jammed lock, a low battery, an open contact; it wears a thin ink outline so it never reads as a lit lamp); other idle devices go |
 | mid | 1.6 to below 3.2 | device icons, room names and badges; no device names or readings |
 | near | 3.2 and up | everything, with device names and readings |
 
@@ -443,7 +443,7 @@ still remember until the page closes. Entries written by an older card (one
 zoom and turn for the whole card) move to the floor they were saved on.
 
 - **A remembered value wins over the config** for as long as the config is the
-  same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `detail`, `center`,
+  same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `detail`, `kiosk`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
 - **Reset view** (the last button of the stack, greyed while nothing differs) puts

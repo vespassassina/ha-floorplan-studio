@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Sprint 25 re-check fixes (Opus)
+
+Supersedes B and D of the entry below, and "`detail` is not part of the view-memory storage key" in the entry after it.
+- **One attention result.** `attentionDevices` ran the rule without HA's entity registry, so a Zigbee2MQTT contact whose battery is a diagnostic `sensor.*_battery` on the same device showed in the Overview and was hidden at far. `RenderOpts.attention` ({ floor, result }) carries the card's own `attention(layout, states, hass.entities)`; the `needs-attention` class and the room badges (`floorRollups`) read its items for that floor. Without it (the Studio, which has no registry) both run the rule on the floor alone, as before. The Hall badge showing 2 against 3 Overview rows had the same cause: the missing battery item.
+- **Storage key seeds `detail` and `kiosk`.** A stored pick beat a card that became kiosk (stuck at far, no button) and an edited YAML `detail`. Both join the seed when set, so changing either starts a clean memory, as docs/card.md already promised. This reverses the earlier choice that `detail` stays out of the key: the pick is still the viewer's, but a config change now outranks it.
+- **A jammed lock is not closed.** `closed` needs `!jammed` beside `!unlocked` (one locked and one jammed lock read as closed).
+- **Far attention dot outline.** `--fp-warn` equals the lit lamp colour in Solarized and the open cover colour elsewhere. The dot gets a 1.5 px `--fp-ink` outline (`vector-effect: non-scaling-stroke`, so it is 1.5 screen px at any zoom).
+- **Known gaps, not fixed:** duplicate-entity icons (one entity on two icons) and 2.5D stack detection for the spider.
+
 ## 2026-10-09: Sprint 25 review fixes (A, B, C, D)
 
 Supersedes parts of the two entries below.

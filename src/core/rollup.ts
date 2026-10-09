@@ -1,7 +1,7 @@
 import type { Device, Floor, Layout, Pt } from "./schema";
 import { MOTION_TYPES } from "./schema";
 import { classOf, roomAt, roomList, roomReadout, type StateOverlay } from "./render";
-import { attention } from "./attention";
+import { attention, attentionItemsOf, type AttentionSource } from "./attention";
 import { doorRoomIndex } from "./active";
 import { deviceCentre } from "./room-info";
 import { stateOf } from "./readings";
@@ -21,7 +21,7 @@ export interface Rollup { lights: number; alerts: number; open: number; motion: 
 const list = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
 /** One rollup per room of `f`, by index. Layout and state are untrusted (CLAUDE.md finding 1): junk reads as zero. */
-export function floorRollups(f: Floor, state: StateOverlay | undefined): Rollup[] {
+export function floorRollups(f: Floor, state: StateOverlay | undefined, src?: AttentionSource): Rollup[] {
   const rooms = list<Floor["rooms"][number]>(f?.rooms);
   const out: Rollup[] = rooms.map(() => ({ lights: 0, alerts: 0, open: 0, motion: 0 }));
   if (!out.length) return out;
@@ -40,9 +40,10 @@ export function floorRollups(f: Floor, state: StateOverlay | undefined): Rollup[
   motion.forEach((m, i) => { out[i]!.motion = m.size; });
 
   // The attention rules, run over this floor alone; each item is placed in a room by the thing it names.
-  const att = attention({ floors: { f: safe } } as unknown as Layout, state);
+  // With the card's result (run with the entity registry) the badge counts what the Overview lists; without, this floor alone.
+  const items = attentionItemsOf(src) ?? attention({ floors: { f: safe } } as unknown as Layout, state).items;
   const seen = new Set<string>();
-  for (const it of att.items) {
+  for (const it of items) {
     const i = it.at.what === "door" ? doorRoomIndex(safe, it.at.index)
       : it.at.what === "device" ? roomOf(safe.devices[it.at.index] ? deviceCentre(safe.devices[it.at.index]!) : null)
         : roomOf((() => { const m = safe.furniture[it.at.index]; return m && Number.isFinite(m.x) && Number.isFinite(m.y) ? ([m.x, m.y] as Pt) : null; })());
@@ -71,6 +72,8 @@ const CHIPS: { key: keyof Rollup; cls: string; icon: string }[] = [
 /** What `badges` needs from `renderFloor`: its state and options, its text-size factor `k`, and the room names' placement. */
 export interface BadgeCtx {
   f: Floor; state: StateOverlay | undefined; k: number;
+  /** The card's attention result, when it has one (`RenderOpts.attention`). */
+  attn?: AttentionSource;
   /** Where room `i`'s name sits (baseline anchor and font size), or the room's centroid with size 0 when it has none. */
   anchor: (i: number) => { at: Pt; size: number };
   /** A point `dx`, `dy` on the screen from `a` (the plan may be turned). */
@@ -88,7 +91,7 @@ export interface BadgeCtx {
 export function badges(c: BadgeCtx): string[] {
   const { k } = c, s = 10 * k, icon = 1.1 * s, pad = 2 * k, gap = 3 * k;
   const out: string[] = [];
-  floorRollups(c.f, c.state).forEach((r, i) => {
+  floorRollups(c.f, c.state, c.attn).forEach((r, i) => {
     const chips = CHIPS.filter((h) => r[h.key] > 0);
     if (!chips.length) return;
     const room = c.f.rooms[i]!, { at, size } = c.anchor(i);

@@ -113,3 +113,23 @@ for (const [level, devs] of [["far", false], ["mid", false], ["near", true], [un
     expect(t.extra, "extra name").toEqual(["Shelf"]);
   });
 }
+
+// S25 review fix: in Solarized --fp-warn equals the lit lamp's colour and elsewhere the open cover's, so the far attention dot wears a 1.5 px ink outline.
+// Pair: a lit lamp's dot (no outline) next to a contact needing attention (outline), in three themes.
+for (const theme of ["light", "blueprint", "solarized"] as const) {
+  test(`far: an attention dot has a 1.5 px outline in --fp-ink, a lit lamp's dot has none (${theme})`, async ({ page }) => {
+    const dev2 = [{ id: "a", type: "contact", entity: "binary_sensor.a", x: 100, y: 100 }, { id: "b", type: "light", entity: "light.b", x: 300, y: 100 }];
+    const st2 = { "binary_sensor.a": st("off", { battery_level: 2 }), "light.b": st("on") };
+    const html = plan("far", st2, { theme }, { devices: dev2 });
+    await page.setContent(html);
+    const r = await page.evaluate(() => {
+      const one = (i: number) => { const g = document.querySelector(`#p g[data-x="${i}"]`)!; const h = getComputedStyle(g.querySelector(".halo")!), root = getComputedStyle(g); return { cls: g.getAttribute("class")!, stroke: h.stroke, w: h.strokeWidth, ve: h.vectorEffect, ink: getComputedStyle(document.querySelector("#p g[data-theme]")!).getPropertyValue("--fp-ink").trim(), root: root.display }; };
+      return [one(0), one(1)];
+    });
+    expect(r[0].cls).toContain("needs-attention");
+    expect(r[0].w).toBe("1.5px");
+    expect(r[0].ve).toBe("non-scaling-stroke");
+    expect(r[0].stroke).not.toBe("none");
+    expect(r[1].stroke).toBe("none");
+  });
+}

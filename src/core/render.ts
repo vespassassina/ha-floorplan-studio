@@ -13,7 +13,7 @@ import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
 import { badges } from "./rollup";
-import { attentionDevices } from "./attention";
+import { attentionDevices, type AttentionSource } from "./attention";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
 import { layerHides, type LayerId } from "./layers";
 import type { DetailLevel } from "./detail";
@@ -31,6 +31,8 @@ export interface RenderOpts {
   hiddenLayers?: readonly LayerId[];
   /** S25.2: how much of the plan the viewer's zoom shows (`detailLevel`). Written as `data-detail` on the plan root; the stylesheet does the hiding. Omitted, nothing is written and the plan is whole, as before; anything but the three names is omitted. */
   detail?: DetailLevel;
+  /** The card's `attention()` result (run with HA's entity registry) and the key of this floor. The needs-attention dots and the room badges read it, so they match the Overview; omitted (the editor), they run the rule on this floor without a registry. */
+  attention?: AttentionSource;
   /** S24.6: one more thing drawn even when its layer is hidden: the editor's selection, which it does not pass as `selection` for furniture and unlinked items. */
   keep?: { t: string; i: number } | null;
   /** S23.2: screen pixels per plan unit, when the host knows it (the card measures its own plan). Then no name draws
@@ -430,7 +432,7 @@ ${THEME_EXTRAS}
 .door-hit{stroke:transparent;pointer-events:stroke;cursor:move}
 /* S23.7: plan symbols. A window's own line is quiet while it is not selected; its symbol is three hairlines (window, slit), red only
    while open, alarmed or its cover is open. S25.D1: a door or glass door has no symbol and no leaf. Open or with no sensor it is a hole
-   (its own line is quiet); closed (its sensor says off) its own line is the thin line across the gap, in --fp-door / --fp-glass. */
+   (its own line is quiet); closed (a sensor says off, or a lock says locked, and none is open, unlocked or jammed) its own line is the thin line across the gap, in --fp-door / --fp-glass. */
 .door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .door-sym.k-window,.door-sym.k-slit,.door-sym.k-fullwindow{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
 /* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
@@ -533,7 +535,7 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 [data-detail="far"] .dev:not(.on):not(.danger):not(.unavailable):not(.needs-attention):not(.sel):not(.spider),[data-detail="far"] .heater.off,[data-detail="far"] .stem,[data-detail="far"] .stem-top{display:none}
 [data-detail="far"] .dev:not(.sel):not(.spider) path:not(.cone),[data-detail="far"] .dev:not(.sel):not(.spider) .gone-mark,[data-detail="far"] .dev:not(.sel):not(.spider) .away-mark{display:none}
 [data-detail="far"] .dev:not(.sel):not(.spider) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.5)}
-[data-detail="far"] .dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) .halo{fill:var(--fp-warn);fill-opacity:1;stroke:none}
+[data-detail="far"] .dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) .halo{fill:var(--fp-warn);fill-opacity:1;stroke:var(--fp-ink);stroke-opacity:1;stroke-width:1.5px;vector-effect:non-scaling-stroke}
 [data-detail="far"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="mid"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="far"] text.val:not([data-rv]),[data-detail="mid"] text.val:not([data-rv]){display:none}`;
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -1621,7 +1623,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (doorway && !sel && !open && !vibrating && !coverOpen) return;
     // S23.7: a door or window is its symbol (below); its own line stays for the title, the selection and the alert look, and
     // paints nothing while the door is closed and not selected (`quiet`).
-    // S25.D1: a door or glass door is closed (its line shows) only when a sensor says so; otherwise it is a hole and its line is quiet.
+    // S25.D1: a door or glass door is closed (its line shows) only when a sensor says off or a lock says locked, and no lock is unlocked or jammed (`doorStateOf`); otherwise it is a hole and its line is quiet.
     const sym = doorSymbol(f, d.kind, d.a, d.b), swing = SWING_KINDS.includes(d.kind), quiet = (sym || (swing && !closed)) && !sel && !open && !vibrating && !coverOpen;
     const state = `${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}`, pane = x25 ? null : windowPane(f, d.kind, d.a, d.b);
     // S1: a window's pane goes under its own line and the hairlines; the jambs go on top. Not in 2.5D: the raised wall
@@ -1676,7 +1678,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       ringOut.push(`<line class="spider-leader" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(e.at[0])}" y2="${num(e.at[1])}"/><circle class="spider-pin" cx="${num(from[0])}" cy="${num(from[1])}" r="${num(3 * k)}"/>`);
     }
 
-  const needs = attentionDevices(f, o.state); // S25 fix B: what the Overview's Attention lists stays a dot at far
+  const needs = attentionDevices(f, o.state, o.attention); // S25 fix B: what the Overview's Attention lists stays a dot at far
   const ringCx = spiderAt.size ? [...spiderAt.values()].reduce((a, p) => a + p[0], 0) / spiderAt.size : 0;
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
@@ -1799,7 +1801,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   });
 
   out.push(...tags); // S23.3: over every icon, under the editor's handles
-  if (showText) out.push(...badges({ f, state: o.state, k: kt, up, screenOff, anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 } })); // S25.3: shown by CSS at far and mid only; text, so none with labels off
+  if (showText) out.push(...badges({ f, state: o.state, attn: o.attention, k: kt, up, screenOff, anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 } })); // S25.3: shown by CSS at far and mid only; text, so none with labels off
   if (o.editor)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
   out.push(...ringOut);

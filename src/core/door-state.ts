@@ -13,7 +13,7 @@ export interface DoorState {
   alarm: boolean;
   /** The door's own cover (a garage opener, a shutter) is open: drawn in the cover's colour. Never on a window or glass door: there `cover` is curtains. */
   cover: boolean;
-  /** S25.D1: every sensor says `off`, or a lock says `locked` (a locked door is shut); and no sensor is on and no lock is unlocked. Only then is a door or glass door drawn shut; any other state, or none, is a hole in the wall. */
+  /** S25.D1: every sensor says `off`, or a lock says `locked` (a locked door is shut); and no sensor is on and no lock is unlocked or jammed. Only then is a door or glass door drawn shut; any other state, or none, is a hole in the wall. */
   closed: boolean;
 }
 
@@ -25,10 +25,10 @@ export interface DoorState {
 export function doorStateOf(d: Door, state: StateOverlay | undefined): DoorState {
   const on = (list: unknown, want: string) => Array.isArray(list) && list.some((e) => typeof e === "string" && state?.[e]?.state === want);
   const curtain = d.kind === "window" || d.kind === "glass" || d.kind === "slit" || d.kind === "fullwindow";
-  const contact = on(d.sensors, "on"), unlocked = on(d.locks, "unlocked"), locked = on(d.locks, "locked");
+  const contact = on(d.sensors, "on"), unlocked = on(d.locks, "unlocked"), locked = on(d.locks, "locked"), jammed = on(d.locks, "jammed");
   const shut = Array.isArray(d.sensors) && d.sensors.length > 0 && d.sensors.every((e) => typeof e === "string" && state?.[e]?.state === "off");
   return {
-    closed: (shut || locked) && !unlocked && !contact,
+    closed: (shut || locked) && !unlocked && !jammed && !contact,
     open: contact || unlocked, // the plan draws both red; only the words tell them apart
     contact,
     unlocked,
