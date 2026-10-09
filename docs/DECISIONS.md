@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Fix plan holds geometry only (S26.3)
+
+Supersedes the `plan()` rule of 2026-10-06 ("Fix plan": nothing of the plan changes) and the scenes carve-out of 2026-10-07, which this generalises.
+- **What stays locked:** points, walls, openings, edge and room kinds, heights, stairs, furniture, the outline. A change to any of them is refused with `planBlocked`, as before.
+- **What goes through:** every name and title (room, floor, door, extra, stairs, furniture), colour and texture, the HA area and floor id, and every entity link (a room's `entity`, sensors and scenes; a door's sensors, locks and cover; a piece of furniture's `entity`). One undo step each. Reason (Studio review, U3): the lock told a person they could not rename a room, and names and colours are not what a lock protects.
+- **How:** `EditorState.plan()` serialises the floor without those fields. `renameFloor` and `paint` no longer ask `planOpen()`. Order, add, delete and rotate of floors stay refused.
+- **Not done here:** `editor-app.ts` still refuses the texture rotation and scale sliders under the lock (`rotateTexture`, `scaleTexture`), and `replaceFloor` still drops a live non-device change under the lock, so those two sliders stay blocked until the Inspector tasks rewire them.
+
 ## 2026-10-09: Sprint 25 re-check fixes (Opus)
 
 Supersedes B and D of the entry below, and "`detail` is not part of the view-memory storage key" in the entry after it.

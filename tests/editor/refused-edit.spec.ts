@@ -1,8 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { Layout } from "../../src/core/schema";
 
-// S22.4 (review U1): with the plan fixed, a rename is refused. The field must show the old name again (it kept the typed
-// one, and retyping it after unfixing fired no change), and the refusal must offer the way out in the banner.
+// S22.4 (review U1): with the plan fixed, a refused edit must offer the way out in the banner. S26.3 (U3): the lock holds
+// geometry only, so these tests use a door drag as the refused edit, on purpose; a rename used to be one and now goes through.
 // Real typing and real page.mouse clicks (finding 3).
 
 const EDITOR = "floorplan-studio-editor";
@@ -26,28 +26,37 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
 });
 
-test("a rename refused by Fix plan snaps back, the banner offers to untick it, and then the same name goes through", async ({ page }) => {
+const doorCentre = async (page: Page) => { const b = (await page.locator(`${EDITOR} svg line.door[data-d="0"]`).boundingBox())!; return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+const dragDoor = async (page: Page) => {
+  const d = await doorCentre(page);
+  await page.mouse.move(d.x, d.y);
+  await page.mouse.down();
+  await page.mouse.move(d.x + 40, d.y + 30, { steps: 6 });
+  await page.mouse.up();
+};
+
+test("a door drag refused by Fix plan leaves the door, the banner offers to untick it, and then the same drag goes through", async ({ page }) => {
   await expect(page.locator("#fixPlan")).toBeChecked(); // the plan opens fixed
+  const door = async () => (await layoutOf(page)).floors.ground.doors[0];
+  const before = await door();
+  await dragDoor(page);
+  await expect(page.locator("#status")).toContainText("plan is fixed");
+  expect(await door()).toEqual(before);
+
+  await expect(page.locator(".banner #bannerUnfix")).toHaveText("Untick Fix plan");
+  await clickBox(page, ".banner #bannerUnfix");
+  await expect(page.locator("#fixPlan")).not.toBeChecked();
+
+  await dragDoor(page);
+  expect(await door()).not.toEqual(before);
+});
+
+test("under Fix plan a room rename goes through: the field keeps the new name, no banner, one undo step", async ({ page }) => {
+  await expect(page.locator("#fixPlan")).toBeChecked();
   const c = await screenOf(page, 60, 200); // inside Living
   await page.mouse.click(c.x, c.y);
   const field = page.locator("#rn");
   await expect(field).toHaveValue("Living");
-
-  await field.click();
-  await field.press("ControlOrMeta+a");
-  await page.keyboard.type("Lounge");
-  await page.keyboard.press("Enter");
-
-  await expect(page.locator("#status")).toContainText("plan is fixed");
-  await expect(field).toHaveValue("Living"); // the field agrees with the layout
-  expect(await roomNames(page)).toContain("Living");
-  expect(await roomNames(page)).not.toContain("Lounge");
-
-  const unfix = page.locator(".banner #bannerUnfix");
-  await expect(unfix).toHaveText("Untick Fix plan");
-  await clickBox(page, ".banner #bannerUnfix");
-  await expect(page.locator("#fixPlan")).not.toBeChecked();
-
   await field.click();
   await field.press("ControlOrMeta+a");
   await page.keyboard.type("Lounge");
@@ -55,6 +64,10 @@ test("a rename refused by Fix plan snaps back, the banner offers to untick it, a
   await expect(field).toHaveValue("Lounge");
   expect(await roomNames(page)).toContain("Lounge");
   expect(await roomNames(page)).not.toContain("Living");
+  await expect(page.locator(".banner #bannerUnfix")).toHaveCount(0);
+  await page.locator(EDITOR).focus();
+  await page.keyboard.press("ControlOrMeta+z");
+  expect(await roomNames(page)).toContain("Living");
 });
 
 test("a room kind refused by Fix plan snaps back in its select", async ({ page }) => {
@@ -71,7 +84,7 @@ test("a room kind refused by Fix plan snaps back in its select", async ({ page }
 const banner = (page: Page) => page.locator(".banner #bannerUnfix");
 const openEdit = (page: Page) => clickBox(page, "#mEdit > summary");
 
-test("a colour swatch refused by Fix plan leaves the room as it was and offers to untick Fix plan", async ({ page }) => {
+test("under Fix plan a colour swatch paints the room, and no banner appears", async ({ page }) => {
   const c = await screenOf(page, 60, 200); // inside Living
   await page.mouse.click(c.x, c.y);
   await expect(page.locator("#rn")).toHaveValue("Living");
@@ -80,21 +93,21 @@ test("a colour swatch refused by Fix plan leaves the room as it was and offers t
   await sw.scrollIntoViewIfNeeded(); // the room panel is long; the swatches may sit below the fold
   const b = (await sw.boundingBox())!;
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
-  await expect(banner(page)).toBeVisible();
   const after = (await layoutOf(page)).floors.ground.rooms.find((r) => r.name === "Living")!;
-  expect(after.color).toBe(before.color);
-  expect(after.texture).toBe(before.texture);
+  expect(after.color).toBeTruthy();
+  expect(after.color).not.toBe(before.color);
+  await expect(banner(page)).toHaveCount(0);
 });
 
-test("a floor rename refused by Fix plan snaps back and offers to untick Fix plan", async ({ page }) => {
+test("under Fix plan a floor rename goes through and no banner appears", async ({ page }) => {
   await expect(page.locator("#ft")).toHaveValue("Ground");
   await clickBox(page, "#ft");
   await page.locator("#ft").press("ControlOrMeta+a");
   await page.keyboard.type("Loft");
   await page.keyboard.press("Enter");
-  await expect(banner(page)).toBeVisible();
-  await expect(page.locator("#ft")).toHaveValue("Ground");
-  expect((await layoutOf(page)).floors.ground.title).toBe("Ground");
+  await expect(page.locator("#ft")).toHaveValue("Loft");
+  expect((await layoutOf(page)).floors.ground.title).toBe("Loft");
+  await expect(banner(page)).toHaveCount(0);
 });
 
 test("moving a floor refused by Fix plan keeps the order and offers to untick Fix plan", async ({ page }) => {
@@ -153,7 +166,7 @@ test("turning furniture with its slider under Fix plan keeps it still and offers
 });
 
 // Opus re-check: `planBlocked` went stale. After a lock refusal and Untick Fix plan, an empty floor title was refused for
-// its own reason, and the banner still said the plan was fixed while the box was unticked.
+// its own reason, and the banner still said the plan was fixed while the box was unticked. The refusal is a floor move now.
 test("after Untick Fix plan, an empty or unchanged floor title is not blamed on the lock", async ({ page }) => {
   const ft = page.locator("#ft");
   const enter = async (text: string) => {
@@ -162,7 +175,7 @@ test("after Untick Fix plan, an empty or unchanged floor title is not blamed on 
     if (text) await page.keyboard.type(text); else await page.keyboard.press("Backspace");
     await page.keyboard.press("Enter");
   };
-  await enter("Loft");
+  await clickBox(page, "#fup");
   await expect(banner(page)).toBeVisible();
   await clickBox(page, ".banner #bannerUnfix");
   await expect(page.locator("#fixPlan")).not.toBeChecked();

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Studio: Fix plan holds geometry only. With it on, names, titles, colours, textures, areas and entity links can still be edited (one undo step each); corners, walls, doors and windows, kinds, heights, stairs and furniture stay refused.
+
 ## 0.23.1 - 2026-10-09
 
 - Card and studio: a closed door or glass door is a thick line, 1.6 times the wall it sits in (never thicker than an external wall, so it stays flush there). It was as thin as the wall and read as a hairline. An open door is still a hole; windows, alerts and 2.5D are unchanged.

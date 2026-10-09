@@ -2889,7 +2889,7 @@ Wave 1, pure modules (parallel; one worktree each, two chained where noted; none
       an equal floor, so `edit` records no step. Test: iterate `DEVICE_TYPES` x bound or not x locked or not, with junk
       indices; every result passes `validate`; each no-op leaves no undo step through `EditorState.edit`.
       Files: `src/editor/bulk.ts`, `tests/editor/bulk.test.ts`.
-- [ ] S26.3 (U3) Lock plan holds geometry only. `EditorState.plan()` compares shapes, not names: under the lock a room,
+- [x] S26.3 (U3) Lock plan holds geometry only. `EditorState.plan()` compares shapes, not names: under the lock a room,
       floor or door rename, a colour, a texture, an area or entity link is one undo step; a corner, wall, door
       position, kind, height, stairs or furniture change is still refused with `planBlocked`. DECISIONS entry. Test:
       unit over each field, allowed and refused. `refused-edit.spec.ts` and `plan-lock.spec.ts` used a rename as the
