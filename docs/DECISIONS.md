@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: one context-menu model (S26.6)
+
+- `ctxItems(target, facts)` in `src/editor/ctx-items.ts` is pure: ids and labels only, the host maps an id to an action. Twelve targets in `CTX_TARGETS`, so a new one fails the iterating test until its list is written.
+- Lock is offered on device, devices, wall, door, opening, furniture and unlinked; not on room, edge, stairs or extra (no `locked` field, and Lock plan holds geometry). Stairs and extras get Delete only.
+- Items that read HA (Place devices from area, Add device here) are `disabled` without it, not hidden, so the menu keeps its shape.
+- "Delete n" only for two or more devices; junk counts give plain "Delete".
+- Not wired into `editor-app.ts` here: that is the later host split.
+
 ## 2026-10-09: Sprint 25 re-check fixes (Opus)
 
 Supersedes B and D of the entry below, and "`detail` is not part of the view-memory storage key" in the entry after it.
