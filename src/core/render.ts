@@ -74,6 +74,11 @@ export interface RenderOpts {
   powerLinks?: Record<string, string>;
   /** S14.8: draw range [from, to] in watts. A plug that is on and has a readable power sensor then carries `--fp-heat` (0 idle .. 1 hot) and the stylesheet tints it. Absent, nothing is written and the markup is as before. Junk is the default range; see `heatRange`. */
   plugHeat?: [number, number];
+  /** S25.5: a stack of devices fanned out. Each entry moves device `i`'s icon to `at` (plan units), with a leader line to its true
+   *  spot, a pin there and its name beside it. The card computes the spots (`spiderLayout`) and passes them while a ring is open.
+   *  Junk entries (an unknown index, a point that is not finite), a hidden device and a device with no spot are skipped.
+   *  Omitted, nothing changes, byte for byte. */
+  spider?: ReadonlyArray<{ i: number; at: Pt }>;
   /** S24.5: the thing a search or the Outline just went to. It carries a ring (class `locate`) that pulses out from it a
    *  few times, or stands still under reduced motion; the host drops the option after a moment. Omitted, nothing is drawn. */
   locate?: { t: "dev" | "furn"; i: number } | null;
@@ -506,6 +511,9 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none} .lbl-on{pointer-events:none}
+/* S25.5: a fanned stack. Leader, pin and name never take a click (finding 18: class rules); a member stays drawn at far. */
+.spider-leader{stroke:var(--fp-text);stroke-opacity:.6;stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none} .spider-pin{fill:var(--fp-text);fill-opacity:.8;pointer-events:none}
+.spider-lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round;font-family:var(--fp-font);font-weight:500;pointer-events:none}
 /* S25.3: room badges. Hidden unless the plan root says far or mid (data-detail); never a click target (finding 18: a class rule, not an attribute). */
 .room-badge{display:none;pointer-events:none} [data-detail="far"] .room-badge,[data-detail="mid"] .room-badge{display:inline} .room-badge *{pointer-events:none}
 .rb-plate{fill:var(--fp-outline);fill-opacity:.85;stroke:none} .rb-t{fill:var(--fp-text);font-family:var(--fp-font);font-weight:500;font-variant-numeric:tabular-nums} .rb-light{fill:var(--fp-dev-light)} .rb-motion{fill:var(--fp-dev-motion)} .rb-alert{fill:var(--fp-danger)} .rb-open{fill:var(--fp-open-door)}
@@ -521,9 +529,9 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
    the card cannot differ. Far: a device that is off or idle is not drawn; one that is on, alerting or unavailable keeps its disc as a half-size dot
    (the glyph and the badges go). Far and mid: a device's name and reading go; a room's name and reading (data-rl, data-rv) and an extra's name stay.
    The selected device is always whole. */
-[data-detail="far"] .dev:not(.on):not(.danger):not(.unavailable):not(.sel),[data-detail="far"] .heater.off,[data-detail="far"] .stem,[data-detail="far"] .stem-top{display:none}
-[data-detail="far"] .dev:not(.sel) path:not(.cone),[data-detail="far"] .dev:not(.sel) .gone-mark,[data-detail="far"] .dev:not(.sel) .away-mark{display:none}
-[data-detail="far"] .dev:not(.sel) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.5)}
+[data-detail="far"] .dev:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider),[data-detail="far"] .heater.off,[data-detail="far"] .stem,[data-detail="far"] .stem-top{display:none}
+[data-detail="far"] .dev:not(.sel):not(.spider) path:not(.cone),[data-detail="far"] .dev:not(.sel):not(.spider) .gone-mark,[data-detail="far"] .dev:not(.sel):not(.spider) .away-mark{display:none}
+[data-detail="far"] .dev:not(.sel):not(.spider) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.5)}
 [data-detail="far"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="mid"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="far"] text.val:not([data-rv]),[data-detail="mid"] text.val:not([data-rv]){display:none}`;
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -1652,6 +1660,21 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<text class="val" data-rv="${i}" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
   });
 
+  // S25.5: a fanned stack. Leaders and pins first, under every icon; the icons move in the loop below.
+  const spiderAt = new Map<number, Pt>();
+  const ringOut: string[] = []; // drawn last of all, so nothing else (a later device, an appliance, a name) ever covers a ring member
+  if (Array.isArray(o.spider))
+    for (const e of o.spider) {
+      const d = e && Number.isInteger(e.i) ? f.devices[e.i] : undefined;
+      if (!d || !Array.isArray(e.at) || e.at.length !== 2 || !e.at.every((v: unknown) => typeof v === "number" && Number.isFinite(v))) continue;
+      if (layerHides(o.hiddenLayers, "dev", e.i, d.type, o.selection, o.keep) || iconHidden(d)) continue;
+      const from = centreOf(d, e.i);
+      if (!from.every(Number.isFinite)) continue;
+      spiderAt.set(e.i, e.at);
+      ringOut.push(`<line class="spider-leader" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(e.at[0])}" y2="${num(e.at[1])}"/><circle class="spider-pin" cx="${num(from[0])}" cy="${num(from[1])}" r="${num(3 * k)}"/>`);
+    }
+
+  const ringCx = spiderAt.size ? [...spiderAt.values()].reduce((a, p) => a + p[0], 0) / spiderAt.size : 0;
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
@@ -1659,7 +1682,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const floorAt = centreOf(d, i);
     if (!floorAt.every(Number.isFinite)) return;
     // `c` is where the icon and all it carries are drawn; `floorAt` only the pin, the stem, the room test and a radar's targets.
-    const c = iconAt(d, floorAt);
+    const sp = spiderAt.get(i);
+    const c = sp ?? iconAt(d, floorAt);
     const person = d.type === "person";
     const { cls, style: styleParts, icon, s } = deviceMarkup(f, d, o, now, floorAt);
     // S7.8: a person's position is a CSS transform, so .dev-person's transition can glide it to a new room. A person
@@ -1703,12 +1727,16 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // 2.5D: a device mounted high (a ceiling light, a camera, a thermostat) is drawn where the real thing hangs (`c`,
     // lifted), with its aura, cone, rings and text. A small pin stays on the floor under it and a thin stem joins the
     // two. The tap target is the lifted icon. A person walks about and a heater bar lies on the floor: neither lifts.
-    if (c !== floorAt) out.push(`<line class="stem" x1="${num(floorAt[0])}" y1="${num(floorAt[1])}" x2="${num(c[0])}" y2="${num(c[1])}"/><circle class="stem-top" cx="${num(floorAt[0])}" cy="${num(floorAt[1])}" r="${num(3 * k)}"/>`);
+    if (c !== floorAt && !sp) out.push(`<line class="stem" x1="${num(floorAt[0])}" y1="${num(floorAt[1])}" x2="${num(c[0])}" y2="${num(c[1])}"/><circle class="stem-top" cx="${num(floorAt[0])}" cy="${num(floorAt[1])}" r="${num(3 * k)}"/>`);
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     const dim = o.dimmed?.has(d.entity) ? " dim" : "";
-    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}${o.locate?.t === "dev" && o.locate.i === i ? `<circle class="locate" cx="12" cy="12" r="16"/>` : ""}</g>`);
+    (sp ? ringOut : out).push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${sp ? " spider" : ""}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}${o.locate?.t === "dev" && o.locate.i === i ? `<circle class="locate" cx="12" cy="12" r="16"/>` : ""}</g>`);
+    if (sp && showText) { // S25.5: the member's name, outward of the ring's side so it never covers the next member
+      const right = sp[0] >= ringCx, lx = sp[0] + (right ? 1 : -1) * 20 * k, ly = sp[1] + 4 * kt;
+      ringOut.push(`<text class="spider-lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="${right ? "start" : "end"}" font-size="${num(12 * kt)}">${esc(label)}</text>`);
+    }
     // S7.9: a radar's targets. Each pair's x (mm, right of the sensor) and y (mm, ahead of it) is turned by the
     // sensor's own `rot` the same way a plan point turns (SVG's own clockwise convention: rot 0 keeps "ahead" up),
     // converted to centimetres, then added to the sensor's own position — the world point a target dot is drawn
@@ -1771,6 +1799,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   if (showText) out.push(...badges({ f, state: o.state, k, up, screenOff, anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 } })); // S25.3: shown by CSS at far and mid only; text, so none with labels off
   if (o.editor)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
+  out.push(...ringOut);
   const body = out.join("\n");
   const turned = turn ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>` : body;
   // Custom properties inherit, so one style on a group reaches every device. Only known types and strict #rrggbb go in: the value ends up in an attribute.

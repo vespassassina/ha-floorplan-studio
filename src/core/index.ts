@@ -9,6 +9,7 @@ export type { AddCandidate, HaBox, HaBoxRow, SwitchChoice } from "./ha";
 export * from "./geometry";
 export { DETAIL_MID_FROM, DETAIL_NEAR_FROM, detailFor, detailLevel, parseDetailMode } from "./detail";
 export type { DetailLevel, DetailMode } from "./detail";
+export { SPIDER_GAP_PX, SPIDER_MAX, SPIDER_MIN_R_PX, STACK_PX, spiderLayout, stackGroups } from "./spider";
 export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS } from "./icons";
 export * from "./render";
 export { badges, floorRollups, roomRollup } from "./rollup";
