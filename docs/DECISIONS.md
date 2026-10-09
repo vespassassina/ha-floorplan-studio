@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: the Outline offers the plan's menu (S26.21)
+
+- A right-click on a device or room row selects that object (through `goTo`, as a click on the row does) and opens the menu `ctxTargetFor` gives for it, at the pointer. The Menu key or Shift+F10 on a focused row opens it under the row. No new menu code: `ctxMenuView` and `ctxItems` are the only source, so the two lists cannot differ.
+- Floor, "No room", area and unplaced-entity rows have no menu; the browser's own shows. A room of a kind with no menu (`ctxTargetFor` returns canvas) opens none either.
+- Side effect, same as a click on the row: the view centres on the object.
+
 ## 2026-10-09: `?` opens Help (S26.13)
 
 - The key is handled in the editor host's `onKey`, after the text-field check (INPUT, SELECT, TEXTAREA) and guarded by `takesTyping`, so the Outline filter and every other field keep the character. It toggles, like the Help button, and works while drawing too (it is not a typed character). Ctrl, Cmd and Alt chords are left alone.

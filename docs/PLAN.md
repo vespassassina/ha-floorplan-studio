@@ -2992,7 +2992,7 @@ Lane D, context menus (`ctx-menu.ts`):
       device here…" opens Add with the click point.
 
 Wave 4, in order on `task/s26-edit` (each touches the host):
-- [ ] S26.21 (U19) The Outline offers the same menu. A right-click (or the Menu key) on a device or room row opens the
+- [x] S26.21 (U19) The Outline offers the same menu. A right-click (or the Menu key) on a device or room row opens the
       plan's menu for it. Test: the labels from the Outline row equal the labels from a right-click on the same device
       on the plan. Files: `outline.ts`, the host's `sideView`, `ctx-menu.ts`.
 - [ ] S26.22 Status bar. A bar under the canvas: "4 selected · Living · Snap 10 cm · 15° · Ground · 100 %", and "Plan

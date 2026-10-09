@@ -1896,12 +1896,35 @@ export class FloorplanStudioEditor extends LitElement {
     else this.onOutlineToggle(n.id);
   }
   private onOutlineRow = (row: OutlineRow) => this.outlineGo(row);
+  /** S26.21 (U19): the plan's context menu for a device or room row, at `x`,`y`. Selects the row's object first, as a
+   *  right-click on the plan does; a floor, an unplaced entity or a "No room" row has no menu and the browser's own shows. */
+  private openCtxForRow(row: OutlineRow, x: number, y: number): boolean {
+    const e = row.node.entry;
+    if (!e || (e.kind !== "room" && e.kind !== "device")) return false;
+    this.goTo(e);
+    const s = this.st.sel;
+    if (!s || !("i" in s)) return false;
+    const target = ctxTargetFor(this, { k: s.t, i: s.i });
+    if (!target || target.k === "canvas") return false;
+    this.outlineActive = row.node.id;
+    this.ctxMenu = { x, y, target };
+    this.requestUpdate();
+    return true;
+  }
+  private onOutlineCtx = (row: OutlineRow, ev: MouseEvent) => {
+    if (this.openCtxForRow(row, ev.clientX, ev.clientY)) ev.preventDefault();
+  };
   /** The tree's own keys (WAI-ARIA tree pattern). A key it uses goes no further, so the arrows move in the tree, not the plan. */
   private onOutlineKey = (ev: KeyboardEvent) => {
     if (ev.altKey || ev.ctrlKey || ev.metaKey || ev.isComposing) return;
     const t = ev.composedPath()[0];
     if (!(t instanceof HTMLElement) || t.getAttribute("role") !== "treeitem") return;
     const rows = this.outlineRows(this.findData().tree);
+    if (ev.key === "ContextMenu" || (ev.key === "F10" && ev.shiftKey)) { // the Menu key: beside the row, as the pointer would
+      const row = rows.find((x) => x.node.id === t.dataset.node), b = t.getBoundingClientRect();
+      if (row && this.openCtxForRow(row, b.left + 24, b.bottom)) { ev.preventDefault(); ev.stopPropagation(); }
+      return;
+    }
     const r = outlineKey(rows, t.dataset.node ?? null, ev.key);
     if (!r) return;
     ev.preventDefault();
@@ -1933,7 +1956,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (open && tab === "layers") body = this.layersView();
     else if (open) {
       const rows = this.outlineRows(tree);
-      body = html`<div class="side-body" id="sideBody" role="tabpanel" aria-labelledby="tabOutline">${outlineView({ rows, open: this.outlineOpen, active: this.outlineActive, selected: this.outlineSelected(rows), query: this.outlineQuery, onQuery: this.onOutlineQuery, onKey: this.onOutlineKey, onRow: this.onOutlineRow, onToggle: this.onOutlineToggle })}</div>`;
+      body = html`<div class="side-body" id="sideBody" role="tabpanel" aria-labelledby="tabOutline">${outlineView({ rows, open: this.outlineOpen, active: this.outlineActive, selected: this.outlineSelected(rows), query: this.outlineQuery, onQuery: this.onOutlineQuery, onKey: this.onOutlineKey, onRow: this.onOutlineRow, onCtx: this.onOutlineCtx, onToggle: this.onOutlineToggle })}</div>`;
     }
     const tabBtn = (id: "outline" | "layers", label: string) =>
       html`<button class="tab" role="tab" id=${id === "outline" ? "tabOutline" : "tabLayers"} aria-selected=${tab === id ? "true" : "false"} aria-controls=${id === "outline" ? "sideBody" : "layersPanel"} @click=${() => { this.sideTab = id; this.requestUpdate(); }}>${label}</button>`;

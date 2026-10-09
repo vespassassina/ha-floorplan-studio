@@ -153,6 +153,8 @@ export interface OutlineCtx {
   onQuery: (q: string) => void;
   onKey: (ev: KeyboardEvent) => void;
   onRow: (row: OutlineRow) => void;
+  /** S26.21: a right-click on a row, at the pointer. */
+  onCtx: (row: OutlineRow, ev: MouseEvent) => void;
   onToggle: (id: string) => void;
 }
 
@@ -172,6 +174,7 @@ export function outlineView(c: OutlineCtx): TemplateResult {
           tabindex=${n.id === active ? "0" : "-1"}
           style=${`--lvl:${r.level - 1}`}
           @click=${() => c.onRow(r)}
+          @contextmenu=${(e: MouseEvent) => c.onCtx(r, e)}
         ><span class="tw" aria-hidden="true" @click=${(e: Event) => { if (branch) { e.stopPropagation(); c.onToggle(n.id); } }}>${branch ? (c.open.has(n.id) ? "▾" : "▸") : ""}</span><span class="tl">${n.label}${n.via ? html`<span class="via"> → ${n.via}</span>` : nothing}</span>${n.count !== undefined ? html`<span class="tc">${n.count}</span>` : nothing}</div>`;
       }) : html`<p class="hint">${c.query.trim() ? "Nothing matches" : "Nothing on the plan yet"}</p>`}
     </div>`;
