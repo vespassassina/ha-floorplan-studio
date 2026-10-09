@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: detail levels in `renderFloor`; mode is `full` until the menu (S25.1, S25.2)
+
+- `detailLevel(zoom, mode)` and `detailFor(fit, shown, mode)` live in `src/core/detail.ts`. Far below 1.6, mid to 3.2, near
+  from there; zoom is the smaller of `fit.w / shown.w` and `fit.h / shown.h`, as "Copy card view" takes it. Junk zoom is
+  near; junk mode is auto. The card and the Studio both call `detailFor`.
+- `renderFloor` writes `data-detail` only when `detail` is one of the three names; with none, the markup is byte for byte as
+  before. All hiding is CSS keyed on it. Far: `.dev` that is not on, danger, unavailable or selected is `display:none`; the
+  rest lose glyph and badges and keep the disc at half size. Far and mid: `text.lbl:not([data-rl]):not(.extra + .lbl)` and
+  `text.val:not([data-rv])` go (device names and readings; room names, room readings and extras stay). That selector leans
+  on an extra's name being drawn right after the extra; S25.4 must keep it or add a class.
+- **Mode is `full` for now (`detailMode` on the card and the Studio), not `auto`.** The brief said auto. Run that way, 144
+  Playwright tests fail: at fit every idle device is gone, and the tests (and the Studio's editing) click idle devices at
+  fit. Hiding idle devices while someone places them is also a real editing problem. S25.7 and S25.8 set the mode from the
+  menu and the YAML key; the Studio's default there needs Diego's call (suggest `full` while editing).
+
 ## 2026-10-08: no door swing arcs (S23.F6)
 
 Supersedes the arc in "plan symbols (S23.7)" below. Diego: "the door arcs are horrendous, remove them all". A door or glass

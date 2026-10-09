@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Plan: semantic zoom, first part. The plan root carries `data-detail` (far, mid, near) from the zoom against the floor at fit: far drops idle devices and keeps lit, alerting and unavailable ones as dots; far and mid drop device names and readings. Not on yet: the mode is `full` until the View menu arrives, so nothing changes on screen.
+
 ## 0.22.1 - 2026-10-09
 
 - Card and studio: doors lose their swing arc. A door is the gap in the wall and its thin leaf into the room.

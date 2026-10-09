@@ -2798,10 +2798,10 @@ room names, badges. Near: everything, with device labels and readings. Mode `ful
 far; `auto` follows zoom. Thresholds are constants in core, not settings.
 
 Wave 1, core (parallel):
-- [ ] S25.1 `detailLevel(zoom, mode)` in `src/core/detail.ts`: returns `far | mid | near`; unknown or non-finite input
+- [x] S25.1 `detailLevel(zoom, mode)` in `src/core/detail.ts`: returns `far | mid | near`; unknown or non-finite input
       falls back to `near` (finding 1). Exported. Test: the three bands at their edges (1.59, 1.6, 3.19, 3.2), the
       modes pin, junk input.
-- [ ] S25.2 `renderFloor` takes `detail` and writes `data-detail` on the plan root; every level rule is CSS keyed on it,
+- [x] S25.2 `renderFloor` takes `detail` and writes `data-detail` on the plan root; every level rule is CSS keyed on it,
       so editor and card cannot differ. Test: a render per level; a `getComputedStyle` pair per rule (far hides an off
       lamp's icon and keeps an on lamp's dot; mid hides device labels; near hides nothing); an iteration over
       `DEVICE_TYPES` so a new type has to say what it does at far.
