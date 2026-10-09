@@ -283,12 +283,14 @@ describe("snapRay (S26.7)", () => {
 
   // The plan says "352 gives 0", but 352 is 8 from 360 and 7 from 345: the nearest ray is 345. 353 and up wrap to 0.
   it("17 degrees gives 15, 23 gives 30, 352 gives 345, 353 and 358 give 0", () => {
-    expect(angleOf(snapRay(from, polar(17, 200), 15, 10))).toBeCloseTo(15, 6);
-    expect(angleOf(snapRay(from, polar(23, 200), 15, 10))).toBeCloseTo(30, 6);
-    expect(angleOf(snapRay(from, polar(352, 200), 15, 10))).toBeCloseTo(345, 6);
+    // The point is whole cm, so the angle is exact only to half a cm over the 200 cm run: 0.25 degrees (R1a).
+    const near = (got: number, want: number) => expect(Math.abs(got - want)).toBeLessThan(0.25);
+    near(angleOf(snapRay(from, polar(17, 200), 15, 10)), 15);
+    near(angleOf(snapRay(from, polar(23, 200), 15, 10)), 30);
+    near(angleOf(snapRay(from, polar(352, 200), 15, 10)), 345);
     for (const d of [353, 358]) {
       const a = angleOf(snapRay(from, polar(d, 200), 15, 10));
-      expect(Math.min(a, 360 - a)).toBeCloseTo(0, 6);
+      near(Math.min(a, 360 - a), 0);
     }
   });
 
@@ -297,6 +299,19 @@ describe("snapRay (S26.7)", () => {
     expect(len(snapRay(from, polar(0, 203.4), 15, 5))).toBeCloseTo(205, 6);
     expect(len(snapRay(from, polar(0, 203.4), 15, 10))).toBeCloseTo(200, 6);
     expect(len(snapRay(from, polar(0, 206), 15, 10))).toBeCloseTo(210, 6);
+  });
+
+  // Opus review R1a: a stored wall end is a whole number of cm, like every other draw snap (round()).
+  it("gives whole centimetres on every 15 degree multiple, for every grid", () => {
+    for (let deg = 0; deg < 360; deg += 15)
+      for (const grid of [0, 5, 10, 25])
+        for (const r of [37, 203.4, 450.7]) {
+          const q = snapRay([200, 100], [200 + r * Math.cos((deg * Math.PI) / 180), 100 + r * Math.sin((deg * Math.PI) / 180)], 15, grid);
+          expect([deg, grid, r, Number.isInteger(q[0]), Number.isInteger(q[1])]).toEqual([deg, grid, r, true, true]);
+        }
+  });
+  it("a vertical wall from (200,100) with the pointer at (202,450) ends at exactly [200,450]", () => {
+    expect(snapRay([200, 100], [202, 450], 15, 10)).toEqual([200, 450]);
   });
 
   it("p equal to from, or junk, never throws and gives a finite point or p back", () => {

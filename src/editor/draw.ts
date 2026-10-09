@@ -93,7 +93,7 @@ export class Draw {
 }
 
 /**
- * `p` moved onto the nearest `stepDeg` ray from `from`, its length rounded to `grid` cm (0: 1 cm).
+ * `p` moved onto the nearest `stepDeg` ray from `from`, its length rounded to `grid` cm (0: 1 cm), then the point to whole cm.
  * Junk (non-finite numbers, a step that is not positive) gives `p` back unchanged; `p` on `from` too.
  */
 export function snapRay(from: Pt, p: Pt, stepDeg: number, grid: number): Pt {
@@ -103,7 +103,8 @@ export function snapRay(from: Pt, p: Pt, stepDeg: number, grid: number): Pt {
   if (r === 0) return [p[0], p[1]];
   const step = (stepDeg * Math.PI) / 180, a = Math.round(Math.atan2(dy, dx) / step) * step;
   const g = Number.isFinite(grid) && grid > 0 ? grid : 1, len = Math.round(r / g) * g;
-  return [from[0] + len * Math.cos(a), from[1] + len * Math.sin(a)];
+  // Whole centimetres, as every other draw snap gives (editor-app's round()): no 200.00000000000003 in a stored wall.
+  return [Math.round(from[0] + len * Math.cos(a)), Math.round(from[1] + len * Math.sin(a))];
 }
 
 /**

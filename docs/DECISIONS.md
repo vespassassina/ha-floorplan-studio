@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: a ray-snapped point is whole centimetres (Opus review R1a)
+
+- `snapRay` returned `200.00000000000003` for a vertical wall. It now rounds the point to whole cm, as `round()` does for every other draw snap. The cost: the angle is exact only to half a cm over the run, so the tests that read an angle at 0.01° now allow 0.1° (0.3° for a typed length, which takes its direction from the rounded aim), and assert `Number.isInteger` on the ends.
+
 ## 2026-10-09: a corner beats the 15 degree ray; every free click while drawing lands on a ray (Opus review R1b)
 
 - The 15° ray snap read "the corner snap gave the plain grid point" as "nothing caught the pointer". A corner on a grid point, 18° off the ray, was thrown to (509, 283) and the walls did not join. `snapDraw` now asks the corner search itself (`cornerHit`, split out of `snapCorner`), so a corner always wins.

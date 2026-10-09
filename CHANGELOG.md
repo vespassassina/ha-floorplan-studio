@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: a wall drawn on a 15 degree ray ends on whole centimetres.
 - Studio: drawing a wall onto a corner joins it, also when the corner is off the 15 degree rays.
 - Studio: Edit, Link lights to switches now previews first. A Link mode in the Inspector lists each unbound light with the switch it would get, in the selection, else the selected room, else the floor. Untick what should stay, Apply binds the rest in one undo step.
 - Studio: a Lock box on a device, a piece of furniture and an unlinked appliance. On a wall, door and opening it now reads "Lock (keeps its length)".

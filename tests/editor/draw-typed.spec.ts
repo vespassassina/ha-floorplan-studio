@@ -39,7 +39,8 @@ test("the pointer at 17 degrees draws the wall at 15 degrees", async ({ page }) 
   await page.keyboard.press("Enter");
   const w = await walls(page);
   expect(w).toHaveLength(1);
-  expect(Math.abs(angle(w[0]) - 15)).toBeLessThan(0.01);
+  expect(Math.abs(angle(w[0]) - 15)).toBeLessThan(0.1); // whole cm over a 300 px run
+  expect(w[0].b.every(Number.isInteger)).toBe(true);
 });
 
 test("a pointer at 34 degrees draws it at 30, and the rubber band already shows the snapped end", async ({ page }) => {
@@ -50,7 +51,9 @@ test("a pointer at 34 degrees draws it at 30, and the rubber band already shows 
   expect(Math.abs((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI - 30)).toBeLessThan(0.05);
   await page.mouse.click(bx, by);
   await page.keyboard.press("Enter");
-  expect(Math.abs(angle((await walls(page))[0]) - 30)).toBeLessThan(0.01);
+  const w2 = (await walls(page))[0];
+  expect(Math.abs(angle(w2) - 30)).toBeLessThan(0.1);
+  expect(w2.b.every(Number.isInteger)).toBe(true);
 });
 
 test("with Alt held the segment is not put on a ray", async ({ page }) => {
@@ -94,7 +97,8 @@ test("3.5m is metres, and the direction is the snapped 15 degree ray", async ({ 
   await page.keyboard.press("Enter");
   const w = await walls(page);
   expect(Math.abs(length(w[0]) - 350)).toBeLessThan(0.01);
-  expect(Math.abs(angle(w[0]) - 30)).toBeLessThan(0.01);
+  // The direction is the aim, a whole-cm point (R1a), so it is off the exact ray by under half a cm over its run.
+  expect(Math.abs(angle(w[0]) - 30)).toBeLessThan(0.3);
 });
 
 test("Backspace takes back a typed digit first; a second Escape cancels, the first only clears the typed value", async ({ page }) => {
