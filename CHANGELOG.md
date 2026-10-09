@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Layout: a device may carry `locked: true`, so it will not be moved by a drag. The file check refuses a value that is not true or false.
+
 ## 0.23.1 - 2026-10-09
 
 - Card and studio: a closed door or glass door is a thick line, 1.6 times the wall it sits in (never thicker than an external wall, so it stays flush there). It was as thin as the wall and read as a hairline. An open door is still a hole; windows, alerts and 2.5D are unchanged.

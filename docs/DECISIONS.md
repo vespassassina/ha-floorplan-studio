@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: devices can be locked (S26.1)
+
+- `Device.locked?: boolean`, schema stays v2: an old card ignores the field. Same key as a wall, door, opening, furniture piece and unlinked object, so Lock is one word everywhere. `validate` reports anything but a boolean (`"yes"`, `1`, `null`); `migrate` leaves the value as written and `validate` judges it, as it does for the other `locked` fields. What a lock stops is decided in later tasks (a drag, alone or in a group).
+
 ## 2026-10-09: Sprint 25 re-check fixes (Opus)
 
 Supersedes B and D of the entry below, and "`detail` is not part of the view-memory storage key" in the entry after it.

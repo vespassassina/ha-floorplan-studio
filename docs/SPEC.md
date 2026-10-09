@@ -226,6 +226,7 @@ in `prompts/`, then fixed in the editor.
   whenever its switch is on. S14.8: the same reading tints the plug from cool
   blue through amber to red between the card's `plug_heat_from` (default 0 W)
   and `plug_heat_to` (2000 W), in 2D, 2.5D and 3D; no sensor, no tint.
+- `device.locked` (optional, S26.1): `true` stops the device being dragged, alone or in a group; it can still be edited and deleted. Absent is `false`. `validate` refuses anything but a boolean; `migrate` leaves it as written. Same name as on a wall, door, opening, furniture piece and unlinked object.
 - `device.fx` (optional, S14.3): the size of the effect the device draws, in percent of its
   type's own size: 25 to 300, absent is 100. A lit light's aura (and its floor pool and wall
   light in 3D), a playing speaker's or media device's two waves, a triggered motion or contact
