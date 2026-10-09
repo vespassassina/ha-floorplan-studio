@@ -655,19 +655,19 @@ export class FloorplanStudioEditor extends LitElement {
   private refused() { if (this.st.planLocked && this.st.planBlocked) this.planFixed(); else this.requestUpdate(); }
   /** A slider refused by the lock warns once per drag: while its banner shows, a later tick only snaps the slider back. */
   private slideRefused() { if (this.banner?.action?.id === "bannerUnfix") this.requestUpdate(); else this.planFixed(); }
-  /** The one reply to a change the plan lock refused ("Fix plan" is ticked). */
+  /** The one reply to a change the plan lock refused (Lock plan is on). */
   private planFixed(): boolean {
-    this.status = "The plan is fixed. Devices and objects stay editable";
-    this.notify(this.status, "error", { id: "bannerUnfix", label: "Untick Fix plan", run: () => this.setPlanLocked(false) });
+    this.status = "The plan is locked. Devices and objects stay editable";
+    this.notify(this.status, "error", { id: "bannerUnfix", label: "Unlock", run: () => this.setPlanLocked(false) });
     this.requestUpdate();
     return true;
   }
-  /** The toolbar's Fix plan box and the banner's Untick Fix plan button both come here. */
+  /** The toolbar's Lock plan box and the banner's Unlock button both come here. */
   setPlanLocked(on: boolean) {
     this.st.planLocked = on;
     this.st.planBlocked = false; // a refusal from before belongs to the old setting
     if (on) this.stopDraw();
-    this.status = on ? "Plan fixed: only devices and objects can change" : "Plan unlocked";
+    this.status = on ? "Plan locked: only devices and objects can change" : "Plan unlocked";
     this.requestUpdate();
   }
   /** S10.2: `PanelCtx.attachEntity` — names the entity (its catalog name, escaped by lit's own text interpolation)
@@ -1310,7 +1310,7 @@ export class FloorplanStudioEditor extends LitElement {
     const check = saveScene(probe, d.id, d.name, items);
     if (!check.ok) reason = check.reason;
     else this.commit((f) => { saveScene(f.rooms[i], d.id, d.name, items); });
-    if (!reason && this.st.planBlocked) reason = "The plan is fixed, so this scene was not saved. Untick Fix plan and save again."; // never close on a refused save
+    if (!reason && this.st.planBlocked) reason = "The plan is locked, so this scene was not saved. Unlock it and save again."; // never close on a refused save
     if (reason) { d.error = reason; this.requestUpdate(); return; }
     this.closeScene(true);
   }
@@ -1786,7 +1786,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** A few editor actions the search offers. Each runs what its menu item or button runs. */
   private commands(): SearchEntry[] {
     const c = (id: string, name: string): SearchEntry => ({ kind: "command", id, name });
-    return [c("cmd:fix", this.st.planLocked ? "Unfix plan" : "Fix plan"), c("cmd:drawRoom", "Draw room"), c("cmd:addDevice", "Add device…"), c("cmd:fit", "Zoom to fit"), c("cmd:undo", "Undo"), c("cmd:save", "Save")];
+    return [c("cmd:fix", this.st.planLocked ? "Unlock plan" : "Lock plan"), c("cmd:drawRoom", "Draw room"), c("cmd:addDevice", "Add device…"), c("cmd:fit", "Zoom to fit"), c("cmd:undo", "Undo"), c("cmd:save", "Save")];
   }
   private runCommand(id: string) {
     if (id === "cmd:fix") this.setPlanLocked(!this.st.planLocked);

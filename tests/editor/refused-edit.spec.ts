@@ -40,10 +40,10 @@ test("a door drag refused by Fix plan leaves the door, the banner offers to unti
   const door = async () => (await layoutOf(page)).floors.ground.doors[0];
   const before = await door();
   await dragDoor(page);
-  await expect(page.locator("#status")).toContainText("plan is fixed");
+  await expect(page.locator("#status")).toContainText("plan is locked");
   expect(await door()).toEqual(before);
 
-  await expect(page.locator(".banner #bannerUnfix")).toHaveText("Untick Fix plan");
+  await expect(page.locator(".banner #bannerUnfix")).toHaveText("Unlock");
   await clickBox(page, ".banner #bannerUnfix");
   await expect(page.locator("#fixPlan")).not.toBeChecked();
 
@@ -75,7 +75,7 @@ test("a room kind refused by Fix plan snaps back in its select", async ({ page }
   await page.mouse.click(c.x, c.y);
   await expect(page.locator("#rk")).toHaveValue("room");
   await page.locator("#rk").selectOption("garden");
-  await expect(page.locator("#status")).toContainText("plan is fixed");
+  await expect(page.locator("#status")).toContainText("plan is locked");
   await expect(page.locator("#rk")).toHaveValue("room");
 });
 
@@ -184,7 +184,7 @@ test("after Untick Fix plan, an empty or unchanged floor title is not blamed on 
   await enter("  Ground  ");
   await expect(ft).toHaveValue("Ground");
   await expect(page.locator(".banner #bannerUnfix")).toHaveCount(0);
-  await expect(page.getByText("plan is fixed")).toHaveCount(0);
+  await expect(page.getByText("plan is locked")).toHaveCount(0);
 });
 
 // Opus re-check nit: a refused slider warned on every input tick of a drag. One drag, one warning.

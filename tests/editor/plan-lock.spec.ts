@@ -35,7 +35,7 @@ test("adding furniture while the plan is fixed shows a red banner with a close b
   await page.locator('details.menu > summary:text-is("Add")').click();
   await pickFurniture(page, "tree");
   const banner = page.locator("#status");
-  await expect(banner).toContainText("plan is fixed");
+  await expect(banner).toContainText("plan is locked");
   await expect(page.locator(".banner.error")).toBeVisible();
   expect((await g(page)).furniture.length).toBe(before);
   await page.locator("#bannerClose").click();
@@ -64,7 +64,7 @@ test("fixed: a door drag changes nothing, a device drag moves the device, then u
   await page.mouse.move(room.x + 60, room.y + 40, { steps: 6 });
   await page.mouse.up();
   expect((await g(page)).doors).toEqual(before.doors);
-  await expect(page.locator("#status")).toContainText("plan is fixed");
+  await expect(page.locator("#status")).toContainText("plan is locked");
 
   const dev = await centre(page, `${EDITOR} svg g[data-x="0"]`);
   await page.mouse.move(dev.x, dev.y);
@@ -91,5 +91,5 @@ test("fixed: Draw wall and Add wall are refused with the message", async ({ page
   await page.locator("#addWallSub > summary").click();
   await page.locator("#addWall-parapet").click();
   expect((await g(page)).walls).toHaveLength(n);
-  await expect(page.locator("#status")).toContainText("plan is fixed");
+  await expect(page.locator("#status")).toContainText("plan is locked");
 });

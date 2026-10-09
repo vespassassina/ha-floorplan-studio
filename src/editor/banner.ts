@@ -13,7 +13,7 @@ export function isQuiet(text: string): boolean {
 
 /** Error: something was refused or failed. Warning: it worked, with a catch or a cancel. Else info. */
 export function bannerLevel(text: string): BannerLevel {
-  if (/\b(could not|cannot|can't|failed|refused|error|is fixed|not allowed|unavailable)\b/i.test(text)) return "error";
+  if (/\b(could not|cannot|can't|failed|refused|error|is locked|not allowed|unavailable)\b/i.test(text)) return "error";
   if (/\b(but|meanwhile|cancel(led)?|too few|nothing to save|no light|out of range|type a|same point|changed while)\b/i.test(text)) return "warning";
   return "info";
 }
