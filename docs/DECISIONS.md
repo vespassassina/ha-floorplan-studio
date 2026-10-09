@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: the Inspector has modes (S26.14)
+
+- The aside gets three tabs: Selection, Place, Add. `asideMode` in the host replaces `placePos` and `addDevPos`; Place and Add are no longer floating, draggable panels (`.fpanel`), they are bodies of the aside (`.imode`), so opening one moves nothing on the canvas. Ids (`#placePanel`, `#addDevPanel`, `#placeClose`, `#addDevClose`, `#placeGo`) are kept.
+- Place needs a room: its tab is off until the selection is a room with something to place, or a Place mode already holds one. Leaving for Selection keeps the ticks; the Escape key and the X return to Selection. Switching floor closes Place, as before.
+- State stays in the host, which `hass` updates do not reset (panel test). Dropped with the popups: the drag by the head, and the 780/660 px widths (S8.8); two tests changed with them, on purpose.
+
 ## 2026-10-09: the editor host is split (S26.9)
 
 - `toolbar.ts`, `ctx-menu.ts` and `inspector.ts` take the host as `h` and export their own `css`; `static styles` is an array. Pure move: no test edited.

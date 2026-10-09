@@ -12,21 +12,20 @@ export const inspectorCss = css`
     .fpanel-head{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600;cursor:move;touch-action:none}
     .fpanel-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
     .fpanel p{margin:8px 10px 0;font-size:13px}
-    .fpanel .grp{padding:8px 10px 0}
+    .fpanel .grp,.imode .grp{padding:8px 10px 0}
     .fpanel .harow{padding:2px 10px}
     .fpanel .harow .name{flex:1;text-align:left;text-decoration:none}
-    .fpanel .chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px 10px 0}
-    .fpanel .rows{overflow:auto;padding:6px 10px;display:flex;flex-direction:column;gap:2px}
+    .fpanel .chips,.imode .chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px 10px 0}
+    .fpanel .rows,.imode .rows{overflow:auto;padding:6px 10px;display:flex;flex-direction:column;gap:2px}
     .prow{display:flex;align-items:center;gap:6px;cursor:pointer}
     /* S8.8: line 1 the name (ellipsis on overflow, title carries the full text), line 2 a smaller muted subtitle. */
     .prow-text{flex:1;display:flex;flex-direction:column;gap:0;min-width:0}
     .prow-name{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .prow small{opacity:.7}
     /* S22.3: only the list (.rows, overflow:auto) shrinks in a popup capped by the window; the action buttons stay in view. */
-    .fpanel>.btn{margin:8px 10px 10px;width:auto;align-self:flex-start;flex:none}
+    .fpanel>.btn,.imode>.btn{margin:8px 10px 10px;width:auto;align-self:flex-start;flex:none}
     /* S8.8: 50% larger than the S8.5 baseline (520x642 / 440x642 measured at an 800px-tall viewport, panel maxed
        out): width and max-height both grow by half, clamped so a small screen still fits it — see docs/DECISIONS.md. */
-    .add-dev-panel{width:min(780px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
     .add-dev-panel>input[type=search]{margin:8px 10px 0;box-sizing:border-box;width:calc(100% - 20px)}
     .add-dev-filters select{flex:1 1 45%;min-width:140px}
     .add-dev-panel .rows .btn{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0;text-align:left}
@@ -42,7 +41,15 @@ export const inspectorCss = css`
     .sd-try{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 10px}
     .sd-actions{display:flex;gap:8px;padding:8px 10px 10px}
     .warn-text{color:var(--fp-warn,#c0392b)}
-    .place-panel{width:min(660px, 100vw - 24px);max-height:min(963px, 100vh - 40px)}
+    /* S26.14: Place and Add are modes of the aside, not floating panels. The aside is 300 px wide and scrolls on its own; the
+       list scrolls inside the mode (capped below the editor's height) so the buttons under it stay in view. */
+    .imode{display:flex;flex-direction:column;min-width:0}
+    .imode-head{display:flex;align-items:center;gap:8px;padding:0 0 6px;font-weight:600}
+    .imode-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
+    .imode p{margin:8px 0 0;font-size:13px}
+    .imode .rows{max-height:max(120px, calc(var(--fp-editor-height,calc(100vh - 150px)) - 380px))}
+    .imodes{border-bottom:1px solid var(--fp-idle)}
+    .imodes .tab:disabled{opacity:.4;cursor:default}
     /* S22.6: the aside is its own scroll container, as tall as the canvas beside it (same height rule, same floor), so
        a long room panel scrolls inside it and the plan stays put; before, it grew the page and scrolling it moved the plan away. */
     aside{display:flex;flex-direction:column;gap:12px;overflow:auto;max-height:max(420px, var(--fp-editor-height,calc(100vh - 150px)))}
@@ -75,7 +82,7 @@ export const inspectorCss = css`
  * per type present to narrow the list, a tick per row (none ticked on open), a Select all/Deselect all above the rows
  * that acts only on the shown rows, and Place for the ticked rows that are shown. Draggable, X top-left. */
 export function placeView(h: FloorplanStudioEditor, st: EditorState, i: number) {
-  const room = st.f.rooms[i], p = h.placePos!;
+  const room = st.f.rooms[i];
   const all = st.areaToPlace(i);
   const types = TYPE_LABELS.filter(([t]) => all.some((e) => typeForEntity(e, st.ha) === t));
   const shown = h.placeType ? all.filter((e) => typeForEntity(e, st.ha) === h.placeType) : all;
@@ -85,8 +92,8 @@ export function placeView(h: FloorplanStudioEditor, st: EditorState, i: number) 
   const toggleAll = () => { for (const e of shown) { if (allShownOn) h.placeOn.delete(e.id); else h.placeOn.add(e.id); } h.requestUpdate(); };
   // Opus review of S8.1: a ticked checkbox keeps focus and `onKey` ignores keys typed in an input, so Escape is handled here too.
   const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); h.closePlace(); } };
-  return html`<div class="fpanel place-panel" id="placePanel" role="dialog" aria-label="Place devices" style="left:${p.x}px;top:${p.y}px" @keydown=${esc}>
-    <div class="fpanel-head" @pointerdown=${h.placeHead.down} @pointermove=${h.placeHead.move} @pointerup=${h.placeHead.up} @pointercancel=${h.placeHead.up}>
+  return html`<div class="imode place-panel" id="placePanel" role="tabpanel" aria-label="Place devices" @keydown=${esc}>
+    <div class="imode-head">
       <button class="btn keep" id="placeClose" aria-label="Close" @click=${() => h.closePlace()}>&times;</button>
       <span>Place devices of ${room.name}</span>
     </div>
@@ -109,7 +116,6 @@ export function placeView(h: FloorplanStudioEditor, st: EditorState, i: number) 
  * open, since the placed row simply drops out of `addCandidates` on the next render.
  */
 export function addDevView(h: FloorplanStudioEditor, st: EditorState) {
-  const p = h.addDevPos!;
   const all = addCandidates(st.layout, st.ha ?? null);
   const q = h.addDevQuery.trim().toLowerCase();
   const bySearch = q ? all.filter((c) => c.name.toLowerCase().includes(q) || c.entity.toLowerCase().includes(q)) : all;
@@ -144,8 +150,8 @@ export function addDevView(h: FloorplanStudioEditor, st: EditorState) {
   }
   // Opus review of S8.1's own place popup: an input or select swallows keys before `onKey` sees them, so Escape is handled here too.
   const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); h.closeAddDev(); } };
-  return html`<div class="fpanel add-dev-panel" id="addDevPanel" role="dialog" aria-label="Add device" style="left:${p.x}px;top:${p.y}px" @keydown=${esc}>
-    <div class="fpanel-head" @pointerdown=${h.addDevHead.down} @pointermove=${h.addDevHead.move} @pointerup=${h.addDevHead.up} @pointercancel=${h.addDevHead.up}>
+  return html`<div class="imode add-dev-panel" id="addDevPanel" role="tabpanel" aria-label="Add device" @keydown=${esc}>
+    <div class="imode-head">
       <button class="btn keep" id="addDevClose" aria-label="Close" @click=${() => h.closeAddDev()}>&times;</button>
       <span>Add device</span>
     </div>
@@ -165,10 +171,30 @@ export function addDevView(h: FloorplanStudioEditor, st: EditorState) {
   </div>`;
 }
 
-/** The side panel: the Help text, or the selection's panel. */
-export function asideView(h: FloorplanStudioEditor) {
-  return html`<aside>
-    <div id="panel">${h.st.helpOpen ? helpPanel(() => h.toggleHelp()) : selectionPanel(h.ctx())}</div>
-  </aside>`;
+/** S26.14: the Inspector's modes. Selection follows the selection; Place (a room's HA area) and Add (Add > Device) open in the aside. */
+export type AsideMode = "selection" | "place" | "add";
+
+/** The mode on show: Place needs its room still on the floor, otherwise the aside falls back to Selection. */
+export function effectiveMode(h: FloorplanStudioEditor): AsideMode {
+  if (h.asideMode === "place") return h.placeIndex() >= 0 ? "place" : "selection";
+  return h.asideMode;
 }
 
+/** The side panel: tabs, then the Help text or the selection's panel, or the Place or Add mode. */
+export function asideView(h: FloorplanStudioEditor) {
+  const mode = effectiveMode(h), st = h.st;
+  const sel = st.sel, selRoom = sel && sel.t === "room" ? sel.i : -1;
+  const canPlace = h.placeIndex() >= 0 || (selRoom >= 0 && st.areaToPlace(selRoom).length > 0);
+  const tab = (id: AsideMode, label: string, on: () => void, disabled = false) =>
+    html`<button class="tab" role="tab" data-mode=${id} id=${`imode-${id}`} aria-selected=${mode === id ? "true" : "false"} ?disabled=${disabled} @click=${on}>${label}</button>`;
+  const body = mode === "place" ? placeView(h, st, h.placeIndex()) : mode === "add" ? addDevView(h, st)
+    : html`<div id="panel">${st.helpOpen ? helpPanel(() => h.toggleHelp()) : selectionPanel(h.ctx())}</div>`;
+  return html`<aside>
+    <div class="tabs imodes" role="tablist" aria-label="Inspector">
+      ${tab("selection", "Selection", () => h.setAsideMode("selection"))}
+      ${tab("place", "Place", () => h.setAsideMode("place"), !canPlace)}
+      ${tab("add", "Add", () => h.setAsideMode("add"))}
+    </div>
+    ${body}
+  </aside>`;
+}

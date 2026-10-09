@@ -2958,7 +2958,7 @@ Lane A, pointer and keys (`editor-app.ts` handlers only, plus new spec files):
       filter `?` types a character.
 
 Lane B, the Inspector (`inspector.ts`, `panels.ts`):
-- [ ] S26.14 (U11, U12) Inspector modes. The aside gets tabs: Selection, Place, Add. Selection follows the selection;
+- [x] S26.14 (U11, U12) Inspector modes. The aside gets tabs: Selection, Place, Add. Selection follows the selection;
       Place (a room's HA area) and Add (Add > Device…) open as modes in the aside, never as floating panels; the canvas
       does not move. Test: room, Place devices…, the Place tab is selected, no `.fpanel` in the DOM, the Place button
       is inside the viewport at 1024x768, the canvas box unchanged; the mode survives a `hass` update in the panel.

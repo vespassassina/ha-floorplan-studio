@@ -10,6 +10,7 @@
 - Studio: one context-menu model (`ctxItems`) lists what a right-click offers on each of the twelve targets, in one order. Not wired into the menus yet.
 - Studio (internal): `snapRay` puts a drawn point on the nearest 15 degree ray from the last point. Not wired to the pointer yet.
 - Studio (internal): `Draw` keeps a typed length ("350" cm or "3.5m") and `placeTyped` adds the next point that far along the pointer direction. Not wired to the keys yet.
+- Studio: the Inspector has tabs, Selection, Place and Add. Place devices (a room's Home Assistant area) and Add, Device open in the side panel instead of floating over the plan, so the plan does not move and the buttons stay in view.
 
 ## 0.23.1 - 2026-10-09
 
