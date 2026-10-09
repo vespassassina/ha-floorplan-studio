@@ -232,7 +232,7 @@ const has = <T extends string>(table: Record<T, unknown>, k: unknown): k is T =>
 
 /** A door, window or opening as the wall sees it: where it lies and between which heights, and what its sensors say. */
 interface Span { a: Pt; b: Pt; at: (ceiling: number) => { sill: number; head: number }; kind: string; live: DoorState }
-const CLOSED: DoorState = { open: false, alarm: false, cover: false };
+const CLOSED: DoorState = { open: false, contact: false, unlocked: false, alarm: false, cover: false };
 const spansOf = (f: Floor, state: StateOverlay | undefined): Span[] => [
   ...(f.doors ?? []).filter((d) => finite(d.a) && finite(d.b)).map((d) => ({ a: d.a, b: d.b, at: (c: number) => doorSpan(d, c), kind: String(d.kind), live: doorStateOf(d, state) })),
   ...(f.openings ?? []).filter((o) => finite(o.a) && finite(o.b)).map((o) => ({ a: o.a, b: o.b, at: () => openingSpan(o), kind: "opening", live: CLOSED })),

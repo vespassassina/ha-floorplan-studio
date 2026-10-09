@@ -9,6 +9,7 @@ interface Hook {
   floors(): { extent: { y0: number; y1: number } };
   live(): { children: number; lifted: number[]; pools: { visible: boolean }[] };
   memory(): { geometries: number; textures: number };
+  programs(): number[];
   project(x: number, y: number, z: number): { x: number; y: number };
   pick(x: number, y: number): unknown;
   look(az: number, polar: number): void;
@@ -101,9 +102,12 @@ test.describe("3D view: floors (S12.6)", () => {
     // twice round to warm every cache, then twenty more
     const cycle = async () => { for (const k of ["test", "ground", "first"]) await select(page, k); };
     await cycle(); await cycle();
-    const base = { m: await hook(page, (h) => h.memory()), c: (await hook(page, (h) => h.live())).children };
+    const base = { m: await hook(page, (h) => h.memory()), c: (await hook(page, (h) => h.live())).children, p: await hook(page, (h) => h.programs()) };
     for (let i = 0; i < 7; i++) await cycle(); // 21 switches
     expect(await hook(page, (h) => h.memory())).toEqual(base.m);
+    // S22.F1: a switch reuses the shader programs it had. Compiling them again cost about 0.7 s a switch in the software GL the tests
+    // run on (a wall tablet's GPU is not much kinder), and timed this test out under load.
+    expect(await hook(page, (h) => h.programs())).toEqual(base.p);
     expect((await hook(page, (h) => h.live())).children).toBe(base.c);
     expect(await page.evaluate(() => (customElements.get("floorplan-studio-card") as unknown as { liveRenderers: number }).liveRenderers)).toBe(1);
   });

@@ -20,6 +20,11 @@ describe("stripTemplateCss", () => {
   it("keeps two tokens apart where a comment sat between them", () => {
     expect(stripTemplateCss("const X_CSS = `a/**/b`;")).toBe("const X_CSS = `a b`;");
   });
+  // S23.F4: a ")" inside a quoted url() argument does not close the url(), so the quote after it cannot open a string.
+  it("reads a quoted url() argument as one string, a ) inside it and all", () => {
+    expect(stripTemplateCss("const X_CSS = `.a{b:url(\"a)b\")}/* why */.c{d:e}`;")).toBe("const X_CSS = `.a{b:url(\"a)b\")}.c{d:e}`;");
+    expect(stripTemplateCss("const X_CSS = `.a{b:url( 'a)/*b*/' )}/* why */.c{d:e}`;")).toBe("const X_CSS = `.a{b:url( 'a)/*b*/' )}.c{d:e}`;");
+  });
   it("leaves a /* inside a quoted CSS string or a url() alone", () => {
     const quoted = "const X_CSS = `.a{content:\"/* not */\"} .b{content:'/* nor */'}`;";
     expect(stripTemplateCss(quoted)).toBe(quoted);

@@ -12,6 +12,8 @@ import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
+// S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
+import { layerHides, type LayerId } from "./layers";
 import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
@@ -20,7 +22,12 @@ export interface StateOverlay { [entityId: string]: { state: string; attributes:
 export interface RenderOpts {
   /** S11.3: the room the card has picked (its left panel shows it); drawn with an outline, class `picked`. The editor draws its own selection in an overlay and never passes this. */
   selectedRoom?: number;
-  scale: number; selection?: { t: string; i: number } | null; showNames?: boolean; filter?: DeviceType[];
+  scale: number; selection?: { t: string; i: number } | null; showNames?: boolean;
+  /** S24.6: the families not drawn (`layers.ts`): their devices, unlinked appliances and, for "furniture", every piece.
+   *  What `selection` or `keep` names is drawn anyway. Omitted or empty, everything is drawn, byte for byte as before. */
+  hiddenLayers?: readonly LayerId[];
+  /** S24.6: one more thing drawn even when its layer is hidden: the editor's selection, which it does not pass as `selection` for furniture and unlinked items. */
+  keep?: { t: string; i: number } | null;
   /** S23.2: screen pixels per plan unit, when the host knows it (the card measures its own plan). Then no name draws
    *  under `NAME_MIN_PX` and, with it, no device disc under 28 px. Omitted (the editor, whose `scale` is already its
    *  zoom), nothing changes. */
@@ -58,6 +65,9 @@ export interface RenderOpts {
   powerLinks?: Record<string, string>;
   /** S14.8: draw range [from, to] in watts. A plug that is on and has a readable power sensor then carries `--fp-heat` (0 idle .. 1 hot) and the stylesheet tints it. Absent, nothing is written and the markup is as before. Junk is the default range; see `heatRange`. */
   plugHeat?: [number, number];
+  /** S24.5: the thing a search or the Outline just went to. It carries a ring (class `locate`) that pulses out from it a
+   *  few times, or stands still under reduced motion; the host drops the option after a moment. Omitted, nothing is drawn. */
+  locate?: { t: "dev" | "furn"; i: number } | null;
   /** Whether the house has a floor over this one and under it, for the direction a stair with no `direction` of its own takes (stairs.ts). Omitted, the neighbours are unknown and such a stair reads up, as ever. */
   around?: FloorsAround;
 }
@@ -227,6 +237,9 @@ export const FLOORPLAN_CSS = `
 /* S14.8: the colour a plug runs through as its draw rises. Fixed hues, the same in every theme (not the theme's accent, which a one-accent theme makes orange and so
    leaves nothing to ramp to), declared before the themes so a theme can override them. */
 :host,.fp,[data-theme]{--fp-heat-cool:#2f86c9;--fp-heat-mid:#f0a020;--fp-heat-hot:#d63a2a}
+/* S24.4 (S23.F3): outdoor names take the theme's own text unless the theme says otherwise (only solarized does). Set on every theme
+   group, not left to a fallback, so a group nested in a solarized one does not inherit solarized's ink. */
+:host,.fp,[data-theme]{--fp-text-out:var(--fp-text)}
 /* Blueprint is the default: with no data-theme anywhere the plan is blueprint, whatever the OS or Home Assistant is doing (Diego's call, 2026-09-21;
    this replaces the old Auto, which followed prefers-color-scheme). A theme is named by data-theme, on the host (:host([data-theme])) or on one
    plan's own root (renderFloor's theme option, a <g data-theme>). Each rule has three selectors: the host itself, the .fp svg inside it (which the
@@ -456,7 +469,12 @@ mask.fp-falloff{mask-type:alpha}
 .siren-ring{fill:none;stroke:var(--fp-dev);stroke-width:3.5;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-siren 1s ease-out infinite}
 .siren-ring.w2{animation-delay:.5s}
 @keyframes fp-siren{from{transform:scale(1);opacity:1}to{transform:scale(calc(1 + 3.8*var(--fp-fx,1)));opacity:0}}
+/* S24.5: the ring round what a search or the Outline went to. Three beats, then the host drops it. Under reduced motion it
+   stands still, a plain ring for the same moment (the rule below). */
+.locate{fill:none;stroke:var(--fp-ink);stroke-width:3;vector-effect:non-scaling-stroke;pointer-events:none;transform-box:fill-box;transform-origin:center;animation:fp-locate .8s ease-out 3}
+@keyframes fp-locate{from{transform:scale(.6);opacity:1}to{transform:scale(1.6);opacity:0}}
 @media (prefers-reduced-motion:reduce){.ping,.door-alert,.wave,.siren-ring{animation:none}.ping,.wave{transform:scale(calc(1 + .5*var(--fp-fx,1)));opacity:.6}.siren-ring{transform:scale(calc(1 + 2*var(--fp-fx,1)));opacity:.8}}
+@media (prefers-reduced-motion:reduce){.locate{animation:none;opacity:1}}
 /* S23.5 (V12): unavailable is its own mark, not a faded off: no disc, a dashed warn ring, the glyph at idle and a slash badge
    (.gone-mark, a circle and a line, so no path rule paints it). g.dev.unavailable path (0,2,2) outranks the per-type tints. */
 .dev.unavailable .halo{fill-opacity:0;stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2}
@@ -1001,8 +1019,7 @@ export function motionRooms(f: Floor, o: RenderOpts, now: number): { triggered: 
     if (!MOTION_TYPES.includes(d.type) || "a" in d || isAttached(d)) return; // an attached sensor lights its room through the room's own list, below
     const cls = classOf(d, o), on = cls === "on", v = on ? 1 : motionFade(d, o, now);
     if (v <= 0 || cls === "unavailable") return;
-    const sel = o.selection?.t === "dev" && o.selection.i === i;
-    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
     const c: Pt = [d.x, d.y];
     if (!c.every(Number.isFinite)) return;
     let at = -1, best = Infinity;
@@ -1114,6 +1131,7 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
 
 /** S23.2 (V1): the smallest a room name may render, in CSS px, on a card that knows its size. */
 export const NAME_MIN_PX = 11;
+
 
 export function renderFloor(f: Floor, o: RenderOpts): string {
   // S23.2: a floor in screen space. k never lets a 12k name fall under 11 px, so a 32k disc never falls under 29 px.
@@ -1234,9 +1252,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // the same way as the device group's --fp-dev-fill (S2.2): from the light entity's own state, never the bound switch's.
   let falloff = false; // S23.8: the shared falloff mask, written once before the first aura that needs it
   f.devices.forEach((d, i) => {
-    const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (d.type !== "light") return;
-    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
     if (classOf(d, o) !== "on") return;
     const floorAt = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (!floorAt.every(Number.isFinite)) return;
@@ -1327,13 +1344,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   if (x25) {
     solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state));
     f.furniture.forEach((m, i) => {
+      if (layerHides(o.hiddenLayers, "furn", i, undefined, o.selection, o.keep)) return;
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
       const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), sym.svg, px, furnitureWaves(o, m)) : null;
       if (s) solids.push(s);
     });
-    for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
+    (f.unlinked ?? []).forEach((u, i) => { if (layerHides(o.hiddenLayers, "unl", i, u.type, o.selection, o.keep)) return; const s = unlinkedSolid(u, px); if (s) solids.push(s); });
     f.devices.forEach((d, i) => {
-      if (o.filter && o.filter.length && !o.filter.includes(d.type) && !(o.selection?.t === "dev" && o.selection.i === i)) return;
+      if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
       const s = deviceSolid(f, d, classOf(d, o), px);
       if (s) solids.push(s);
     });
@@ -1378,8 +1396,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const personAt = new Map<number, Pt>();
   const byRoom = new Map<number, number[]>();
   f.devices.forEach((d, i) => {
-    const sel = o.selection?.t === "dev" && o.selection.i === i;
-    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
     const r = personRoom(d, f.rooms, o);
     if (r >= 0) byRoom.set(r, [...(byRoom.get(r) ?? []), i]);
   });
@@ -1402,8 +1419,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   }
   const centreOf = (d: Device, i: number): Pt => personAt.get(i) ?? ("a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt));
   f.devices.forEach((d, i) => {
-    const sel = o.selection?.t === "dev" && o.selection.i === i;
-    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
     if (iconHidden(d)) return;
     const c = centreOf(d, i);
     if (!c.every(Number.isFinite)) return;
@@ -1411,10 +1427,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     disc(top, 16 * k);
     if (top !== c) disc(c, 4 * k); // S23.3: a 2.5D stem's foot, its 3k dot and a margin; no name sits on it either
   });
-  for (const u of f.unlinked ?? []) {
+  (f.unlinked ?? []).forEach((u, i) => {
+    if (layerHides(o.hiddenLayers, "unl", i, u.type, o.selection, o.keep)) return;
     const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
     if (Number.isFinite(u.x) && Number.isFinite(u.y)) disc([u.x, u.y], 16 * k * scale);
-  }
+  });
   // S7.15: doors are obstacles too, so a name never runs across one (the demo's "Garden pond" sat on the garage
   // door). A door's box is its line, in the screen frame, widened by half its 22-unit stroke on every side.
   for (const d of f.doors) {
@@ -1547,10 +1564,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   });
 
   f.furniture.forEach((m, i) => {
+    if (layerHides(o.hiddenLayers, "furn", i, undefined, o.selection, o.keep)) return;
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = pieceOn(o, m, plugs) ? " on" : "";
     out.push(`<g data-f="${i}" class="furn${on}"${furnitureLinked(m)} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
+    if (o.locate?.t === "furn" && o.locate.i === i) out.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
     const waves = furnitureWaves(o, m);
     if (waves) out.push(waves.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
   });
@@ -1627,7 +1646,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
-    if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
+    if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
     if (iconHidden(d)) return;
     const floorAt = centreOf(d, i);
     if (!floorAt.every(Number.isFinite)) return;
@@ -1681,7 +1700,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     const dim = o.dimmed?.has(d.entity) ? " dim" : "";
-    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
+    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}${o.locate?.t === "dev" && o.locate.i === i ? `<circle class="locate" cx="12" cy="12" r="16"/>` : ""}</g>`);
     // S7.9: a radar's targets. Each pair's x (mm, right of the sensor) and y (mm, ahead of it) is turned by the
     // sensor's own `rot` the same way a plan point turns (SVG's own clockwise convention: rot 0 keeps "ahead" up),
     // converted to centimetres, then added to the sensor's own position — the world point a target dot is drawn
@@ -1718,6 +1737,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // (data-u, mirroring data-x) need no new CSS or overlay code (finding 8, one draw path).
   (f.unlinked ?? []).forEach((u, i) => {
     if (!Number.isFinite(u.x) || !Number.isFinite(u.y)) return;
+    if (layerHides(o.hiddenLayers, "unl", i, u.type, o.selection, o.keep)) return;
     const sel = o.selection?.t === "unl" && o.selection.i === i;
     const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1;
     const rot = typeof u.rot === "number" && Number.isFinite(u.rot) && u.rot !== 0 ? u.rot : 0;

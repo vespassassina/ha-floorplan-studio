@@ -23,7 +23,8 @@ const PARITY: Record<string, Decision> = {
   recenter: { card: "yes", has: 'button[aria-label="Fit"]' },
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
   copyCardView: { card: "deliberate", why: "authoring: it writes the card's own `center` and `zoom_level`" },
-  filter: { card: "deliberate", why: "a work aid for a crowded plan; the card has the Active list, grouped by type" },
+  // S24.6: Layers replaced the Filter menu; S24.8 gives the card a text chip per family in its Overview, unfolded by this button.
+  tabLayers: { card: "yes", has: ".fp-ov-scopes button.fp-layers-toggle" },
   zin: { card: "yes", has: 'button[aria-label="Zoom in"]' },
   zout: { card: "yes", has: 'button[aria-label="Zoom out"]' },
   zreset: { card: "yes", has: 'button[aria-label="Reset view"]' },
@@ -49,7 +50,7 @@ test("every view control of the editor has a decision for the card", async ({ pa
   await expect(page.locator("floorplan-studio-editor svg polygon[data-r]").first()).toBeVisible();
   const ids = await page.evaluate(() => {
     const root = document.querySelector("floorplan-studio-editor")!.shadowRoot!;
-    return [...root.querySelectorAll("#mOpt [id], .zoom [id], #filter")].map((e) => e.id).filter(Boolean);
+    return [...root.querySelectorAll("#mOpt [id], .zoom [id], #tabLayers")].map((e) => e.id).filter(Boolean);
   });
   expect(ids.length).toBeGreaterThan(15); // the scrape found the menus at all
   const undecided = ids.filter((id) => !(id in PARITY));

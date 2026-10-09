@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- Card: low batteries show up as Home Assistant reports them. A Zigbee2MQTT `battery` attribute, a battery sensor or low-battery sensor placed on the plan, and the battery sensor of a placed device's own HA device all count. A home battery's charge still does not.
+- Card: a home battery or car at 10 % no longer reads as a low battery on the switch or plug that shares its Home Assistant device. Only a battery sensor Home Assistant files as diagnostic counts there. A battery sensor in volts is not read as a percentage.
+- Card: a jammed lock is in Attention, as "jammed".
+- Card: a lamp that is on and low on battery stays under Active as well as in Attention.
+- Card: the ring round a located device keeps its own animation; it shared a name with the Studio's ring.
+- Card and Studio: closing the search with Escape gives the keyboard back. Before, the box kept focus inside Home Assistant and the next / typed a slash.
+- Card and Studio: search finds "Søren" from "soren" and "Große" from "grosse": ø, ß, æ, ł, đ, þ and œ fold to plain letters.
+- Studio: adding an appliance names its type as you read it in the menu: "Added UPS; hidden by Layers", not "Added ups".
+- Studio: a click no longer picks a small TV, speaker or computer that Layers hides. It used to select the invisible piece and bring it back.
+- Studio: a search for a TV or speaker whose id repeats on another floor now marks its own row in the Outline, not the other floor's.
+- Card: a search at the top of the Overview, opened with ⌘K, Ctrl+K or / while the card is under the pointer or has focus. Enter on a device goes to it as a row tap does; on a room, opens the room; on a floor, shows it.
+- Card: "Turn off on this floor…" lists what is on (lights with their relays, switches, plugs, media), grouped with counts and all ticked. One button turns off what stays ticked.
+- Card: a Layers button in the Overview unfolds one chip per family on the floor (Lights, Climate, … Furniture). A click hides that family on the plan, Alt-click shows it alone. Each viewer's choice is remembered. Search still finds a hidden device, draws it, and offers Show.
+- Card: the room and floor "All off" button now reads "Lights off", which is what it does. Scenes no longer has its own All off.
+- Studio: Layers replace the Filter menu. A Layers tab beside Outline has one eye per family (lights, climate, security and the rest, plus furniture), with a count for the floor on show. A click hides a family, Alt-click shows only that one. The toolbar says what is hidden, and opens the tab. Search and the Outline still find a hidden device; the message offers Show.
+- Studio: placing devices under a hidden layer no longer makes them vanish without a word: "Placed 4 devices; 3 hidden by Layers", with Show.
+- Studio: a room's right-click offers what Place offers, without loose power sensors, scenes or batteries, each name with its entity id in small type. Sensor lists show the Home Assistant name, not the raw id. The area list shows an area once, and two of one name with their floor.
+- Studio: find anything on the plan. Press / or ⌘K, type a few letters, Enter: the Studio switches floor, selects the device or room, centres it and rings it a moment. The same box runs a few commands (Fix plan, Draw room, Add device, Zoom to fit, Undo, Save).
+- Studio: an Outline beside the plan lists floors, rooms and devices with counts, filters by name or entity id, and works with the arrow keys. Its last branch, "Unplaced from HA", lists what Home Assistant has that the plan does not, by area; a click starts adding it. The column folds to a thin rail and starts folded on a window under 1100 px.
+- Card: the Active list is now the Overview. What needs attention comes first, with how long ago it changed; what is on follows by category. It lists the floor on show; "All floors" lists them all, each row with its floor. The header counts things in short chips ("2 alerts · 6 lights").
+- Card: tapping a row in the Overview goes to the device: the plan switches floor, centres on it, rings it and opens its popup. In 3D it switches floor and opens the popup.
+- Card: the small ▸ arrow on each row is gone. A device's details (maker, model, firmware, entity, last changed) are under Details in its popup.
+- Card: floor tabs show how many things need attention ("Ground · 3") and turn orange while an alarm is triggered.
+- Card: a lamp lit by its relay reads "on · via" the relay in every list, not off.
+- Card and studio (groundwork): one search index over floors, rooms and devices. A query matches names, entity ids, rooms, floors and types, ignores case and accents, and ranks the exact name first.
+- Card and studio (groundwork): one search box, opened with ⌘K, Ctrl+K or /. Arrows move through the results, Enter picks, Escape clears and then closes. Each result shows its room, floor and type.
+- Card: the card file is a quarter smaller (109 to 84 KB gzipped). The build drops the code's comments and spaces; the panel (158 to 131 KB) and the 3D view (196 to 145 KB) shrink too.
+- Card and Studio: a plan in another theme placed inside a solarized one keeps its own colour for garden, terrace, pavement and water names.
+- Card: switching floors in 3D no longer stalls. Each switch compiled the 3D view's shaders again, which took most of a second on a slow tablet; the view now keeps them while it is open.
+- Card: a door left unlocked is no longer called open. The room and floor facts read "Open" and "Unlocked" apart; "Unlocked" shows only where a door has a lock. The plan still draws both red.
+- Card: cameras are no longer in the Active list. A camera is a view, not something switched on.
+
 ## 0.21.0 - 2026-10-08
 
 - Card and studio: room names are solid, not faded. Each name is the text colour mixed into the room it sits on, at 12 px (outdoor names and zones at 10, outdoor in italic), in Home Assistant's own font. Readings keep their number and unit together and line up digit for digit.

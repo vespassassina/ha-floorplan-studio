@@ -4,7 +4,7 @@
 // are the card's `--fp-*` theme tokens, read from the card itself once per theme change. No network. S13: a room's or tread's top face wears its floor texture (tex.ts), and a lit lamp lights the walls of its room (glow.ts).
 // S12.5: `setLive` brings the live state in (core/live.ts, plain JSON): lit rooms and lamp pools, doors, bodies, balls, the
 // motion edge, and the HTML overlay. Every part changes in place; the scene is built again only for a new floor or theme.
-import { CylinderGeometry, DirectionalLight, BufferAttribute, BufferGeometry, Color, HemisphereLight, InstancedMesh, LineDashedMaterial, LineLoop, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, PerspectiveCamera, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer, DoubleSide } from "three";
+import { CylinderGeometry, DirectionalLight, type Material, BufferAttribute, BufferGeometry, Color, HemisphereLight, InstancedMesh, LineDashedMaterial, LineLoop, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, PerspectiveCamera, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer, DoubleSide } from "three";
 // Types only: this module imports nothing from the card at run time, so the bundler keeps it a chunk of its own (see palette.ts).
 import { CUT_WALL_HEIGHT, ICON_MARGIN, makeBuildScene, type Scene as Plan3D, type Solid, type SceneDeps } from "../../core/scene-build";
 import { makeLiveOf, type Live3D, type LiveDeps } from "../../core/live-build";
@@ -333,6 +333,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     if (disposed || !lost) return;
     lost = false;
     if (restoreTimer !== null) { clearTimeout(restoreTimer); restoreTimer = null; }
+    freeKeepers();
     resize(); // sets the size again and asks for a frame
   };
   canvas.addEventListener("webglcontextlost", onLost);
@@ -353,7 +354,18 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     }
     return p;
   };
-  const dropMat = (m: MeshLambertMaterial) => { m.map?.dispose(); m.dispose(); };
+  // S22.F1: three destroys a shader program when the last material that used it is disposed, so a floor switch, which disposes
+  // every material of the old floor before the new one is drawn, compiled all its programs again: about 0.7 s a switch in the
+  // tests' software GL, a stall on a wall tablet too. The first material to give up a program is kept, unused, for the life of
+  // the view, so the program stays and the next floor or theme finds it. One per program: a handful, and no buffers or maps.
+  const keepers = new Map<object, Material>();
+  const retire = (m: Material) => {
+    const prog = (renderer.properties.get(m) as { currentProgram?: object }).currentProgram; // three's own record of the material
+    if (prog && !keepers.has(prog)) keepers.set(prog, m); else m.dispose();
+  };
+  /** A restored context starts a new program cache, and the view's end ends it: the kept materials go. */
+  function freeKeepers() { for (const m of keepers.values()) m.dispose(); keepers.clear(); }
+  const dropMat = (m: MeshLambertMaterial) => { m.map?.dispose(); retire(m); };
   const dispose = (list: Mesh[]) => { for (const m of list) { scene.remove(m); m.geometry.dispose(); dropMat(m.material as MeshLambertMaterial); } };
   /** One mesh per colour from the solids `pick` accepts, drawn over the z range `zOf` gives (null: left out). A solid with a floor texture gives its top face to a mesh of its own, with UVs in plan cm (tex.ts); its other faces stay the flat colour. */
   const meshesOf = (pick: (s: Plan3D["solids"][number]) => boolean, zOf: (s: Plan3D["solids"][number]) => [number, number] | null): Mesh[] => {
@@ -417,10 +429,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     for (const b of devBodies) { drop(b.mesh); b.lit.forEach(drop); }
     for (const b of pieceBodies) drop(b.mesh);
     parts = []; devBodies = []; pieceBodies = []; ballIdx = []; ballRest = [];
-    rings.dispose();
+    rings.dispose(retire);
     roomShapes = []; roomSolid.clear();
-    if (ring) { scene.remove(ring); ring.geometry.dispose(); (ring.material as LineDashedMaterial).dispose(); ring = null; }
-    if (markers) { scene.remove(markers); markers.geometry.dispose(); (markers.material as MeshLambertMaterial).dispose(); markers.dispose(); markers = null; }
+    if (ring) { scene.remove(ring); ring.geometry.dispose(); retire(ring.material as LineDashedMaterial); ring = null; }
+    if (markers) { scene.remove(markers); markers.geometry.dispose(); retire(markers.material as MeshLambertMaterial); markers.dispose(); markers = null; }
     picker = null;
   };
   /** One ball per device that has no body of its own, at its z; its colour is the icon's, set by `applyBalls`. A room's own sensor has none. The tap's proxy (pick.ts) is bigger and has no mesh. */
@@ -787,6 +799,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       canvas.removeEventListener("webglcontextrestored", onRestored);
       if (restoreTimer !== null) clearTimeout(restoreTimer);
       clear(); // the ring too
+      freeKeepers();
       pools.dispose();
       glow.dispose();
       rasters.dispose();
@@ -835,6 +848,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       },
       /** three's own count of what the graphics card holds: 21 floor switches must leave it where 2 did. */
       memory: () => ({ geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
+      /** The ids of the shader programs alive now. three numbers each program it compiles, so a switch that compiled again shows new ids (S22.F1). */
+      programs: () => (renderer.info.programs ?? []).map((p) => p.id).sort((a, b) => a - b),
       /** The meshes that wear a floor texture: what the tile is, whether its map has arrived, and the UVs of the first three vertices (with the plan position they belong to). */
       textured() {
         return texMeshes.map(({ mesh, mat, tile }) => {

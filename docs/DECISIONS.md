@@ -2,6 +2,258 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Sprint 24 review fixes, core and card (S24.R)
+
+- **A sibling battery sensor counts only when HA files it `diagnostic`** (S24.R12). Supersedes the assumption in
+  "Home battery or device battery" below that siblings need not be diagnostic. The re-check found the case it feared:
+  a `switch.batt_grid_charge` or a car charger's plug shares its HA device with the battery's charge sensor, filed
+  without a category, and 10 % of that is a normal night. The type check sees only the placed icon, so the registry's
+  category decides for the sibling, the rule a `battery` icon already used. Shape from the frontend: `hass.entities`
+  carries `entity_category` as the string "config" or "diagnostic", or leaves it out (`connection-mixin.ts` maps the
+  display entry's numeric `ec` through `entity_categories`). The cost: an integration that files a device's own battery
+  without a category is no longer read through the sibling path; its `battery` attribute still is.
+- **A battery sensor is read only in % or with no unit** (S24.R12). A cell in volts at 2.9 is not 2.9 %.
+
+- **Low battery reads what Home Assistant really sends** (S24.R1). Supersedes part of "Low battery is a device's own
+  battery" (S24.3). Three paths, the first with a reading decides: the entity is a battery entity itself (a battery
+  `binary_sensor` on is low; HA has no level there, so the row says "battery low"); a `battery_level` or `battery`
+  attribute (Zigbee2MQTT and some others name it `battery`); else a battery entity of the same HA device, through
+  `hass.entities[id].device_id`. The card already read that registry for the plug power link (S14.x), so the shape is
+  the frontend's own. A device that reports its own attribute is not second-guessed by a sibling.
+- **Home battery or device battery: the type decides, the registry can overrule.** HA gives both `device_class:
+  battery` and `%`, so unit and class cannot tell them apart. The storage types (`battery`, `inverter`, `ups`, `car`)
+  keep their charge out of Attention and do not look for a sibling (an inverter's device holds the house battery's
+  charge). A `battery` icon whose entity HA files `entity_category: diagnostic` is a device's battery: Zigbee2MQTT,
+  ZHA and most integrations file a device's own battery so, and a house battery's charge is its device's main reading.
+  `typeForEntity` still guesses `battery` for a battery sensor; we did not change the guess, the diagnostic flag covers
+  the real case. Assumption, not checked against Diego's HA: siblings are not required to be diagnostic, so an
+  integration that files a house battery's charge on the same device as a placed light or switch would raise it.
+- **The battery item stays on the placed thing.** `entity` is the motion sensor, not its battery sensor; `source` and
+  `level` say where the reading came from. So the row's room, its place on the plan, the room filter and the floor's
+  count of things all work as for any other item.
+- **Jammed is its own kind, between open and unlocked** (S24.R2). A jammed lock cannot lock; someone must go, which is
+  more than an unlocked one and less than a door standing open. Row text "jammed". Locking and unlocking stay calm.
+- **Active leaves out only what Attention already says** (S24.R6). An item of kind `battery-low` says nothing about on
+  or off, so a lamp that is on and low is listed in both; an open door is listed once.
+- **The card's pulse ring keyframes are `fp-pulse-ring`** (S24.R7). They shared `fp-locate` with the plan's own ring
+  in one shadow root, where the later rule wins: the card's box-shadow would replace the plan ring's grow-and-fade.
+- **`render.ts` imports `layerHides`** from `layers.ts` (S24.R11). Supersedes "render.ts still has its private copy"
+  (Studio fixes, below): one rule decides what Layers leaves off the plan and what the Studio's pick skips.
+- **`attention().floors` has no prototype** (S24.R9): a floor key `__proto__` is a floor.
+- **Search folds a short, explicit list of letters** that Unicode does not decompose: ø o, ß ss, æ ae, ł l, đ d, ð d,
+  þ th, œ oe, ı i. A list, not a transliteration library (no dependency, a few bytes in the card). Both sides fold, so
+  typing "ø" still finds "Søren". A letter not on the list matches only itself.
+
+## 2026-10-09: Sprint 24 review fixes, Studio (S24.R4, S24.R8, S24.R10a)
+
+- **An Outline row for a device or piece is `d:<floor>:<id>`** (`deviceNodeId`). Validate keeps a piece's id unique on
+  its floor only, and a device's id unique among devices only, so the bare id could name two rows. The id, not the
+  index, so the active row stays on its thing when another is deleted. Rooms keep `r:<floor>:<index>`, as before.
+- **What Layers hides is not pickable; what the plan keeps is.** The rule moved to `layerHides` in `src/core/layers.ts`
+  and the Studio's padded pick asks it with the selection, as `renderFloor` keeps the selection drawn. A piece found by
+  search while hidden is drawn and can be grabbed; let go, it cannot. `render.ts` still has its private copy of the rule:
+  that file was another coder's in this round. It should import `layerHides` when the branches meet.
+- **A type in a sentence is its singular label** (`DEVICE_TYPE_LABELS`), lower case unless it starts with two capitals,
+  so "UPS", "AC" and "TV" stay as they are. `TYPE_LABELS` is the menu's plural ("Access points"), wrong after "Added".
+  Furniture keeps its symbol ("Added sofa"): the Furniture menu lists symbols too, and none has an underscore.
+
+## 2026-10-09: the card's layer chips (S24.8, part 2)
+
+- **Supersedes "Layer chips are not in this part"** (part 1, below). The chips fill the `.fp-ov-layers` slot.
+- **Text chips, not eyes.** The eye paths stay in the editor; the card bundle carries no new icon. Pressed means shown;
+  a hidden chip is dashed and struck through, so the state does not rest on colour.
+- **One chip per family with something on the floor on show**, devices and unlinked appliances by type, pieces as
+  Furniture (`layerCounts`). A family the floor lacks has no chip, though it stays hidden if the viewer hid it.
+- **Per viewer, not per floor.** The hidden list sits in the card's view memory beside the theme and the names toggle,
+  and holds on every floor, as the Studio's does. Junk in storage is dropped by `parseLayers`.
+- **Not in live 3D.** The 3D view draws every family; chips that did nothing there would lie. They come back with 2D.
+- **Search and row taps do not follow Layers**, as in the Studio. The located thing is drawn by `keep` and the chips
+  end in "Hidden by Layers: lights" with Show. A note in the sheet, not a banner: the card has no banners. A floor change
+  or any chip click drops the kept thing, so it never lingers as an exception nobody asked for.
+- **The chips fold under a Layers button**, in one row with "Turn off on this floor…" and "All floors". Eleven chips
+  are three lines in a 260 px sheet; always open, the taller sheet covered plan points the popup and wheel tests use,
+  which a viewer would hit too. Folded, the button still counts what is hidden ("Layers · 2 hidden"; the Studio's
+  `layersSummary` sentence is its title, too long for one line beside All floors). The fold is not
+  remembered: a sheet starts folded. This supersedes part 1's place for "Turn off on this floor…" (under the scope
+  toggle): it now starts the tools row, so the Overview is one row shorter than in part 1.
+- **Chips are in the Overview only.** A picked room's section is about that room; the chips return with the Overview.
+- **The parity row `#tabLayers` is now "yes"**, checked by the Layers button on the 2.5D demo card.
+
+## 2026-10-09: the card's search, "Turn off on this floor…" and "Lights off" (S24.8, part 1)
+
+- **The chord is taken under the view keys' gate**: the card focused, else hovered, as the arrows are. The card's key
+  listener has been on `window` with that gate since S11.3, because in Home Assistant a hovered card has no focus and a
+  listener on the host would never hear the key. Finding 6 is about the editor; here one card of several acts, never two.
+  `/` in any text field is a slash (`takesTyping`). No sheet (kiosk, `active_list: false`) leaves the key to the page.
+- **The chord goes back to the Overview**: a picked room or floor is cleared, a popup closes, a folded sheet opens and the
+  search takes focus. Opening the fold this way counts as the person's choice, as a tap on the fold button does; otherwise
+  a phone's width default folds it again on the next render.
+- **The index is built once per layout**, with whether states are known and the floors on offer as the rest of the key, so
+  `<fp-search>` sees the same array between keystrokes and state updates.
+- **Devices on every floor are searchable; floors and rooms only where the card can show them.** A pinned card opens another
+  floor's popup, as a row tap does (S24.7), but cannot show another floor or its room.
+- **Enter on a device or piece is a row tap** (`_locate`), with the popup beside the sheet. **On a floor**, the floor is
+  shown and focus stays in the box. **On a room**, its floor is shown and the room's section opens, highlighted, with no pan;
+  focus goes to the section's close button, since the box goes with the Overview. Escape then returns to the Overview.
+- **A popup opened from the sheet stands beside the sheet's edge**, not the row's: 8 px past the row's edge still overlapped
+  the sheet's padding and border by a pixel. Rows move 9 px right with it.
+- **"Turn off on this floor…" acts on the floor on show.** It sits under the scope toggle in the Overview and beside
+  "Lights off" in the floor's panel, not in a room's. Disabled, with the title "Nothing is on on this floor", when the list
+  would be empty.
+- **On means not off, standby, unavailable or unknown.** A paused speaker and an idle TV are listed: they have something to
+  turn off. A plug counts by its switch, not its watts. Heaters, covers, vacuums and climate are not offered: none is "off"
+  in one safe tap (`FLOOR_OFF_GROUP`, a decision per type, finding 17).
+- **A lamp's row turns off its light and its bound relay when on** (`lampOffEntities`, S22.1), and reads "with" the relay.
+  A relay that is also a switch row is sent once. Unticking the switch row does not keep a ticked lamp's relay on.
+- **The rows are a snapshot taken at open**, so a row does not vanish under the finger. The calls are one `turn_off` per
+  domain: `light`, `switch`, `media_player`, anything else `homeassistant`.
+- **"All off" in a room or floor panel reads "Lights off".** It always turned off lights and their relays only. The
+  aria-label already said "Turn off all lights in …" and is unchanged.
+- **"The preset All off leaves Scenes where the room button exists", read plainly: it leaves.** Scenes shows only in a
+  room's panel, and that panel has the Lights off button whenever a lamp of the room is on, relays included. Dropping the
+  preset only while the button shows would make it appear and vanish with state. "All on" stays. A custom scene a person
+  named "All off" is theirs and stays.
+- **Layer chips are not in this part.** A marked empty slot (`.fp-ov-layers`, `data-slot="layers"`) waits beside the scope
+  toggle and hides while empty.
+
+## 2026-10-09: Studio Layers replace Filter (S24.6)
+
+- **A view keeps the hidden families, not the shown ones.** Empty is the default, so a family added later starts
+  visible and an old remembered view needs nothing.
+- **Families are the card's categories plus Furniture** (`src/core/layers.ts`), so the Studio and the card (S24.8) group
+  alike. An unlinked appliance follows its type: hiding lights hides an unlinked lamp too. Every furniture piece, a
+  linked tv or speaker piece included, is Furniture: it draws as furniture.
+- **The selection is always drawn**, a device by `selection`, a piece or unlinked appliance by the new `keep`. Hiding the
+  family of what is selected lets the selection go: an invisible handle helps nobody.
+- **Alt-click on the family that is already the only one shown shows all again**, so one gesture undoes itself.
+- **Summary wording**: one hidden names it, all but one says "only X shown", all says "all hidden", else "N of 11".
+- **The note is a toolbar button, not a banner.** It stays while anything is hidden and opens the tab. Banners are for
+  events: a pick or a placement under a hidden layer, each with Show, which shows only the families concerned.
+- **Fit ignores Layers**, as Filter did. A view setting must not move the frame.
+- **The room's right-click uses Place's filter** (`areaMenuEntities`), not `areaToPlace`: `addFromArea` takes an HA
+  entity, and a catalogued one is refused there.
+- **A repeated area name gets the HA floor name, else the id.** Names are trimmed and compared without case.
+- **The eye paths live in the editor**, not in core's `UI_ICONS`, which the card bundle carries whole.
+- **The card's view-parity row is `#tabLayers`, "no" for now**, with why: the card's chips are S24.8.
+## 2026-10-09: the S7.15 swipe flake was a fling in the test (S24.F1)
+
+- **Cause.** The test drove its swipes through CDP without timestamps, so Chromium stamped each touch with its
+  dispatch time and turned the lift into a fling whose speed was whatever the load made it. The page kept scrolling
+  for up to a second after `touchEnd`. The test reset the page with `scrollTo(0, 0)` while the fling still ran; its
+  tail, or Playwright scrolling Zoom in back into view, left `scrollY` at 1 or 2 before the second swipe began. A probe
+  logging every scroll event caught 7 failures in 400 runs under load, all already off 0 before the second
+  touchstart; `touch-action` read `none` at every one. The card never let the page move. The probe also showed a
+  fling backwards to 0, which the old `scrollY > 50` poll passed mid-swipe and never saw.
+- **Superseded: S8.2's two-frame wait.** It assumed `fp-zoomed` reached the compositor a frame late. It was the same
+  fling. Removed; 400 runs with no frame wait never scrolled during the second swipe.
+- **Fix, in the test only.** The swipe carries its own clock (16 ms a step) and rests 100 ms before it lifts, so it
+  has no speed and no fling; the test waits for `scrollend` and asserts `scrollY` is 0 before the second swipe.
+  200 of 200 at load 22 to 27, where the old test failed 1 in 80 at load 7. With `fp-zoomed` set to `pan-y` the test
+  still fails (`scrollY` 240). `toucher` takes an optional `timestamp`.
+- **Lesson.** A synthetic touch gesture stamped by dispatch time has load-dependent speed. Give it a clock and wait
+  for `scrollend`, not for a scroll position. Log every scroll event before blaming the product.
+
+## 2026-10-08: Studio search and Outline (S24.5)
+
+- **"Centres at no less than 1:1" means never zoomed out further than fit.** The plan has no fixed px-per-cm; fit is the
+  only scale a person knows. A pick keeps the zoom when it is closer than fit, else zooms in to fit, and centres.
+- **An unplaced entity opens Add > Device listing only it, its row focused**, rather than placing it at once. Placing
+  is an edit and lands where the viewport is; one Enter more keeps that edit a choice.
+- **After a pick, focus goes back to the editor host**, so Delete, the arrows and the next `/` act at once. Add device…
+  keeps its own focus.
+- **Six commands only**: Fix or Unfix plan, Draw room, Add device…, Zoom to fit, Undo, Save. Each calls the code its menu
+  calls. More can follow when a menu item is asked for twice.
+- **The tree is flat rows** with `aria-level`, `aria-setsize` and `aria-posinset`, not nested groups, so only open
+  branches render and the 437 devices of the stress house cost nothing while their rooms are shut. Roving tabindex.
+- **The floor on show starts open**; the rest are shut. A pick opens the branches above it and scrolls its row into the
+  tree's own view (not the page's), without taking focus.
+- **The ring is in `renderFloor`** (`locate`), one draw path, so the card can use it (S24.7). Three pulses, then gone
+  after 2.4 s; under reduced motion a still ring. Its own `@media` block: the existing reduced-motion rule is pinned.
+- **The column takes canvas width.** Four editor tests that measure in screen px (snap radius, icon overlap, the HA
+  popover over a plan point) shut it first (`shutSide` in `editor.spec.ts`), and wait for the editor to measure again.
+
+## 2026-10-08: the card's Overview sheet (S24.7)
+
+- **Active leaves out what Attention lists.** A triggered alarm or an open garage would otherwise be two rows. The Active count and chips count the rest.
+- **The alerts chip counts Attention rows; a floor tab counts things** (S24.3's `floors.count`). A lock that is unlocked and low on battery is two rows, one thing on the tab.
+- **Alerts come first in the chips** ("2 alerts · 6 lights"), against the wireframe's order. Folded, the header is one line that ends in an ellipsis; what is wrong must survive the cut.
+- **Folded, the header is one line and the crumb hides.** Two lines covered a device and a door at 375 px that a person could tap before S24.7 (`card-room-select`, `label-tag-tap`).
+- **The panel stays `min(200px, 45%)` wide.** A wider panel (250 px) hid plan icons that existing tests tap at 375 px. Rows wrap their name and room instead; the age never breaks.
+- **The category labels stay** ("Lights", "Security"), not the wireframe's "Lights on": the folds and their stored ids are S14.6's.
+- **The pulse is card chrome**, a `.fp-pulse` ring placed over the icon after each render, not a `renderFloor` option. Nothing on the plan changes, so the studio needs no twin (finding 8 holds: the plan is still drawn by one path).
+- **3D: a row tap switches floor and opens the popup, no pan, no ring.** The 3D camera has no "centre on a point" yet; the ring looks for the 2D svg and hides without it.
+- **A card pinned to one floor with "All floors" on** opens another floor's popup and does not switch, since it cannot show that floor.
+- **A linked piece's row locates it, then opens more-info**, as its tap on the plan does.
+- **`zoom: false` keeps the zoom on show**; otherwise the locate zooms to 2× or closer, never out.
+- **Unavailable is folded by default** (`a:unavailable:open` in the fold set, the "opened" pattern of Scenes).
+- **The scope toggle shows only when the card can show more than one floor**, and `all` is kept in `fp-active-panel:` beside the position.
+- **The search slot is an empty `div` that hides itself** (`:empty`), so S24.8 adds the box without moving the rest.
+- **A phone's popup may cover the thing it located.** On a 390 x 410 card the popup beside the row overlaps the centred lamp; the ring shows once the popup closes. Left for review; a bottom sheet is the likely fix.
+
+## 2026-10-08: the search box's keys and focus (S24.2)
+
+- **`isSearchChord` lives in `view-keys.ts`**, beside `isSaveChord` and `takesTyping`, and `search-box.ts` re-exports it. A host can test the chord without loading the element, and "/" in a text field uses the same `takesTyping` rule as the view keys.
+- **"/" is allowed with Shift.** On an Italian or German keyboard "/" is Shift-7. Alt and Ctrl or Cmd with "/" are not the chord. Cmd-K and Ctrl-K are, without Alt or Shift, also from a text field.
+- **Escape on an empty box closes it: focus goes back to where it was when the host called `focus()`, and `fp-close` fires.** So the host's chord works again at once, and a host that shows the box as a popover can hide it. Both Escapes stop there; the host's own Escape (deselect, cancel a tool) does not also run.
+- **A pick clears the query and keeps focus in the box**, ready for the next search; the host moves focus if it wants to.
+- **Hover is a light tint, the active option is inverted** (`--fp-ink` on `--fp-bg`, as in `<fp-combo>`). Two inverted rows, one under the mouse and one under the keyboard, read as two choices.
+- **The Playwright harness is served by the test dev server through Vite's `/@fs/` path** (`tests/card/search-harness.html`), so the element is compiled from this tree with no extra build entry.
+
+## 2026-10-08: one search index, ranked in tiers (S24.1)
+
+`src/core/search.ts` builds the entries once and ranks a query by tier, not by a score.
+- **Ties go to the shorter name, then layout order.** The plan named one "guest bedroom bedside lamp"; the stress house has two (left, right) and a bedside plug, all on the same tier for "bedside guest". The shorter name first puts the left lamp on top, and a room ("Guest bedroom") before the devices named after it.
+- **An exact entity id is tier 0**, beside an exact name: pasting an id must land on its device.
+- **The last tier searches name, entity, room, floor and type together**, so "second light bedside" works. Words split on anything that is not a letter or digit in any script.
+- **Rooms of every kind with a name are entries**, zones too: a zone is a named place a person looks for. Their type label is "Room".
+- **A linked piece (tv, speaker, computer) is a device entry**, flagged `piece`, its index into `furniture`; the same rule as the Active list.
+- **A person has no room**: its drawn spot comes from sensors, not its stored point (as in the room summary).
+- `room-info.ts`'s private `centre` is now exported as `deviceCentre`, so search finds a device's room with the same point and `roomAt` as the room summary.
+## 2026-10-08: the shipped code loses its comments and its whitespace (S24.4, S23.F5)
+
+Sprint 24 adds a search box and an Overview sheet to the card, and the card was 109229 gzip against its 115000 limit. The
+limit stays. What still shipped: Vite's lib mode minifies names and syntax but, for the `es` format, never whitespace,
+because that would drop the `/* @__PURE__ */` marks a library's users tree-shake with. Without whitespace minification
+esbuild keeps every JSDoc and `//` comment, and every indent.
+- **The fix is at the build.** `scripts/minify-output.mjs`, last in the card and panel builds, runs esbuild's whitespace
+  minify over each finished chunk (`generateBundle`, after Vite's own minify, which would print the code out again).
+  Our files are the end of the line, not a library anyone bundles again, so the pure marks have no use. Licence comments
+  (`@license`, `/*!`) stay where they are. Template contents are not touched; the stylesheet comments go earlier, as before.
+- **Whitespace too, not comments only.** esbuild has no "comments only" switch, and dropping comments while keeping
+  indents means a second parser of our own. Whitespace is also the bigger share.
+- **Measured** (`gzip -9`, as the size test): card 109229 to 84469, panel 157897 to 130719, 3D chunk 195527 to 145058.
+  The comments in the source stay, where they are read.
+- Supersedes the "Not done" line of 2026-10-08 "stylesheet comments do not ship".
+- Test: `size-budget.spec.ts` parses each shipped file and fails on any comment that is not a licence, and on two known
+  JSDoc sentences.
+
+## 2026-10-08: every theme group sets its own outdoor ink (S24.4, S23.F3)
+
+`--fp-text-out` was set by solarized alone and read with a fallback to `--fp-text`. A plan group of another theme inside a
+solarized one inherited solarized's base2 for its outdoor names. The generic defaults, before the theme blocks, now set
+`--fp-text-out:var(--fp-text)` on `:host,.fp,[data-theme]`, so each group resolves it from its own text; solarized's own
+rule comes later and still wins on its group. Test: `labels-css.spec.ts`, every other theme nested in solarized reads as
+it does alone.
+## 2026-10-08: the 3D view keeps its shader programs across floors (S22.F1)
+
+The "20 switches" test in `card-3d-floors.spec.ts` took 23 to 29 s alone and timed out under the full suite. A CPU profile put the time in native code, not JS: three.js destroys a shader program when the last material using it is disposed, and a floor switch disposed every material of the old floor before the new one was drawn. So every switch compiled its programs again, four of them, about 0.7 s a switch in the tests' software GL. Compile time is CPU time in software GL, so the test slows with machine load: the same code took 23 s and 29 s alone on 2026-10-08, against 12 s when first logged. Not bisected.
+- **The fix is in the product.** `view3d.ts` `retire`: the first material to give up a program is kept, unused and out of the scene, until the view ends or its context is restored; any other is disposed as before. One material per program, no buffers and no maps. Geometries and textures still go at once, so the leak check reads the same counts.
+- **Not chosen:** disposing the old materials one frame later. It saves a program the next floor uses, but a program one floor needs and the next does not (the textured top on ground and first, none on test) still dies in between: 35 compiles in 21 switches instead of 84. Sharing materials across floors would need every part to stop mutating its own colour.
+- The test now also reads the live program ids (a test-hook read, `programs()`) and requires them unchanged after 21 switches. The test's own work is unchanged: 21 switches, the same memory, children and renderer checks. Alone it takes about 4.5 s.
+## 2026-10-08: what needs attention, and open is not unlocked (S24.3, G1, G2, G3)
+
+The review found one "Active" number holding ten idle cameras, an armed alarm with no state, and a door called open because its lock was unlocked. `src/core/attention.ts` now lists what is wrong, apart from what is on. Pure; the panel that shows it comes next.
+- **Cameras leave the Active list.** `ACTIVE_LIST_RULE.camera` is `"never"`; the `"always"` rule is gone. Supersedes S9.5's "listed whatever its state". Tests that leaned on the Hall camera row now use other rows; the S9.5 camera row colour pair is replaced by a test that no camera state makes a row. `COLOR_VAR.camera` stays.
+- **Open and Unlocked are separate facts.** `doorStateOf` adds `contact` and `unlocked`; `open` stays their union and still drives the plan's red (2026-09-28 holds). `RoomSummary.openings` holds contact-open doors only; `unlocked` and `hasLocks` are new. "Unlocked" shows only where a door in scope has a lock, so a room without locks does not read "Unlocked: none".
+- **Kinds and order:** triggered alarm, armed alarm, open, unlocked, leak, smoke, low battery, unavailable. Pending (the entry delay) counts as armed, not triggered.
+- **Unavailable means `unavailable`.** `unknown` and a missing state are not counted: HA reports `unknown` for sensors that have simply not reported since a restart, and counting them would bury the list.
+- **A floor's count is things, not items** (coordinator): a device, piece or door with at least one item counts once, so an unlocked lock with a low battery is one on its tab while the list shows both. It leaves unavailable out, which has its own number; it includes an armed alarm. `alarm` is true only for a triggered one.
+- **Water and smoke** are `other` devices, since HA has no type for them: a `binary_sensor` that is on, by device class. `moisture` is a leak; `smoke`, `carbon_monoxide` and `gas` are smoke.
+- **Low battery is a device's own battery** (coordinator's call). The `battery` type is a home storage battery, with inverter and UPS; its charge under 20 % is not an alert, so it enters Attention only when unavailable. Low means a placed device whose `battery_level` attribute is a number under 20, or an `other` device with `device_class: battery` whose state is a number under 20. Anything else, missing or not a number, is not low. A door's own locks and contact sensors are read too, the most common real case, one item per entity; an entity that is also an icon is reported by the icon only. A lock can be unlocked and low at once: two items.
+- **A cover is open** only as the plan says (`coverActive`: garage, gate, door). A door's own garage opener counts as open; a window's curtain does not.
+- **Not in Attention:** a sounding siren, a vibration sensor, a vacuum in error. Not asked for; each is a one-line change in `ATTENTION_RULE`.
+- **Each thing is reported once.** An entity placed as its own icon is reported by the icon, not again by its door. A door's room is the first room in layout order on whose edge it sits.
+
 ## 2026-10-08: the faint dash is a zone's only (Opus review of Sprint 23, S4)
 
 S23.7 said "a zone is a 1 px dash at 35 % with no halo", but the rule sat on `.e.nw`, which every `boundary` edge carries. An open plan's line between two real rooms went faint too. A zone's edges now carry `zn` as well, and the S23.7 style is `.e.nw.zn` and `.eh.nw.zn`. A boundary between rooms, on a free wall or on the outline goes back to what it drew before: a 1.5 cm dash 8 6 over a 3.5 cm halo.

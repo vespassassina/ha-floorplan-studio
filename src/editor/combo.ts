@@ -14,6 +14,8 @@ export interface ComboOption {
    *  "Controlled by"): the `change` event still fires, with `detail` carrying this option's value, but the combo's
    *  own displayed value is left alone, so it keeps showing whatever the caller's `value` property already said. */
   commit?: boolean;
+  /** S24.6 (U16): small text after the label, such as the entity id behind a friendly name. Shown only; the filter already matches the value. */
+  sub?: string;
 }
 
 /** How many matches are drawn before the list stops and shows "N more, keep typing" instead of rendering them. */
@@ -210,7 +212,7 @@ export class FpCombo extends LitElement {
               class="opt${isActive ? " active" : ""}"
               @pointerdown=${(ev: Event) => ev.preventDefault()}
               @click=${() => this.pick(row.option)}
-            >${row.option.label}</li>`;
+            >${row.option.label}${row.option.sub ? html` <small class="sub">${row.option.sub}</small>` : nothing}</li>`;
           })}
           ${this.overflow > 0 ? html`<li class="more">${this.overflow} more, keep typing</li>` : nothing}
         </ul>` : nothing}
@@ -226,6 +228,7 @@ export class FpCombo extends LitElement {
     .grouphead{padding:4px 8px 2px;font-size:.8em;font-weight:600;opacity:.7;text-transform:uppercase;letter-spacing:.02em}
     .opt{padding:4px 8px;cursor:pointer;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .opt.active,.opt:hover{background:var(--fp-ink);color:var(--fp-bg)}
+    .opt .sub{font-size:.8em;opacity:.7}
     .opt[aria-selected="true"]:not(.active)::after{content:" ✓";opacity:.7}
     .empty,.more{padding:4px 8px;font-size:.85em;opacity:.7}
   `;
