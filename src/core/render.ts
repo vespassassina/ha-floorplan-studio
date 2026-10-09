@@ -432,7 +432,7 @@ ${THEME_EXTRAS}
 .door-hit{stroke:transparent;pointer-events:stroke;cursor:move}
 /* S23.7: plan symbols. A window's own line is quiet while it is not selected; its symbol is three hairlines (window, slit), red only
    while open, alarmed or its cover is open. S25.D1: a door or glass door has no symbol and no leaf. Open or with no sensor it is a hole
-   (its own line is quiet); closed (a sensor says off, or a lock says locked, and none is open, unlocked or jammed) its own line is the thin line across the gap, in --fp-door / --fp-glass. */
+   (its own line is quiet); closed (a sensor says off, or a lock says locked, and none is open, unlocked or jammed) its own line is the thick line across the gap (CLOSED_DOOR_BAND), in --fp-door / --fp-glass. */
 .door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .door-sym.k-window,.door-sym.k-slit,.door-sym.k-fullwindow{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
 /* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
@@ -570,6 +570,9 @@ export function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
 const DOOR_THRESHOLD_25D = 4;
 /** The thickness of a slit window's line, as a share of the wall it sits in. */
 const SLIT_BAND = 0.4;
+/** A closed door or glass door (2D) is drawn this many times as thick as the wall it sits in, centred on it (Diego, 2026-10-09: "a closed door is a thick line"),
+ *  but never thicker than an external wall: on one, 1.6x stuck 6 cm out each side and covered the room's border. */
+const CLOSED_DOOR_BAND = 1.6;
 /** A selected door or window is always 8 cm wider than its own thickness, whichever wall it sits on. */
 const DOOR_SELECT_EXTRA = 8;
 /** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus enough
@@ -718,14 +721,14 @@ export function roomAt(f: Floor, p: Pt): number {
   return best;
 }
 
-/** S23.7: the kinds cut out of the wall like an opening. SWING_KINDS (door, glass door) draw no symbol: S25.D1 a hole, or a thin line when closed.
+/** S23.7: the kinds cut out of the wall like an opening. SWING_KINDS (door, glass door) draw no symbol: S25.D1 a hole, or a thick line when closed.
  *  Sealed keeps its dashed line; an open doorway is already cut and draws nothing. */
 const SWING_KINDS: readonly string[] = ["door", "glass"], PANE_KINDS: readonly string[] = ["window", "slit", "fullwindow"];
 const OUTDOOR_KINDS: readonly RoomKind[] = ["garden", "terrace", "pavement", "water"];
 
 /** S23.7: the `d` of a window's plan symbol: three hairlines along the opening, at the wall's two faces and its middle; a
  *  slit's span its narrower band (SLIT_BAND). "" for every other kind and for a zero-length or broken door. A door and a glass
- *  door have none (S25.D1, Diego 2026-10-09): no swing arc since S23.F6, no leaf either; open they are a hole, closed a thin line. */
+ *  door have none (S25.D1, Diego 2026-10-09): no swing arc since S23.F6, no leaf either; open they are a hole, closed a thick line. */
 function doorSymbol(f: Floor, kind: unknown, a: Pt, b: Pt): string {
   const len = dist(a, b);
   if (!(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite) || !PANE_KINDS.includes(kind as string)) return "";
@@ -1610,7 +1613,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // 2.5D: the wall is already cut open above, so the floor line is only a threshold, thin enough to see through the gap.
     // It keeps every class (open, alarm, cover-open) and its alert line, so a door's state still shows.
     // A slit window is the window mark drawn as a thin band (SLIT_BAND of the wall), so it reads as a slit at a glance.
-    const w = x25 ? DOOR_THRESHOLD_25D : d.kind === "slit" ? wallWidthAt(f, d.a, d.b) * SLIT_BAND : wallWidthAt(f, d.a, d.b);
+    const w = x25 ? DOOR_THRESHOLD_25D : d.kind === "slit" ? wallWidthAt(f, d.a, d.b) * SLIT_BAND : SWING_KINDS.includes(d.kind) && closed ? Math.min(wallWidthAt(f, d.a, d.b) * CLOSED_DOOR_BAND, WALL_WIDTH_EXTERNAL) : wallWidthAt(f, d.a, d.b);
     const seg = `x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}"`;
     // S8.9 part 2 + finding 3: the visible line is now as thin as the internal wall it sits on (10 cm, or 20 on an
     // external wall), so a plain transparent line first, at the old fixed 22 cm, keeps the door as easy to click as

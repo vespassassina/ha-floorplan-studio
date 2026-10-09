@@ -55,8 +55,22 @@ describe("S23.7 plan symbols", () => {
     for (const s of ["unavailable", "unknown", "", "garbage"]) expect(cls(sensed, { "binary_sensor.x": st(s) }), `sensor ${s || "empty"}`).toContain("quiet");
     expect(cls(sensed, {}), "no state yet").toContain("quiet");
     expect(cls(sensed), "no state overlay").toContain("quiet");
-    // the closed line is as thin as the wall it sits on (10 cm), not the old door line
-    expect(lineOf(renderFloor(floor(hallAbove, [sensed]), { ...opts, state: { "binary_sensor.x": st("off") } } as never))![2]).toBe("10");
+  });
+
+  // Diego, 2026-10-09: "a closed door is a thick line". The closed line is CLOSED_DOOR_BAND (1.6) times the wall it sits on,
+  // so it reads as a closed door and not as a hairline; an open or sensorless door stays quiet and keeps the wall width.
+  it.each(["door", "glass"] as const)("a closed %s is a thick line: 1.6 times the wall width inside (16 cm), the wall itself outside (20 cm); a hole keeps the wall width and stays quiet", (kind) => {
+    const sensed = door(kind, [100, 300], [190, 300], { sensors: ["binary_sensor.x"] });
+    const off = { "binary_sensor.x": st("off") }, on = { "binary_sensor.x": st("on") };
+    const w = (f: Floor, state?: Record<string, ReturnType<typeof st>>, view: "2d" | "2.5d" = "2d") => renderFloor(f, { ...opts, state, view } as never).match(/<line data-d="0" class="(door [^"]*)"[^>]*stroke-width="([^"]*)"/)!;
+    expect(w(floor(hallAbove, [sensed]), off)[2], "inside wall").toBe("16");
+    const outer = floor([box("hall", "room", 0, 0, 400, 300, "external"), box("pav", "pavement", 0, 300, 400, 400, "boundary")], [sensed]);
+    expect(w(outer, off)[2], "external wall: as thick as the wall, no more").toBe("20");
+    const none = w(floor(hallAbove, [door(kind, [100, 300], [190, 300])]));
+    expect(none[1]).toContain("quiet");
+    expect(none[2], "no sensor: wall width").toBe("10");
+    expect(w(floor(hallAbove, [sensed]), on)[2], "open (alert): wall width").toBe("10");
+    expect(w(floor(hallAbove, [sensed]), off, "2.5d")[2], "2.5D threshold unchanged").toBe("4");
   });
 
   it("several sensors: the door is closed only when every one says off; one open makes it open", () => {

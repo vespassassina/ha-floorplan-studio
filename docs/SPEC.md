@@ -325,7 +325,7 @@ honest metaphor there.
 
 Plan symbols (S23.7, S25.D1). A door or glass door has no symbol: no swing arc (S23.F6) and, since S25.D1 (Diego,
 2026-10-09), no leaf either. It is a gap cut in the wall. Open it is just a hole and nothing is drawn; closed it is the gap
-closed by one thin line across it, as thin as the wall, in `--fp-door` (a glass door in `--fp-glass`). A door is closed only
+closed by one thick line across it (1.6 times the wall, at most an external wall's 20 cm), in `--fp-door` (a glass door in `--fp-glass`). A door is closed only
 when it has a sensor and every sensor says `off` (and no attached lock is unlocked); no sensor, `unavailable`, `unknown` or
 a missing state all read as open, a hole. A sensor that reports open still draws the red alert band and pulse, as before. A
 window is three hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a

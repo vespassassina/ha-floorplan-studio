@@ -102,6 +102,16 @@ Diego: "rename glass into glass doors."
 - Visible name only: the type selector, the docs and SPEC say "Glass door". The stored value stays `glass`; no migration,
   no schema change.
 
+## 2026-10-09: a closed door is a thick line (CLOSED_DOOR_BAND)
+
+Refines "closed doors a thin line (S25.D1)" below. Diego: "a closed door is a thick line."
+- In 2D a closed door or glass door (`doorStateOf(...).closed`, kinds `door` and `glass`) draws its `.door` line at
+  `CLOSED_DOOR_BAND` (1.6) times the wall width, centred, butt caps: 16 cm on an internal wall. Capped at
+  `WALL_WIDTH_EXTERNAL` (20): 1.6x on an external wall (32 cm) stuck 6 cm out each side and covered the room's border in
+  the render, so there the door is flush with the wall. 1.6 was the first value tried; the internal-wall render looked right (a slab 3 cm proud each side), so no other was tried.
+- Unchanged: the open hole and its quiet line, the red alert, windows, slit, full-height window, selection, hit line, 2.5D
+  (4 cm threshold). No new CSS rule, so no new computed-style pair. Test: `plan-symbols.test.ts`.
+
 ## 2026-10-09: doors are holes, closed doors a thin line (S25.D1)
 
 Supersedes the leaf in "no door swing arcs (S23.F6)" and the leaf and "closed door's line is quiet" in "plan symbols (S23.7)".
