@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, parseDetailMode, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -115,7 +115,7 @@ export interface FloorplanStudioCardConfig {
   walls?: WallsMode;
   /** Degrees the plan starts turned, on top of the layout's own `rotate`. Rounded to a multiple of 45 and wrapped to 0..359; junk is 0. The two buttons next to the zoom buttons turn it in steps of 45 for as long as the card is on screen, and the card remembers where it was left. */
   rotation?: number;
-  /** How much of the plan is drawn at a zoom (docs/card.md, Detail): `"auto"` (default) follows the zoom, `"full"` always draws everything, `"minimal"` always draws rooms and what needs attention. Anything else is `"auto"`. The Detail button in the Overview changes it for one viewer, and the card remembers the pick. */
+  /** How much of the plan is drawn at a zoom (docs/card.md, Detail): `"auto"` follows the zoom, `"full"` always draws everything, `"minimal"` always draws rooms and what needs attention. Unset (or anything else) is `"auto"`, except where the viewer can neither zoom nor reach the Detail button (kiosk, or `active_list: false` with `zoom: false`): there it is `"full"`, so no idle device is unreachable. The Detail button in the Overview changes it for one viewer, and the card remembers the pick. */
   detail?: DetailMode;
 }
 
@@ -2812,9 +2812,16 @@ export class FloorplanStudioCard extends LitElement {
 
   // ---- S25.8: detail mode ---------------------------------------------------------------------------------------------------------
 
-  /** The mode on show: this viewer's pick, else the card's YAML `detail`, else auto. Config is untrusted, so junk is auto. */
+  /** The mode on show: this viewer's pick, else the card's YAML `detail`, else the default. Config is untrusted, so junk
+   *  counts as no `detail` at all. The default is `auto` only when the viewer can change the level: the Detail button
+   *  (Overview shown, so neither `kiosk` nor `active_list: false`) or the zoom buttons and gestures (`zoom` not off, no
+   *  kiosk). Otherwise `auto` would hide idle devices at fit with no way to bring them back, so it is `full`. */
   private _detailMode(): DetailMode {
-    return this._pickedDetail ?? parseDetailMode(this._config.detail);
+    if (this._pickedDetail !== null) return this._pickedDetail;
+    const set = this._config.detail;
+    if (typeof set === "string" && (DETAIL_MODES as readonly string[]).includes(set)) return set as DetailMode;
+    const canChange = this._activeListVisible() || (this._zoomMode() !== false && !this._kiosk());
+    return canChange ? "auto" : "full";
   }
 
   /** The Detail button beside Layers; it unfolds the three choices. Its text never changes (the title names the mode): a
