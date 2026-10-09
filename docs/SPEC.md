@@ -180,7 +180,7 @@ in `prompts/`, then fixed in the editor.
   and shades the treads for down. 2.5D: up is the rise; down is a stairwell, a
   sunken opening with treads below the floor and a short rim on the near edges;
   both is the rise with a low kerb round the foot. Resolver: `src/core/stairs.ts`.
-- `door.kind`: door, glass, window, sealed, slit (a window 60 cm high, its head 40 cm under the ceiling of its wall like a window's, 2026-10-06; before that it touched the ceiling; shown as "slit window"), open (a doorway: a door's cut, nothing drawn while closed; tripped, a solid alert band in the gap in 2D, 2.5D and 3D, 2026-10-05, S14.5). `sensor` is a binary_sensor entity;
+- `door.kind`: door, glass (shown as "Glass door", 2026-10-09; the stored value stays `glass`), window, sealed, slit (a window 60 cm high, its head 40 cm under the ceiling of its wall like a window's, 2026-10-06; before that it touched the ceiling; shown as "slit window"), open (a doorway: a door's cut, nothing drawn while closed; tripped, a solid alert band in the gap in 2D, 2.5D and 3D, 2026-10-05, S14.5). `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
@@ -367,7 +367,7 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | computer | grey | blue icon and halo | `--fp-dev-computer` (#2c7fb8) | more-info |
 | camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | `--fp-dev-camera` (#4a4a48) | more-info (live view) |
 | cover on a `door` or `sealed` opening | door normal | door open state shown, orange | `--fp-open` (#f28c28) | tap: confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open; long press: chooser listing every entity the door names, the cover included (S10.3 review) |
-| cover on a `window` or `glass` door | door normal | never colours the opening — here `cover` is curtains/blinds, not a security state (2026-09-28) | — | same tap/long-press behaviour as above; only the colour is suppressed |
+| cover on a `window` or glass door (`glass`) | door normal | never colours the opening — here `cover` is curtains/blinds, not a security state (2026-09-28) | — | same tap/long-press behaviour as above; only the colour is suppressed |
 | siren | grey | `--fp-danger` icon and halo while its entity is on; rings only when the entity is in the `siren` domain | `--fp-danger` (#b02a2a) | popup (Turn on/off) |
 | alarm (`alarm_control_panel.*`) | grey while `disarmed` | `--fp-danger` icon and halo in every other state but `unavailable` (armed, arming, pending, triggered) | `--fp-danger` (#b02a2a) | more-info (no toggle) |
 | linked tv, speaker or computer piece (furniture with `entity`) | blue (`--fp-dev-tv`) body and edge | `--fp-active` body and edge, by the device rule of its type; waves while a tv or speaker is `playing` | `--fp-dev-tv` idle, `--fp-active` on | more-info, no popup; never a toggle |

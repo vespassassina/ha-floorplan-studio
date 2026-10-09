@@ -226,7 +226,7 @@ function select(label: string, id: string, value: string, options: readonly stri
   return html`<label for=${id}>${label}</label><select id=${id} .value=${live(value)} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${names[o] ?? o}</option>`)}</select>`;
 }
 /** What the door type select shows where it differs from the stored kind id (`slit` is stored, "slit window" is read). */
-const DOOR_KIND_NAMES: Record<string, string> = { slit: "slit window" };
+const DOOR_KIND_NAMES: Record<string, string> = { slit: "slit window", glass: "Glass door" };
 export const ROOM_LABELS: Record<RoomKind, string> = { room: "Room", garden: "Garden", pavement: "Pavement", fill: "Fill", terrace: "Terrace", structure: "Structure", zone: "Zone", water: "Water" };
 const kindSelect = (value: string, on: (v: string) => void) =>
   html`<label for="rk">kind</label><select id="rk" .value=${live(value)} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;

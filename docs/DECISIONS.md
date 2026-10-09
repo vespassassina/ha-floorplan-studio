@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: the glass kind is read "Glass door" (S25.D2)
+
+Diego: "rename glass into glass doors."
+- Visible name only: the type selector, the docs and SPEC say "Glass door". The stored value stays `glass`; no migration,
+  no schema change.
+
 ## 2026-10-09: doors are holes, closed doors a thin line (S25.D1)
 
 Supersedes the leaf in "no door swing arcs (S23.F6)" and the leaf and "closed door's line is quiet" in "plan symbols (S23.7)".

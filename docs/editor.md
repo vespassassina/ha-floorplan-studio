@@ -21,7 +21,7 @@ Left to right:
   floor.
 - **Filter: all (N)** — filters which device types are drawn, so a crowded
   plan can be thinned out while you work.
-- **Add** — every drawable thing: openings (door, open doorway, window, slit window, gap), a wall of a
+- **Add** — every drawable thing: openings (door, open doorway, window, slit window, gap; the type selector also offers Glass door), a wall of a
   given kind, areas (zone, structure, stairs), furniture, an unlinked
   appliance icon, and (inside Home Assistant) entities from your instance.
   Device, inside Add, is the catalog of every device on this layout, placed
