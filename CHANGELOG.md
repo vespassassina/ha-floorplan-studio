@@ -2,18 +2,12 @@
 
 ## Unreleased
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 - Plan: semantic zoom, first part. The plan root carries `data-detail` (far, mid, near) from the zoom against the floor at fit: far drops idle devices and keeps lit, alerting and unavailable ones as dots; far and mid drop device names and readings. Not on yet: the mode is `full` until the View menu arrives, so nothing changes on screen.
 - Card: names and labels keep their size on screen when you zoom in or out. They no longer grow with the plan; the 11 px floor still holds.
-=======
 - Card and Studio: each room can carry a small badge with what is on and what is wrong in it: lights on, alerts, open doors and windows, motion. The badge is drawn and styled; the detail levels that show it at far and mid zoom come next.
->>>>>>> task/s25-badges
-=======
 - Card and studio: doors and glass doors lose the leaf line. An open door is a hole in the wall; a closed one, a thin line across the gap. A door is closed only when it has a contact sensor and the sensor says off, so a door with no sensor is a hole. The red open alert is unchanged. In 2.5D and 3D the leaf and the glass follow the same rule.
 - Card and studio: new door kind "Full-height window": a window from the floor to 40 cm under the ceiling, so a floor-to-ceiling window no longer needs a glass door.
 - Studio: the glass door kind is now named "Glass door" in the type selector and the docs. The stored value is unchanged.
->>>>>>> task/doors-open-closed
 
 ## 0.22.1 - 2026-10-09
 
