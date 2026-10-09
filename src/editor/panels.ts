@@ -5,6 +5,7 @@ import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, 
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
+import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 import { removeScene, setRoomHaScenes } from "./room-scenes-ops";
@@ -312,17 +313,59 @@ export function selectionPanel(c: PanelCtx): TemplateResult {
   }
 }
 
-/** S4.5: several Shift+clicked devices. "Create group" shows only when they are all lights or all motion sensors, two or more. */
+/**
+ * Several selected devices (S4.5 Shift+click; S26.15 the Inspector). Count by type, then the bulk actions: Controlled by
+ * (when a light is in it), Lock (ticked, unticked or half-ticked when mixed), Delete n, and Create group when they are all
+ * lights or all motion sensors. Each action is one `commit`, so one undo step; `bulk.ts` leaves what does not apply alone.
+ */
 function devsPanel(c: PanelCtx, is: number[]): TemplateResult {
   const { st } = c, f = st.f;
-  const names = is.map((i) => f.devices[i]).filter((d) => !!d).map((d) => d!.name ?? d!.entity);
+  const mine = [...new Set(is)].filter((i) => Number.isInteger(i) && !!f.devices[i]);
+  const devs = mine.map((i) => f.devices[i]);
+  const names = devs.map((d) => d.name ?? d.entity);
   const kind = groupKind(f, is);
+  const byType = new Map<DeviceType, number>();
+  for (const d of devs) byType.set(d.type, (byType.get(d.type) ?? 0) + 1);
+  const label = (t: DeviceType) => TYPE_LABELS.find(([x]) => x === t)?.[1] ?? t;
+  const counts = [...byType].sort((a, b) => b[1] - a[1] || label(a[0]).localeCompare(label(b[0]), "en"));
+  const lights = mine.filter((i) => f.devices[i].type === "light");
+  const locked = devs.filter((d) => d.locked === true).length;
+  const allLocked = devs.length > 0 && locked === devs.length, mixed = locked > 0 && !allLocked;
   return html`<strong>${is.length} devices selected</strong>
-    <ul>${names.map((n) => html`<li>${n}</li>`)}</ul>
+    <p class="hint" id="devsTypes">${counts.map(([t, n]) => `${n} ${label(t)}`).join(" · ")}</p>
+    <details class="pnl-sec"><summary class="pnl-h">Devices</summary><ul>${names.map((n) => html`<li>${n}</li>`)}</ul></details>
+    ${lights.length || !kind || c.createGroup ? heading("Links") : nothing}
+    ${lights.length ? bulkBound(c, mine, lights) : nothing}
     ${!kind ? hint("Shift+click more of the same kind to group.") : nothing}
     ${kind && c.createGroup ? html`
       ${text("group name", "grpName", st.groupDraft, (v) => { st.groupDraft = v; c.refresh(); })}
-      <p>${button("vgroup", "Create group", () => { const name = st.groupDraft.trim(); if (name) c.createGroup!(is, kind, name); })}</p>` : nothing}`;
+      <p>${button("vgroup", "Create group", () => { const name = st.groupDraft.trim(); if (name) c.createGroup!(is, kind, name); })}</p>` : nothing}
+    ${heading("Appearance")}
+    <label><input type="checkbox" id="devsLock" .checked=${live(allLocked)} .indeterminate=${mixed} @change=${() => c.commit((fl) => lockDevices(fl, mine, !allLocked))}> Lock</label>
+    ${hint(mixed ? `${locked} of ${devs.length} are locked. Tick to lock them all.` : "A locked device does not move.")}
+    ${heading("Danger")}
+    <p>${button("devsDel", `Delete ${mine.length}`, () => { c.commit((fl) => removeDevices(fl, mine)); c.select(null); }, "warn")}</p>`;
+}
+
+/** "Controlled by" for a selection holding lights: the first light's switch and plug choices (they are floor-scoped, so the same for all), `bound` written on the lights only. */
+function bulkBound(c: PanelCtx, mine: number[], lights: number[]) {
+  const { st } = c, f = st.f;
+  const choices = st.switchChoicesForLight(lights[0]);
+  const suggested = choices.filter((s) => s.suggested), rest = choices.filter((s) => !s.suggested);
+  const bounds = new Set(lights.map((i) => f.devices[i].bound ?? ""));
+  const common = bounds.size === 1 ? [...bounds][0] : "";
+  const opt = (s: { entity: string; room?: string; name: string }, suggest = false): ComboOption => ({ value: s.entity, label: `${s.room ? `${s.room} - ` : ""}${s.name}${suggest ? " (suggested)" : ""}`, group: s.room });
+  const options: ComboOption[] = [...suggested.map((s) => opt(s, true)), ...rest.map((s) => opt(s)),
+    ...(common && !choices.some((s) => s.entity === common) ? [{ value: common, label: common }] : [])];
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const set = (v: string) => {
+    const own = v ? lights.filter((i) => f.devices[i].entity === v).length : 0; // a light that is the pick itself cannot be bound to itself
+    const others = mine.length - lights.length + own;
+    c.commit((fl) => bindLights(fl, mine, v).floor);
+    c.say(`${v ? "Bound" : "Cleared"} ${plural(lights.length - own, "light")}${others > 0 ? `; ${others} other${others === 1 ? "" : "s"} left alone` : ""}`);
+  };
+  return html`<label for="vbound">Controlled by</label>
+    ${combo("vbound", "Controlled by", common, options, set, bounds.size > 1 ? "(mixed)" : "(none)")}`;
 }
 
 /** Shown when nothing is selected: the current floor. */

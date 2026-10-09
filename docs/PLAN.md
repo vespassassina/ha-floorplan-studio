@@ -2962,7 +2962,7 @@ Lane B, the Inspector (`inspector.ts`, `panels.ts`):
       Place (a room's HA area) and Add (Add > Device…) open as modes in the aside, never as floating panels; the canvas
       does not move. Test: room, Place devices…, the Place tab is selected, no `.fpanel` in the DOM, the Place button
       is inside the viewport at 1024x768, the canvas box unchanged; the mode survives a `hass` update in the panel.
-- [ ] S26.15 (U15) The Inspector on a multi-selection. Count by type, then Controlled by (when any light is in it:
+- [x] S26.15 (U15) The Inspector on a multi-selection. Count by type, then Controlled by (when any light is in it:
       `bindLights`, one undo step, says "Bound 20 lights; 2 others left alone"), Lock (ticked, unticked or mixed:
       `lockDevices`), Delete n, and Create group as before. Test: 20 lights and 2 sensors selected, pick a switch
       with real clicks: 20 `bound`, one undo step, the note names 2; the mixed Lock box; Delete n.

@@ -948,6 +948,7 @@ test("a selection made from the Device menu survives the menu closing, then Dele
   await openDevice(page);
   await unplaced(page).first().click();
   await expect(page.locator("g.dev.sel")).toHaveCount(1);
+  await page.locator('aside [role=tab][data-mode="selection"]').click(); // S26.14: Add stays a mode of the aside after a pick; the Selection tab shows the new device
   await expect(page.locator("#panel")).not.toContainText("Nothing selected");
   const n = (await groundOf(page)).devices.length;
   await page.keyboard.press("Delete");

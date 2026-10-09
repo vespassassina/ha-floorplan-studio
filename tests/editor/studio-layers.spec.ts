@@ -49,7 +49,7 @@ test("the Filter menu is gone; a Layers tab sits beside Outline with one eye per
   await load(page);
   await expect(page.locator(`${EDITOR} #filter`)).toHaveCount(0);
   await expect(page.locator(`${EDITOR} [data-filter]`)).toHaveCount(0);
-  const tabs = await page.locator(`${EDITOR} [role="tablist"] [role="tab"]`).allInnerTexts();
+  const tabs = await page.locator(`${EDITOR} [role="tablist"][aria-label="Left column"] [role="tab"]`).allInnerTexts();
   expect(tabs.map((t) => t.trim())).toEqual(["Outline", "Layers"]);
   await openLayers(page);
   await expect(page.locator(`${EDITOR} #tabLayers`)).toHaveAttribute("aria-selected", "true");

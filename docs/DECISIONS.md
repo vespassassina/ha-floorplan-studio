@@ -2,10 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: the Inspector on a multi-selection (S26.15)
+
+- `devsPanel` counts by type (most first), then Controlled by when a light is in the selection, Create group as before, Lock, Delete n. Each action is a single `commit` over `bulk.ts`, so one undo step; the note is `Bound 20 lights; 2 others left alone` (`Cleared` for none). "Others" are the non-lights, plus a light that is the pick itself.
+- Controlled by offers the first selected light's choices (floor-scoped, so the same for every light) and shows the switch the lights share, "(mixed)" when they differ. No Motion entries in bulk: that flow is per light.
+- Lock is a checkbox: ticked when every device is locked, half-ticked when some are; a click on a mixed box locks all. The name list folds into a closed "Devices" section; 22 names pushed the actions out of view.
+
 ## 2026-10-09: the Inspector has modes (S26.14)
 
 - The aside gets three tabs: Selection, Place, Add. `asideMode` in the host replaces `placePos` and `addDevPos`; Place and Add are no longer floating, draggable panels (`.fpanel`), they are bodies of the aside (`.imode`), so opening one moves nothing on the canvas. Ids (`#placePanel`, `#addDevPanel`, `#placeClose`, `#addDevClose`, `#placeGo`) are kept.
 - Place needs a room: its tab is off until the selection is a room with something to place, or a Place mode already holds one. Leaving for Selection keeps the ticks; the Escape key and the X return to Selection. Switching floor closes Place, as before.
+- Add stays a mode after a pick (S8.5: place many in a row); the Selection tab shows what was placed. The Left column tablist label is now named in `studio-layers.spec.ts`, since the aside has a tablist too.
 - State stays in the host, which `hass` updates do not reset (panel test). Dropped with the popups: the drag by the head, and the 780/660 px widths (S8.8); two tests changed with them, on purpose.
 
 ## 2026-10-09: the editor host is split (S26.9)
