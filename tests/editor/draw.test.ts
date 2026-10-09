@@ -354,6 +354,16 @@ describe("Draw typed length (S26.8)", () => {
     expect(last(e)[0]).toBeCloseTo(120, 9);
   });
 
+  it("the stored end is whole cm: a 350 cm wall at 15 degrees ends on integers, within 0.71 cm of the typed length", () => {
+    const d = drawn(); typeAll(d, "350");
+    const a = (15 * Math.PI) / 180;
+    d.placeTyped([Math.cos(a) * 40, Math.sin(a) * 40]);
+    const [x, y] = last(d);
+    expect(Number.isInteger(x)).toBe(true); expect(Number.isInteger(y)).toBe(true);
+    expect(Math.abs(Math.hypot(x, y) - 350)).toBeLessThan(0.71);
+    expect(Math.abs((Math.atan2(y, x) * 180) / Math.PI - 15)).toBeLessThan(0.12);
+  });
+
   it("refuses and adds nothing: empty, 0, negative, over 10 000 cm, no point yet, no direction", () => {
     const d = drawn();
     expect(d.placeTyped([100, 0])).toBe("ignore"); // empty

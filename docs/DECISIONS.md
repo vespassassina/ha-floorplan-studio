@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: a typed length follows the exact ray and ends on whole cm (Opus re-check 1 and 2)
+
+- The typed direction came from the whole-cm aim point, so the nearer the pointer the further off the wall went: zoomed in, a pointer 40 cm out typed 350 and gave 14.38 degrees. It now comes from the unrounded ray point (`rayPoint`, kept as `rayAim` by `snapDraw`; `snapRay` is `rayPoint` rounded). It supersedes 'a typed length takes its direction from the rounded aim' of R1a.
+- The typed end was fractional (`[789.03, 536.93]`). `Draw.placeTyped` now rounds the end point, as every snapped point is. Cost: the length differs from the typed one by under 0.71 cm (each coordinate is off by up to half a cm) and the angle by up to 0.116 degree over 350 cm; so the tests allow 0.12 degree, not the 0.05 asked. Along 0 and 90 degrees the end is whole already and stays exact (0.01 kept). The schema asks for finite numbers only, so whole cm is a choice for consistency, not a rule.
+
 ## 2026-10-09: small defects of the Sprint 26 review (a to g)
 
 - (a) Escape during a group drag puts the devices back (`replaceFloor(base)`), drops the drag and keeps the selection; the history was never touched, so there is no undo step. A second Escape clears the selection as before.

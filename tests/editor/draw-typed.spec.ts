@@ -96,9 +96,10 @@ test("3.5m is metres, and the direction is the snapped 15 degree ray", async ({ 
   await page.keyboard.press("Enter");
   await page.keyboard.press("Enter");
   const w = await walls(page);
-  expect(Math.abs(length(w[0]) - 350)).toBeLessThan(0.01);
-  // The direction is the aim, a whole-cm point (R1a), so it is off the exact ray by under half a cm over its run.
-  expect(Math.abs(angle(w[0]) - 30)).toBeLessThan(0.3);
+  // The direction is the exact 30 degree ray; the stored end is whole cm, so the length is off by under 0.71 cm and the angle by under 0.12 degree.
+  expect(w[0].b.every(Number.isInteger)).toBe(true);
+  expect(Math.abs(length(w[0]) - 350)).toBeLessThan(0.71);
+  expect(Math.abs(angle(w[0]) - 30)).toBeLessThan(0.12);
 });
 
 test("Backspace takes back a typed digit first; a second Escape cancels, the first only clears the typed value", async ({ page }) => {
@@ -162,4 +163,23 @@ test("a click exactly on a wall's corner joins it, though the corner is 18 degre
   const w = (await walls(page)).filter((x) => x.a[0] === 200 && x.a[1] === 200);
   expect(w).toHaveLength(1);
   expect(w[0].b).toEqual([500, 300]);
+});
+
+// Opus re-check 1 and 2: the typed direction is the exact 15 degree ray, not the whole-cm aim point, so a pointer close to the
+// first point (zoomed in, grid 10) cannot tilt the wall; and the stored end is whole cm (the length is then within 0.5 cm).
+test("zoomed in, a pointer 40 cm from the first point still types a wall on the 15 degree ray, ending on whole cm", async ({ page }) => {
+  await load(page);
+  await page.evaluate((tag) => { const ed = document.querySelector(tag) as any; ed.st.setGrid(10); for (let i = 0; i < 6; i++) ed.zoomBy(1 / 1.25); }, EDITOR);
+  const scale = await page.evaluate((tag) => (document.querySelector(tag) as any).scale as number, EDITOR);
+  expect(scale).toBeGreaterThan(2);
+  const px = 40 * scale; // 40 cm away on the plan
+  await aim(page, 15, px);
+  await page.keyboard.type("350");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  const w = (await walls(page))[0];
+  // Before the fix the wall went out at 14.38 degrees. A whole-cm end can sit 0.71 cm off the ray, which is 0.116 degree over 350 cm.
+  expect(Math.abs(angle(w) - 15)).toBeLessThan(0.12);
+  expect(w.b.every(Number.isInteger)).toBe(true);
+  expect(Math.abs(length(w) - 350)).toBeLessThan(0.71);
 });

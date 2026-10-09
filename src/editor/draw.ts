@@ -76,7 +76,8 @@ export class Draw {
     if (len === null || !n) return "ignore";
     const from = this.points[n - 1], dx = toward[0] - from[0], dy = toward[1] - from[1], r = Math.hypot(dx, dy);
     if (!Number.isFinite(r) || r === 0) return "ignore";
-    return this.click([from[0] + (dx / r) * len, from[1] + (dy / r) * len]);
+    // Whole centimetres, as every snapped point is (R1a): the length then differs from the typed one by under 1 cm (0 along an axis).
+    return this.click([Math.round(from[0] + (dx / r) * len), Math.round(from[1] + (dy / r) * len)]);
   }
 
   /** The finished shape, or null when there are too few points. Either way the points are cleared. */
@@ -97,15 +98,21 @@ export class Draw {
  * Junk (non-finite numbers, a step that is not positive) gives `p` back unchanged; `p` on `from` too.
  */
 export function snapRay(from: Pt, p: Pt, stepDeg: number, grid: number): Pt {
+  return round2(rayPoint(from, p, stepDeg, grid));
+}
+
+/** `snapRay` before the point is rounded to whole cm: the exact ray, which a typed length takes its direction from. */
+export function rayPoint(from: Pt, p: Pt, stepDeg: number, grid: number): Pt {
   const dx = p[0] - from[0], dy = p[1] - from[1];
   if (![dx, dy, stepDeg].every(Number.isFinite) || stepDeg <= 0) return [p[0], p[1]];
   const r = Math.hypot(dx, dy);
   if (r === 0) return [p[0], p[1]];
   const step = (stepDeg * Math.PI) / 180, a = Math.round(Math.atan2(dy, dx) / step) * step;
   const g = Number.isFinite(grid) && grid > 0 ? grid : 1, len = Math.round(r / g) * g;
-  // Whole centimetres, as every other draw snap gives (editor-app's round()): no 200.00000000000003 in a stored wall.
-  return [Math.round(from[0] + len * Math.cos(a)), Math.round(from[1] + len * Math.sin(a))];
+  return [from[0] + len * Math.cos(a), from[1] + len * Math.sin(a)];
 }
+// Whole centimetres, as every other draw snap gives (editor-app's round()): no 200.00000000000003 in a stored wall.
+const round2 = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 
 /**
  * The room kind a ring of walls becomes. The wall kinds are the truth (they are kept as `wk`), so the kind

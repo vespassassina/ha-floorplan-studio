@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: a typed wall length goes along the exact 15 degree ray, also with the pointer close to the last point, and ends on whole centimetres.
 - Studio: Escape during a drag of several devices cancels the drag and puts them back.
 - Studio: a right-click on an Outline row of a selected group keeps the group and gives the same menu as the plan.
 - Studio: a disabled button (Link 0, Show all) is dimmed and shows a not-allowed cursor.

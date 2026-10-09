@@ -17,7 +17,7 @@ import { buildOutline, deviceNodeId, filterOutline, outlineKey, outlineView, vis
 import { readViewMemory, writeViewMemory } from "./view-memory";
 import { traceImage } from "./trace";
 import { furnitureNear, roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
-import { Draw, applyShape, snapRay, type AreaPreset, type DrawKind } from "./draw";
+import { Draw, applyShape, rayPoint, snapRay, type AreaPreset, type DrawKind } from "./draw";
 import { restoreScene, tryScene } from "./scene-try";
 import { cleanSceneItem } from "./room-scenes-ops";
 import type { SceneItem } from "../core";
@@ -2127,7 +2127,7 @@ export class FloorplanStudioEditor extends LitElement {
   startDraw(kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
     if (this.st.planLocked) { this.planFixed(); return; }
     this.draw = new Draw(kind, wall, area);
-    this.hover = this.aim = null;
+    this.hover = this.aim = this.rayAim = null;
     this.st.sel = null;
     this.st.confirmDelete = false;
     this.status = DRAW_HINT;
@@ -2137,12 +2137,13 @@ export class FloorplanStudioEditor extends LitElement {
   /** Leaves draw mode and forgets the points and the rubber band. Nothing is written. */
   private stopDraw(status = "Drawing cancelled") {
     if (!this.draw) return;
-    this.draw = null; this.hover = this.aim = null;
+    this.draw = null; this.hover = this.aim = this.rayAim = null;
     this.status = status;
     this.requestUpdate();
   }
   /** A snapped point for draw mode. A zone snaps to the grid only: its corners never join other shapes (S1.8). */
   private snapDraw(d: Draw, p: Pt, alt: boolean): Pt {
+    this.rayAim = null;
     const s = this.snapCorner(this.st.f, p, NOWHERE, NO_REF, alt, d.points, d.kind === "zone");
     // S26.12: after a first point the segment goes on the nearest 15 degree ray, unless a corner caught the pointer (asked of the
     // corner search itself: a corner can sit on the plain grid point, so comparing coordinates cannot tell), an alignment with an
@@ -2151,16 +2152,20 @@ export class FloorplanStudioEditor extends LitElement {
     if (alt || !last) return s;
     if (d.kind !== "zone" && this.cornerHit(this.st.f, p, NOWHERE, NO_REF)) return s;
     const g = this.st.snapGrid || 1, free: Pt = [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g];
-    return s[0] === free[0] && s[1] === free[1] ? snapRay(last, p, 15, this.st.snapGrid) : s;
+    if (s[0] !== free[0] || s[1] !== free[1]) return s;
+    this.rayAim = rayPoint(last, p, 15, this.st.snapGrid); // the typed length goes along this exact ray, not along the whole-cm point
+    return snapRay(last, p, 15, this.st.snapGrid);
   }
+  /** The unrounded 15 degree ray point of the last pointer move, or null when no ray caught it. Only the direction of a typed length uses it. */
+  private rayAim: Pt | null = null;
   /** S26.12: Enter with a typed length: the next point that far from the last, toward the pointer. */
   private placeTyped() {
     const d = this.draw;
     if (!d) return;
-    const toward = this.aim ?? this.hover;
+    const toward = this.rayAim ?? this.aim ?? this.hover;
     const r = toward ? d.placeTyped(toward) : "ignore";
     if (r === "ignore") { this.status = `"${d.typed}" does not fit: type a length over 0 and up to 10000 cm, with the pointer away from the last point`; this.requestUpdate(); return; }
-    this.hover = null;
+    this.hover = this.rayAim = null;
     if (r === "finish") this.finishDraw(); else this.requestUpdate();
   }
   /** Where and when a pointer press finished a shape: its dblclick, if the browser sends one, must not edit the plan. */
@@ -2174,7 +2179,7 @@ export class FloorplanStudioEditor extends LitElement {
     const d = this.draw;
     if (!d) return;
     const r = d.click(this.snapDraw(d, raw, alt), 14 / this.scale, raw);
-    this.hover = null;
+    this.hover = null; this.rayAim = null;
     if (r === "finish") { this.finishDraw(); this.finished = { t: performance.now(), x: ev.clientX, y: ev.clientY, presses: 0 }; } else this.requestUpdate();
   }
   /** Writes the shape as one undo step, or drops it when it has too few points. */
@@ -2182,7 +2187,7 @@ export class FloorplanStudioEditor extends LitElement {
     const d = this.draw;
     if (!d) return;
     const shape = d.finish(), floor = this.st.floor;
-    this.draw = null; this.hover = this.aim = null;
+    this.draw = null; this.hover = this.aim = this.rayAim = null;
     if (!shape) { this.status = "Drawing cancelled: too few points"; this.requestUpdate(); return; }
     let sel: Sel = null, note = "";
     if (this.st.edit((f) => { const r = applyShape(f, floor, shape); sel = r.sel; note = r.note ?? ""; return r.floor; })) {
