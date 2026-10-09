@@ -3,7 +3,19 @@
      served by tests/card/card-3d.spec.ts from the built www/ folder under a fake origin. The 3D chunk sits beside the card
      and must be found from the card module's own URL. -->
 <html>
-<head><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=9.9.9"></script></head>
+<head><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=9.9.9"></script><script>
+/* S25.8: the card's own default is `auto`, which hides idle devices at fit. Every card test that clicks a device at fit
+   would then miss it, so this one place pins `detail: "full"` in the config unless the config names its own `detail`
+   or the test sets window.__realDetailDefault (addInitScript) to see the real default. Nothing else is changed. */
+customElements.whenDefined("floorplan-studio-card").then(() => {
+  const P = customElements.get("floorplan-studio-card").prototype, orig = P.setConfig;
+  P.setConfig = function (c) {
+    if (window.__realDetailDefault || !c || typeof c !== "object" || "detail" in c) return orig.call(this, c);
+    return orig.call(this, { ...c, detail: "full" });
+  };
+});
+</script>
+</head>
 <body>
 <div id="wrap" style="width:900px"><floorplan-studio-card id="card"></floorplan-studio-card></div>
 </body>

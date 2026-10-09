@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, areaMenuEntities, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer } from "../core";
+import { DEFAULT_MOTION_FADE_S, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, areaMenuEntities, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -25,7 +25,7 @@ import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, typeNoun, typeOpti
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
-import { EditorState, GRID_VALUES, THEME_VALUES, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
+import { DEFAULT_DETAIL, EditorState, GRID_VALUES, THEME_VALUES, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 import manifest from "../../custom_components/floorplan_studio/manifest.json";
 
 /**
@@ -146,8 +146,9 @@ const EYE_OFF = "M11.83,9L15,12.16C15,12.11 15,12.05 15,12A3,3 0 0,0 12,9C11.94,
 const LOCATE_MS = 2400;
 
 export class FloorplanStudioEditor extends LitElement {
-  /** S25: the detail mode. `full` until the View menu (S25.7) sets it; `auto` is what zoom drives. */
-  detailMode: DetailMode = "full";
+  /** S25.7: the detail mode, kept by the editor state (View, Detail). */
+  get detailMode(): DetailMode { return this.st.detail; }
+  set detailMode(m: DetailMode) { this.st.detail = m; this.requestUpdate(); }
   static properties = {
     floor: { type: String },
     haDark: { attribute: false },
@@ -3109,6 +3110,9 @@ export class FloorplanStudioEditor extends LitElement {
           <details class="sub" id="thSub"><summary class="btn">Theme: ${THEME_LABELS[st.theme]}</summary>
             ${THEME_VALUES.map((t) => html`<button class="btn keep" data-th=${t} aria-pressed=${pressed(st.theme === t)} @click=${() => { st.setTheme(t); this.requestUpdate(); }}>${THEME_LABELS[t]}</button>`)}
           </details>
+          <details class="sub" id="detailSub"><summary class="btn">Detail: ${DETAIL_LABELS[st.detail]}</summary>
+            ${DETAIL_MODES.map((m) => html`<button class="btn keep" data-detail=${m} aria-pressed=${pressed(st.detail === m)} title=${m === "auto" ? "Follow the zoom: rooms far out, devices closer in" : m === "full" ? "Always draw everything (the default while editing)" : "Always draw only rooms and what needs attention"} @click=${() => { st.setDetail(m); this.requestUpdate(); }}>${DETAIL_LABELS[m]}</button>`)}
+          </details>
           <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
           <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
           <button class="btn" id="copyCardView" title="Copies center and zoom_level for a card pinned to what's on screen now" @click=${() => this.copyCardView()}>Copy card view</button>
@@ -3148,6 +3152,7 @@ export class FloorplanStudioEditor extends LitElement {
         </div></details>
         <!-- S8.10 follow-up: Help, then Undo and Redo as the cluster's last items, so Redo's own right edge is
              the one the toolbar-alignment acceptance test pins. -->
+        ${st.detail !== DEFAULT_DETAIL ? html`<span class="grp" id="detailMode" title="Set in View, Detail">Detail: ${DETAIL_LABELS[st.detail]}</span>` : nothing}
         <button class="btn" id="help" aria-expanded=${pressed(st.helpOpen)} title="Controls and a step-by-step guide" @click=${() => this.toggleHelp()}>? Help</button>
         <!-- S8.10 follow-up (Opus review): Undo and Redo as one flex item (nowrap inside), so wrapping ever moves
              the pair together onto the next row — two separate items let the row that fit Undo split Redo onto

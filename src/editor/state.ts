@@ -1,5 +1,5 @@
-import { FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
-import type { CatalogEntry, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
+import { DETAIL_MODES, parseDetailMode, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import type { DetailMode, CatalogEntry, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
 import { MAX_ZOOM, MIN_ZOOM } from "../card/viewport";
@@ -40,6 +40,19 @@ function readTheme(): ThemeChoice {
     const raw = localStorage.getItem(THEME_KEY);
     return (THEME_VALUES as readonly string[]).includes(raw ?? "") ? (raw as ThemeChoice) : DEFAULT_THEME;
   } catch { return DEFAULT_THEME; }
+}
+
+/** S25.7: localStorage key for the detail mode. A viewer preference, not part of the layout, never an undo step. */
+export const DETAIL_KEY = "floorplan-studio:detail";
+export const DETAIL_VALUES = DETAIL_MODES;
+/** While editing the Studio draws everything: a device just placed must not vanish at fit. */
+export const DEFAULT_DETAIL: DetailMode = "full";
+/** The stored choice, or full when there is none, it is not one of the three names, or storage is blocked. */
+function readDetail(): DetailMode {
+  try {
+    const raw = localStorage.getItem(DETAIL_KEY);
+    return raw !== null && (DETAIL_VALUES as readonly string[]).includes(raw) ? parseDetailMode(raw) : DEFAULT_DETAIL;
+  } catch { return DEFAULT_DETAIL; }
 }
 
 /** localStorage key for the Help panel's open/closed state (S5.5). A viewer preference, not part of the layout, never an undo step. */
@@ -184,6 +197,8 @@ export class EditorState {
   measure: boolean = readMeasure();
   /** Blueprint (default), light, or ha (Home Assistant's own theme). Kept in localStorage, not in the layout, never an undo step. */
   theme: ThemeChoice = readTheme();
+  /** S25.7: the detail mode (View, Detail). Kept in localStorage, not in the layout, never an undo step. */
+  detail: DetailMode = readDetail();
   /** S5.5: whether the Help panel is open. Kept in localStorage, not in the layout, never an undo step. */
   helpOpen: boolean = readHelp();
   /** S7.6: whether the plan is drawn as at night. Kept in localStorage, not in the layout, never an undo step. */
@@ -920,6 +935,12 @@ export class EditorState {
     if (!(THEME_VALUES as readonly string[]).includes(t)) return;
     this.theme = t;
     try { localStorage.setItem(THEME_KEY, t); } catch { /* private mode: the choice lasts until reload */ }
+  }
+  /** Sets the detail mode (S25.7). A viewer preference: no undo step, never written to the layout. */
+  setDetail(m: DetailMode) {
+    if (!(DETAIL_VALUES as readonly string[]).includes(m)) return;
+    this.detail = m;
+    try { localStorage.setItem(DETAIL_KEY, m); } catch { /* private mode: the choice lasts until reload */ }
   }
   /** Opens or closes the Help panel (S5.5). A viewer preference: no undo step, never written to the layout. */
   setHelp(v: boolean) {

@@ -11,7 +11,7 @@ const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 const EDITOR = "floorplan-studio-editor";
 
-test("the card: by default the plan is whole at every zoom; with auto, fit is far, zooming in with the + button goes mid then near, - and Fit go back", async ({ page }) => {
+test("the card: with the harness pinning full the plan is whole at every zoom; with auto, fit is far, zooming in with the + button goes mid then near, - and Fit go back", async ({ page }) => {
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto(URL_);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
@@ -32,8 +32,8 @@ test("the card: by default the plan is whole at every zoom; with auto, fit is fa
     }, label);
     await page.mouse.click(p.x, p.y);
   };
-  expect(await level(), "default mode is full").toBe("near");
-  await page.evaluate(() => { const el = document.getElementById("card") as any; el.detailMode = "auto"; el.requestUpdate(); return el.updateComplete; }); // until the menu and the YAML key exist (S25.7, S25.8)
+  expect(await level(), "the harness pins full").toBe("near");
+  await page.evaluate(() => { const el = document.getElementById("card") as any; el.setConfig({ ...el._config, detail: "auto" }); return el.updateComplete; });
   expect(await level()).toBe("far");
   const seen: (string | null)[] = [];
   for (let i = 0; i < 12; i++) { await click("Zoom in"); seen.push(await level()); }

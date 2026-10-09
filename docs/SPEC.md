@@ -624,6 +624,24 @@ terrace and pavement take ramp shades on the generated themes. The values per th
 
 `ha` is untouched by this system: its neutrals still come from Home Assistant's CSS variables, with `midnight`'s fixed hexes as the fallback, not blueprint's new palette.
 
+## Detail levels (S25)
+
+How much of a plan `renderFloor` draws depends on the zoom, `1` being the whole floor at fit (the smaller of fit width over
+shown width and fit height over shown height, `detailFor` in `src/core/detail.ts`). The plan root carries
+`data-detail="far|mid|near"`; every level rule is CSS keyed on it, so the card and the Studio cannot differ.
+
+| Level | Zoom | Drawn |
+|---|---|---|
+| far | below 1.6 (`DETAIL_MID_FROM`) | rooms, room names, room badges; devices that are on, alerting or unavailable as dots |
+| mid | 1.6 to below 3.2 (`DETAIL_NEAR_FROM`) | device icons, room names, badges |
+| near | 3.2 and up | everything, device names and readings too |
+
+The thresholds are constants, not settings. The mode: `auto` follows the zoom, `full` is always near, `minimal` is always far;
+anything else is `auto` (`parseDetailMode`). The viewer picks it in the Studio's View menu (Detail) and the card's Detail
+button, kept per browser (`floorplan-studio:detail` in the Studio; `detail` in the card's view memory). The card's YAML key
+`detail: auto | full | minimal` is its default and a stored viewer pick wins. Defaults: card `auto`, Studio `full` (a device
+just placed must not vanish at fit). Live 3D draws every level.
+
 ## Search (both apps)
 
 One index, `src/core/search.ts` (S24.1). Entries are every floor, every named room and every device and linked piece

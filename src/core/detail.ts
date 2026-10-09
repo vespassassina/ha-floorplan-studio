@@ -10,7 +10,11 @@ export const DETAIL_MID_FROM = 1.6;
 /** Zoom at which device labels and readings come back. Below it (and from `DETAIL_MID_FROM`): mid. */
 export const DETAIL_NEAR_FROM = 3.2;
 
-const MODES: readonly DetailMode[] = ["auto", "full", "minimal"];
+/** The three modes, in the order a menu lists them. */
+export const DETAIL_MODES: readonly DetailMode[] = ["auto", "full", "minimal"];
+/** What each mode is called on a button (S25.7, S25.8). */
+export const DETAIL_LABELS: Record<DetailMode, string> = { auto: "Auto", full: "Full", minimal: "Minimal" };
+const MODES = DETAIL_MODES;
 
 /** A stored or configured mode is untrusted: anything that is not one of the three names is `auto`. */
 export function parseDetailMode(raw: unknown): DetailMode {
