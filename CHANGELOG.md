@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.23.0 - 2026-10-09
+
 - Card: at far zoom the dots and the room badges now read the same attention result as the Overview, Home Assistant's entity registry included. A Zigbee2MQTT contact whose battery is a separate sensor on the same device keeps its dot, and the Hall badge counts what the Overview lists.
 - Card: a viewer's stored Detail pick no longer beats a card that became `kiosk` or whose YAML `detail` changed; both now start a clean memory.
 - Card and studio: a door with one locked and one jammed lock is not drawn closed. The far attention dot has a thin ink outline, so it no longer reads as a lit lamp or an open cover.
