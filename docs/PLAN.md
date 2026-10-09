@@ -2902,7 +2902,7 @@ Wave 1, pure modules (parallel; one worktree each, two chained where noted; none
       snapshot unchanged without it; a computed-style pair for `.sel` on two members; `npm run shots` looked at.
       Files: `src/core/render.ts`, `src/core/layers.ts` if `layerHides` needs the list, a new
       `tests/core/render-multi-sel.test.ts`, a pair in `tests/editor/editor.spec.ts`.
-- [ ] S26.5 (U18) Marquee hits. `marqueeHits(f, quad, skip)` in a new `src/editor/selection.ts`: the indices of devices
+- [x] S26.5 (U18) Marquee hits. `marqueeHits(f, quad, skip)` in a new `src/editor/selection.ts`: the indices of devices
       whose centre (a point device's x,y, a segment device's midpoint) lies in `quad`, four corners in plan space (the
       screen rectangle taken back through the view's turn); `skip(i)` leaves out what is not drawn. A centre on the edge
       counts. Junk never throws and never hits. Test: an axis box, a 45° turned quad that a bounding-box test gets
