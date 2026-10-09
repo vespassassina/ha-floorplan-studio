@@ -137,3 +137,15 @@ describe("S25.3 badges in renderFloor", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.room-badge[^{]*\{[^}]*pointer-events:none/);
   });
 });
+
+describe("S25 fix C: a badge keeps its screen size when the view zooms", () => {
+  const f = floorOf([dev("light", "light.a", 100, 100)]);
+  const state = { "light.a": st("on") };
+  const size = (zoom: number) => Number(/class="rb-t"[^>]* font-size="([\d.]+)"/.exec(renderFloor(f, { scale: 1, px: 1, zoom, state, detail: "far" }))![1]);
+  const plate = (zoom: number) => Number(/class="rb-plate"[^>]* width="([\d.]+)"/.exec(renderFloor(f, { scale: 1, px: 1, zoom, state, detail: "far" }))![1]);
+  it("text and plate shrink in plan units by exactly the zoom, as a room name does", () => {
+    expect(size(2)).toBeCloseTo(size(1) / 2, 1);
+    expect(plate(2)).toBeCloseTo(plate(1) / 2, 0);
+    expect(size(4)).toBeCloseTo(size(1) / 4, 1);
+  });
+});

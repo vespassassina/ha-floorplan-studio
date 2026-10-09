@@ -279,3 +279,15 @@ export function attention(layout: Layout, state: StateOverlay | undefined, reg?:
   for (const it of unavailable) floors[it.floor]!.unavailable++;
   return { items, unavailable, floors };
 }
+
+/**
+ * S25 fix B: the indexes of `f.devices` that `attention` reports on (not the merely unavailable). The plan marks them
+ * `needs-attention` so the far detail level keeps them as dots; it is the same rule, run over this floor alone, never a copy.
+ * Without HA's entity registry, so a hub's battery sensor is not read; the device's own state and attributes are.
+ */
+export function attentionDevices(f: Floor, state: StateOverlay | undefined): Set<number> {
+  const out = new Set<number>();
+  if (!state || !f || typeof f !== "object") return out;
+  for (const it of attention({ floors: { f } } as unknown as Layout, state).items) if (it.at.what === "device") out.add(it.at.index);
+  return out;
+}

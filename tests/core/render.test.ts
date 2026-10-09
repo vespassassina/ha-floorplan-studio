@@ -1418,7 +1418,7 @@ describe("S2.9: a device wears its colour when it is on", () => {
   it("a contact device carries the on class, and the old --fp-open override on .dev-contact.on path is gone (a second source of the same colour)", () => {
     expect(FLOORPLAN_CSS).not.toContain(".dev-contact.on path{fill:var(--fp-open)}");
     const html = draw([dev("contact", "binary_sensor.x")], { "binary_sensor.x": st("on") });
-    expect(classOfDev(html)).toEqual(["dev", "dev-contact", "on"]);
+    expect(classOfDev(html)).toEqual(["dev", "dev-contact", "on", "needs-attention"]);
   });
 
   it("a door contact sensor (not a device icon) also draws red now, not the old orange --fp-open", () => {
