@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, areaMenuEntities, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer } from "../core";
+import { DEFAULT_MOTION_FADE_S, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, addCandidates, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, WALL_KINDS, FURNITURE_SYMBOLS, UNLINKED_TYPES, deleteEdge, dist, edgeRooms, groupKind, insertPoint, nearestEdge, onEdge, polys, renderFloor, floorsAroundKey, rotateAbout, setEdgeKind, snapPoint, snapped, stitch, typeForEntity, areaMenuEntities, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -25,8 +25,8 @@ import { TYPE_LABELS, WALL_LABELS, helpPanel, selectionPanel, typeNoun, typeOpti
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
-import { DEFAULT_DETAIL, EditorState, GRID_VALUES, THEME_VALUES, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
-import manifest from "../../custom_components/floorplan_studio/manifest.json";
+import { EditorState, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
+import { floorGroups, toolbarCss, toolbarView } from "./toolbar";
 
 /**
  * <floorplan-studio-editor>: draws and edits a layout.
@@ -126,12 +126,6 @@ function hitOf(el: Element | null): Hit {
   if (st) return { k: "stairs", i: +(st.getAttribute("data-s") ?? -1) };
   return { k: "bg" };
 }
-
-/** What each theme is called on its chip. `ha` says what it does rather than what it is. */
-const THEME_LABELS: Record<(typeof THEME_VALUES)[number], string> = {
-  blueprint: "Blueprint", midnight: "Midnight", light: "Light", slate: "Light Gray", terminal: "Terminal", solarized: "Solarized", ha: "Home Assistant",
-  coffee: "Coffee", "a-team": "A-Team", space: "Space", cyberpunk: "Cyberpunk", "carpenter-brut": "Carpenter Brut", "beach-house": "Beach House",
-};
 /** S4.10: the Home Assistant menu's groups, in the order they are shown. */
 const HA_KIND_LABELS: [Labelled["kind"], string][] = [["helper", "Helpers"], ["automation", "Automations"], ["area", "Areas"]];
 
@@ -176,7 +170,7 @@ export class FloorplanStudioEditor extends LitElement {
   declare haListLoading: boolean;
   declare haListErr: string;
 
-  private st = new EditorState();
+  st = new EditorState();
   private drag: Drag | null = null;
   /** Draw mode: the shape being drawn, and where the pointer is (snapped) for the rubber band. */
   private draw: Draw | null = null;
@@ -192,9 +186,9 @@ export class FloorplanStudioEditor extends LitElement {
    */
   private ctxMenu: { x: number; y: number; target: CtxTarget } | null = null;
   /** The Device colours popup's screen position; null when closed. Dragged by its header, closed by its own X or Escape. */
-  private devColsPos: { x: number; y: number } | null = null;
+  devColsPos: { x: number; y: number } | null = null;
   /** S8.1: Edit, Home Assistant: the popover's screen position; null when closed. Dragged by its head, closed by its X or Escape. */
-  private haPos: { x: number; y: number } | null = null;
+  haPos: { x: number; y: number } | null = null;
   /** S8.1/S8.4: the room panel's Place popup: the room's id (null when closed), its position, the rows ticked, the type chip pressed. */
   private placeRoom: string | null = null;
   private placePos: { x: number; y: number } | null = null;
@@ -216,7 +210,7 @@ export class FloorplanStudioEditor extends LitElement {
   private addDevArea = "";
   private addDevType = "";
   /** File, Install code: whether the panel with the ready-to-paste card YAML is open. Fixed, not draggable; closed by its own X or Escape. */
-  private installCodeOpen = false;
+  installCodeOpen = false;
   /** S24.5: the left column (the Outline tab; S24.6 adds Layers). Open or collapsed by its own button; starts collapsed under 1100 px. */
   private sideOpen = (() => { try { return matchMedia("(min-width:1100px)").matches; } catch { return true; } })();
   /** S24.6: which tab of the left column is on show. Not remembered: the column opens on Outline. */
@@ -235,9 +229,9 @@ export class FloorplanStudioEditor extends LitElement {
   /** The search entries and the Outline, built again only when a floor, the HA data, the states or Fix plan change. */
   private findCache: { key: unknown[]; entries: SearchEntry[]; tree: OutlineNode[] } | null = null;
   /** S7.11: Edit, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
-  private traceOpen = false;
+  traceOpen = false;
   private traceScale: Pt[] | null = null;
-  private exportTrace = false;
+  exportTrace = false;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
   /** The turn in flight, if any. `whole`: the floor was shown whole when it began, so it is refitted every frame. */
@@ -396,31 +390,13 @@ export class FloorplanStudioEditor extends LitElement {
   };
   private onVisibility = () => { if (document.visibilityState === "hidden") this.flushView(); };
 
-  static styles = css`
+  static styles = [
+    css`
     ${css([FLOORPLAN_CSS] as unknown as TemplateStringsArray)}
     :host{display:block;outline:none;background:var(--fp-bg);color:var(--fp-ink);font:14px/1.4 system-ui,sans-serif}
-    .bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 0}
-    /* S8.10: the floor chips stay left (in normal flow, no longer followed by a .grow spacer — that span's own
-       zero flex-basis let the menu cluster after it wrap onto a line of its own with nothing to push it right,
-       "floating in the middle", the maintainer's original report). Everything else — status, Filter through File,
-       Help, Undo/Redo — is one flex item that wraps its OWN contents (never the floor chips) when the toolbar is
-       too narrow, each wrapped row right-aligned in turn (justify-content, since a wrapped row may start with any
-       of its items, not always the same one an auto-margin child could anchor). */
-    /* S8.10: flex:1 1 0 (not margin-left:auto on a shrink-to-fit box) so this fills whatever room is left on its
-       own line, a plain size the outer .bar resolves once. A shrink-to-fit width instead left a flex item that is
-       itself flex-wrap ambiguous — Chromium settled on two different equilibrium widths (668px and 740px) for the
-       same content depending on what triggered the last layout pass, so the toolbar's height (one row or two) and
-       right cluster's own wrapping flipped on a reflow that had nothing to do with its content, such as a status
-       message changing. min-width:0 lets it shrink below its content's natural width instead of overflowing. */
-    .bar-right{flex:1 1 0%;min-width:0;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
-    /* S8.10 follow-up: below this width the cluster can no longer fit beside the floor chips on one line without
-       squeezing itself down to a narrow column (min-width:0 lets it shrink that far). A fixed flex-basis forces it
-       onto its own full-width row instead — a plain value the outer .bar resolves once, not a shrink-to-fit result,
-       so it carries none of the width-instability risk the .bar-right rule above already had to design around. */
-    @media (max-width:768px){.bar-right{flex-basis:100%}}
-    /* S8.10 follow-up (Opus review): Undo and Redo as a single flex item of .bar-right, nowrap inside it, so a
-       wrap ever carries the whole pair to the next row together, never splitting them. */
-    .btnpair{display:flex;flex-wrap:nowrap;gap:6px}
+  `,
+    toolbarCss,
+    css`
     .btn,.chip,select,input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px;padding:4px 8px}
     .btn,.chip,summary{cursor:pointer}
     .chip[aria-pressed="true"],.btn[aria-pressed="true"]{background:var(--fp-ink);color:var(--fp-bg)}
@@ -434,18 +410,6 @@ export class FloorplanStudioEditor extends LitElement {
     .sens-box{border:1px solid var(--fp-primary);border-radius:6px;padding:6px 8px;margin:6px 0;background:color-mix(in srgb,var(--fp-primary) 7%,transparent)}
     .sens-box .attach-row{font-size:11px}
     .attach-row .eid{font-size:.8em;opacity:.7}
-    .menu{position:relative}
-    .menu>summary{list-style:none;display:inline-block}
-    .menu>summary::-webkit-details-marker{display:none}
-    .menu>summary::after{content:" \\25BE"}
-    /* z-index above the floating panels (Device colours, Install code: 30): a menu just opened is on top, wherever the
-       toolbar puts it. S7.2 moved the menus left to make room for the status line, onto the centred panels. */
-    /* S8.10 follow-up (Opus review): right:0 anchors the box to its OWN button (.menu is its containing block), not
-       to the viewport. A button in the middle of the toolbar (View, Edit, Filter) can carry a box wide enough to run
-       off the left edge — onMenuToggle below clamps it back on open. max-width is a plain backstop so a box can
-       never exceed the viewport even before that clamp runs. */
-    .box{max-height:75vh;overflow:auto;position:absolute;right:0;top:calc(100% + 4px);z-index:40;min-width:210px;max-width:calc(100vw - 16px);display:flex;flex-direction:column;gap:6px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px}
-    .box .btn,.box .chip,.box select{width:100%;text-align:left}
     .ctxmenu{position:fixed;z-index:30;max-height:70vh;overflow:auto;min-width:200px;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
     .ctxmenu .btn{width:100%;text-align:left}
     .ctxmenu .cm-ent{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
@@ -501,11 +465,6 @@ export class FloorplanStudioEditor extends LitElement {
     .trace-panel .installcode-head{margin:0 -10px}
     .trace-panel .row .btn{flex:1}
     .trace-panel input[type=number]{width:6em}
-    .sub{display:flex;flex-direction:column;gap:6px}
-    .sub>summary{list-style:none;display:inline-block}
-    .sub>summary::-webkit-details-marker{display:none}
-    .sub>summary::after{content:" \\25B8"}
-    .sub>.btn:not(summary){padding-left:20px}
     .stepper{display:flex;gap:2px;align-items:stretch} .stepper input{flex:1;min-width:0} .btn.step{padding:0 6px;min-width:26px}
     .controls{border-collapse:collapse;width:100%;margin:8px 0}
     .controls th,.controls td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--fp-line,#8884);vertical-align:top;font-weight:400}
@@ -523,8 +482,6 @@ export class FloorplanStudioEditor extends LitElement {
     .rot-val{display:inline-block;min-width:3em;text-align:right;font-variant-numeric:tabular-nums}
     .colrow{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:2px 0} .colrow label{display:flex;flex:1;justify-content:space-between;gap:6px} .colrow input{padding:0;width:36px;height:24px} .colrow .btn{width:auto}
     .rangerow{display:flex;align-items:center;gap:8px;margin:2px 0} .rangerow input{flex:1;width:auto} .rangerow .rot-val{flex:none;min-width:3.5em;text-align:right}
-    .rotrow{display:flex;flex-wrap:wrap;gap:6px} .rotrow>span{width:100%} .box .rotrow .btn{width:auto;flex:1;text-align:center}
-    #snap.rotrow .chip{width:calc(50% - 3px);text-align:center}
     /* S24.5: the left column (Outline; S24.6 Layers), the plan, the panel. The column only changes the plan's width:
        same top, same height, and the view keeps its centre and zoom. */
     .ed{display:grid;grid-template-columns:auto minmax(0,1fr) 300px;gap:12px;align-items:start}
@@ -550,7 +507,6 @@ export class FloorplanStudioEditor extends LitElement {
     .leye{flex:none;width:18px;height:18px;fill:currentColor}
     .ll{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .lc{flex:none;font-size:.85em;opacity:.75;font-variant-numeric:tabular-nums}
-    .layers-note{font-size:.85em;max-width:16em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #outlineFilter{width:100%;box-sizing:border-box;flex:none}
     .tree{flex:1;min-height:0;overflow:auto}
     .ti{display:flex;align-items:center;gap:4px;padding:2px 6px 2px calc(2px + var(--lvl,0) * 14px);border-radius:4px;cursor:pointer;white-space:nowrap;font-size:.92em}
@@ -563,7 +519,6 @@ export class FloorplanStudioEditor extends LitElement {
     .tc{flex:none;font-size:.8em;opacity:.75;font-variant-numeric:tabular-nums}
     .k-floor .tl,.k-unplaced .tl{font-weight:600}
     .k-unplaced{margin-top:6px}
-    .bar-search{flex:0 1 260px;min-width:160px}
     .canvas{position:relative;border:1px solid var(--fp-idle);height:var(--fp-editor-height,calc(100vh - 150px));min-height:420px;touch-action:none;background:var(--fp-bg)}
     .zoom{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:2}
     .zoom .btn{width:24px;height:24px;padding:0;text-align:center;line-height:1;font-size:13px}
@@ -617,17 +572,6 @@ export class FloorplanStudioEditor extends LitElement {
     h4.pnl-h:first-child,strong+h4.pnl-h,strong+p+h4.pnl-h,strong+p+p+h4.pnl-h{margin-top:4px;padding-top:0;border-top:none}
     .errors{border:1px solid var(--fp-motion);border-radius:4px;padding:6px 10px;margin:6px 0}
     .errors ul{margin:4px 0;padding-left:18px}
-    /* S7.2: the status line sits in the toolbar. A long message is cut with an ellipsis (the full text is in
-       title) and never wraps the toolbar. */
-    /* S8.10 follow-up: status is the cluster's first item, no flex-grow and no fixed flex-basis reserving space
-       for it — a basis of 12em always held that much room even for "Ready", leaving an empty gap before Help.
-       flex-basis:auto sizes the box to its own text, so there is no reserved space anywhere in the cluster; growing
-       or shrinking that text changes only status's own left edge (justify-content:flex-end on .bar-right anchors
-       the packed block's right edge, and every item after status keeps a fixed distance from that right edge, so
-       Filter's x never moves when the status text changes — see the "moves no button" acceptance test). max-width
-       still caps an extreme message so text-overflow:ellipsis clips it instead of ever forcing a wrap. */
-    .fixplan{display:inline-flex;align-items:center;gap:6px;margin:0;padding:3px 10px;border:2px solid currentColor;border-radius:999px;font-size:.9em;font-weight:600;opacity:1;white-space:nowrap;cursor:pointer}
-    .fixplan.on{background:#c0392b;border-color:#c0392b;color:#fff}
     .banner{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:10px;max-width:min(40em,calc(100vw - 24px));padding:8px 8px 8px 14px;border:1px solid;border-radius:6px;font-size:.9em;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none}
     .banner.info{background:#e8f1fb;color:#123a63;border-color:#6c9bd1}
     .banner.warning{background:#fff4d6;color:#5c4200;border-color:#d9a400}
@@ -645,7 +589,8 @@ export class FloorplanStudioEditor extends LitElement {
     .lbl{pointer-events:none;user-select:none}
     .dev,.door,.heater{cursor:move}
     @media (max-width:900px){.ed{grid-template-columns:1fr}.side{height:auto;min-height:0}.side.open,.side.shut{width:auto}.side .tree{max-height:40vh}}
-  `;
+  `,
+  ];
 
   connectedCallback() {
     super.connectedCallback();
@@ -755,7 +700,7 @@ export class FloorplanStudioEditor extends LitElement {
     return true;
   }
   /** The toolbar's Fix plan box and the banner's Untick Fix plan button both come here. */
-  private setPlanLocked(on: boolean) {
+  setPlanLocked(on: boolean) {
     this.st.planLocked = on;
     this.st.planBlocked = false; // a refusal from before belongs to the old setting
     if (on) this.stopDraw();
@@ -1213,7 +1158,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   private closeCtxMenu = () => { if (this.ctxMenu) { this.ctxMenu = null; this.requestUpdate(); } };
 
-  private toggleDevCols = () => {
+  toggleDevCols = () => {
     this.devColsPos = this.devColsPos ? null : { x: Math.max(20, (window.innerWidth - 560) / 2), y: this.panelTop() };
     this.requestUpdate();
   };
@@ -1253,7 +1198,7 @@ export class FloorplanStudioEditor extends LitElement {
   private addDevHead = this.dragHead(() => this.addDevPos, (p) => { this.addDevPos = p; });
 
   /** S8.1: Edit, Home Assistant. Opening closes the menu it sits in and reloads the list (HA state moves on its own). */
-  private toggleHa() {
+  toggleHa() {
     this.closeMenus();
     this.haPos = this.haPos ? null : this.panelPos(440);
     if (this.haPos) void this.loadHaList();
@@ -1336,7 +1281,7 @@ export class FloorplanStudioEditor extends LitElement {
   // ---- S8.5: Add > Device — one floating panel over the catalog and HA entities ---------------------------------------
 
   /** Closes the Add menu and opens the panel, filters reset, search focused. */
-  private openAddDev() {
+  openAddDev() {
     this.closeMenus();
     this.addDevPos = this.panelPos(Math.min(780, window.innerWidth - 24)); // .add-dev-panel width
     this.addDevQuery = ""; this.addDevFloor = ""; this.addDevRoom = ""; this.addDevArea = ""; this.addDevType = "";
@@ -1362,14 +1307,14 @@ export class FloorplanStudioEditor extends LitElement {
     this.requestUpdate();
   }
 
-  private toggleInstallCode = () => {
+  toggleInstallCode = () => {
     this.installCodeOpen = !this.installCodeOpen;
     this.requestUpdate();
   };
 
   // ---- S7.11: trace image ----------------------------------------------------
 
-  private toggleTrace() {
+  toggleTrace() {
     this.traceOpen = !this.traceOpen;
     this.traceScale = null;
     this.requestUpdate();
@@ -1498,7 +1443,7 @@ export class FloorplanStudioEditor extends LitElement {
    * left the editor's view taller than the card's aspect allows and cropped what the editor showed top and
    * bottom. Taking the smaller of the width and height ratios means the card's box is at least as tall and at
    * least as wide as `v` — it may show a little more on the narrow axis, never less on either. */
-  private copyCardView(): void {
+  copyCardView(): void {
     const st = this.st;
     const fit = viewBoxFor(st.f, 60, st.rotation);
     const v = st.view;
@@ -2164,7 +2109,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   /** A pick in the search box: go there, then hand the keys back to the editor (Delete, arrows, the next "/"). Add device… keeps its own focus. */
-  private onSearchPick = (ev: Event) => {
+  onSearchPick = (ev: Event) => {
     const e = (ev as CustomEvent<SearchEntry>).detail;
     if (!e || typeof e !== "object") return;
     this.goTo(e);
@@ -2272,7 +2217,7 @@ export class FloorplanStudioEditor extends LitElement {
     }
     this.requestUpdate();
   }
-  private openLayers = () => { this.sideOpen = true; this.sideTab = "layers"; this.requestUpdate(); };
+  openLayers = () => { this.sideOpen = true; this.sideTab = "layers"; this.requestUpdate(); };
   /** Shows the given families again; the action behind every "hidden by Layers" banner's Show. */
   private showLayers(ids: Iterable<LayerId>) {
     const back = new Set(ids);
@@ -2302,7 +2247,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   // ---- actions -------------------------------------------------------------
 
-  private undo(back: boolean) {
+  undo(back: boolean) {
     this.stopDraw();
     if (back ? this.st.undo() : this.st.redo()) { this.floor = this.st.floor; this.refreshNames(); this.changed(back ? "Undone" : "Redone"); }
   }
@@ -2312,13 +2257,13 @@ export class FloorplanStudioEditor extends LitElement {
   }
   /** S8.7: Edit, "Link lights to switches" — links every unbound light on this floor to its uniquely suggested
    *  same-area switch, one undo step. Needs HA area data to suggest anything, so the button only shows with `ha`. */
-  private autoLinkLights() {
+  autoLinkLights() {
     const n = this.st.autoLinkLights(this.floor);
     this.closeMenus(); // Opus review finding 14: a top-level Edit item is a one-shot action, like Add's own; it closes the menu
     if (n > 0) this.changed(`Linked ${n} light${n === 1 ? "" : "s"}.`);
     else { this.status = "No light had a clear switch match."; this.requestUpdate(); }
   }
-  private rotatePlan(step: number) {
+  rotatePlan(step: number) {
     if (this.st.setRotate((this.st.layout.rotate ?? 0) + step)) this.changed(`Plan rotated to ${this.st.layout.rotate}°`);
     else this.refused();
   }
@@ -2354,7 +2299,7 @@ export class FloorplanStudioEditor extends LitElement {
   // ---- draw mode ----
 
   /** Enters draw mode. Whatever was being drawn is dropped; the selection is cleared so no shape looks selected while drawing. */
-  private startDraw(kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
+  startDraw(kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
     if (this.st.planLocked) { this.planFixed(); return; }
     this.draw = new Draw(kind, wall, area);
     this.hover = null;
@@ -2405,7 +2350,7 @@ export class FloorplanStudioEditor extends LitElement {
     } else this.requestUpdate();
   }
 
-  private addDoor(kind: "door" | "window" | "slit" | "open", len: number, at?: Pt) {
+  addDoor(kind: "door" | "window" | "slit" | "open", len: number, at?: Pt) {
     this.stopDraw();
     const c = at ?? this.middle() ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
     this.commit((f) => { f.doors.push({ id: newId(f, floor, "door"), name: `new ${kind === "slit" ? "slit window" : kind === "open" ? "open doorway" : kind}`, kind, ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
@@ -2413,14 +2358,14 @@ export class FloorplanStudioEditor extends LitElement {
     this.requestUpdate();
   }
   /** An opening: a gap in a wall. Placed like a door on the edge nearest `at`, or the view centre when it is not given, else at that point. S4.27's wall context menu passes the right-click point. */
-  private addOpeningGap(len = 120, at?: Pt) {
+  addOpeningGap(len = 120, at?: Pt) {
     this.stopDraw();
     const c = at ?? this.middle() ?? this.centre(), e = nearestEdge(this.st.f, c, Infinity, HOST), floor = this.st.floor;
     this.commit((f) => { f.openings.push({ id: newId(f, floor, "opening"), ...segmentAt(e ? e.q : c, e ? e.u : [1, 0], len) }); });
     this.st.sel = { t: "opening", i: this.st.f.openings.length - 1 };
     this.requestUpdate();
   }
-  private addWall(kind: WallKind) {
+  addWall(kind: WallKind) {
     this.stopDraw();
     const p = this.spawn(), [x, y] = p, floor = this.st.floor;
     this.commit((f) => { f.walls.push({ id: newId(f, floor, "wall"), a: [x - 100, y], b: [x + 100, y], kind }); });
@@ -2428,7 +2373,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.sel = { t: "wall", i: this.st.f.walls.length - 1 };
     this.requestUpdate();
   }
-  private addStructure() {
+  addStructure() {
     this.stopDraw();
     const p = this.spawn(), [x, y] = p, floor = this.st.floor; // top-left corner: 400 cm centred on the spawn point would reach into the house
     this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name: "New structure", area: slug("New structure"), kind: "structure", pts: [[x, y], [x + 400, y], [x + 400, y + 300], [x, y + 300]], wk: ["wall", "wall", "wall", "wall"] }); });
@@ -2436,7 +2381,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
   }
-  private addArea(kind: "zone") {
+  addArea(kind: "zone") {
     this.stopDraw();
     const p = this.spawn(true), pts = squareAt(p, this.st.snapGrid), floor = this.st.floor, name = "New zone";
     this.commit((f) => { f.rooms.push({ id: newId(f, floor, "room"), name, area: slug(name), kind, pts, wk: pts.map((): WallKind => "boundary") }); });
@@ -2444,14 +2389,14 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.sel = { t: "room", i: this.st.f.rooms.length - 1 };
     this.requestUpdate();
   }
-  private addStairs() {
+  addStairs() {
     this.stopDraw();
     const t = stairsAt(this.spawn(true), this.st.snapGrid);
     if (!this.st.addStairsEverywhere(t)) { this.refused(); return; }
     this.changed("Added stairs to every floor");
     this.ensureVisible(...t.pts);
   }
-  private addFurniture(symbol: string) {
+  addFurniture(symbol: string) {
     if (!(FURNITURE_SYMBOLS as readonly string[]).includes(symbol)) return;
     if (this.st.planLocked) { this.planFixed(); return; }
     this.stopDraw();
@@ -2462,7 +2407,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.placedNote(before, "Edited", `Added ${sym}`);
   }
   /** S4.25: places an unlinked appliance (a fixed icon by type, not tied to one entity's state). */
-  private addUnlinked(type: string) {
+  addUnlinked(type: string) {
     if (!(UNLINKED_TYPES as readonly string[]).includes(type)) return;
     this.stopDraw();
     const t = type as DeviceType, p = this.spawnDevice(), [x, y] = p, floor = this.st.floor, before = this.counted();
@@ -2668,7 +2613,7 @@ export class FloorplanStudioEditor extends LitElement {
    * by id, after the automation exists; a light that is gone, or is no longer a light, does not stop the
    * automation from being reported as created, only from being recorded on the plan.
    */
-  private async motionAutomation(motionId: string, lightId: string, minutes: number, deviceIndex?: number) {
+  async motionAutomation(motionId: string, lightId: string, minutes: number, deviceIndex?: number) {
     const w = this.writer;
     if (!w || !lightId || !(minutes > 0)) return;
     const floorKey = this.st.floor;
@@ -2796,13 +2741,13 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.deleteFloor(key)) { this.floorDone(`Deleted floor ${title}`); this.focus({ preventScroll: true }); }
     else this.refused();
   }
-  private async startAddFloor() {
+  async startAddFloor() {
     this.addingFloor = true;
     await this.updateComplete;
     this.renderRoot.querySelector<HTMLInputElement>("#newFloor")?.focus();
   }
   private cancelAddFloor() { this.addingFloor = false; this.focus({ preventScroll: true }); }
-  private onNewFloorKey = (ev: KeyboardEvent) => {
+  onNewFloorKey = (ev: KeyboardEvent) => {
     if (ev.key === "Escape") { ev.preventDefault(); this.cancelAddFloor(); return; }
     if (ev.key !== "Enter") return;
     ev.preventDefault();
@@ -2813,7 +2758,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.refused();
   };
 
-  private setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
+  setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
 
   /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
   private saveByKey() {
@@ -2821,7 +2766,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.save();
   }
 
-  private save() {
+  save() {
     const v = validate(this.st.layout);
     if (!v.ok) { this.errors = v.errors; return; }
     const bytes = JSON.stringify(this.st.layout).length;
@@ -2850,7 +2795,7 @@ export class FloorplanStudioEditor extends LitElement {
    * and the live editor state never get this field, only this one download, since a snapshot goes stale the moment
    * anything changes in HA; `migrate()` drops it again if the file is re-opened.
    */
-  private exportJson() {
+  exportJson() {
     // S7.11: a trace image is megabytes an agent cannot read; it goes only when File, Include trace image is ticked.
     const own = this.exportTrace ? this.st.layout
       : { ...this.st.layout, floors: Object.fromEntries(Object.entries(this.st.layout.floors).map(([k, f]) => { const rest: Partial<Floor> = { ...f }; delete rest.trace; return [k, rest]; })) };
@@ -2883,7 +2828,7 @@ export class FloorplanStudioEditor extends LitElement {
     super.removeEventListener(type, listener, options);
   }
   /** Wipes the plan to a blank one. In Home Assistant nothing stored changes until Save. */
-  private reset() {
+  reset() {
     if (this.st.planLocked) { this.planFixed(); return; }
     if (!confirm("Erase everything and start from a blank plan? Nothing saved is touched until you Save. Undo brings it back.")) return;
     // Not through applyLayout: a blank plan is not a valid layout (an outline needs 3 points), so it would be refused.
@@ -2895,7 +2840,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.changed("Blank plan. Draw, then Save.");
   }
   /** Only on a blank plan, so it never asks: there is nothing to lose. */
-  private loadDemo() {
+  loadDemo() {
     if (!this.demo || !isBlank(this.st.layout)) return;
     this.applyLayout(this.demo, "Demo home loaded");
   }
@@ -2911,7 +2856,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.refreshNames();
     this.changed(status);
   }
-  private async openFile(ev: Event) {
+  async openFile(ev: Event) {
     const input = ev.target as HTMLInputElement, file = input.files?.[0];
     if (!file) return;
     try {
@@ -3029,141 +2974,15 @@ export class FloorplanStudioEditor extends LitElement {
     const region = { x: Math.min(...bx), y: Math.min(...by), w: Math.max(...bx) - Math.min(...bx), h: Math.max(...by) - Math.min(...by) };
     const overlay = this.overlay(k), grid = this.measureGrid(k, region);
     const turnG = (svg: string) => (rot ? `<g class="plan-turn" transform="rotate(${num(rot.deg)} ${num(rot.pivot[0])} ${num(rot.pivot[1])})">${svg}</g>` : svg);
-    const ha = st.ha;
-    // S4.5: HA groups with at least one member on this floor, for the Group menu; the chosen one dims every other device (class "dim").
-    const floorEntities = new Set(f.devices.map((d) => d.entity).filter((e) => e));
-    const groups = ha ? ha.entities.filter((e) => e.domain === "group" && (e.members ?? []).some((m) => floorEntities.has(m))) : [];
-    const activeGroup = st.activeGroup ? groups.find((g) => g.id === st.activeGroup) : undefined;
-    // S4.6: a group's kind (light or motion) read off its first member's domain, to offer "Turns on..." only for a motion group.
-    const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split(".")[0] === "binary_sensor" ? "motion" as const : (g.members ?? [])[0]?.split(".")[0] === "light" ? "light" as const : undefined;
+    // S4.5: the chosen HA group dims every other device (class "dim").
+    const { activeGroup } = floorGroups(st);
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
     const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, labels: st.labels, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
-    const hiddenNote = layersSummary(st.hidden);
-    const pressed = (b: boolean) => (b ? "true" : "false");
     const find = this.findData();
-    const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
     return html`
       ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span>${this.banner.action ? html`<button class="banner-act" id=${this.banner.action.id} @click=${this.banner.action.run}>${this.banner.action.label}</button>` : nothing}<button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
-      <div class="bar">
-        ${Object.entries(st.layout.floors).map(([name, fl]) => html`<button class="chip" data-f=${name} aria-pressed=${pressed(name === st.floor)} @click=${() => this.setFloor(name)}>${fl.title || name}</button>`)}
-        ${this.addingFloor
-          ? html`<input id="newFloor" type="text" aria-label="Title of the new floor" placeholder="Floor title" @keydown=${this.onNewFloorKey} @blur=${() => { if (document.hasFocus()) this.addingFloor = false; }}>`
-          : nothing}
-        <fp-search id="search" class="bar-search" .entries=${find.entries} label="Search or run a command" placeholder=${`Search or run a command ${mac ? "⌘K" : "Ctrl+K"}`} @fp-pick=${this.onSearchPick}></fp-search>
-        <div class="bar-right">
-        <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
-             a button after it (see .status's own comment above). -->
-        <label class="fixplan ${st.planLocked ? "on" : ""}" title="Lock the plan: walls, rooms, areas, doors, windows, stairs and furniture stay as they are. Devices and objects can still be added, moved and removed"><input type="checkbox" id="fixPlan" .checked=${live(st.planLocked)} @change=${(e: Event) => this.setPlanLocked((e.target as HTMLInputElement).checked)}> ${st.planLocked ? "🔒" : "🔓"} Fix plan</label>
-        ${hiddenNote ? html`<button class="btn layers-note" id="layersNote" title="Open the Layers tab" @click=${this.openLayers}>${hiddenNote}</button>` : nothing}
-        <details class="menu" id="mAdd" @toggle=${this.onMenuToggle}><summary class="btn">Add</summary><div class="box">
-          <details class="sub" id="addOpenings"><summary class="btn">Openings</summary>
-            <button class="btn" id="addDoor" @click=${() => this.addDoor("door", 90)}>Door</button>
-            <button class="btn" id="addOpenDoor" title="A doorway in a wall, with nothing drawn in it. Unlike Opening it can have a name and sensors" @click=${() => this.addDoor("open", 90)}>Open doorway</button>
-            <button class="btn" id="addWin" @click=${() => this.addDoor("window", 120)}>Window</button>
-            <button class="btn" id="addSlit" title="A window 60 cm high, from the ceiling down" @click=${() => this.addDoor("slit", 120)}>Slit window</button>
-            <button class="btn" id="addGap" title="A gap in a wall: the wall is not drawn there" @click=${() => this.addOpeningGap()}>Opening</button>
-          </details>
-          <details class="sub" id="addWallSub"><summary class="btn">Wall</summary>
-            ${WALL_KINDS.map((k) => html`<button class="btn" id=${`addWall-${k}`} @click=${() => this.addWall(k)}>${WALL_LABELS[k]}</button>`)}
-          </details>
-          <details class="sub" id="addAreas"><summary class="btn">Areas</summary>
-            <button class="btn" id="addStr" @click=${() => this.addStructure()}>Structure</button>
-            <button class="btn" id="addZone" @click=${() => this.addArea("zone")}>Zone</button>
-            <button class="btn" id="addStairs" @click=${() => this.addStairs()}>Stairs</button>
-          </details>
-          <button class="btn" id="addDevBtn" @click=${() => this.openAddDev()}>Device…</button>
-          <div class="sep"></div>
-          <select id="addFurn" aria-label="Add furniture" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addFurniture(el.value); el.value = ""; this.closeMenus(); }}>
-            <option value="">Furniture…</option>
-            ${FURNITURE_SYMBOLS.map((y) => html`<option value=${y}>${y}</option>`)}
-          </select>
-          <select id="addUnlDev" aria-label="Add unlinked device" @change=${(e: Event) => { const el = e.target as HTMLSelectElement; if (el.value) this.addUnlinked(el.value); el.value = ""; this.closeMenus(); }}>
-            <option value="">Unlinked device…</option>
-            ${typeOptions(TYPE_LABELS.filter(([t]) => (UNLINKED_TYPES as readonly string[]).includes(t)))}
-          </select>
-        </div></details>
-        <details class="menu" id="mDraw" @toggle=${this.onMenuToggle}><summary class="btn">Draw</summary><div class="box">
-          <details class="sub" id="drawOpenings"><summary class="btn">Openings</summary>
-            <button class="btn" id="drawOpening" @click=${() => this.startDraw("opening")}>Draw opening</button>
-          </details>
-          <details class="sub" id="drawWallSub"><summary class="btn">Wall</summary>
-            ${WALL_KINDS.map((k) => html`<button class="btn" id=${`drawWall-${k}`} @click=${() => this.startDraw("wall", k)}>${WALL_LABELS[k]}</button>`)}
-          </details>
-          <details class="sub" id="drawAreas"><summary class="btn">Areas</summary>
-            <button class="btn" id="drawRoom" @click=${() => this.startDraw("room")}>Draw room</button>
-            <button class="btn" id="drawZone" @click=${() => this.startDraw("zone")}>Draw zone</button>
-            <button class="btn" id="drawWater" @click=${() => this.startDraw("water")}>Draw water</button>
-            <button class="btn" id="drawOutline" title="Replaces the outline of this floor" @click=${() => this.startDraw("outline")}>Draw outline</button>
-            <button class="btn" id="drawExtra" @click=${() => this.startDraw("extra")}>Draw structure line</button>
-          </details>
-        </div></details>
-        <details class="menu" id="mOpt" @toggle=${this.onMenuToggle}><summary class="btn">View</summary><div class="box">
-          <span class="grp" id="version">Floorplan Studio ${manifest.version}</span>
-          <div class="rotrow" id="snap" role="group" aria-label="Snap"><span>Snap</span>
-            ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); this.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
-          <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); this.requestUpdate(); }}>Measure grid</button>
-          <button class="chip" id="lens" aria-pressed=${pressed(st.showLen)} @click=${() => { st.showLen = !st.showLen; this.requestUpdate(); }}>Lengths</button>
-          <button class="chip" id="names" aria-pressed=${pressed(st.showNames)} title="Show every visible device's name on the plan" @click=${() => { st.showNames = !st.showNames; this.requestUpdate(); }}>Names</button>
-          <button class="chip" id="labels" aria-pressed=${pressed(st.labels)} title="Show the names and values on the plan. Off leaves only the items and sensors." @click=${() => { st.setLabels(!st.labels); this.requestUpdate(); }}>Show names and text</button>
-          <button class="chip" id="night" aria-pressed=${pressed(st.night)} title="Draw the plan as the card does after sunset. The editor has no live lights, so every room is dark." @click=${() => { st.setNight(!st.night); this.requestUpdate(); }}>Preview night</button>
-          <details class="sub" id="thSub"><summary class="btn">Theme: ${THEME_LABELS[st.theme]}</summary>
-            ${THEME_VALUES.map((t) => html`<button class="btn keep" data-th=${t} aria-pressed=${pressed(st.theme === t)} @click=${() => { st.setTheme(t); this.requestUpdate(); }}>${THEME_LABELS[t]}</button>`)}
-          </details>
-          <details class="sub" id="detailSub"><summary class="btn">Detail: ${DETAIL_LABELS[st.detail]}</summary>
-            ${DETAIL_MODES.map((m) => html`<button class="btn keep" data-detail=${m} aria-pressed=${pressed(st.detail === m)} title=${m === "auto" ? "Follow the zoom: rooms far out, devices closer in" : m === "full" ? "Always draw everything (the default while editing)" : "Always draw only rooms and what needs attention"} @click=${() => { st.setDetail(m); this.requestUpdate(); }}>${DETAIL_LABELS[m]}</button>`)}
-          </details>
-          <button class="btn" id="recenter" @click=${() => { st.recenter(); this.requestUpdate(); }}>Re-center</button>
-          <button class="btn" id="fit" @click=${() => { st.fit(); this.requestUpdate(); }}>Fit to window</button>
-          <button class="btn" id="copyCardView" title="Copies center and zoom_level for a card pinned to what's on screen now" @click=${() => this.copyCardView()}>Copy card view</button>
-        </div></details>
-        <details class="menu" id="mEdit" @toggle=${this.onMenuToggle}><summary class="btn">Edit</summary><div class="box">
-          <button class="btn" id="addFloor" title="Add a floor" @click=${() => this.startAddFloor()}>Add floor</button>
-          ${this.writer ? html`<button class="btn" id="mHA" ?disabled=${!this.haList?.length && !this.haListErr} aria-expanded=${pressed(!!this.haPos)} title=${this.haListErr || (this.haList?.length ? "What Floorplan Studio made in Home Assistant" : "Nothing Floorplan Studio made is labelled in Home Assistant yet")} @click=${() => this.toggleHa()}>Home Assistant</button>` : nothing}
-          ${ha ? html`<details class="sub" id="mGroup"><summary class="btn">Group</summary>
-            <button class="btn" id="groupAll" aria-pressed=${pressed(!st.activeGroup)} @click=${() => { st.activeGroup = null; this.requestUpdate(); }}>All</button>
-            ${groups.length === 0 ? html`<span class="grp" id="groupNone">No Home Assistant group has a member on this floor</span>` : nothing}
-            ${groups.map((g) => html`<button class="btn" data-group=${g.id} aria-pressed=${pressed(st.activeGroup === g.id)} @click=${() => { st.activeGroup = g.id; this.requestUpdate(); }}>${g.name}</button>`)}
-            ${this.writer && activeGroup && groupKindOf(activeGroup) === "motion" ? html`<div class="sep"></div>
-              <label for="motLightGrp">Turns on</label>
-              <select id="motLightGrp" .value=${live(st.motionLightGroup)} @change=${(e: Event) => { st.motionLightGroup = (e.target as HTMLSelectElement).value; this.requestUpdate(); }}>
-                <option value="" ?selected=${!st.motionLightGroup}>choose a light group...</option>
-                ${groups.filter((g) => groupKindOf(g) === "light").map((g) => html`<option value=${g.id} ?selected=${g.id === st.motionLightGroup}>${g.name}</option>`)}
-              </select>
-              <label for="motMinutes">off after (minutes)</label>
-              <input id="motMinutes" type="number" min="1" step="1" .value=${live(st.motionMinutes)} @change=${(e: Event) => { st.motionMinutes = (e.target as HTMLInputElement).value; this.requestUpdate(); }}>
-              <p><button class="btn" id="motGo" @click=${() => { const min = Number(st.motionMinutes); if (st.motionLightGroup && min > 0) void this.motionAutomation(activeGroup.id, st.motionLightGroup, min); }}>Create automation</button></p>` : nothing}
-          </details>
-          <button class="btn" id="linkLights" title="Link every unbound light on this floor to its uniquely matched switch" @click=${() => this.autoLinkLights()}>Link lights to switches</button>` : nothing}
-          <div class="rotrow"><span id="rotv">Rotate the plan: ${st.layout.rotate ?? 0}°</span>
-            <button class="btn keep" id="rotl" aria-label="Rotate the plan 45 degrees left" @click=${() => this.rotatePlan(-45)}>&#8630; 45°</button>
-            <button class="btn keep" id="rotr" aria-label="Rotate the plan 45 degrees right" @click=${() => this.rotatePlan(45)}>45° &#8631;</button></div>
-          <button class="btn" id="devcols" aria-expanded=${pressed(!!this.devColsPos)} @click=${() => this.toggleDevCols()}>Device colours</button>
-          <button class="btn" id="traceBtn" aria-expanded=${pressed(this.traceOpen)} @click=${() => this.toggleTrace()}>Trace image…</button>
-        </div></details>
-        <details class="menu" id="mFile" @toggle=${this.onMenuToggle}><summary class="btn">File</summary><div class="box">
-          <button class="btn" id="imp" @click=${() => this.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
-          <button class="btn" id="exp" title="Download the current layout as JSON" @click=${() => this.exportJson()}>Export…</button>
-          <label class="grp"><input type="checkbox" id="expTrace" .checked=${live(this.exportTrace)} @change=${(e: Event) => { this.exportTrace = (e.target as HTMLInputElement).checked; }}> Include trace image</label>
-          <button class="btn" id="installcode" aria-expanded=${pressed(this.installCodeOpen)} @click=${() => this.toggleInstallCode()}>Install code…</button>
-          ${this.demo ? html`<button class="btn" id="loaddemo" ?disabled=${!isBlank(st.layout)} title=${isBlank(st.layout) ? "Load the demo home" : "Reset first: loading the demo would overwrite your plan."} @click=${() => this.loadDemo()}>Load demo</button>` : nothing}
-          <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => this.reset()}>Reset</button>
-          <button class="btn primary" id="save" @click=${() => this.save()}>Save</button>
-        </div></details>
-        <!-- S8.10 follow-up: Help, then Undo and Redo as the cluster's last items, so Redo's own right edge is
-             the one the toolbar-alignment acceptance test pins. -->
-        ${st.detail !== DEFAULT_DETAIL ? html`<span class="grp" id="detailMode" title="Set in View, Detail">Detail: ${DETAIL_LABELS[st.detail]}</span>` : nothing}
-        <button class="btn" id="help" aria-expanded=${pressed(st.helpOpen)} title="Controls and a step-by-step guide" @click=${() => this.toggleHelp()}>? Help</button>
-        <!-- S8.10 follow-up (Opus review): Undo and Redo as one flex item (nowrap inside), so wrapping ever moves
-             the pair together onto the next row — two separate items let the row that fit Undo split Redo onto
-             its own row alone. -->
-        <div class="btnpair">
-        <button class="btn light" id="undo" ?disabled=${!st.canUndo} @click=${() => this.undo(true)}>Undo</button>
-        <button class="btn light" id="redo" ?disabled=${!st.canRedo} @click=${() => this.undo(false)}>Redo</button>
-        </div>
-        </div>
-        <input type="file" id="file" accept=".json,application/json" hidden @change=${(e: Event) => this.openFile(e)}>
-      </div>
+      ${toolbarView(this, find.entries)}
       ${this.errors.length ? html`<div class="errors" id="errors" role="alert"><strong>That layout was not used.</strong><ul>${this.errors.map((e) => html`<li>${e}</li>`)}</ul><button class="btn" id="errclose" @click=${() => { this.errors = []; }}>Dismiss</button></div>` : nothing}
       <div class="ed">
         ${this.sideView(find.tree)}
@@ -3203,7 +3022,7 @@ export class FloorplanStudioEditor extends LitElement {
    * click, so closing View by clicking its own summary again — the one route `onWindowClick` does not cover — must
    * collapse the submenu itself, or reopening View leaves Theme already open.
    */
-  private onMenuToggle = (ev: Event) => {
+  onMenuToggle = (ev: Event) => {
     const details = ev.currentTarget as HTMLDetailsElement;
     if (details.id === "mOpt" && !details.open) this.closeSubs(details);
     const box = details.querySelector<HTMLElement>(":scope > .box");
@@ -3234,7 +3053,7 @@ export class FloorplanStudioEditor extends LitElement {
    * S5.5: opens or closes the Help panel. Closing hands focus back to the toolbar's own #help button — the same
    * rule Escape follows for a menu (closeMenus): a keyboard user must not lose their place when a panel disappears.
    */
-  private toggleHelp() {
+  toggleHelp() {
     const wasOpen = this.st.helpOpen;
     this.st.setHelp(!wasOpen);
     this.requestUpdate();
@@ -3249,7 +3068,7 @@ export class FloorplanStudioEditor extends LitElement {
     return open.length > 0;
   }
 
-  private closeMenus() {
+  closeMenus() {
     const open = this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]");
     open.forEach((m) => { m.open = false; this.closeSubs(m); });
     if (open.length) this.focus({ preventScroll: true }); // the focused item just hid
