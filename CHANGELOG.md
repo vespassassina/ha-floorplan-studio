@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Studio (internal): `snapRay` puts a drawn point on the nearest 15 degree ray from the last point. Not wired to the pointer yet.
+- Studio (internal): `Draw` keeps a typed length ("350" cm or "3.5m") and `placeTyped` adds the next point that far along the pointer direction. Not wired to the keys yet.
 
 ## 0.23.1 - 2026-10-09
 

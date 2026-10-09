@@ -315,3 +315,89 @@ describe("snapRay (S26.7)", () => {
     expect(p).toEqual([300, 80]); expect(f).toEqual([100, 50]);
   });
 });
+
+describe("Draw typed length (S26.8)", () => {
+  const typeAll = (d: Draw, text: string) => [...text].map((c) => d.type(c));
+  const drawn = (kind: "wall" | "room" = "wall") => { const d = new Draw(kind); d.click([0, 0], TH); return d; };
+  const last = (d: Draw) => d.points[d.points.length - 1];
+
+  it("350 is centimetres along the direction to the pointer", () => {
+    const d = drawn(); typeAll(d, "350");
+    expect(d.typed).toBe("350");
+    expect(d.placeTyped([10, 0])).toBe("add");
+    expect(last(d)[0]).toBeCloseTo(350, 9); expect(last(d)[1]).toBeCloseTo(0, 9);
+    expect(d.typed).toBe(""); // consumed
+  });
+
+  it("3.5m is metres; the direction is the pointer's, whatever its distance", () => {
+    const d = drawn(); typeAll(d, "3.5m");
+    expect(d.placeTyped([0, -9999])).toBe("add");
+    expect(last(d)[0]).toBeCloseTo(0, 9); expect(last(d)[1]).toBeCloseTo(-350, 9);
+    const e = drawn(); typeAll(e, "200");
+    e.placeTyped([30, 40]); // 3-4-5 direction
+    expect(Math.hypot(...last(e))).toBeCloseTo(200, 9);
+    expect(last(e)[0]).toBeCloseTo(120, 9);
+  });
+
+  it("refuses and adds nothing: empty, 0, negative, over 10 000 cm, no point yet, no direction", () => {
+    const d = drawn();
+    expect(d.placeTyped([100, 0])).toBe("ignore"); // empty
+    for (const t of ["0", "0m", "0.0", "10001", "100.01m", "."]) {
+      d.typed = ""; typeAll(d, t);
+      expect(d.placeTyped([100, 0]), t).toBe("ignore");
+      expect(d.points, t).toHaveLength(1);
+    }
+    expect(d.type("-")).toBe(false); // a minus cannot be typed...
+    d.typed = "-5"; // ...and a buffer set by hand is still refused
+    expect(d.placeTyped([100, 0])).toBe("ignore");
+    expect(d.points).toHaveLength(1);
+    const none = new Draw("wall"); typeAll(none, "100");
+    expect(none.placeTyped([100, 0])).toBe("ignore");
+    expect(none.points).toEqual([]);
+    const same = drawn(); typeAll(same, "100");
+    expect(same.placeTyped([0, 0])).toBe("ignore"); // pointer on the last point: no direction
+    expect(same.placeTyped([NaN, 0])).toBe("ignore");
+    expect(same.points).toHaveLength(1);
+  });
+
+  it("10 000 cm itself is allowed", () => {
+    const d = drawn(); typeAll(d, "10000");
+    expect(d.placeTyped([1, 0])).toBe("add");
+    const e = drawn(); typeAll(e, "100m");
+    expect(e.placeTyped([1, 0])).toBe("add");
+  });
+
+  it("type takes digits, one dot, and a closing m; nothing else", () => {
+    const d = drawn();
+    expect(typeAll(d, "1a.2.3m4")).toEqual([true, false, true, true, false, true, true, false]);
+    expect(d.typed).toBe("1.23m");
+    expect(d.type("")).toBe(false); expect(d.type("12")).toBe(false);
+    const e = drawn();
+    expect(e.type("m")).toBe(false); // m needs a number first
+    expect(e.type(".")).toBe(true);
+  });
+
+  it("untype removes the last character; an empty buffer stays empty", () => {
+    const d = drawn(); typeAll(d, "12");
+    d.untype(); expect(d.typed).toBe("1");
+    d.untype(); d.untype(); expect(d.typed).toBe("");
+  });
+
+  it("the buffer is bounded", () => {
+    const d = drawn(); typeAll(d, "1".repeat(30));
+    expect(d.typed.length).toBeLessThanOrEqual(8);
+  });
+
+  it("cancel, finish and a click clear the buffer; a refusal keeps it", () => {
+    const a = drawn(); typeAll(a, "5"); a.cancel(); expect(a.typed).toBe("");
+    const b = drawn(); typeAll(b, "5"); b.click([100, 0], TH); expect(b.typed).toBe("");
+    const c = drawn(); c.click([100, 0], TH); typeAll(c, "5"); c.finish(); expect(c.typed).toBe("");
+    const d = drawn(); typeAll(d, "0"); d.placeTyped([5, 0]); expect(d.typed).toBe("0");
+  });
+
+  it("an opening finishes on its second point, like a click", () => {
+    const d = new Draw("opening"); d.click([0, 0], TH); typeAll(d, "90");
+    expect(d.placeTyped([1, 0])).toBe("finish");
+    expect(d.finish()!.pts[1][0]).toBeCloseTo(90, 9);
+  });
+});
