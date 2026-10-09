@@ -1,7 +1,7 @@
 import { TEXTURE_IDS } from "./textures";
 export type Pt = [number, number];
 export type RoomKind = "room" | "garden" | "pavement" | "fill" | "terrace" | "structure" | "zone" | "water";
-export type DoorKind = "door" | "glass" | "window" | "sealed" | "slit" | "open";
+export type DoorKind = "door" | "glass" | "window" | "sealed" | "slit" | "fullwindow" | "open";
 export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
@@ -73,6 +73,7 @@ export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape
  * glass door or window. render.ts only colours the opening from `cover` on a plain `door` or `sealed` kind;
  * on `window`/`glass` it is curtains, not a security state, and opening them never colours the window
  * (Diego, 2026-09-28 — the office window's curtains were flipping it orange).
+ * `fullwindow` (2026-10-09, S25.D3; shown as "Full-height window") is a window from the floor: sill 0, its head as far under the ceiling of its wall as a window's and a glass door's (40 cm; 210 on 250). A window in every other respect.
  * `slit` (2026-10-05) is a window 60 cm high whose head ends 40 cm under the ceiling of its wall, as a window's does (2026-10-06); its width is the length a to b.
  * It reads and behaves as a `window` in every other respect. Its default sill is read from the wall, never stored.
  * `open` (2026-10-05) is a doorway: the wall is cut as for a door (210 high from 0), but nothing is drawn in the gap. It is a
@@ -181,7 +182,7 @@ export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", 
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const STAIR_DIRECTIONS: readonly StairDirection[] = ["up", "down", "both"];
-export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed", "slit", "open"];
+export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed", "slit", "fullwindow", "open"];
 /** S14.3: the least and most a device's effect size (`fx`, percent) may be. Absent reads as 100. */
 export const FX_MIN = 25, FX_MAX = 300;
 /** S14.3: the types that draw an effect the size scales: a lit lamp's aura, a playing speaker's or media device's waves, a triggered motion or contact sensor's ring. A siren draws rings by its entity's domain (`isSiren`), not by the `siren` type; see there. */

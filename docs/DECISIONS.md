@@ -4,6 +4,7 @@ Newest first. A change supersedes; nothing is edited.
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 ## 2026-10-09: detail levels in `renderFloor`; mode is `full` until the menu (S25.1, S25.2)
 
 - `detailLevel(zoom, mode)` and `detailFor(fit, shown, mode)` live in `src/core/detail.ts`. Far below 1.6, mid to 3.2, near
@@ -36,6 +37,50 @@ Supersedes "Not done here: placing labels in CSS px outright" in "an 11 px floor
 - **With `labels: false` no badge is drawn.** `labels: false` is the contract "no `<text>` at all" and a count is text. The S7.1 overprint test excludes the badge's `rb-t` text from its label count; the badge's own test checks the plate against its room's name and readout.
 - **Placement is a plain rule, not label placement**: the plate sits under the room's name (and under the readout when there is one), centred on the name's anchor. Sprint 25's CSS-px placement task (S25.4) may move it.
 >>>>>>> task/s25-badges
+=======
+## 2026-10-09: full-height window (S25.D3)
+
+Diego: "allow for full height windows (we have those) so that i do not need to use a glass door for them."
+- New `DoorKind` `fullwindow`, read "Full-height window". A window in every respect (pane, jambs, sensor, cover is curtains,
+  `--fp-window`, the pane goes when open) except its span: sill 0, head `SLIT_HEAD_GAP` (40 cm) under the ceiling of its wall,
+  210 on 250. That is a glass door's top and a window's head distance, so all three line up. Chosen over a head exactly at
+  the ceiling: a window whose head touches the ceiling reads as a gap in the slab, and Diego's slit was moved off the ceiling
+  for the same reason (2026-10-06). An own `sill` or `height` wins, clamped to the wall; on a wall lower than 40 cm the head is the wall.
+- Per-kind tables: `DOOR_KINDS`, `DOOR_DEFAULTS`, `doorSpan`, `OPENING_FILL`, `PANE_KINDS`, the palette `glass-fullwindow`, the
+  curtain rule, the Studio names and sill field. A test walks `DOOR_KINDS` so a new kind fails until it is in each.
+- No migration; a stored `glass` door stays a glass door.
+
+## 2026-10-09: the glass kind is read "Glass door" (S25.D2)
+
+Diego: "rename glass into glass doors."
+- Visible name only: the type selector, the docs and SPEC say "Glass door". The stored value stays `glass`; no migration,
+  no schema change.
+
+## 2026-10-09: doors are holes, closed doors a thin line (S25.D1)
+
+Supersedes the leaf in "no door swing arcs (S23.F6)" and the leaf and "closed door's line is quiet" in "plan symbols (S23.7)".
+Diego: "for doors do not show the open close line at all, it is ugly and pollutes the diagram. open doors are just holes and
+closed doors are closed. doors with no sensor are left open (so just a hole)."
+- `doorSymbol` returns "" for `door` and `glass`; the leaf code and the room-side probe are gone. A `door-sym` path exists
+  only for a window or slit.
+- Closed = `doorStateOf(...).closed`: the door has a `sensors` list, every sensor reads `off`, no attached lock is unlocked.
+  `on`, `unavailable`, `unknown`, `""`, a missing entry, no sensor: open, a hole. With several sensors one that is not
+  `off` makes the door a hole (a dead sensor never reads as closed); one that is `on` is the red alert.
+- The thin line is the door's existing `.door` line (wall width, `--fp-door`; `.door-glass` gives `--fp-glass`). It was `quiet`
+  (transparent) when closed; now `quiet` is the hole, and it shows when closed. No new CSS rule, so the computed-style pair
+  moved (`plan-symbols-css.spec.ts`).
+- The red alert for a sensor that reports OPEN (the dashed `.door.open` line, `door-alert` band, pulse) is unchanged: Diego
+  did not ask to remove it. Vibration and an open cover on a plain door keep theirs.
+- `sealed` and the `open` doorway keep their behaviour. Windows and slits are unchanged.
+- 2.5D (`wallSolids`): a door's leaf and a glass door's glass are drawn only when closed or alerting (`SHUT_KINDS`). 3D
+  (`view3d.applyDoors`): the leaf and the glass-door pane are visible only when closed; an alerting door (open, vibrating,
+  cover open) keeps its leaf, swung and red, as the alert. The static scene still builds the leaf and glass solids (it has
+  no state); only the viewer hides them. Known small leftover: `Picker` BLOCKS still counts a door-leaf solid as hiding a
+  label behind it, though a hole no longer has one on screen.
+- Editor: no live state, so a door is a hole there; selected, it shows its selection line.
+- Tests changed on purpose: `plan-symbols.test.ts`, `door-state.test.ts`, `open-door.test.ts`, `solids-openings.test.ts`,
+  `card-3d-live.spec.ts`, `plan-symbols-css.spec.ts`; the render snapshot lost only the three leaf paths.
+>>>>>>> task/doors-open-closed
 
 ## 2026-10-08: no door swing arcs (S23.F6)
 

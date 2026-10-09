@@ -422,10 +422,11 @@ ${THEME_EXTRAS}
 /* S8.9 finding 3: a door's own stroke is now as thin as the internal wall it sits on, so this invisible twin
    (drawn first, same data-d, at the old fixed 22 cm) keeps the click target exactly as wide as it always was. */
 .door-hit{stroke:transparent;pointer-events:stroke;cursor:move}
-/* S23.7: plan symbols. A door's or window's own line is quiet while it is closed and not selected; the symbol is a 1 px
-   leaf (door, glass; no swing arc since S23.F6) or three hairlines (window, slit), red only while open, alarmed or its cover is open. */
+/* S23.7: plan symbols. A window's own line is quiet while it is not selected; its symbol is three hairlines (window, slit), red only
+   while open, alarmed or its cover is open. S25.D1: a door or glass door has no symbol and no leaf. Open or with no sensor it is a hole
+   (its own line is quiet); closed (its sensor says off) its own line is the thin line across the gap, in --fp-door / --fp-glass. */
 .door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
-.door-sym.k-glass{stroke:var(--fp-glass)} .door-sym.k-window,.door-sym.k-slit{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
+.door-sym.k-window,.door-sym.k-slit,.door-sym.k-fullwindow{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
 /* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
    board; opaque, a glass tint mixed into the bare room. Its jambs are window hairlines, red with the state like the symbol. */
 .win-pane{fill:color-mix(in srgb,var(--fp-window) 22%,var(--fp-room-empty));stroke:none;pointer-events:none} .win-pane.open,.win-pane.alarm{fill:color-mix(in srgb,var(--fp-open-door) 22%,var(--fp-room-empty))}
@@ -705,35 +706,20 @@ export function roomAt(f: Floor, p: Pt): number {
   return best;
 }
 
-/** S23.7: the kinds drawn as a plan symbol, and so cut out of the wall like an opening. Sealed keeps its dashed line; an
- *  open doorway is already cut and draws nothing. */
-const SWING_KINDS: readonly string[] = ["door", "glass"], PANE_KINDS: readonly string[] = ["window", "slit"];
+/** S23.7: the kinds cut out of the wall like an opening. SWING_KINDS (door, glass door) draw no symbol: S25.D1 a hole, or a thin line when closed.
+ *  Sealed keeps its dashed line; an open doorway is already cut and draws nothing. */
+const SWING_KINDS: readonly string[] = ["door", "glass"], PANE_KINDS: readonly string[] = ["window", "slit", "fullwindow"];
 const OUTDOOR_KINDS: readonly RoomKind[] = ["garden", "terrace", "pavement", "water"];
-const ringArea = (p: Pt[]) => Math.abs(p.reduce((n, q, k) => n + q[0] * p[(k + 1) % p.length][1] - p[(k + 1) % p.length][0] * q[1], 0)) / 2;
 
-/** S23.7: the `d` of a door's or window's plan symbol, or "" when it has none (sealed, open, a zero-length or broken door).
- *  A door: a leaf from the hinge `a`, square to the wall and |ab| long, on the room side: the side whose probe point is in
- *  an indoor room, else in any room, else the smaller room, else the left of a to b. No swing arc: S23.F6 dropped it
- *  (Diego, 2026-10-08). A window: three hairlines along the opening, at the wall's two faces and its middle; a slit's span
- *  its narrower band (SLIT_BAND). */
+/** S23.7: the `d` of a window's plan symbol: three hairlines along the opening, at the wall's two faces and its middle; a
+ *  slit's span its narrower band (SLIT_BAND). "" for every other kind and for a zero-length or broken door. A door and a glass
+ *  door have none (S25.D1, Diego 2026-10-09): no swing arc since S23.F6, no leaf either; open they are a hole, closed a thin line. */
 function doorSymbol(f: Floor, kind: unknown, a: Pt, b: Pt): string {
   const len = dist(a, b);
-  if (!(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite)) return "";
+  if (!(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite) || !PANE_KINDS.includes(kind as string)) return "";
   const u: Pt = [(b[0] - a[0]) / len, (b[1] - a[1]) / len], left: Pt = [u[1], -u[0]];
-  if (PANE_KINDS.includes(kind as string)) {
-    const half = (wallWidthAt(f, a, b) * (kind === "slit" ? SLIT_BAND : 1)) / 2;
-    return [-half, 0, half].map((t) => `M${num(a[0] + left[0] * t)} ${num(a[1] + left[1] * t)}L${num(b[0] + left[0] * t)} ${num(b[1] + left[1] * t)}`).join("");
-  }
-  if (!SWING_KINDS.includes(kind as string)) return "";
-  const m = mid(a, b);
-  const sideOf = (n: Pt) => {
-    const i = roomAt(f, [m[0] + n[0] * len / 2, m[1] + n[1] * len / 2]), r = i < 0 ? null : f.rooms[i];
-    return { indoor: r?.kind === "room", any: !!r, area: r ? ringArea(r.pts) : Infinity };
-  };
-  const right: Pt = [-left[0], -left[1]], L = sideOf(left), R = sideOf(right);
-  const goRight = R.indoor !== L.indoor ? R.indoor : R.any !== L.any ? R.any : R.area < L.area;
-  const n = goRight ? right : left;
-  return `M${num(a[0])} ${num(a[1])}L${num(a[0] + n[0] * len)} ${num(a[1] + n[1] * len)}`;
+  const half = (wallWidthAt(f, a, b) * (kind === "slit" ? SLIT_BAND : 1)) / 2;
+  return [-half, 0, half].map((t) => `M${num(a[0] + left[0] * t)} ${num(a[1] + left[1] * t)}L${num(b[0] + left[0] * t)} ${num(b[1] + left[1] * t)}`).join("");
 }
 
 /** S1 (Opus review of S23): a window's pane and jambs, or null for any other kind. The wall is cut wider than the room
@@ -1604,11 +1590,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S10.3: a triggered vibration sensor gives the door the same red and the same pulsing alert line as an open
     // contact, but solid, not dashed - dashed keeps meaning "open" alone. Both at once: dashed (open wins the
     // dash, class order below puts .open after .alarm so its dasharray is the one asserted last), red, one line.
-    const { open, alarm: vibrating, cover: coverOpen } = doorStateOf(d, o.state);
+    const { open, alarm: vibrating, cover: coverOpen, closed } = doorStateOf(d, o.state);
     const sel = o.selection?.t === "door" && o.selection.i === i, doorway = d.kind === "open";
     // S14.5: a tripped doorway is a solid alert band (`band`: no dash, no pulse), not an open door's look.
     const tripped = doorway && (open || vibrating || coverOpen);
-    const cls = ["door", `door-${esc(String(d.kind))}`, d.kind === "slit" ? "door-window" : "", vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : "", tripped ? "band" : ""].filter(Boolean).join(" ");
+    const cls = ["door", `door-${esc(String(d.kind))}`, d.kind === "slit" || d.kind === "fullwindow" ? "door-window" : "", vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : "", tripped ? "band" : ""].filter(Boolean).join(" ");
     // 2.5D: the wall is already cut open above, so the floor line is only a threshold, thin enough to see through the gap.
     // It keeps every class (open, alarm, cover-open) and its alert line, so a door's state still shows.
     // A slit window is the window mark drawn as a thin band (SLIT_BAND of the wall), so it reads as a slit at a glance.
@@ -1625,7 +1611,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (doorway && !sel && !open && !vibrating && !coverOpen) return;
     // S23.7: a door or window is its symbol (below); its own line stays for the title, the selection and the alert look, and
     // paints nothing while the door is closed and not selected (`quiet`).
-    const sym = doorSymbol(f, d.kind, d.a, d.b), quiet = sym && !sel && !open && !vibrating && !coverOpen;
+    // S25.D1: a door or glass door is closed (its line shows) only when a sensor says so; otherwise it is a hole and its line is quiet.
+    const sym = doorSymbol(f, d.kind, d.a, d.b), swing = SWING_KINDS.includes(d.kind), quiet = (sym || (swing && !closed)) && !sel && !open && !vibrating && !coverOpen;
     const state = `${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}`, pane = x25 ? null : windowPane(f, d.kind, d.a, d.b);
     // S1: a window's pane goes under its own line and the hairlines; the jambs go on top. Not in 2.5D: the raised wall
     // carries the glass on its face and hides the floor-level cut.

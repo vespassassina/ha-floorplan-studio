@@ -68,6 +68,7 @@ export const DOOR_DEFAULTS: Record<DoorKind, { height: number; sill: number }> =
   glass: { height: 210, sill: 0 },
   sealed: { height: 210, sill: 0 },
   window: { height: 120, sill: 90 },
+  fullwindow: { height: 210, sill: 0 }, // for the default 250 storey; see doorSpan: the head follows the wall's ceiling like a slit's
   open: { height: 210, sill: 0 }, // a doorway: the cut of a door, nothing drawn in it
   slit: { height: 60, sill: 150 }, // for the default 250 storey; see SLIT_HEIGHT, SLIT_HEAD_GAP and doorSpan: the real sill follows the wall's ceiling
 };
@@ -138,6 +139,12 @@ export function doorSpan(door: Door, ceiling: number = DEFAULT_FLOOR_HEIGHT): { 
     const head = Math.min(top, Math.max(top - SLIT_HEAD_GAP, h));
     const sill = Math.min(own(door, "sill") ?? head - h, top);
     return { sill, head: Math.min(sill + h, top) };
+  }
+  if (kind === "fullwindow") {
+    // S25.D3: from the floor, its head SLIT_HEAD_GAP under the ceiling (on a wall lower than the gap: the wall). An own sill and height win, clamped to the wall.
+    const top = valid(ceiling) ? ceiling : DEFAULT_FLOOR_HEIGHT, sill = Math.min(own(door, "sill") ?? 0, top);
+    const h = own(door, "height");
+    return { sill, head: h !== undefined ? Math.min(sill + h, top) : Math.max(sill, top > SLIT_HEAD_GAP ? top - SLIT_HEAD_GAP : top) };
   }
   const d = has(DOOR_DEFAULTS as Record<string, any>, kind) ? DOOR_DEFAULTS[kind as DoorKind] : DOOR_DEFAULTS.door;
   const sill = own(door, "sill") ?? d.sill;

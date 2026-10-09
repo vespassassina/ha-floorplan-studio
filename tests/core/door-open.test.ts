@@ -79,6 +79,29 @@ describe("2.5D: a closed door is painted, an open one is a red frame", () => {
   });
 });
 
+describe("S25.D1: in 2.5D a door and a glass door fill their gap only while their sensor says closed", () => {
+  const kinds = ["door", "glass"] as const;
+  for (const kind of kinds) {
+    it(`${kind}: no sensor, no state, off-but-unattached, unavailable, unknown = a hole; off = filled; on = the red infill`, () => {
+      const filled = (f: Floor, s?: StateOverlay) => infill(draw(f, s, "2.5d")).filter((c) => !c.includes("open")).length > 0;
+      expect(filled(withDoor({ kind, sensors: [] }), { "binary_sensor.d": st("off") }), "no sensor").toBe(false);
+      expect(filled(withDoor({ kind }), undefined), "no state at all").toBe(false);
+      expect(filled(withDoor({ kind }), {}), "state without the entity").toBe(false);
+      for (const v of ["unavailable", "unknown"]) expect(filled(withDoor({ kind }), { "binary_sensor.d": st(v) }), v).toBe(false);
+      expect(filled(withDoor({ kind }), { "binary_sensor.d": st("off") }), "off").toBe(true);
+      expect(infill(draw(withDoor({ kind }), { "binary_sensor.d": st("off") }, "2.5d"))[0]).toMatch(kind === "door" ? /^door-leaf/ : /^glass g-glass/);
+      expect(infill(draw(withDoor({ kind }), { "binary_sensor.d": st("on") }, "2.5d")).some((c) => c.includes("open")), "on").toBe(true);
+    });
+  }
+  it("every kind is decided: only door and glass wait for a sensor (finding 17)", () => {
+    const wait = new Set<string>(kinds);
+    for (const kind of DOOR_KINDS) {
+      const bare = infill(draw(withDoor({ kind, sensors: [] }), undefined, "2.5d"));
+      expect(bare.length > 0, `${kind} with no sensor`).toBe(!wait.has(kind) && kind !== "open");
+    }
+  });
+});
+
 describe("the stylesheet gives every one of those classes a rule that reads a --fp token", () => {
   it("the open pieces are red through --fp-open-door, the leaf through --fp-door", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.glass\.open[^{]*\{[^}]*var\(--fp-open-door\)/);

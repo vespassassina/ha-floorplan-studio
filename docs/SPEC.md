@@ -180,7 +180,7 @@ in `prompts/`, then fixed in the editor.
   and shades the treads for down. 2.5D: up is the rise; down is a stairwell, a
   sunken opening with treads below the floor and a short rim on the near edges;
   both is the rise with a low kerb round the foot. Resolver: `src/core/stairs.ts`.
-- `door.kind`: door, glass, window, sealed, slit (a window 60 cm high, its head 40 cm under the ceiling of its wall like a window's, 2026-10-06; before that it touched the ceiling; shown as "slit window"), open (a doorway: a door's cut, nothing drawn while closed; tripped, a solid alert band in the gap in 2D, 2.5D and 3D, 2026-10-05, S14.5). `sensor` is a binary_sensor entity;
+- `door.kind`: door, glass (shown as "Glass door", 2026-10-09; the stored value stays `glass`), window, sealed, fullwindow (shown as "Full-height window", 2026-10-09, S25.D3: a window from the floor, sill 0, its head 40 cm under the ceiling of its wall like a window's and a glass door's, 210 on 250; a window in every other respect), slit (a window 60 cm high, its head 40 cm under the ceiling of its wall like a window's, 2026-10-06; before that it touched the ceiling; shown as "slit window"), open (a doorway: a door's cut, nothing drawn while closed; tripped, a solid alert band in the gap in 2D, 2.5D and 3D, 2026-10-05, S14.5). `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
@@ -323,14 +323,20 @@ fainter, when it is on. `room_glow` (below) keeps the fill-mix mechanism: it
 is a distinct signal, light spilling into a room, and a warm tint is the
 honest metaphor there.
 
-Plan symbols (S23.7). A door or glass door is a gap cut in the wall with a 1 px leaf, square to the wall and as long as the
-opening, and no swing arc (S23.F6); the leaf stands into the indoor room, else any room, else the smaller one. A window is three
-hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a window or slit
-also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a hairline jamb, so
-the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors,
-windows and slits cut the wall; a sealed door does not and draws no symbol. Doors wear `--fp-door`, windows and slits
-`--fp-window`, glass doors `--fp-glass`, which is the window blue in every theme. A closed door's own line paints nothing;
-open, alarm and an open cover draw it and the symbol red. The symbols take no clicks; the hit line under them does. 2.5D draws the same symbols on the floor.
+Plan symbols (S23.7, S25.D1). A door or glass door has no symbol: no swing arc (S23.F6) and, since S25.D1 (Diego,
+2026-10-09), no leaf either. It is a gap cut in the wall. Open it is just a hole and nothing is drawn; closed it is the gap
+closed by one thin line across it, as thin as the wall, in `--fp-door` (a glass door in `--fp-glass`). A door is closed only
+when it has a sensor and every sensor says `off` (and no attached lock is unlocked); no sensor, `unavailable`, `unknown` or
+a missing state all read as open, a hole. A sensor that reports open still draws the red alert band and pulse, as before. A
+window is three hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a
+window or slit also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a
+hairline jamb, so the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors, windows
+and slits cut the wall; a sealed door does not and draws no symbol. Windows, slits and full-height windows wear `--fp-window`, glass doors
+`--fp-glass`, which is the window blue in every theme. A window's own line paints nothing; open, alarm and an open cover
+draw it and the symbol red. The editor has no live state, so there a door is a hole, and a selected door shows its selection
+line. In 2.5D a door's leaf and a glass door's glass fill the gap on the same rule, and in 3D the leaf and the glass pane
+are there only while the door is closed (an alerting door keeps its red, swung leaf). The symbols take no clicks; the hit
+line under them does. 2.5D draws the same symbols on the floor.
 
 S14.2 (interaction model): a tap on a device, a door, an unlinked appliance or an Active row never operates it. Wherever
 the "Click" column below says "toggle", "more-info" or "chooser" for a tap, read: the tap opens a popup (name, state, one
@@ -361,7 +367,7 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | computer | grey | blue icon and halo | `--fp-dev-computer` (#2c7fb8) | more-info |
 | camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | `--fp-dev-camera` (#4a4a48) | more-info (live view) |
 | cover on a `door` or `sealed` opening | door normal | door open state shown, orange | `--fp-open` (#f28c28) | tap: confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open; long press: chooser listing every entity the door names, the cover included (S10.3 review) |
-| cover on a `window` or `glass` door | door normal | never colours the opening — here `cover` is curtains/blinds, not a security state (2026-09-28) | — | same tap/long-press behaviour as above; only the colour is suppressed |
+| cover on a `window`, `slit`, `fullwindow` or glass door (`glass`) | door normal | never colours the opening — here `cover` is curtains/blinds, not a security state (2026-09-28) | — | same tap/long-press behaviour as above; only the colour is suppressed |
 | siren | grey | `--fp-danger` icon and halo while its entity is on; rings only when the entity is in the `siren` domain | `--fp-danger` (#b02a2a) | popup (Turn on/off) |
 | alarm (`alarm_control_panel.*`) | grey while `disarmed` | `--fp-danger` icon and halo in every other state but `unavailable` (armed, arming, pending, triggered) | `--fp-danger` (#b02a2a) | more-info (no toggle) |
 | linked tv, speaker or computer piece (furniture with `entity`) | blue (`--fp-dev-tv`) body and edge | `--fp-active` body and edge, by the device rule of its type; waves while a tv or speaker is `playing` | `--fp-dev-tv` idle, `--fp-active` on | more-info, no popup; never a toggle |
