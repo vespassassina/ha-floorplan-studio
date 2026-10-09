@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: a disabled Undo or Redo is dimmed, and stays dimmed under the pointer.
 - Studio: Escape cancels a drag of one device, or of several, at once, also while Help or Place is open; the device goes back, no undo step is left and the selection stays.
 - Studio: a typed wall length goes along the exact 15 degree ray, also with the pointer close to the last point, and ends on whole centimetres.
 - Studio: Escape during a drag of several devices cancels the drag and puts them back.

@@ -8887,3 +8887,27 @@ test("S26.4 CSS pair: two members of a multi-selection both compute the selectio
   expect(await stroke(2)).toBe("rgb(1, 2, 3)");
   expect(await stroke(1)).not.toBe("rgb(1, 2, 3)");
 });
+
+// Opus re-check 5: `.btn:disabled{opacity:.5}` has the specificity of `.btn.light{opacity:.6}` and comes first, so a disabled Undo
+// read .6 like an enabled one and, hovered, went to 1. CSS pair, in three themes: disabled is lower than enabled, hovered or not.
+for (const theme of ["light", "ha", "blueprint"] as const) {
+  test(`CSS pair: a disabled Undo is dimmer than an enabled one, also under the pointer (${theme})`, async ({ page }) => {
+    await setTheme(page, theme);
+    const op = () => page.locator("#undo").evaluate((el) => Number(getComputedStyle(el).opacity));
+    await page.mouse.move(5, 5);
+    expect(await page.locator("#undo").isDisabled()).toBe(true);
+    const off = await op();
+    await page.locator("#undo").hover({ force: true });
+    const offHover = await op();
+    await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.st.edit((f: any) => { f.devices[0].x += 5; }); el.requestUpdate(); }, EDITOR);
+    await expect(page.locator("#undo")).toBeEnabled();
+    await page.mouse.move(5, 5);
+    const on = await op();
+    await page.locator("#undo").hover();
+    const onHover = await op();
+    expect(off).toBeLessThan(on);
+    expect(offHover).toBeLessThan(on);
+    expect(offHover).toBe(off);
+    expect(onHover).toBe(1);
+  });
+}

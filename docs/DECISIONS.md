@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: a disabled Undo or Redo is dimmer than an enabled one (Opus re-check 5)
+
+- `.btn:disabled{opacity:.5}` and `.btn.light{opacity:.6}` have the same specificity and the second comes later, so a disabled Undo was .6 like an enabled one, and under the pointer `.btn.light:hover` took it to 1. Added `.btn.light:disabled{opacity:.35}` and put `:not(:disabled)` on the light hover and focus rule; the other hover rules in the editor (`.lockplan`, `.lrow`, `.ti`, `.opt`, `.door-hit-open`) are not on buttons that can be disabled. Computed-style pair in `editor.spec.ts` for light, ha and blueprint: disabled lower than enabled, and unchanged under the pointer. It supersedes (e) of 'small defects' for the `.light` buttons only.
+
 ## 2026-10-09: Escape cancels a device drag first, one device or many (Opus re-check 3 and 4)
 
 - The Escape chain asked Help and Place before the drag, so with either open the group kept dragging and committed. A drag of devices is now the first thing Escape checks after the menus (`cancelDeviceDrag`). It supersedes (a) of 'small defects of the Sprint 26 review', which handled the group only after the panels.
