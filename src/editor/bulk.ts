@@ -1,5 +1,6 @@
-import { COORD_LIMIT } from "../core";
+import { COORD_LIMIT, roomAt } from "../core";
 import type { Device, Floor } from "../core";
+import type { EditorState, Sel } from "./state";
 
 // Bulk device edits (S26.2). Pure like ops.ts: each takes a floor and returns a new one, never touches its input, and
 // returns an equal floor when nothing changes, so `EditorState.edit` records no undo step. Junk, duplicate and
@@ -74,4 +75,56 @@ export function reindexAfterRemove(is: number[], removed: number[]): number[] {
   const gone = [...new Set((Array.isArray(removed) ? removed : []).filter(ok))].sort((a, b) => a - b);
   const keep = [...new Set((Array.isArray(is) ? is : []).filter(ok))].filter((i) => !gone.includes(i)).sort((a, b) => a - b);
   return keep.map((i) => i - gone.filter((r) => r < i).length);
+}
+
+/** What Link lights looks at (S26.23): the selected devices, else the selected room, else the whole floor. */
+export type LinkScope = { t: "devs"; is: number[] } | { t: "room"; i: number } | { t: "floor" };
+
+/** The scope the current selection gives: devices, else a room, else the floor. Any other selection (a wall, a corner) is the floor. */
+export function linkScopeFor(sel: Sel): LinkScope {
+  if (sel && sel.t === "devs") return { t: "devs", is: [...sel.is] };
+  if (sel && sel.t === "dev") return { t: "devs", is: [sel.i] };
+  if (sel && sel.t === "room") return { t: "room", i: sel.i };
+  return { t: "floor" };
+}
+
+/** One row of the Link preview: light `i` (named `name`, standing in `room`) and the switch `entity` (`switchName`) it would be bound to. */
+export interface LinkSuggestion { i: number; name: string; entity: string; switchName: string; room?: string }
+
+/**
+ * S26.23: the (light, suggested switch) pairs inside `scope` on the current floor, by the rule `switchChoicesForLight`
+ * scores with (the one `autoLinkLights` uses): an unbound light, not a switch wrapped as a light, with a uniquely
+ * suggested switch. Ascending by device index. Junk (a bad scope, indices that are not devices, a room that is not there)
+ * gives fewer pairs, never a throw; with no Home Assistant data there is nothing to suggest.
+ */
+export function linkSuggestions(st: EditorState, scope: LinkScope): LinkSuggestion[] {
+  const f = st.f, ha = st.ha;
+  if (!scope || !ha) return [];
+  const wrapped = new Set(ha.entities.filter((e) => e?.domain === "light" && e.platform === "switch_as_x").map((e) => e.id));
+  const roomOf = (d: Device) => ("x" in d ? roomAt(f, [d.x, d.y]) : -1);
+  const wanted = (d: Device, i: number): boolean => {
+    if (scope.t === "floor") return true;
+    if (scope.t === "room") return Number.isInteger(scope.i) && scope.i >= 0 && roomOf(d) === scope.i;
+    return Array.isArray(scope.is) && scope.is.includes(i);
+  };
+  const out: LinkSuggestion[] = [];
+  f.devices.forEach((d, i) => {
+    if (d.type !== "light" || d.bound || wrapped.has(d.entity) || !wanted(d, i)) return;
+    const s = st.switchChoicesForLight(i).find((c) => c.suggested);
+    if (!s) return;
+    const r = roomOf(d);
+    out.push({ i, name: d.name || d.entity, entity: s.entity, switchName: s.name, ...(r >= 0 ? { room: f.rooms[r].name } : {}) });
+  });
+  return out;
+}
+
+/** Binds each listed light to its switch. A light that is already bound, a device that is not a light, an index out of range or an entity that is no id is left alone. */
+export function applyLinks(f: Floor, links: { i: number; entity: string }[]): Floor {
+  const g = structuredClone(f);
+  for (const l of Array.isArray(links) ? links : []) {
+    const d = l && Number.isInteger(l.i) ? g.devices[l.i] : undefined;
+    if (!d || d.type !== "light" || d.bound || typeof l.entity !== "string" || !l.entity.includes(".") || l.entity === d.entity) continue;
+    d.bound = l.entity;
+  }
+  return g;
 }
