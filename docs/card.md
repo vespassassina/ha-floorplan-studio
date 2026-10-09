@@ -52,7 +52,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
 | `open_color` | red | `#rrggbb`: colours an open door or window, or a door whose vibration sensor triggered (and either one's pulsing alert line), instead of red. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
-| `active_list` | `true` | `false` hides the floating panel of active devices — see Active list, below |
+| `active_list` | `true` | `false` hides the Overview panel — see Overview, below |
 | `center` | unset | `[x, y]`, plan cm: the point a pinned card zooms in on — see A card for one room, below. A non-array, wrong length, or non-finite value is ignored, silently, and the card shows the whole floor |
 | `zoom_level` | `1` | how far in a pinned card starts: `1` is the whole floor, `2` is half its width and height, and so on up to `8`. Anything other than a finite number is the default, `1`; an in-range-but-odd number (`0`, negative, past `8`) clamps instead of being refused |
 
@@ -296,47 +296,62 @@ views:
         kiosk: true
 ```
 
-## Active list
+## Overview
 
-A floating panel over the plan, open by default in the top-left, lists
-every active device on every floor of the layout — not only the one the
-plan is showing. "Active" is lights on (a light bound to a switch counts
-when the switch is), motion and contact on, TVs and media players on or
-playing, a speaker playing, heaters and climate heating, AC running, plugs
-drawing `plug_watts` or more (see Plugs, below), computers on, persons at home, and vacuums that are
-cleaning (one that is only returning to its dock is not). A cover is listed only while a
-garage door, a gate or a door is open, opening or closing (HA `device_class` `garage`, `gate`,
-`door`); curtains, blinds, shades, shutters, awnings, windows and dampers never are. Every camera is
-listed whatever its state — a camera is a view, not an on/off thing —
-except an `unavailable`/`unknown` one, or any device of any type with no
-entity configured: neither has a real more-info dialog to open.
+A floating panel over the plan, open by default in the top-left. It says what
+is wrong before what is on. The header reads "Home › Ground" and counts:
+alerts first, then one chip per category ("2 alerts · 6 lights · 1 plug"), or
+"Nothing on". Folded, the header is one line and the alerts stay first.
 
-Rows are grouped by category (Lights, Climate, Security, Media, Power, Covers, Computers and network, Sensors, People, Other, always in that order), and each category is a header button with a chevron, a name and a count that folds it (`aria-expanded`, Enter or Space). Every group starts open. The fold is remembered per card in the browser, apart for the Active list and the Room panel; storage that is blocked or holds junk just opens every group. Each row has its type's own icon and colour — the
-camera row's own icon is the panel's ink colour rather than the plan's
-camera tint, chosen to stay legible against the panel's background in
-every theme — and its name; a tap, click or Enter opens Home Assistant's
-more-info for that entity. The header shows the count and a collapse
-toggle, and can be dragged to reposition the panel — its position is kept
-as a fraction of the card's free space and re-clamped after every render
-and resize, so it can never end up off-screen, including after the card
-itself is resized or the panel is collapsed then expanded again. On a card
-narrower than 480px the panel starts folded, so it does not cover a
-phone-width plan; from 480px up it starts open. (It is `min(200px, 45%)`
-wide, `min(260px, 70%)` while a room is picked.) The card's width
-decides, and follows it when the card is resized, until you fold or unfold the
-list by hand. From then on your choice stays, for that card, in this browser.
-A position you only dragged it to does not count as a choice.
-Position and collapsed state are kept per browser (`localStorage`), keyed
-to the layout's source (its `layout_url`, or "inline" for a config
-`layout`, or the websocket fetch) plus the card's own `floor`/`floors`, so
-two cards on the same dashboard — even two showing different floors of the
-same websocket layout — do not share one position, and an inline layout's
-autosave does not reset it.
+From the top:
+
+- **Search.** ⌘K, Ctrl+K or `/` while the card is focused or under the
+  pointer. Type a few letters of a device, room or floor; Enter goes to it.
+  Accents do not matter ("soren" finds "Søren"). Escape closes it.
+- **Turn off on this floor…** A checklist of what is on, grouped as Lights
+  (with the switch that powers them), Switches, Plugs and Media. Everything
+  starts ticked; untick what should stay on. "Turn off 4" sends exactly the
+  ticked ones. Cancel or Escape sends nothing.
+- **Layers.** Unfolds one chip per family on this floor. A click hides the
+  family on the plan; Alt-click shows it alone. Kept per viewer, in this
+  browser. Not in 3D. Search still finds a hidden device and draws it.
+- **All floors.** Lists every floor, each row badged with its floor. By
+  default the list shows the floor on show.
+- **Attention.** Alarm triggered or armed, open doors and contacts, jammed
+  and unlocked locks, leak, smoke and gas, low batteries, each with its age
+  ("open · 12 min"). Unavailable devices sit in one folded row with a count.
+- **Active.** Lights on (a light bound to a switch counts when the switch
+  is), motion and contact on, media playing, heating, plugs drawing
+  `plug_watts` or more (see Plugs), computers on, people home, vacuums
+  cleaning, garage doors and gates open. Grouped by category; each group
+  folds. Cameras are never listed. Something already in Attention is not
+  repeated here, except a lamp that is on with a low battery.
+
+A row tap goes to the thing: the plan switches floor, centres on it, rings it
+and opens its popup. Device details (model, firmware, area) are under
+"Details" in that popup.
+
+Floor tabs count the things that need attention on that floor ("Ground · 3").
+A tab turns warning-coloured while an alarm on that floor is triggered.
+
+**Low battery.** A device counts as low under 20 %. The card reads, in
+order: the entity itself if it is a battery sensor; its `battery_level` or
+`battery` attribute; else a battery sensor on the same Home Assistant device
+that HA files as *diagnostic*. ZHA, Zigbee2MQTT, Matter and Shelly do that.
+ESPHome does not unless you set `entity_category: diagnostic` in the YAML; or
+place the battery sensor as its own icon. Home batteries, inverters, UPSes
+and cars never raise it: their charge is a reading, not an alert.
+
+**Position and folding.** Drag the header to move the panel; it stays on
+screen when the card resizes. On a card narrower than 480px it starts folded.
+Position, fold, scope and the folded groups are kept per card in this browser
+(`localStorage`), keyed to the layout's source and the card's own
+`floor`/`floors`, so two cards on one dashboard do not share them.
 
 ## Picking a room
 
 Tap a room, on its floor, its name, its readout or its furniture (not a device, a
-door or a stair), and the room is outlined with a dashed line. The Active panel opens at the left with a room section on top:
+door or a stair), and the room is outlined with a dashed line. The Overview opens at the left with a room section on top:
 
 - the name and a cross that clears the pick;
 - area in m², worked out from the room's corners;
@@ -344,21 +359,21 @@ door or a stair), and the room is outlined with a dashed line. The Active panel 
 - motion, on or off, and since when;
 - the open doors and windows on the room's walls (an unlocked lock counts), and the lights that are on;
 - **Scenes** (S14.7): a button for each Home Assistant `scene.*` entity of the room (dashed border), for each custom scene saved on the
-  room, then **All off** and **All on**. See below;
-- the room's devices, then the sensors the room owns that have no icon on the plan, grouped by the same collapsible categories as the Active list.
+  room, then **Lights off** and **All on**. See below;
+- the room's devices, then the sensors the room owns that have no icon on the plan, grouped by the same collapsible categories as the Overview.
 
 **Scenes.** A scene button is one tap, no popup. A Home Assistant scene calls `scene.turn_on`. A scene belongs to the room when its
 area is the room's area (the scene entity's own `area_id` in `hass.entities`, else its device's `area_id` in `hass.devices`; the Hue
 integration puts its scenes on the Hue room's device, so Hue scenes appear on their own), or when the studio lists it in the room's
 `haScenes`. A custom scene is a name and a list of lights and switches, each on or off, a light with an optional brightness (1 to
 100 %), colour temperature (K) or colour (`hs`); it calls `light.turn_on` or `light.turn_off` per light and `switch.turn_on` or
-`switch.turn_off` per switch, with only the fields it sets. **All off** and **All on** are one `light.turn_off` or `light.turn_on` over the lights drawn
+`switch.turn_off` per switch, with only the fields it sets. **Lights off** and **All on** are one `light.turn_off` or `light.turn_on` over the lights drawn
 in the room. They are lights only, so they do not ask first, the same as a light's popup (S14.2). A custom scene that turns a
 switch off asks first: its button turns into **Confirm: name** with a Cancel next to it. A room with no scene and no light shows no
-Scenes label. Scenes are in the Room section, so they need the Active panel (not `kiosk`, not `active_list: false`).
+Scenes label. Scenes are in the Room section, so they need the Overview (not `kiosk`, not `active_list: false`).
 
 A tap on a row opens the same popup as the icon on the plan, for every type (a radiator's has only **More info**); a hold opens
-Home Assistant's more-info. On a card under 480 px wide the open panel is a short sheet, at most 45 % of the card high with its list scrolling inside, docked on the half of the card away from the picked room. Below, the Active list is cut to the room's
+Home Assistant's more-info. On a card under 480 px wide the open panel is a short sheet, at most 45 % of the card high with its list scrolling inside, docked on the half of the card away from the picked room. Below, the lists are cut to the room's
 entities; **Show all** brings the rest back and keeps the room picked.
 
 Tap the room again, tap off any room, press Escape (with the pointer over the
@@ -369,10 +384,10 @@ was. Under `kiosk: true` or `active_list: false`
 there is no panel, so a tap picks nothing. On a card under 480 px the panel is
 folded by default; it opens while a room is picked.
 
-Every row, here and in the Active list, has a chevron. It opens the device's
-details: manufacturer, model, firmware, area, entity id, state and when it last
-changed, from Home Assistant's device registry. A device with no registry entry
-shows the entity id, state and last changed. The chevron never toggles anything.
+A device's popup has a folded **Details**: manufacturer, model, firmware, area,
+entity id, state and when it last changed, from Home Assistant's device
+registry. A device with no registry entry shows the entity id, state and last
+changed. Not in kiosk.
 
 ## View memory and reset
 
@@ -388,7 +403,7 @@ The card remembers, per browser, the viewer's zoom, the spot they zoomed to,
 the rotation, 2D, 2.5D or 3D, the tilt, the wall heights, the theme, whether
 text shows and which layer chips are off. Come
 back, reload or switch dashboard tab and the plan is as it was left, with no
-flash of the configured look. The floor and the Active list are remembered
+flash of the configured look. The floor and the Overview are remembered
 as before.
 
 **Zoom, spot, rotation and the 3D camera are remembered per floor.** Zoom in
