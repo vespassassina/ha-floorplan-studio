@@ -1502,9 +1502,10 @@ test("Backspace removes the last point; the shape then uses the remaining ones",
   await clicksCm(page, [103, 632], [297, 633], [298, 668]);
   await page.keyboard.press("Backspace");
   await expect(drawnPoints(page)).toHaveCount(2);
-  await clicksCm(page, [200, 668]);
+  // S26.12: a point goes on a 15 degree ray from the last one, so the replacement point is straight down from [295, 630]
+  await clicksCm(page, [295, 700]);
   await page.keyboard.press("Enter");
-  expect((await groundOf(page)).rooms.at(-1)!.pts).toEqual([[105, 630], [295, 630], [200, 670]]);
+  expect((await groundOf(page)).rooms.at(-1)!.pts).toEqual([[105, 630], [295, 630], [295, 700]]);
 });
 
 test("entering draw mode clears the selection, so Delete and Backspace cannot remove it", async ({ page }) => {
@@ -7143,7 +7144,7 @@ async function withGroupWriter(page: Page, opt: { fail?: string } = {}) {
   }, [EDITOR, opt.fail ?? ""]);
 }
 
-test("S4.5: Shift+click accumulates same-kind devices, toggles one back out, and a different kind starts a fresh single selection instead of mixing", async ({ page }) => {
+test("S4.5: Shift+click accumulates same-kind devices, toggles one back out, and a different kind joins the selection too (S26.10: Shift+click toggles any device)", async ({ page }) => {
   const sel = (page: Page) => page.evaluate((tag) => (document.querySelector(tag as string) as any).st.sel, EDITOR);
   await clickCm(page, 250, 200); // light: living
   expect(await sel(page)).toEqual({ t: "dev", i: 0 });
@@ -7152,7 +7153,7 @@ test("S4.5: Shift+click accumulates same-kind devices, toggles one back out, and
   await shiftClickCm(page, 250, 200); // toggle living back out
   expect(await sel(page)).toEqual({ t: "dev", i: 1 });
   await shiftClickCm(page, 400, 500); // motion sensor: a different kind than the current light selection
-  expect(await sel(page)).toEqual({ t: "dev", i: 5 }); // starts fresh, never mixes kinds
+  expect(await sel(page)).toEqual({ t: "devs", is: [1, 5] }); // S26.10: any device toggles in, so bulk moves can mix kinds
 });
 
 test("S4.5: Create group asks, then Home Assistant builds a light group from the shift-clicked selection", async ({ page }) => {

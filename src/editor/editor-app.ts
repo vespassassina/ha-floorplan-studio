@@ -73,7 +73,7 @@ const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
 /** Where the measure grid reads zero: the top-left corner of the floor's outline (lowest x, lowest y). A floor with no outline has none, so its zero is the layout's own. */
 export const planZero = (f: Floor): Pt => (f.outline.length ? [Math.min(...f.outline.map((p) => p[0])), Math.min(...f.outline.map((p) => p[1]))] : [0, 0]);
-const DRAW_HINT = "Click to add points (15° steps, Alt: free), type a length and Enter, double-click or Enter to finish, Esc to cancel";
+const DRAW_HINT = "Click to add points, double-click or Enter to finish, Esc to cancel";
 const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 /** Does this point reference a corner of a zone? A zone never joins another polygon. */
 const isZoneRef = (f: Floor, ref: PtRef) => "poly" in ref && ref.poly[0] === "r" && (f.rooms[+ref.poly.slice(1)]?.kind === "zone" || f.rooms[+ref.poly.slice(1)]?.free === true); // a zone or a free room is never stitched
