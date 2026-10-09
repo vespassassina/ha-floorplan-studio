@@ -4,7 +4,6 @@ Newest first. A change supersedes; nothing is edited.
 
 <<<<<<< HEAD
 <<<<<<< HEAD
-<<<<<<< HEAD
 ## 2026-10-09: detail levels in `renderFloor`; mode is `full` until the menu (S25.1, S25.2)
 
 - `detailLevel(zoom, mode)` and `detailFor(fit, shown, mode)` live in `src/core/detail.ts`. Far below 1.6, mid to 3.2, near
@@ -19,7 +18,6 @@ Newest first. A change supersedes; nothing is edited.
   Playwright tests fail: at fit every idle device is gone, and the tests (and the Studio's editing) click idle devices at
   fit. Hiding idle devices while someone places them is also a real editing problem. S25.7 and S25.8 set the mode from the
   menu and the YAML key; the Studio's default there needs Diego's call (suggest `full` while editing).
-=======
 ## 2026-10-09: labels keep their screen size at any zoom (S25.4)
 
 Supersedes "Not done here: placing labels in CSS px outright" in "an 11 px floor on the card (S23.2)". `renderFloor` takes `zoom`, the view's zoom over the whole floor at fit (1 = fit). Text uses `kt = k / zoom`: every label size, its offsets, the name search steps, the leader width and the tag plate. Absent, 1 or junk (not a finite number above 0): byte for byte as before, so no snapshot changed.
@@ -28,7 +26,6 @@ Supersedes "Not done here: placing labels in CSS px outright" in "an 11 px floor
 - **The card passes `fit.w / box.w` on every render.** A zoom already re-renders the card's markup (the view box is in it), so this costs no second render; names are placed again at each zoom, which is how a name that did not fit at fit can sit inside its room once zoomed. A card pinned by `zoom_level` or `center` now draws its labels at the size of the whole-floor card, no longer enlarged with the pin.
 - **The Studio passes nothing.** Its `scale` is already the live view scale (`k = 1/scale`), so its labels were screen-sized already.
 - Test: `tests/core/label-zoom.test.ts` (zoom 2.5 and 4 and 6, junk input, discs unchanged) and `card-label-zoom.spec.ts` (a real wheel to 6x, `getBoundingClientRect` heights within 0.5 px, a 320 px card for the floor); it fails with the `zoom` line removed.
->>>>>>> task/s25-labels
 =======
 ## 2026-10-09: room badges and their rollup (S25.3)
 

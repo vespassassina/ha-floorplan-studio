@@ -4,11 +4,8 @@
 
 <<<<<<< HEAD
 <<<<<<< HEAD
-<<<<<<< HEAD
 - Plan: semantic zoom, first part. The plan root carries `data-detail` (far, mid, near) from the zoom against the floor at fit: far drops idle devices and keeps lit, alerting and unavailable ones as dots; far and mid drop device names and readings. Not on yet: the mode is `full` until the View menu arrives, so nothing changes on screen.
-=======
 - Card: names and labels keep their size on screen when you zoom in or out. They no longer grow with the plan; the 11 px floor still holds.
->>>>>>> task/s25-labels
 =======
 - Card and Studio: each room can carry a small badge with what is on and what is wrong in it: lights on, alerts, open doors and windows, motion. The badge is drawn and styled; the detail levels that show it at far and mid zoom come next.
 >>>>>>> task/s25-badges
