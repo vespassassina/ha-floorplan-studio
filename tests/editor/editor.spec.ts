@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { DEVICE_COLOURS, planPivot, rotateAbout, viewBoxFor } from "../../src/core/render";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, planPivot, rotateAbout, renderFloor, viewBoxFor } from "../../src/core/render";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 import { GUIDE_STEPS, plainBody } from "../../src/editor/guide";
 import { decodePng, pixelAt } from "../core/util/png";
@@ -8860,4 +8860,18 @@ test("S18.12 CSS pair: a linked tv piece is not the plain furniture grey when id
   expect(linked).toBe(rgb("#2c7fb8")); // --fp-dev-tv, light
   expect(linked).not.toBe(plain);
   expect(await colour(n - 2, true)).toBe(rgb("#8a5117")); // --fp-active
+});
+
+// S26.4 CSS pair (finding 10): `.sel` on a multi-selection's members reaches the pixel. The plan is the real renderFloor
+// markup under the real stylesheet; the editor has no multi-select yet, so the page is built here. Break it: drop the
+// `devs` branch in render.ts and neither member gets the ink stroke.
+test("S26.4 CSS pair: two members of a multi-selection both compute the selection stroke, a third does not", async ({ page }) => {
+  const f = { title: "T", outline: [[0, 0], [600, 0], [600, 400], [0, 400]], rooms: [], walls: [], doors: [], openings: [], extras: [], stairs: [], furniture: [], unlinked: [],
+    devices: [0, 1, 2].map((n) => ({ id: `d${n}`, name: `D${n}`, type: "light", entity: `light.l${n}`, x: 100 + n * 100, y: 100 })) } as unknown as Floor;
+  const svg = renderFloor(f, { scale: 1, selection: { t: "devs", is: [0, 2] } });
+  await page.setContent(`<style>:root{--fp-ink:rgb(1, 2, 3);--fp-bg:#fff}${FLOORPLAN_CSS}</style><svg viewBox="0 0 600 400" width="600" height="400">${svg}</svg>`);
+  const stroke = (i: number) => page.locator(`g[data-x="${i}"]`).evaluate((el) => getComputedStyle(el).stroke);
+  expect(await stroke(0)).toBe("rgb(1, 2, 3)");
+  expect(await stroke(2)).toBe("rgb(1, 2, 3)");
+  expect(await stroke(1)).not.toBe("rgb(1, 2, 3)");
 });

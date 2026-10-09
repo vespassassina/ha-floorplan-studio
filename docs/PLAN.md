@@ -2896,7 +2896,7 @@ Wave 1, pure modules (parallel; one worktree each, two chained where noted; none
       refused edit: move them to a corner drag, on purpose, and say so in the commit.
       Files: `src/editor/state.ts`, `tests/editor/plan-lock.test.ts`, `tests/editor/plan-lock.spec.ts`,
       `tests/editor/refused-edit.spec.ts`, `docs/DECISIONS.md`.
-- [ ] S26.4 (U18) The plan draws a multi-selection. `RenderOpts.selection` also takes `{ t: "devs", is }`: each member
+- [x] S26.4 (U18) The plan draws a multi-selection. `RenderOpts.selection` also takes `{ t: "devs", is }`: each member
       gets `.sel` as a single device does, and a member under a hidden layer is drawn, as the single selection is. Absent,
       the markup is byte for byte as before. Test: iterate `DEVICE_TYPES`, each selected member has `.sel`; the render
       snapshot unchanged without it; a computed-style pair for `.sel` on two members; `npm run shots` looked at.

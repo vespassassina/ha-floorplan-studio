@@ -18,6 +18,10 @@ Supersedes the `plan()` rule of 2026-10-06 ("Fix plan": nothing of the plan chan
 - **What goes through:** every name and title (room, floor, door, extra, stairs, furniture), colour and texture, the HA area and floor id, and every entity link (a room's `entity`, sensors and scenes; a door's sensors, locks and cover; a piece of furniture's `entity`). One undo step each. Reason (Studio review, U3): the lock told a person they could not rename a room, and names and colours are not what a lock protects.
 - **How:** `EditorState.plan()` serialises the floor without those fields. `renameFloor` and `paint` no longer ask `planOpen()`. Order, add, delete and rotate of floors stay refused.
 - **Not done here:** `editor-app.ts` still refuses the texture rotation and scale sliders under the lock (`rotateTexture`, `scaleTexture`), and `replaceFloor` still drops a live non-device change under the lock, so those two sliders stay blocked until the Inspector tasks rewire them.
+## 2026-10-09: the plan draws a multi-selection (S26.4)
+
+- `RenderOpts.selection` is a `PlanSel` (`layers.ts`): `{ t, i }` as before, or `{ t: "devs", is }`. One helper, `devsHave`, answers "is device i in it" for both the draw (`.sel`) and `layerHides` (a selected member is drawn under a hidden layer), so the plan and the hit-test cannot differ.
+- A list with junk (not an array, `NaN`, 1.5, strings) selects only its integer members that exist; a non-list selects nothing. Without `devs` the markup is byte for byte as before.
 
 ## 2026-10-09: Sprint 25 re-check fixes (Opus)
 
