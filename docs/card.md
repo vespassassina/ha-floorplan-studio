@@ -70,6 +70,12 @@ icon_size: 1
 active_list: true
 ```
 
+## Updates
+
+A state change from Home Assistant redraws only what it changes. The card builds the plan the same way every time, then compares it to
+what is on screen and rewrites the nodes that differ: the device's icon, and what hangs on it (a lamp's light, its room's glow, the
+room badge). Other icons are not replaced, so a fade or a glide runs on the same element. An update that changes nothing writes nothing.
+
 ## 2.5D view
 
 `view: 2.5d` draws the same plan with depth: walls rise, furniture becomes

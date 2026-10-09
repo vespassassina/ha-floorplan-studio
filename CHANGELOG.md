@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card: a state update rewrites only what changed. One lamp turning on touches its icon, its light and its room, not the other 400 devices; an update that changes nothing touches nothing. Icons keep their place in the page, so a fade or a glide now runs on the same element.
 - Plan: semantic zoom, first part. The plan root carries `data-detail` (far, mid, near) from the zoom against the floor at fit: far drops idle devices and keeps lit, alerting and unavailable ones as dots; far and mid drop device names and readings. Not on yet: the mode is `full` until the View menu arrives, so nothing changes on screen.
 - Card: names and labels keep their size on screen when you zoom in or out. They no longer grow with the plan; the 11 px floor still holds.
 - Card and Studio: each room can carry a small badge with what is on and what is wrong in it: lights on, alerts, open doors and windows, motion. The badge is drawn and styled; the detail levels that show it at far and mid zoom come next.

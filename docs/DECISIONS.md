@@ -2,6 +2,27 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: incremental render by diffing the markup, not by patching per device (S25.6)
+
+- The card still calls `renderFloor` for the whole plan on every `hass` update and gets markup back. `src/card/plan-patch.ts`
+  parses that markup and makes the live `<svg>` equal to it, touching only the nodes that differ: a Myers edit script over
+  each parent's children (keyed by serialisation), and an in-place rewrite of an element whose tag and attribute names match.
+  Lit's `unsafeSVG` replaced every node whenever the string changed. The card now uses a `planPatch` directive on the `<svg>`.
+- Why not a per-device render function. A device change reaches the aura, the room's glow and `on` class, the night overlay,
+  the motion edge, the rollup badge, a linked furniture piece and the 3D solids. Patching "the device's nodes" and listing
+  those dependents by hand would be a second set of rules next to `renderFloor`, and the two would drift (finding 8). The diff
+  has no list to forget: whatever the one draw path says changed is what gets written. A patched plan equals a fresh render byte
+  for byte by construction; the unit test checks every `DEVICE_TYPES` member over on, off, unavailable, alert and playing.
+- What it does not save: `renderFloor` runs in full and its string is parsed (400 devices: about 15 ms for one change, 35 ms
+  for all 400 flipped, in Chromium). It saves DOM writes, style recalculation, layout, transitions restarting and the loss of
+  node identity (a hover target, a CSS fade). If the string build itself shows up as the cost, the next step is memoising
+  per device inside `renderFloor`, with the same byte-for-byte test already in place.
+- Full replacement still happens where the structure changes: an element whose attribute names or their order differ is
+  replaced whole, as is a tag change. Layout, floor, theme, zoom, detail and layer changes are ordinary diffs against the new
+  markup, and may touch most of the plan; nothing special-cases them.
+- The Attention and Active rows are Lit templates; Lit already updates only the parts that changed. The panel's editor is not
+  affected: it never used `unsafeSVG`, and the guard on its `layout` setter is unchanged.
+
 ## 2026-10-09: detail levels in `renderFloor`; mode is `full` until the menu (S25.1, S25.2)
 
 - `detailLevel(zoom, mode)` and `detailFor(fit, shown, mode)` live in `src/core/detail.ts`. Far below 1.6, mid to 3.2, near
