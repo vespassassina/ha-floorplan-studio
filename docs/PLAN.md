@@ -2730,8 +2730,11 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       viewer (kept in view memory). Test: on the stress layout, `/`, letters, Enter opens the popup of the right
       device on its floor; the checklist sends exactly the calls ticked; a hidden family draws no icon.
       Done 2026-10-09 on `task/s24-cardfind`: search, "Turn off on this floor…", "Lights off", and the layer chips.
-- [ ] S24.9 Verify: lint, unit, Playwright bare; new tests `--repeat-each=10`; `npm run shots` looked at; the
+- [x] S24.9 Verify: lint, unit, Playwright bare; new tests `--repeat-each=10`; `npm run shots` looked at; the
       sprint test, "find a named device on the stress house in two actions, by keyboard alone", in both apps.
+      Done 2026-10-09 at e7d3177: lint 0, unit 0 (3326), Playwright 0 (1449 passed, 1 skipped: panel-live);
+      shots looked at; the walk passed in the card (`/`, letters, Enter) and the Studio (⌘K, Enter) in the Opus
+      review, which then re-checked R1–R12 closed.
 
 ### Follow-ups found during Sprint 24
 
