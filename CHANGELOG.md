@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card and Studio: each room can carry a small badge with what is on and what is wrong in it: lights on, alerts, open doors and windows, motion. The badge is drawn and styled; the detail levels that show it at far and mid zoom come next.
+
 ## 0.22.1 - 2026-10-09
 
 - Card and studio: doors lose their swing arc. A door is the gap in the wall and its thin leaf into the room.

@@ -2087,7 +2087,8 @@ describe("S7.1: labels never overprint each other", () => {
   // the baseline 0.75 of the size below the top. A device icon is its halo, a 16k disc about the icon centre, as a square.
   const boxesOf = (html: string, rotate?: { deg: number; pivot: Pt }) => {
     const scr = (p: Pt): Pt => (rotate ? rotateAbout(p, rotate.deg, rotate.pivot) : p);
-    const texts = [...html.matchAll(/<text ([^>]*)>([^<]*)<\/text>/g)].map((m) => {
+    // S25.3: a room badge's numbers (class rb-t) are not labels; tests/core/rollup.test.ts places them.
+    const texts = [...html.matchAll(/<text ((?:(?!class="rb-t")[^>])*)>([^<]*)<\/text>/g)].map((m) => {
       const a = (n: string) => Number(m[1].match(new RegExp(` ${n}="([^"]+)"`))![1]);
       const size = a("font-size"), s = unesc(m[2]), w = s.length * 0.6 * size, [x, y] = scr([a("x"), a("y")]);
       return { s, box: [x - w / 2, y - 0.75 * size, w, size] as Box };

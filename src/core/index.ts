@@ -9,6 +9,8 @@ export type { AddCandidate, HaBox, HaBoxRow, SwitchChoice } from "./ha";
 export * from "./geometry";
 export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS } from "./icons";
 export * from "./render";
+export { badges, floorRollups, roomRollup } from "./rollup";
+export type { BadgeCtx, Rollup } from "./rollup";
 export { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "./bind";
 export { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "./active";
 export type { ActiveDevice, ThingRef } from "./active";

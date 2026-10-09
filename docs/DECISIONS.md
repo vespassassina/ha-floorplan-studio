@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: room badges and their rollup (S25.3)
+
+- **`roomRollup(f, i, state)` / `floorRollups(f, state)`** in `src/core/rollup.ts`: lights on (`classOf`, so an unavailable lamp is not on and a bound lamp counts through its relay), motion on (icons and the room's own `motion` list, once per entity), and from `attention()` run over the one floor: `open` (kind `open`: a contact sensor, door, window or garage door standing open) and `alerts` (every other kind but unavailable, which has its own folded row there). One thing counts once per class. Alert items are put in a room by what they name (device point, piece point, `doorRoomIndex`, a new index twin of `doorRoomName`).
+- **Badges are drawn by `renderFloor` (`badges()` in the same file), hidden by CSS.** `.room-badge{display:none}`; shown only under `[data-detail="far"]` or `"mid"`. No attribute, or `near`, shows none. The rule is a class rule with `pointer-events:none` (finding 18).
+- **With `labels: false` no badge is drawn.** `labels: false` is the contract "no `<text>` at all" and a count is text. The S7.1 overprint test excludes the badge's `rb-t` text from its label count; the badge's own test checks the plate against its room's name and readout.
+- **Placement is a plain rule, not label placement**: the plate sits under the room's name (and under the readout when there is one), centred on the name's anchor. Sprint 25's CSS-px placement task (S25.4) may move it.
+
 ## 2026-10-08: no door swing arcs (S23.F6)
 
 Supersedes the arc in "plan symbols (S23.7)" below. Diego: "the door arcs are horrendous, remove them all". A door or glass
