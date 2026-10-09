@@ -11,6 +11,13 @@ Newest first. A change supersedes; nothing is edited.
 ## 2026-10-09: devices can be locked (S26.1)
 
 - `Device.locked?: boolean`, schema stays v2: an old card ignores the field. Same key as a wall, door, opening, furniture piece and unlinked object, so Lock is one word everywhere. `validate` reports anything but a boolean (`"yes"`, `1`, `null`); `migrate` leaves the value as written and `validate` judges it, as it does for the other `locked` fields. What a lock stops is decided in later tasks (a drag, alone or in a group).
+## 2026-10-09: Fix plan holds geometry only (S26.3)
+
+Supersedes the `plan()` rule of 2026-10-06 ("Fix plan": nothing of the plan changes) and the scenes carve-out of 2026-10-07, which this generalises.
+- **What stays locked:** points, walls, openings, edge and room kinds, heights, stairs, furniture, the outline. A change to any of them is refused with `planBlocked`, as before.
+- **What goes through:** every name and title (room, floor, door, extra, stairs, furniture), colour and texture, the HA area and floor id, and every entity link (a room's `entity`, sensors and scenes; a door's sensors, locks and cover; a piece of furniture's `entity`). One undo step each. Reason (Studio review, U3): the lock told a person they could not rename a room, and names and colours are not what a lock protects.
+- **How:** `EditorState.plan()` serialises the floor without those fields. `renameFloor` and `paint` no longer ask `planOpen()`. Order, add, delete and rotate of floors stay refused.
+- **Not done here:** `editor-app.ts` still refuses the texture rotation and scale sliders under the lock (`rotateTexture`, `scaleTexture`), and `replaceFloor` still drops a live non-device change under the lock, so those two sliders stay blocked until the Inspector tasks rewire them.
 
 ## 2026-10-09: Sprint 25 re-check fixes (Opus)
 
