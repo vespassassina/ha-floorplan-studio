@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Escape cancels a device drag first, one device or many (Opus re-check 3 and 4)
+
+- The Escape chain asked Help and Place before the drag, so with either open the group kept dragging and committed. A drag of devices is now the first thing Escape checks after the menus (`cancelDeviceDrag`). It supersedes (a) of 'small defects of the Sprint 26 review', which handled the group only after the panels.
+- A single-device drag took its undo snapshot on the first move, and Escape only cleared the selection. Now Escape puts the device back, drops the drag and takes the snapshot back (`EditorState.dropSnapshot`); the selection stays. The redo stack that snapshot cleared stays cleared: a drag that began is an edit that began.
+
 ## 2026-10-09: a typed length follows the exact ray and ends on whole cm (Opus re-check 1 and 2)
 
 - The typed direction came from the whole-cm aim point, so the nearer the pointer the further off the wall went: zoomed in, a pointer 40 cm out typed 350 and gave 14.38 degrees. It now comes from the unrounded ray point (`rayPoint`, kept as `rayAim` by `snapDraw`; `snapRay` is `rayPoint` rounded). It supersedes 'a typed length takes its direction from the rounded aim' of R1a.

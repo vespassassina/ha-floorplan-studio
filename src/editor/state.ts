@@ -351,6 +351,9 @@ export class EditorState {
     this.fut = [];
   }
 
+  /** Takes back the snapshot a drag made on its first move, when the drag is cancelled (Escape): no undo step is left. The redo stack it cleared stays cleared. */
+  dropSnapshot() { this.hist.pop(); }
+
   /** One undoable change to the current floor. `fn` gets a copy and may return a new floor. Returns false, and records nothing, when the floor did not change. */
   edit(fn: (f: Floor) => Floor | void): boolean {
     const g = structuredClone(this.f);

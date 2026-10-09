@@ -344,3 +344,54 @@ test("Escape during a group drag puts the devices back, leaves no undo step, kee
   await page.keyboard.press("Escape"); // a second Escape, with nothing dragging, clears the selection as before
   expect((await state(page)).sel).toBeNull();
 });
+
+// Opus re-check 3: Escape went to Help or Place before it reached the drag, so the group kept dragging and committed.
+for (const panel of ["help", "place"] as const) {
+  test(`Escape during a group drag cancels the drag first while ${panel} is open`, async ({ page }) => {
+    await load(page);
+    const { three } = await pickThree(page);
+    await page.evaluate(([tag, p]) => {
+      const ed = document.querySelector(tag as string) as any;
+      ed.ha = { floors: [], areas: [], entities: [] };
+      if (p === "help") ed.toggleHelp(); else ed.openPlace(0);
+    }, [EDITOR, panel] as const);
+    await expect(page.locator(`${EDITOR} aside`)).toBeVisible();
+    const sel = (await state(page)).sel;
+    const now = (await boxes(page)).find((b) => b.i === three[0].i)!;
+    const before = await devices(page), h0 = await steps(page);
+    await page.mouse.move(now.x, now.y);
+    await page.mouse.down();
+    await page.mouse.move(now.x + 40, now.y, { steps: 4 });
+    expect(await devices(page)).not.toEqual(before);
+    await page.keyboard.press("Escape");
+    expect(await devices(page)).toEqual(before);
+    await page.mouse.move(now.x + 90, now.y + 20, { steps: 4 });
+    await page.mouse.up();
+    expect(await devices(page)).toEqual(before);
+    expect(await steps(page)).toBe(h0);
+    expect((await state(page)).sel).toEqual(sel);
+    // the panel was not closed by that Escape: it is still there for the next one
+    expect(await page.evaluate(([tag, p]) => { const ed = document.querySelector(tag as string) as any; return p === "help" ? ed.st.helpOpen : ed.asideMode === "place"; }, [EDITOR, panel] as const)).toBe(true);
+  });
+}
+
+// Opus re-check 4: the single-device drag took a snapshot on its first move, and Escape only cleared the selection while the drag went on.
+test("Escape during a single-device drag puts it back, leaves no undo step, keeps the selection, and the rest of the drag does nothing", async ({ page }) => {
+  await load(page);
+  const r = await rectSomewhere(page, (ins) => ins.length === 4 && ins.every((b) => b.type === "light"));
+  const b = r.inside[0];
+  await page.mouse.click(b.x, b.y);
+  expect((await state(page)).sel).toEqual({ t: "dev", i: b.i });
+  const before = await devices(page), h0 = await steps(page);
+  await page.mouse.move(b.x, b.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x + 30, b.y + 10, { steps: 4 });
+  expect(await devices(page)).not.toEqual(before);
+  await page.keyboard.press("Escape");
+  expect(await devices(page)).toEqual(before);
+  await page.mouse.move(b.x + 80, b.y + 40, { steps: 4 });
+  await page.mouse.up();
+  expect(await devices(page)).toEqual(before);
+  expect(await steps(page)).toBe(h0);
+  expect((await state(page)).sel).toEqual({ t: "dev", i: b.i });
+});

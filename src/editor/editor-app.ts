@@ -959,6 +959,15 @@ export class FloorplanStudioEditor extends LitElement {
   };
 
   /** First real change of a drag records the undo step. */
+  /** Escape in a drag of one device or a group: put them back and drop the drag. A group's history was never touched; a single drag's snapshot is taken back. The selection stays. */
+  private cancelDeviceDrag() {
+    const d = this.drag;
+    if (d?.type !== "devs" && d?.type !== "dev") return;
+    this.st.replaceFloor(d.base);
+    if (d.type === "dev" && d.moved) this.st.dropSnapshot();
+    this.drag = null;
+    this.requestUpdate();
+  }
   private begin(d: { moved: boolean }) {
     if (!d.moved) { d.moved = true; this.st.snapshot(); }
   }
@@ -1710,6 +1719,8 @@ export class FloorplanStudioEditor extends LitElement {
     }
     // S26.13: "?" opens Help from the plan, never from a text field (the input check above, and `takesTyping` for the rest).
     if (ev.key === "?" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !takesTyping(t)) { ev.preventDefault(); this.toggleHelp(); return; }
+    // Escape cancels a drag of devices before anything else: Help, Place and the rest must not swallow it while the plan is being dragged.
+    if (ev.key === "Escape" && (this.drag?.type === "devs" || this.drag?.type === "dev")) { ev.preventDefault(); this.cancelDeviceDrag(); return; }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
@@ -1737,7 +1748,6 @@ export class FloorplanStudioEditor extends LitElement {
     // S26.10: Escape drops a marquee in progress, else the selection.
     if (ev.key === "Escape") {
       if (this.drag?.type === "marquee") { ev.preventDefault(); this.drag = null; this.requestUpdate(); }
-      else if (this.drag?.type === "devs") { ev.preventDefault(); this.st.replaceFloor(this.drag.base); this.drag = null; this.requestUpdate(); } // a group drag is cancelled: nothing was committed, so put it back
       else if (this.st.sel) { ev.preventDefault(); this.st.sel = null; this.requestUpdate(); }
       return;
     }
