@@ -10,6 +10,8 @@
 - Studio: one context-menu model (`ctxItems`) lists what a right-click offers on each of the twelve targets, in one order. Not wired into the menus yet.
 - Studio (internal): `snapRay` puts a drawn point on the nearest 15 degree ray from the last point. Not wired to the pointer yet.
 - Studio (internal): `Draw` keeps a typed length ("350" cm or "3.5m") and `placeTyped` adds the next point that far along the pointer direction. Not wired to the keys yet.
+- Studio: select many devices on the plan. Shift+click toggles any device in or out of the selection (it was lights and motion sensors of one kind); Shift+drag from the plan draws a dashed rectangle and adds every drawn device inside it, also with the view turned; Ctrl or Cmd+A selects every drawn device on the floor; Escape clears the selection. A device on a hidden Layer is not taken. A plain drag still pans.
+- Studio: a multi-selection moves and deletes as one. Drag any member and every unlocked member follows, in one undo step; Delete or Backspace removes them all, in one undo step. A locked device does not move, alone or in a group.
 
 ## 0.23.1 - 2026-10-09
 

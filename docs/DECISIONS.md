@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: select many on the plan (S26.10, S26.11)
+
+- **Shift on the plan is a marquee.** Shift+press on the background, a room, stairs or furniture starts it; Shift on a corner, wall, door or device keeps its meaning (detach a corner, toggle a device). A Shift+click without a drag selects what a plain click would (a room, stairs, furniture) and leaves a device selection alone. Furniture starts it too, since lights sit among furniture.
+- **The rectangle is taken back through the view's turn**: four client corners through `toSvg`, then `marqueeHits`. The overlay draws the same four plan-space points as `.marquee`, so a turned plan shows it upright. A device counts as drawn when its icon exists and is not `display:none` (Layers, and the far detail level that drops idle icons); the DOM is the one source for "drawn", so the hit-test cannot disagree with the pixels.
+- **Shift+click toggles any device**, not only lights and motion of one kind. The group panel already says "Shift+click more of the same kind to group" for a mixed set, and `groupKind` decides.
+- **A drag on a member moves every unlocked member** with `moveDevices`, the delta rounded to the snap grid (Alt: 1 cm), 4 px before it starts. It records its step with `commitLiveEdit`, so a drag that ends where it began leaves none. A click on a member without a drag narrows the selection to it. A group of only locked members, or one locked device, takes the press (selection) and no drag.
+- **Escape** drops a marquee in progress, otherwise clears any selection. **Ctrl or Cmd+A** is ignored in a text field and while drawing.
+- `.marquee` and the typed-length field live in the host's `static styles` beside `.dr`, since the overlay is the host's.
+
 ## 2026-10-09: the editor host is split (S26.9)
 
 - `toolbar.ts`, `ctx-menu.ts` and `inspector.ts` take the host as `h` and export their own `css`; `static styles` is an array. Pure move: no test edited.

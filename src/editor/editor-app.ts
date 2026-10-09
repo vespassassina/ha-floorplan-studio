@@ -6,7 +6,9 @@ import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stai
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
 import { BANNER_MS, bannerLevel, isQuiet, type BannerLevel } from "./banner";
-import { PAN_STEP, isSaveChord, isSearchChord, viewKeyFor, type ViewKey } from "../card/view-keys";
+import { PAN_STEP, isSaveChord, isSearchChord, takesTyping, viewKeyFor, type ViewKey } from "../card/view-keys";
+import { marqueeHits } from "./selection";
+import { moveDevices, removeDevices } from "./bulk";
 import "../card/search-box";
 import type { FpSearch } from "../card/search-box";
 import { layoutEntries, type SearchEntry } from "../core/search";
@@ -58,6 +60,10 @@ type Drag =
   | { type: "door"; base: Floor; i: number; off: Pt; len: number; moved: boolean }
   | { type: "opening"; base: Floor; i: number; off: Pt; len: number; moved: boolean }
   | { type: "dev"; base: Floor; i: number; off: Pt; moved: boolean }
+  /** S26.11: a press on a member of a multi-selection. `movable`: not every member is locked. `before`: the layout as the first real move found it. */
+  | { type: "devs"; base: Floor; is: number[]; i: number; start: Pt; movable: boolean; moved: boolean; before: Layout | null }
+  /** S26.10: Shift+drag from the plan. `a` and `cur` are client pixels; `quad` the rectangle in plan space once it is a drag; `click` what a click without a drag selects. */
+  | { type: "marquee"; a: [number, number]; cur: [number, number]; quad: [Pt, Pt, Pt, Pt] | null; click: Sel | undefined; moved: boolean }
   | { type: "furn"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "unl"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "fscale"; base: Floor; i: number; corner: Corner; moved: boolean }
@@ -490,6 +496,8 @@ export class FloorplanStudioEditor extends LitElement {
     .dr{fill:none;stroke:var(--fp-window);stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke;pointer-events:none}
     .dp{fill:var(--fp-bg);stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .dp.first{fill:var(--fp-window)}
+    /* S26.10: the Shift+drag rectangle. See-through, dashed, never takes a click (a class rule: an attribute would lose to .canvas svg rules, finding 18). */
+    .marquee{fill:var(--fp-window);fill-opacity:.12;stroke:var(--fp-window);stroke-width:1.5;stroke-dasharray:5 3;vector-effect:non-scaling-stroke;pointer-events:none}
     .grp{font-size:.8em;opacity:.7}
     .box input[type=search]{width:100%;box-sizing:border-box}
     .harow{display:flex;align-items:center;gap:4px;flex-wrap:wrap} .harow>span:first-child{flex:1;min-width:80px} .harow .btn{width:auto}
@@ -793,6 +801,14 @@ export class FloorplanStudioEditor extends LitElement {
     hit = this.padFurniture(hit, p);
     const base = structuredClone(f);
     this.drag = null;
+    // S26.10: Shift+drag from the plan (the background, a room, stairs, furniture) is a marquee. Shift on a corner, a wall or a device keeps its old meaning.
+    if (ev.shiftKey && (hit.k === "bg" || hit.k === "room" || hit.k === "stairs" || hit.k === "furn")) {
+      const click: Sel | undefined = hit.k === "bg" ? undefined : { t: hit.k, i: hit.i };
+      this.drag = { type: "marquee", a: [ev.clientX, ev.clientY], cur: [ev.clientX, ev.clientY], quad: null, click, moved: false };
+      capture();
+      this.requestUpdate();
+      return;
+    }
     switch (hit.k) {
       case "corner": case "loose": {
         const ref: PtRef = hit.k === "corner" ? { poly: hit.poly, j: hit.j } : hit.ref;
@@ -813,19 +829,22 @@ export class FloorplanStudioEditor extends LitElement {
       case "dev": {
         const d = f.devices[hit.i];
         if (!d) break;
-        // S4.5: Shift+click adds a light or motion sensor to a same-kind multi-selection, for "Create group"; toggles it back out if already in. No drag on a Shift+click.
-        if (ev.shiftKey && (d.type === "light" || d.type === "motion")) {
+        // S26.10 (was S4.5, lights and motion sensors of one kind): Shift+click toggles any device in or out of the selection. No drag on a Shift+click.
+        if (ev.shiftKey) {
           const prevIs = st.sel?.t === "devs" ? st.sel.is : st.sel?.t === "dev" ? [st.sel.i] : [];
-          const prevDev = prevIs[0] !== undefined ? f.devices[prevIs[0]] : undefined;
-          if (!prevDev || (!("a" in prevDev) && prevDev.type === d.type)) {
-            const is = prevIs.includes(hit.i) ? prevIs.filter((i) => i !== hit.i) : [...prevIs, hit.i];
-            st.sel = is.length > 1 ? { t: "devs", is } : is.length === 1 ? { t: "dev", i: is[0] } : null;
-            break;
-          }
+          const is = prevIs.includes(hit.i) ? prevIs.filter((i) => i !== hit.i) : [...prevIs, hit.i];
+          st.sel = is.length > 1 ? { t: "devs", is } : is.length === 1 ? { t: "dev", i: is[0] } : null;
+          break;
+        }
+        // S26.11: a press on a member of a multi-selection keeps it, and a drag moves every unlocked member.
+        if (st.sel?.t === "devs" && st.sel.is.includes(hit.i)) {
+          const is = st.sel.is;
+          this.drag = { type: "devs", base, is: [...is], i: hit.i, start: p, movable: is.some((j) => f.devices[j] && !f.devices[j].locked), moved: false, before: null };
+          break;
         }
         st.sel = { t: "dev", i: hit.i };
         const c: Pt = "a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y];
-        this.drag = { type: "dev", base, i: hit.i, off: [p[0] - c[0], p[1] - c[1]], moved: false };
+        if (!d.locked) this.drag = { type: "dev", base, i: hit.i, off: [p[0] - c[0], p[1] - c[1]], moved: false };
         break;
       }
       case "furn": {
@@ -904,7 +923,7 @@ export class FloorplanStudioEditor extends LitElement {
         this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
     }
     // Fix plan: a press still selects, so a wall or a room can be looked at, but only a device (or the view) follows the pointer.
-    if (st.planLocked && this.drag && this.drag.type !== "pan" && this.drag.type !== "dev" && this.drag.type !== "unl") { this.drag = null; this.planFixed(); }
+    if (st.planLocked && this.drag && this.drag.type !== "pan" && this.drag.type !== "dev" && this.drag.type !== "devs" && this.drag.type !== "unl") { this.drag = null; this.planFixed(); }
     capture();
     this.requestUpdate();
   };
@@ -928,10 +947,26 @@ export class FloorplanStudioEditor extends LitElement {
       this.requestUpdate();
       return;
     }
+    if (d.type === "marquee") {
+      d.cur = [ev.clientX, ev.clientY];
+      if (!d.moved && Math.hypot(d.cur[0] - d.a[0], d.cur[1] - d.a[1]) >= 4) d.moved = true;
+      if (d.moved) d.quad = this.marqueeQuad(d.a, d.cur);
+      this.requestUpdate();
+      return;
+    }
     const p = this.toSvg(ev), alt = ev.altKey, gs = alt ? 0 : st.snapGrid; // Alt: no grid for this gesture
     const g5 = (n: number) => gridRound(n, gs);
     let g: Floor | null = null;
     switch (d.type) {
+      case "devs": {
+        let dx = p[0] - d.start[0], dy = p[1] - d.start[1];
+        if (!d.movable || (!d.moved && Math.hypot(dx, dy) * this.scale < 4)) return;
+        dx = gridRound(dx, gs); dy = gridRound(dy, gs);
+        if (!d.before) { if (dx === 0 && dy === 0) return; d.before = structuredClone(st.layout); }
+        d.moved = true;
+        g = moveDevices(d.base, d.is, dx, dy);
+        break;
+      }
       case "corner": {
         let to = this.snapCorner(d.base, p, d.from, d.ref, alt, [], isZoneRef(d.base, d.ref));
         // S4.9: a locked wall or opening keeps its length; the dragged end only pivots around the other, fixed end.
@@ -1050,6 +1085,13 @@ export class FloorplanStudioEditor extends LitElement {
       if (d.button === 2 && !d.moved && ev.type === "pointerup") this.openCtxMenuAt(ev.clientX, ev.clientY);
       return;
     }
+    if (d.type === "marquee") { this.endMarquee(d, ev); return; }
+    if (d.type === "devs") {
+      if (!d.moved) { st.sel = { t: "dev", i: d.i }; this.requestUpdate(); } // a click, not a drag: the group gives way to the one pressed
+      else if (d.before && st.commitLiveEdit(d.before)) this.changed(`Moved ${d.is.length} devices`);
+      else this.requestUpdate();
+      return;
+    }
     if (d.moved) {
       // a corner dropped on another polygon's edge becomes a point of that polygon
       let f = st.f;
@@ -1064,6 +1106,36 @@ export class FloorplanStudioEditor extends LitElement {
       if (d.type === "dev") void this.offerAreaMove(d.i);
     } else this.requestUpdate();
   };
+
+  /** S26.10: the screen rectangle between two client points, as four corners in plan space (taken back through the view's turn). */
+  private marqueeQuad(a: [number, number], b: [number, number]): [Pt, Pt, Pt, Pt] {
+    const at = (x: number, y: number) => this.toSvg({ clientX: x, clientY: y });
+    return [at(a[0], a[1]), at(b[0], a[1]), at(b[0], b[1]), at(a[0], b[1])];
+  }
+  /** S26.10: does the plan draw device `i` right now? A Layers family left off, or a detail level that drops it, leaves no element, or a hidden one. */
+  private drawnDevice(i: number): boolean {
+    const el = this.svgEl?.querySelector(`g.dev[data-x="${i}"], [data-xbar="${i}"]`);
+    return !!el && getComputedStyle(el).display !== "none";
+  }
+  /** S26.10: every drawn device of the floor. */
+  private drawnDevices(): number[] {
+    return this.st.f.devices.flatMap((_, i) => (this.drawnDevice(i) ? [i] : []));
+  }
+  private selectDevices(is: number[]) {
+    this.st.sel = is.length > 1 ? { t: "devs", is } : is.length === 1 ? { t: "dev", i: is[0] } : null;
+  }
+  /** S26.10: the marquee is over. Without a drag it was a click (a room, stairs or furniture is selected, the background changes nothing); with one it adds the drawn devices inside to the selection. No undo step. */
+  private endMarquee(d: Extract<Drag, { type: "marquee" }>, ev: PointerEvent) {
+    const st = this.st;
+    if (ev.type === "pointercancel") { this.requestUpdate(); return; }
+    if (!d.moved) { if (d.click) st.sel = d.click; this.requestUpdate(); return; }
+    const quad = this.marqueeQuad(d.a, [ev.clientX, ev.clientY]);
+    const hits = marqueeHits(st.f, quad, (i) => !this.drawnDevice(i));
+    const prev = st.sel?.t === "devs" ? st.sel.is : st.sel?.t === "dev" ? [st.sel.i] : [];
+    const is = [...new Set([...prev, ...hits])];
+    if (is.length) this.selectDevices(is);
+    this.requestUpdate();
+  }
 
   private onDblClick = (ev: MouseEvent) => {
     if (this.draw) { this.finishDraw(); return; }
@@ -1597,6 +1669,13 @@ export class FloorplanStudioEditor extends LitElement {
     const t = ev.composedPath()[0] as HTMLElement | undefined;
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
+    // S26.10: Ctrl/Cmd+A selects every drawn device on the floor.
+    if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey && ev.key.toLowerCase() === "a" && !this.draw && !takesTyping(t)) {
+      ev.preventDefault();
+      const is = this.drawnDevices();
+      if (is.length) { this.selectDevices(is); this.requestUpdate(); }
+      return;
+    }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
@@ -1614,10 +1693,17 @@ export class FloorplanStudioEditor extends LitElement {
       else if (ev.key === "Backspace") { ev.preventDefault(); this.draw.backspace(); this.requestUpdate(); }
       return;
     }
+    // S26.10: Escape drops a marquee in progress, else the selection.
+    if (ev.key === "Escape") {
+      if (this.drag?.type === "marquee") { ev.preventDefault(); this.drag = null; this.requestUpdate(); }
+      else if (this.st.sel) { ev.preventDefault(); this.st.sel = null; this.requestUpdate(); }
+      return;
+    }
     if (ev.key !== "Delete" && ev.key !== "Backspace") return;
     const s = this.st.sel;
     if (!s) return;
-    const del = (fn: (f: Floor) => void) => { this.commit(fn); this.st.sel = null; this.requestUpdate(); };
+    const del = (fn: (f: Floor) => Floor | void) => { this.commit(fn); this.st.sel = null; this.requestUpdate(); };
+    if (s.t === "devs") { const is = s.is; del((f) => removeDevices(f, is)); return; } // S26.11: one undo step for the lot
     if (s.t === "door") del((f) => { f.doors.splice(s.i, 1); });
     else if (s.t === "opening") del((f) => { f.openings.splice(s.i, 1); });
     else if (s.t === "dev") del((f) => { f.devices.splice(s.i, 1); });
@@ -2612,6 +2698,9 @@ export class FloorplanStudioEditor extends LitElement {
       if (dr.polygon && dr.points.length >= 2 && this.hover) o.push(`<line class="dr" data-draw="close" x1="${num(this.hover[0])}" y1="${num(this.hover[1])}" x2="${num(dr.points[0][0])}" y2="${num(dr.points[0][1])}"/>`);
       dr.points.forEach((p, i) => o.push(`<circle class="dp${i === 0 ? " first" : ""}" data-dp="${i}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num((i === 0 ? 6 : 4) * k)}"/>`));
     }
+    // S26.10: the marquee, as the four plan-space corners of the screen rectangle; the turned plan turns it back upright.
+    const mq = this.drag?.type === "marquee" ? this.drag.quad : null;
+    if (mq) o.push(`<polygon class="marquee" points="${mq.map((q) => `${num(q[0])},${num(q[1])}`).join(" ")}"/>`);
     // S7.11: the points of a trace Scale step, and the line between them.
     const ts = this.traceScale;
     if (ts?.length === 2) o.push(`<line class="dr" x1="${num(ts[0][0])}" y1="${num(ts[0][1])}" x2="${num(ts[1][0])}" y2="${num(ts[1][1])}"/>`);
@@ -2624,7 +2713,7 @@ export class FloorplanStudioEditor extends LitElement {
     const w = this.rect.w / s, h = this.rect.h / s;
     const rot = st.rotation, vc: Pt = rot ? rotateAbout([v.x + v.w / 2, v.y + v.h / 2], rot.deg, rot.pivot) : [v.x + v.w / 2, v.y + v.h / 2];
     const viewBox = `${num(vc[0] - w / 2)} ${num(vc[1] - h / 2)} ${num(w)} ${num(h)}`;
-    const sel = st.sel && (st.sel.t === "door" || st.sel.t === "dev") ? { t: st.sel.t, i: st.sel.i } : null;
+    const sel = st.sel && (st.sel.t === "door" || st.sel.t === "dev") ? { t: st.sel.t, i: st.sel.i } : st.sel?.t === "devs" ? { t: "devs" as const, is: st.sel.is } : null;
     // The grid covers everything on screen: the shown rectangle, taken back into the plan's own (unturned) space.
     const shown = [[vc[0] - w / 2, vc[1] - h / 2], [vc[0] + w / 2, vc[1] - h / 2], [vc[0] + w / 2, vc[1] + h / 2], [vc[0] - w / 2, vc[1] + h / 2]] as Pt[];
     const back = rot ? shown.map((p) => rotateAbout(p, -rot.deg, rot.pivot)) : shown;

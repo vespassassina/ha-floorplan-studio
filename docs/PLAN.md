@@ -2940,13 +2940,13 @@ Wave 2, alone, after wave 1 is merged:
 Wave 3, four lanes in parallel, each on its own files; tasks inside a lane run in order:
 
 Lane A, pointer and keys (`editor-app.ts` handlers only, plus new spec files):
-- [ ] S26.10 (U18) Select many on the plan. Shift+click toggles any device; Shift+drag from empty canvas draws a
+- [x] S26.10 (U18) Select many on the plan. Shift+click toggles any device; Shift+drag from empty canvas draws a
       `.marquee` rectangle in the overlay and selects `marqueeHits` (adding to the selection); Ctrl/⌘+A selects every
       drawn device on the floor; Escape clears. A plain drag still pans. No undo step. Test: stress layout, Shift held
       with `keyboard.down`, a marquee over 4 lights selects exactly 4; again with the view turned 45°; a device of a
       hidden layer inside is not taken; Shift+click a switch into a light selection keeps both; computed-style pair on
       `.marquee`. New `tests/editor/multi-select.spec.ts`.
-- [ ] S26.11 (U18) A multi-selection moves and deletes as one. A drag on a member moves every unlocked member
+- [x] S26.11 (U18) A multi-selection moves and deletes as one. A drag on a member moves every unlocked member
       (`moveDevices`), one undo step; Delete or Backspace removes them all (`removeDevices`), one undo step; a locked
       device does not follow a drag, alone or in a group. Test: real drag of 3 lights, all moved by the same delta, one
       Undo restores all; Delete 3, one Undo; a locked member stays put.
