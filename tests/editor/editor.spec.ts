@@ -840,6 +840,7 @@ test("choosing another free switch updates the list and the saved layout validat
   await openDevice(page);
   await expect(devItem(page, "switch-living-relay")).toHaveCount(1);
   await expect(devItem(page, "plug-free")).toHaveCount(1);
+  await page.locator("#addDevClose").click(); // the panel opens centred over the toolbar; File is under it at 1280
   expect(validate(await layoutOf(page)).ok).toBe(true);
   await savedValid(page);
 });
@@ -866,6 +867,7 @@ test("S1.32: two lights on one wall switch, and the switch placed as its own ico
   expect(g2.devices.filter((d) => d.bound === RELAY)).toHaveLength(2);
   await expect(page.locator("svg g.dev-light.bound")).toHaveCount(2);
   await expect(page.locator("svg g.dev-switch")).toHaveCount(2); // the hall switch and the relay
+  await page.locator("#addDevClose").click(); // the panel opens centred over the toolbar; File is under it at 1280
   expect(validate(await layoutOf(page)).ok).toBe(true);
   await savedValid(page);
 });
@@ -1759,7 +1761,7 @@ const shown = (page: Page) => page.locator("#addDevPanel button[data-add]:visibl
 
 test("the toolbar order is Add, Draw, View, Edit, File; Device… is a button of Add, right after Areas", async ({ page }) => {
   await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "View", "Edit", "File"]); // S8.1: an Edit menu; S24.6: Filter gone, Layers is a tab
-  await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
+  await expect(page.locator("#mAdd select")).toHaveCount(0); // S26.17: Furniture and Unlinked device are submenus of buttons, no select
   await menu(page, "Add");
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
   const areasIdx = subs.indexOf("addAreas");
@@ -2930,7 +2932,8 @@ const DRAW_IDS_DOM = ["drawOpening", "drawWall-wall", "drawWall-boundary", "draw
 test("the Add menu holds no Draw item and no Water; the Draw menu holds all twelve", async ({ page }) => {
   for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
   await expect(page.locator("#mAdd .grp, #mAdd .sep").filter({ hasText: /Draw/ })).toHaveCount(0);
-  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.map((x) => x.id));
+  // S26.17: the furniture and unlinked-type buttons live in their own submenus and are counted in menu-cleanup.spec.ts
+  const ids = await page.locator('#mAdd button:not([id^="addFurn-"]):not([id^="addUnlDev-"])').evaluateAll((b) => b.map((x) => x.id));
   expect(ids).toEqual(["addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addWall-parapet", "addStr", "addZone", "addStairs", "addDevBtn"]);
   await expect(page.locator("#mAdd details.sub#addFurn")).toHaveCount(1); // S26.17: a submenu of buttons, no select
   expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS_DOM);
@@ -8722,6 +8725,7 @@ test("placing a catalogued plug from Add writes its device's one power sensor in
   await devItem(page, "plug-free").click();
   const placed = (await groundOf(page)).devices.find((d) => d.id === "plug-free")!;
   expect(placed).toMatchObject({ type: "plug", power: "sensor.free_power" });
+  await page.locator("#addDevClose").click(); // the panel opens centred over the toolbar; File is under it at 1280
   await savedValid(page);
 });
 
