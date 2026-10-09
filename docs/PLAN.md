@@ -2808,7 +2808,7 @@ Wave 1, core (parallel):
 - [ ] S25.3 Room badges with rollups. `roomRollup(room, states)` in core: counts of lights on, alerts, open doors and
       windows, motion; a badge per room drawn by `renderFloor` at far and mid, hidden at near. Test: counts for a room
       with mixed states; the badge text; an empty room has no badge; the escape payload `"><script>` in a name.
-- [ ] S25.4 Labels placed in CSS px. A label keeps its on-screen size and offset at any zoom; placement is computed
+- [x] S25.4 Labels placed in CSS px. A label keeps its on-screen size and offset at any zoom; placement is computed
       from the view scale, not from cm. Test: at zoom 1 and 6 the label's `getBoundingClientRect` height is the same
       (asymmetric values), and 11 px floor holds.
 

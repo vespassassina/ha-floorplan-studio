@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: labels keep their screen size at any zoom (S25.4)
+
+Supersedes "Not done here: placing labels in CSS px outright" in "an 11 px floor on the card (S23.2)". `renderFloor` takes `zoom`, the view's zoom over the whole floor at fit (1 = fit). Text uses `kt = k / zoom`: every label size, its offsets, the name search steps, the leader width and the tag plate. Absent, 1 or junk (not a finite number above 0): byte for byte as before, so no snapshot changed.
+- **Labels only; icons and discs still grow with the view.** The brief is the label. `k` stays for discs, stems, the collision radii of icons and the label anchor on a device's disc edge (16k above the centre), so the label sits on the icon's rim whatever the zoom. Moving the icons too is sprint 25's detail work, not this task.
+- **The 11 px floor moves with the view.** `nameMin` is `NAME_MIN_PX / (px * zoom)`: 11 px on screen at the view on show, not only at fit. A name shrunk to fit its room can shrink back in plan units as the room grows on screen.
+- **The card passes `fit.w / box.w` on every render.** A zoom already re-renders the card's markup (the view box is in it), so this costs no second render; names are placed again at each zoom, which is how a name that did not fit at fit can sit inside its room once zoomed. A card pinned by `zoom_level` or `center` now draws its labels at the size of the whole-floor card, no longer enlarged with the pin.
+- **The Studio passes nothing.** Its `scale` is already the live view scale (`k = 1/scale`), so its labels were screen-sized already.
+- Test: `tests/core/label-zoom.test.ts` (zoom 2.5 and 4 and 6, junk input, discs unchanged) and `card-label-zoom.spec.ts` (a real wheel to 6x, `getBoundingClientRect` heights within 0.5 px, a 320 px card for the floor); it fails with the `zoom` line removed.
+
 ## 2026-10-08: no door swing arcs (S23.F6)
 
 Supersedes the arc in "plan symbols (S23.7)" below. Diego: "the door arcs are horrendous, remove them all". A door or glass

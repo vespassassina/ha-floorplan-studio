@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card: names and labels keep their size on screen when you zoom in or out. They no longer grow with the plan; the 11 px floor still holds.
+
 ## 0.22.1 - 2026-10-09
 
 - Card and studio: doors lose their swing arc. A door is the gap in the wall and its thin leaf into the room.

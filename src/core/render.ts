@@ -32,6 +32,11 @@ export interface RenderOpts {
    *  under `NAME_MIN_PX` and, with it, no device disc under 28 px. Omitted (the editor, whose `scale` is already its
    *  zoom), nothing changes. */
   px?: number;
+  /** S25.4: the view's zoom over the whole floor at fit (1 = fit; the card's fit width over the width on show). A label
+   *  keeps the on-screen size and offset it has at fit, so its plan size is divided by this; icons and discs keep
+   *  growing with the view. Omitted, 1, or not a finite number above 0: nothing changes, byte for byte. The editor
+   *  never passes it: its `scale` is already the live view scale. */
+  zoom?: number;
   /** S23 review S3: the part of the drawing, in its on-screen frame (the view box's own units), a room name, its tag and
    *  its leader may use: the card passes its fit box less the strip its controls cover. A candidate that leaves it is
    *  rejected. Omitted (the editor), nothing changes. */
@@ -1135,7 +1140,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // S23.2: a floor in screen space. k never lets a 12k name fall under 11 px, so a 32k disc never falls under 29 px.
   // One factor for text and discs keeps the plan's proportions; full CSS-px placement is sprint 25.
   const screenPx = typeof o.px === "number" && Number.isFinite(o.px) && o.px > 0 ? o.px : 0;
-  const k = Math.max(1 / (o.scale || 1), screenPx ? NAME_MIN_PX / (12 * screenPx) : 0), nameMin = screenPx ? NAME_MIN_PX / screenPx : 0;
+  const k = Math.max(1 / (o.scale || 1), screenPx ? NAME_MIN_PX / (12 * screenPx) : 0);
+  // S25.4: `kt` is k for text: sizes and offsets of a label, divided by the view's zoom so they stay put on screen.
+  const zoomV = typeof o.zoom === "number" && Number.isFinite(o.zoom) && o.zoom > 0 ? o.zoom : 1, kt = k / zoomV;
+  const nameMin = screenPx ? NAME_MIN_PX / (screenPx * zoomV) : 0;
   const turn = o.rotate && o.rotate.deg % 360 ? o.rotate : null, planDeg = turn ? turn.deg : 0;
   /** Attribute that keeps a text upright in a turned plan: turns it back about its own anchor. */
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
@@ -1385,7 +1393,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const inPoly = inside, centroid = polyCentre;
   /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way. An extra's
    *  name; a room's name has its own search (placeName). */
-  const rows = (a: Pt): Pt[] => [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * k));
+  const rows = (a: Pt): Pt[] => [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * kt));
   const disc = (c: Pt, r: number) => { const [x, y] = toScreen(c); placed.push([x - r, y - r, 2 * r, 2 * r]); };
   // S7.8: a person whose room sensor names a room stands at that room's centroid, the same point its name is tried at
   // first. Several in one room stand on a ring round it, in device order, far enough apart that their 16k discs never
@@ -1470,7 +1478,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!c0.every(Number.isFinite)) { const size = base; return { at: place(rows(c0), size, r.name), size }; }
     const clear = (p: Pt) => inPoly(p, r.pts) && !inner.some((q) => inPoly(p, q));
     // A box fits when its corners and edge midpoints, 2k inside it, are all in the room: a room is a polygon, not a box.
-    const ring = ([x, y, w, h]: Box, d = 2 * k): Pt[] => [[x - d, y - d], [x + w + d, y - d], [x + w + d, y + h + d], [x - d, y + h + d], [x + w / 2, y - d], [x + w / 2, y + h + d], [x - d, y + h / 2], [x + w + d, y + h / 2]];
+    const ring = ([x, y, w, h]: Box, d = 2 * kt): Pt[] => [[x - d, y - d], [x + w + d, y - d], [x + w + d, y + h + d], [x - d, y + h + d], [x + w / 2, y - d], [x + w / 2, y + h + d], [x - d, y + h / 2], [x + w + d, y + h / 2]];
     const fits = (c: Pt, size: number) => inB(textBox(c, size, len)) && ring(textBox(c, size, len)).every((p) => clear(fromScreen(p)));
     const sizes: number[] = [];
     for (let s = base; s > floor * 1.001; s *= 0.85) sizes.push(s);
@@ -1478,7 +1486,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const best: { tag: Label | null } = { tag: null }; // the largest covered spot that fits, for a tag
     const search = (a: Pt): Label | null => {
       for (const size of sizes) for (const [dx, dy] of OFFSETS) {
-        const c = screenOff(a, dx * k, dy * k);
+        const c = screenOff(a, dx * kt, dy * kt);
         if (!fits(c, size)) continue;
         const box = textBox(c, size, len);
         if (!placed.some((q) => meets(box, q))) { placed.push(box); words.add(box); return { at: c, size }; }
@@ -1498,7 +1506,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (OUTDOOR.has(r.kind)) {
       const owned = f.rooms.filter((q) => q !== r && q.kind !== "zone" && Array.isArray(q.pts) && q.pts.length > 2).map((q) => q.pts);
       const bare = (p: Pt) => clear(p) || !owned.some((q) => inPoly(p, q));
-      const sx = r.pts.map((p) => toScreen(p)[0]), sy = r.pts.map((p) => toScreen(p)[1]), m = GAP * k, st = 8 * k;
+      const sx = r.pts.map((p) => toScreen(p)[0]), sy = r.pts.map((p) => toScreen(p)[1]), m = GAP * kt, st = 8 * kt;
       const [x0, y0, x1, y1] = [Math.min(...sx), Math.min(...sy), Math.max(...sx), Math.max(...sy)], [ax, ay] = toScreen(anchor);
       for (const size of sizes) {
         // Screen points for the baseline middle: under and over the area's box, slid across in 8k steps while the name
@@ -1531,7 +1539,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const [x, y, w, h] = textBox(c, size, len), dx = Math.max(B.x - x, 0) + Math.min(B.x + B.w - (x + w), 0), dy = Math.max(B.y - y, 0) + Math.min(B.y + B.h - (y + h), 0);
       return dx || dy ? screenOff(c, dx, dy) : c;
     };
-    const above = intoB(screenOff(from, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay)), below = intoB(screenOff(from, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay));
+    const above = intoB(screenOff(from, 0, Math.min(...ys) - GAP * kt - 0.25 * size - ay)), below = intoB(screenOff(from, 0, Math.max(...ys) + GAP * kt + 0.75 * size - ay));
     // The leader is one more thing that must not run across another text: its own thin box counts too.
     const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(from), [cx, cy] = toScreen(c); return [Math.min(x, cx) - k / 2, Math.min(y, cy), Math.abs(cx - x) + k, Math.abs(cy - y)]; };
     const free = (c: Pt) => !placed.some((q) => meets(textBox(c, size, len), q));
@@ -1546,8 +1554,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // S23.3: the smallest room first. It has the fewest spots, and a pond whose name goes outside on a leader then takes
   // its spot before the garden round it picks one there.
   const bySize = f.rooms.map((r, i) => [area(r.pts), i] as const).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, i]) => i);
-  for (const i of bySize) { const r = f.rooms[i]; if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * k, 7 * k); }
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * k, 6 * k); });
+  for (const i of bySize) { const r = f.rooms[i]; if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * kt, 7 * kt); }
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * kt, 6 * kt); });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   // S8.9 part 3: the opening's own stroke must cover whichever wall it is on, now that walls no longer share one width.
@@ -1557,8 +1565,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(w && h
       ? `<rect class="extra" data-ex="${i}" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
       : `<line class="extra" data-ex="${i}" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`);
-    const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * k, x.name);
-    if (showText) out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
+    const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * kt, x.name);
+    if (showText) out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * kt)}">${esc(x.name)}</text>`);
   });
 
   f.furniture.forEach((m, i) => {
@@ -1618,13 +1626,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const zone = r.kind === "zone", { at: [x, y], size, from, tag } = (zone ? zoneAt : nameAt)[i];
     // The leader runs from the room's anchor to the edge of the text box nearest it, and is drawn under the text.
     if (from) {
-      const down = toScreen([x, y])[1] > toScreen(from)[1], [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * k : 0.25 * size + 0.5 * k);
-      out.push(`<line class="lbl-leader" stroke-width="${num(k)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`);
+      const down = toScreen([x, y])[1] > toScreen(from)[1], [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * kt : 0.25 * size + 0.5 * kt);
+      out.push(`<line class="lbl-leader" stroke-width="${num(kt)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`);
     }
     // S23.1: one style for every name; the class says what it is, `--fp-under` what it sits on (a zone: the room under it).
     const cls = zone ? "lbl zone" : OUTDOOR.has(r.kind) ? "lbl out" : "lbl";
     // S23.3: a name whose every spot is covered is a tag, drawn after the icons on its own plate (see below).
-    if (tag) return void tags.push(`<rect class="lbl-tag"${up(x, y)} x="${num(x - (len(r.name) * 0.6 * size) / 2 - 2 * k)}" y="${num(y - 0.75 * size - k)}" width="${num(len(r.name) * 0.6 * size + 4 * k)}" height="${num(size + 2 * k)}" rx="${num(3 * k)}"/>`,
+    if (tag) return void tags.push(`<rect class="lbl-tag"${up(x, y)} x="${num(x - (len(r.name) * 0.6 * size) / 2 - 2 * kt)}" y="${num(y - 0.75 * size - kt)}" width="${num(len(r.name) * 0.6 * size + 4 * kt)}" height="${num(size + 2 * kt)}" rx="${num(3 * kt)}"/>`,
       `<text class="${cls} lbl-on" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" style="--fp-under:var(--fp-outline)">${esc(r.name)}</text>`);
     const under = zone ? underOf(f.rooms[roomAt(f, centroid(r.pts))] ?? { kind: "room" }) : underOf(r);
     out.push(`<text class="${cls}" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}"${under}>${esc(r.name)}</text>`);
@@ -1636,9 +1644,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!showText || !ROOM_OWNS[r.kind]) return;
     const text = [meanReading(listOf(r, "temps"), o.state), meanReading(listOf(r, "humidity"), o.state)].filter(Boolean).join(" · ");
     if (!text) return;
-    const lab = nameAt[i], base = lab?.at ?? centroid(r.pts), size = lab?.size ?? 0, vs = 10 * k;
+    const lab = nameAt[i], base = lab?.at ?? centroid(r.pts), size = lab?.size ?? 0, vs = 10 * kt;
     if (!base.every(Number.isFinite)) return;
-    const [vx, vy] = place([screenOff(base, 0, 0.25 * size + k + 0.75 * vs), screenOff(base, 0, -0.75 * size - k - 0.25 * vs)], vs, text);
+    const [vx, vy] = place([screenOff(base, 0, 0.25 * size + kt + 0.75 * vs), screenOff(base, 0, -0.75 * size - kt - 0.25 * vs)], vs, text);
     out.push(`<text class="val" data-rv="${i}" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
   });
 
@@ -1722,12 +1730,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.
       const bad = !/^-?\d+(\.\d+)?$/.test(s.state.trim()) || !Number.isFinite(Number(s.state));
       const unit = typeof s.attributes.unit_of_measurement === "string" ? `\u202F${s.attributes.unit_of_measurement}` : ""; // S23.1: never wraps
-      const text = bad ? "–" : s.state + unit, vs = 11 * k, gap = 16 * k + 2 * k; // 2k clear of the 16k disc
+      const text = bad ? "–" : s.state + unit, vs = 11 * kt, gap = 16 * k + 2 * kt; // 2kt clear of the 16k disc
       // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
       const [vx, vy] = place([screenOff(c, 0, gap + 0.75 * vs), screenOff(c, 0, -gap - 0.25 * vs), screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs)], vs, text);
       if (showText) out.push(`<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
     }
-    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * kt)}">${esc(label)}</text>`);
   });
 
   // S4.25: an unlinked appliance. Flat idle-grey icon (no on/off state), an optional per-instance colour override,
@@ -1754,7 +1762,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // plan is rotated (no counter-rotation) — found by looking at the render (npm run shots), not by the unit
     // test alone: a copy of the device's "icon stays upright" logic left `rot` with no visible effect at all.
     out.push(`<g data-u="${i}" class="dev unl${playing ? ` on dev-${u.type}` : ""}${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(String(u.type))}: ${esc(label)}</title>${icon}</g>`);
-    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * kt)}">${esc(label)}</text>`);
   });
 
   out.push(...tags); // S23.3: over every icon, under the editor's handles

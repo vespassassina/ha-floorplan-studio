@@ -2853,6 +2853,7 @@ export class FloorplanStudioCard extends LitElement {
     const body = live3d ? "" : renderFloor(f, {
       scale: this._scale(fit),
       px: this._px || undefined, // S23.2: the 11 px floor for names and discs
+      zoom: box.w > 0 ? fit.w / box.w : undefined, // S25.4: labels keep their on-screen size at any zoom
       bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - this._strip) } : undefined, // S23 review S3: names stay off the control stack
       state: this._stateForRender(),
       now: Date.now(),
