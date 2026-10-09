@@ -164,8 +164,8 @@ describe("slit: 2D", () => {
     expect(lines[0][2] as number).toBeLessThan(lines[1][2] as number);
     expect(lines[0][2] as number).toBeGreaterThan(0);
   });
-  it("a layout with no slit draws exactly what it drew before: the demo has no slit and DOOR_KINDS gained only the members slit and open", () => {
-    expect(DOOR_KINDS).toEqual(["door", "glass", "window", "sealed", "slit", "open"]);
+  it("a layout with no slit draws exactly what it drew before: the demo has no slit and DOOR_KINDS gained only the members slit, fullwindow and open", () => {
+    expect(DOOR_KINDS).toEqual(["door", "glass", "window", "sealed", "slit", "fullwindow", "open"]);
     expect(JSON.stringify(demo)).not.toContain('"slit"');
   });
 });

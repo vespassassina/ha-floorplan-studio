@@ -46,6 +46,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `rotate_switch` | follows the other controls | the two rotate buttons and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
 | `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names button (`Aa`) changes it for as long as the card is on screen |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D, and the control is hidden in 3D. See the Tilt slider, below |
+| `detail` | `auto` | how much of the plan is drawn at each zoom (Detail, below): `auto` follows the zoom, `full` always draws everything, `minimal` always draws only rooms and what needs attention. Unset or anything else is `auto`, but `full` where the viewer can neither zoom nor reach the Detail button (kiosk, or `active_list: false` with `zoom: false`). The Detail button in the Overview changes it for one viewer, and a viewer's own pick wins over this key |
 | `walls` | `cut` | how 2.5D and 3D draw wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Read in 2.5D and 3D. See Walls, below |
 | `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
 | `rotation` | `0` | degrees the plan starts turned, in steps of 45: `0`, `45`, `90` ... `315`. Any other number rounds to the nearest step; anything that is not a number is `0`. Text and icons stay upright. A viewer's own turn is remembered over this — see View memory and reset, below |
@@ -69,6 +70,12 @@ kiosk: false
 icon_size: 1
 active_list: true
 ```
+
+## Updates
+
+A state change from Home Assistant redraws only what it changes. The card builds the plan the same way every time, then compares it to
+what is on screen and rewrites the nodes that differ: the device's icon, and what hangs on it (a lamp's light, its room's glow, the
+room badge). Other icons are not replaced, so a fade or a glide runs on the same element. An update that changes nothing writes nothing.
 
 ## 2.5D view
 
@@ -120,7 +127,8 @@ side along one line) always has one height in `cut`.
 
 In 2.5D a wall face is lit by which way it looks on screen (lit, plain, dim),
 with a darker foot and a thin lit top edge; the cap on top is thinner than the
-flat wall. A door is a painted leaf (`--fp-door`) when closed. An open door or
+flat wall. A door is a painted leaf (`--fp-door`) and a glass door is glass only while closed:
+every contact sensor says off, or a lock says locked. With neither, or any other state, it is a hole. An open door or
 window, a lock left unlocked or a vibrating door is red (`--fp-open-door`) on
 the face and the frame, as its line is in 2D; closed, unavailable or without a
 sensor it is not. A cover left open on a plain door stays orange. A room whose
@@ -152,6 +160,7 @@ and taps are unchanged. It works in 2D and 2.5D.
   A fence keeps its own height; kerbs and boundary lines stay flat.
 - A door is a gap in the wall, a window is a band of glass above its sill, a
   slit window is a band of glass 60 cm high against the ceiling, a
+  full-height window is a window from the floor to 40 cm under the ceiling, a
   glass door is glass from the floor, a sealed door is a solid panel, an open
   doorway is a gap with nothing in it (while its sensor trips, a solid alert-colour band fills the gap: no dash, no pulse; in 3D a thin glass-like slab). The
   door line at floor level still shows open, closed and alert.
@@ -254,6 +263,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#lens` Lengths | no | an editing aid |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
+| `#detailSub` Detail (Auto, Full, Minimal) | yes | the Detail button beside Layers in the Overview, same three choices; kept per viewer; config `detail`. The Studio starts on Full, the card on Auto. Not in 3D |
 | `#tabLayers` Layers (hide a family) | yes | the Layers button in the Overview unfolds a text chip per family: a click hides it, Alt-click shows it alone; kept per viewer. Not in 3D |
 | Plan view, Tilt, Walls | card only | the View dropdown, the Tilt slider and the Walls select. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
 | Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
@@ -389,6 +399,23 @@ entity id, state and when it last changed, from Home Assistant's device
 registry. A device with no registry entry shows the entity id, state and last
 changed. Not in kiosk.
 
+## Detail
+
+A house with hundreds of devices is unreadable whole. The card draws less when you are far out and more as you zoom in.
+Zoom 1 is the whole floor at fit.
+
+| Level | Zoom | What is drawn |
+|---|---|---|
+| far | below 1.6 | rooms, room names and room badges; a device that is on, alerting or unavailable stays as a dot, and so does one the Overview lists under Attention (an unlocked or jammed lock, a low battery, an open contact; it wears a thin ink outline so it never reads as a lit lamp); other idle devices go |
+| mid | 1.6 to below 3.2 | device icons, room names and badges; no device names or readings |
+| near | 3.2 and up | everything, with device names and readings |
+
+The thresholds are fixed. **Detail** (a button beside Layers in the Overview) picks the mode: **Auto** follows the zoom,
+**Full** is always near, **Minimal** is always far. The config key `detail: auto | full | minimal` sets the card's
+default (anything else counts as no key; the Edit-card form has a Detail select). With no key the default is `auto`, unless the viewer could not change the level: with `kiosk`, or with `active_list: false` and `zoom: false` (no Detail button, no zoom buttons), it is `full`, so no idle device is out of reach. A key you write always wins, `detail: auto` in a kiosk included. A viewer's own pick is remembered in that
+browser and wins over the YAML; Reset view clears it. With storage blocked the pick lasts until the page closes. Live 3D
+draws every level.
+
 ## View memory and reset
 
 Two buttons in the stack, under the zoom buttons, turn the plan: **Rotate left** and
@@ -401,7 +428,7 @@ The card also has a Theme dropdown and a names-and-text toggle next to View.
 
 The card remembers, per browser, the viewer's zoom, the spot they zoomed to,
 the rotation, 2D, 2.5D or 3D, the tilt, the wall heights, the theme, whether
-text shows and which layer chips are off. Come
+text shows, which layer chips are off and the Detail mode. Come
 back, reload or switch dashboard tab and the plan is as it was left, with no
 flash of the configured look. The floor and the Overview are remembered
 as before.
@@ -416,7 +443,7 @@ still remember until the page closes. Entries written by an older card (one
 zoom and turn for the whole card) move to the floor they were saved on.
 
 - **A remembered value wins over the config** for as long as the config is the
-  same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `center`,
+  same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `detail`, `kiosk`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
 - **Reset view** (the last button of the stack, greyed while nothing differs) puts
@@ -700,6 +727,15 @@ directly, as before.
   name, state and More info only. A vacuum tap still opens its own dialog.
 - `tap_action` is not a card option and the popup does not read one.
 
+**A stack of devices.** Devices whose discs overlap on screen (centres closer than 32 px, drawn ones only) are a stack,
+and a tap on any of them does not open a popup. It fans the stack out in a ring about its centre: each member moves to
+its own spot, a fixed 44 px or more from the next, with a thin line back to its true place, a pin there, and its name
+beside it. The ring keeps its size on screen at any zoom and is moved to stay inside the view (a card turned by Rotate
+does not move it). A tap on a member in the ring does what a tap on that device does: the popup, a hold for more-info.
+**Escape**, or a press anywhere on the plan that is not a member, folds the ring; while a popup is open, the first
+Escape closes the popup and the second the ring. A lone device opens its popup at once. The Studio has no ring: it
+picks the device on top, and a device under another is reached from its Outline tab or the search.
+
 **Hover** (mouse only, not touch): over an icon, a door or an appliance a small tooltip shows the name and the state
 text, in 2D and in 3D. It goes when the pointer leaves, when you press, drag or scroll, and while a popup is open.
 The icon's own browser tooltip is replaced while it shows.
@@ -798,7 +834,7 @@ with its own colour keeps it. There are no textures and no shadows.
   nothing cost no frame at all. A fade asks for at most one frame a second.
 - **Live state in 3D (S12.5).** The same rules as 2D, from the same helpers.
   - *Lights.* A lit light device lights the room it hangs in (the 2D rule): its floor, furniture and walls take a lift toward the lamp's colour, and a soft pool sits under the lamp. The neighbouring room does not change. **At most 8 lamps get a pool**, the 8 nearest the middle of the house; every lit room is lifted whatever the count. The card says so in the view's `data-pools="shown/lit"`. Night (the sun rule) darkens the scene and leaves lit rooms bright.
-  - *Doors and windows.* A closed plain door shows its leaf; an open one (or an open cover door) swings about 70 degrees about its hinge. A window's pane is there while it is closed and gone when it is open. Sealed doors do not change. An alarmed door (vibration) stays shut and turns red.
+  - *Doors and windows.* A plain door shows its leaf only while its sensor says closed (no sensor, unavailable or unknown: a hole); an open one (or an open cover door) swings about 70 degrees about its hinge, in red. A window's pane is there while it is closed and gone when it is open; a glass door's pane follows the door rule. Sealed doors do not change. An alarmed door (vibration) stays shut and turns red.
   - *Devices.* The small balls take their colour from the `--fp-dev-*` tokens and the state, as the 2D icons do. Person, radar, vibration and the plug-power rule are the 2D helpers. A speaker that is playing has lit drivers; a TV that is on has a lit screen; a heating radiator is tinted with `--fp-heater`. A device with a body, and a sensor that belongs to a room, shows no ball.
   - *Room motion.* A room with a `motion` list gets a red edge on its floor outline: three pulses when a sensor trips, then steady, then it fades by `last_changed` and the `fade` setting, as in 2D. With reduced motion the edge is steady. The view draws frames only while a pulse plays.
   - *Labels and icons.* An HTML layer over the model shows each room's name and its sensors' mean reading, and a real icon for every visible device. The Labels and Names buttons work in 3D. A label or icon behind a wall, or behind the camera, is hidden. The layer ignores the pointer, so a drag that starts on an icon still turns the model; a tap on an icon toggles or opens more-info as in 2D.

@@ -279,3 +279,28 @@ export function attention(layout: Layout, state: StateOverlay | undefined, reg?:
   for (const it of unavailable) floors[it.floor]!.unavailable++;
   return { items, unavailable, floors };
 }
+
+/** The card's own `attention()` result and the key of the floor being drawn: what `renderFloor` reads instead of running
+ *  the rules again, so the plan, the badges and the Overview cannot differ (S25 fix, registry-aware). */
+export interface AttentionSource { floor: string; result: Attention }
+
+/** The items of `src`'s result that belong to its floor, or null without one. */
+export function attentionItemsOf(src: AttentionSource | undefined): AttentionItem[] | null {
+  if (!src || typeof src !== "object" || !src.result || !Array.isArray(src.result.items)) return null;
+  return src.result.items.filter((it) => it && it.floor === src.floor);
+}
+
+/**
+ * S25 fix B: the indexes of `f.devices` that `attention` reports on (not the merely unavailable). The plan marks them
+ * `needs-attention` so the far detail level keeps them as dots. With `src` (the card's result, run with the entity
+ * registry) it reads that; without one it runs the rule over this floor alone and without a registry, so a hub's
+ * battery sensor is not read (the editor has no registry).
+ */
+export function attentionDevices(f: Floor, state: StateOverlay | undefined, src?: AttentionSource): Set<number> {
+  const out = new Set<number>();
+  const given = attentionItemsOf(src);
+  if (given) { for (const it of given) if (it.at.what === "device") out.add(it.at.index); return out; }
+  if (!state || !f || typeof f !== "object") return out;
+  for (const it of attention({ floors: { f } } as unknown as Layout, state).items) if (it.at.what === "device") out.add(it.at.index);
+  return out;
+}

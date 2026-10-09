@@ -132,8 +132,9 @@ describe("open: 2D draws no door, still cuts the wall", () => {
 });
 
 describe("open: 2.5D is a hole through the wall with no infill", () => {
-  it("a door is a gap with a leaf; an open door is the same hole with no leaf, no glass, no frame", () => {
-    const d = deep(floor({ doors: [door("door")] as never })), o = deep(floor({ doors: [door("open")] as never }));
+  it("a door is a gap with a leaf only while its sensor says closed (S25.D1); an open doorway is the same hole with no leaf, no glass, no frame", () => {
+    const d = deep(floor({ doors: [door("door", { sensors: ["binary_sensor.c"] })] as never }), { state: state("binary_sensor.c", "off") }), o = deep(floor({ doors: [door("open")] as never }));
+    expect(deep(floor({ doors: [door("door")] as never }))).not.toContain("door-leaf"); // no sensor: a hole
     for (const h of [d, o]) {
       expect(faces(h)).toContain(box(100, 190, 210, 250)); // the header
       expect(faces(h).some((q) => q === box(100, 190, 0, 210))).toBe(false); // nothing between sill and head

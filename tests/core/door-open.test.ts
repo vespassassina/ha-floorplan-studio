@@ -74,8 +74,38 @@ describe("2.5D: a closed door is painted, an open one is a red frame", () => {
     expect(infill(draw(f, { "binary_sensor.d": st("off") }, "2.5d")).some((c) => c.startsWith("door-leaf"))).toBe(true);
     expect(infill(draw(f, { "binary_sensor.d": st("on") }, "2.5d")).some((c) => c.startsWith("opn open"))).toBe(true);
   });
+  it("S25 fix D: a door with only a lock is drawn shut while the lock is locked, a hole when unlocked or unknown", () => {
+    const f = withDoor({ sensors: undefined, locks: ["lock.d"] });
+    const lock = (v: string) => ({ "lock.d": st(v) });
+    expect(infill(draw(f, lock("locked"), "2.5d")).some((c) => c.startsWith("door-leaf"))).toBe(true);
+    expect(infill(draw(f, lock("unlocked"), "2.5d")).some((c) => c.startsWith("door-leaf"))).toBe(false);
+    expect(infill(draw(f, undefined, "2.5d")).some((c) => c.startsWith("door-leaf"))).toBe(false);
+  });
   it("2D output is unchanged by all of this: no leaf, no frame", () => {
     for (const s of ["on", "off"]) expect(draw(withDoor({}), { "binary_sensor.d": st(s) }, "2d")).not.toMatch(/door-leaf|class="opn/);
+  });
+});
+
+describe("S25.D1: in 2.5D a door and a glass door fill their gap only while their sensor says closed", () => {
+  const kinds = ["door", "glass"] as const;
+  for (const kind of kinds) {
+    it(`${kind}: no sensor, no state, off-but-unattached, unavailable, unknown = a hole; off = filled; on = the red infill`, () => {
+      const filled = (f: Floor, s?: StateOverlay) => infill(draw(f, s, "2.5d")).filter((c) => !c.includes("open")).length > 0;
+      expect(filled(withDoor({ kind, sensors: [] }), { "binary_sensor.d": st("off") }), "no sensor").toBe(false);
+      expect(filled(withDoor({ kind }), undefined), "no state at all").toBe(false);
+      expect(filled(withDoor({ kind }), {}), "state without the entity").toBe(false);
+      for (const v of ["unavailable", "unknown"]) expect(filled(withDoor({ kind }), { "binary_sensor.d": st(v) }), v).toBe(false);
+      expect(filled(withDoor({ kind }), { "binary_sensor.d": st("off") }), "off").toBe(true);
+      expect(infill(draw(withDoor({ kind }), { "binary_sensor.d": st("off") }, "2.5d"))[0]).toMatch(kind === "door" ? /^door-leaf/ : /^glass g-glass/);
+      expect(infill(draw(withDoor({ kind }), { "binary_sensor.d": st("on") }, "2.5d")).some((c) => c.includes("open")), "on").toBe(true);
+    });
+  }
+  it("every kind is decided: only door and glass wait for a sensor (finding 17)", () => {
+    const wait = new Set<string>(kinds);
+    for (const kind of DOOR_KINDS) {
+      const bare = infill(draw(withDoor({ kind, sensors: [] }), undefined, "2.5d"));
+      expect(bare.length > 0, `${kind} with no sensor`).toBe(!wait.has(kind) && kind !== "open");
+    }
   });
 });
 

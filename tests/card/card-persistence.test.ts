@@ -135,3 +135,27 @@ describe("the stored view wins over the config, and Reset view gives the config 
     expect(q(el, "svg")).not.toBeNull();
   });
 });
+
+describe("S25 fix: a stored Detail pick does not outlive a change of detail or kiosk in the config", () => {
+  const level = (el: FloorplanStudioCard) => q(el, "svg g[data-detail]")?.getAttribute("data-detail");
+  async function pickMinimal() {
+    const a = await mount();
+    await click(a, ".fp-detail-toggle");
+    await click(a, '.fp-detail[data-detail="minimal"]');
+    expect(level(a)).toBe("far");
+    a.remove(); // leaving flushes the save
+    expect(stored().some((v) => v.detail === "minimal")).toBe(true);
+  }
+  it("a viewer picked Minimal, then the card became kiosk: kiosk's default (full) shows, not the old pick", async () => {
+    await pickMinimal();
+    expect(level(await mount({ kiosk: true }))).toBe("near");
+  });
+  it("a viewer picked Minimal, then the YAML says detail: full: the YAML wins", async () => {
+    await pickMinimal();
+    expect(level(await mount({ detail: "full" }))).toBe("near");
+  });
+  it("the same config still finds the pick (the memory itself works)", async () => {
+    await pickMinimal();
+    expect(level(await mount())).toBe("far");
+  });
+});

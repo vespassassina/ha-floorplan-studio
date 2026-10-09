@@ -35,15 +35,19 @@ export function roomNameAt(f: Floor, p: Pt): string | undefined {
   return typeof name === "string" && name ? name : undefined;
 }
 
-/** The first room (layout order) that may own a device (`ROOM_OWNS`) and has door `index` on one of its edges. */
-export function doorRoomName(f: Floor, index: number): string | undefined {
-  for (const r of roomList(f)) {
+/** The index of the first room (layout order) that may own a device (`ROOM_OWNS`) and has door `index` on one of its edges, or -1. */
+export function doorRoomIndex(f: Floor, index: number): number {
+  return roomList(f).findIndex((r) => {
     const ring: unknown[] = Array.isArray(r?.pts) ? r.pts : [];
-    if (!r || !ROOM_OWNS[r.kind] || ring.length < 3 || !ring.every(finitePt) || typeof r.name !== "string" || !r.name) continue;
+    if (!r || !ROOM_OWNS[r.kind] || ring.length < 3 || !ring.every(finitePt) || typeof r.name !== "string" || !r.name) return false;
     const pts = ring as Pt[];
-    if (pts.some((a, i) => onEdge(f, a, pts[(i + 1) % pts.length]!).doors.includes(index))) return r.name;
-  }
-  return undefined;
+    return pts.some((a, i) => onEdge(f, a, pts[(i + 1) % pts.length]!).doors.includes(index));
+  });
+}
+
+/** The name of the first room (layout order) that may own a device (`ROOM_OWNS`) and has door `index` on one of its edges. */
+export function doorRoomName(f: Floor, index: number): string | undefined {
+  return roomList(f)[doorRoomIndex(f, index)]?.name;
 }
 
 /** Where a device stands: its point, or a line device's middle; null when not finite. A person moves: no stored room. */

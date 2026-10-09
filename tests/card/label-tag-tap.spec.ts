@@ -54,6 +54,11 @@ for (const width of [1280, 375]) {
     const top = await card(page).evaluate((el, p) => el.shadowRoot!.elementFromPoint(p.x, p.y)?.closest("g[data-x]")?.getAttribute("data-x") ?? null, hit!);
     expect(top, "the top element at the disc is the device's group").toBe(String(hit!.i));
     await page.mouse.click(hit!.x, hit!.y);
+    // S25.5: at 375 px these switches, 20 cm apart, overlap, so the first tap fans the stack out and the device is tapped again where the ring put it.
+    if (await card(page).locator("css=svg .spider-leader").count()) {
+      const at = await card(page).evaluate((el, i) => { const r = el.shadowRoot!.querySelector(`svg g[data-x="${i}"] .halo`)!.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, hit!.i);
+      await page.mouse.click(at.x, at.y);
+    }
     // The device's own action: a tap opens its popup (S14.2), named after it, and calls nothing.
     await expect(card(page).locator("css=.fp-pop")).toHaveAttribute("aria-label", `Switch ${devices[hit!.i].id}`);
     expect(await page.evaluate(() => (window as unknown as { __calls: string[] }).__calls)).toEqual([]);

@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
-import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { ALL_OFF_TITLE, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
+import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -115,6 +115,8 @@ export interface FloorplanStudioCardConfig {
   walls?: WallsMode;
   /** Degrees the plan starts turned, on top of the layout's own `rotate`. Rounded to a multiple of 45 and wrapped to 0..359; junk is 0. The two buttons next to the zoom buttons turn it in steps of 45 for as long as the card is on screen, and the card remembers where it was left. */
   rotation?: number;
+  /** How much of the plan is drawn at a zoom (docs/card.md, Detail): `"auto"` follows the zoom, `"full"` always draws everything, `"minimal"` always draws rooms and what needs attention. Unset (or anything else) is `"auto"`, except where the viewer can neither zoom nor reach the Detail button (kiosk, or `active_list: false` with `zoom: false`): there it is `"full"`, so no idle device is unreachable. The Detail button in the Overview changes it for one viewer, and the card remembers the pick. */
+  detail?: DetailMode;
 }
 
 /** What the View dropdown offers: the two flat plans `renderFloor` draws and the 3D model, which is a renderer of its own. */
@@ -365,10 +367,12 @@ export class FloorplanStudioCard extends LitElement {
     .fp-ov-layers:empty { display: none; }
     .fp-ov-layers { margin: 0 0 6px; }
     .fp-layer-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-    .fp-layer, .fp-layers-toggle, .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 8px; cursor: pointer; min-height: 24px; }
+    .fp-ov-detail { margin: 0 0 6px; }
+    .fp-layer, .fp-layers-toggle, .fp-detail, .fp-detail-toggle, .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 8px; cursor: pointer; min-height: 24px; }
     .fp-layer[aria-pressed="false"] { border-style: dashed; text-decoration: line-through; }
-    .fp-layers-toggle[aria-expanded="true"] { border-color: var(--fp-ink); }
-    .fp-layer:hover, .fp-layer:focus-visible, .fp-layers-toggle:hover, .fp-layers-toggle:focus-visible, .fp-layer-note button:hover, .fp-layer-note button:focus-visible { border-color: var(--fp-primary); }
+    .fp-detail[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
+    .fp-layers-toggle[aria-expanded="true"], .fp-detail-toggle[aria-expanded="true"] { border-color: var(--fp-ink); }
+    .fp-layer:hover, .fp-layer:focus-visible, .fp-layers-toggle:hover, .fp-layers-toggle:focus-visible, .fp-detail:hover, .fp-detail:focus-visible, .fp-detail-toggle:hover, .fp-detail-toggle:focus-visible, .fp-layer-note button:hover, .fp-layer-note button:focus-visible { border-color: var(--fp-primary); }
     .fp-layer-note { margin: 4px 0 0; font: 12px/1.4 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
     .fp-floor-off:disabled { opacity: 0.5; cursor: default; }
     .fp-floor-off:disabled:hover { border-color: var(--fp-idle); }
@@ -453,6 +457,10 @@ export class FloorplanStudioCard extends LitElement {
   private _offDialog: { floor: string; title: string; rows: OffRow[]; ticked: boolean[] } | null = null;
   private _offDialogWasOpen = false;
   /** S24.8: the families this viewer hid with the layer chips, kept in the view memory. */
+  /** S25.8: the detail mode this viewer picked with the Detail button; `null` leaves the card's YAML `detail` in charge. */
+  private _pickedDetail: DetailMode | null = null;
+  /** Whether the Detail choices are unfolded. Not remembered, like `_layersOpen`. */
+  private _detailOpen = false;
   private _hiddenLayers: LayerId[] = [];
   /** What search or a row tap located under a hidden family: drawn anyway (`keep`) on its floor, with a note and Show. */
   private _kept: { floor: string; t: "dev" | "furn"; i: number; fam: LayerId } | null = null;
@@ -462,6 +470,9 @@ export class FloorplanStudioCard extends LitElement {
   private _searchMemo: { layout: Layout; known: boolean; floors: string; entries: SearchEntry[] } | null = null;
   /** S14.2: the tap popup, or `null` for none. One at a time; `s.key` is who it is about, `x`/`y` where the pointer landed (client px), `opener` the
    *  focusable thing that opened it (an Active row), `confirming` the turn-OFF question, `draft` a slider's shown value until Home Assistant answers. */
+  /** S25.5: the device indices of the stack fanned out into a ring, on the floor `_spiderFloor`; null when folded. */
+  private _spider: number[] | null = null;
+  private _spiderFloor: string | null = null;
   private _popup: { s: PopupSubject; x: number; y: number; opener: Element | null; confirming: boolean; draft: { kind: SliderKind; value: number; from: number | null } | null } | null = null;
   private _popupFocusKey: string | null = null;
   private _popupReturn: Element | null = null;
@@ -565,6 +576,7 @@ export class FloorplanStudioCard extends LitElement {
   private _actions3d: HTMLElement | null = null;
   private _unbind3d: (() => void) | null = null;
   private _unbindHover: (() => void) | null = null;
+  private _unbindSpider: (() => void) | null = null;
   private _pick3dCache: { stamp: number; x: number; y: number; pick: Pick3D | null } | null = null;
 
   /** `localStorage` key for this card's panel state. Opus review finding 7: the seed used to be the layout's own
@@ -606,6 +618,9 @@ export class FloorplanStudioCard extends LitElement {
     if (c.walls !== undefined) seed.push(["walls", c.walls]);
     if (c.labels !== undefined) seed.push(["labels", c.labels]);
     if (c.names !== undefined) seed.push(["names", c.names]);
+    // A stored pick must not outlive a config that now says something else (S25 review): detail and kiosk decide the default.
+    if (c.detail !== undefined) seed.push(["detail", c.detail]);
+    if (c.kiosk !== undefined) seed.push(["kiosk", c.kiosk]);
     return `fp-view:${tag(JSON.stringify(seed))}`;
   }
 
@@ -613,7 +628,7 @@ export class FloorplanStudioCard extends LitElement {
    * config's look. Storage is untrusted: `parseStoredView` drops each bad field, and a throwing `localStorage`
    * (private mode, blocked) is nothing stored. */
   private _loadViewState(): void {
-    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedRot = null;
+    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedRot = this._pickedDetail = null;
     this._pendingView = null;
     this._shownFloor = null;
     this._floorViews = new Map();
@@ -633,6 +648,7 @@ export class FloorplanStudioCard extends LitElement {
     if (s.theme !== undefined) this._pickedTheme = s.theme as Theme;
     if (s.labels !== undefined) this._pickedLabels = s.labels;
     if (s.names !== undefined) this._pickedNames = s.names;
+    if (s.detail !== undefined) this._pickedDetail = s.detail;
     if (s.floor !== undefined) this._shownFloor = s.floor; // an unknown id is ignored by _floorKey
     this._hiddenLayers = s.layers ?? [];
     for (const [k, fv] of s.floors ?? []) this._floorViews.set(k, fv); // the live fields follow once the first render knows the floor
@@ -680,6 +696,7 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedTheme !== null) o.theme = this._pickedTheme;
     if (this._pickedLabels !== null) o.labels = this._pickedLabels;
     if (this._pickedNames !== null) o.names = this._pickedNames;
+    if (this._pickedDetail !== null) o.detail = this._pickedDetail;
     if (this._shownFloor !== null) o.floor = this._shownFloor;
     if (this._hiddenLayers.length) o.layers = this._hiddenLayers;
     this._stashFloor();
@@ -742,6 +759,7 @@ export class FloorplanStudioCard extends LitElement {
     // S24.8: ⌘K, Ctrl+K or / opens the search, under the same gate as the view keys: the card focused, else hovered.
     if (isSearchChord(ev)) { if (this._openSearch()) ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
+    if (ev.key === "Escape" && this._spider) { this._foldSpider(); ev.preventDefault(); return; }
     if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
       this._pickRoom(null);
       ev.preventDefault();
@@ -1072,6 +1090,8 @@ export class FloorplanStudioCard extends LitElement {
     this._unbindActions = null;
     this._unbindHover?.();
     this._unbindHover = null;
+    this._unbindSpider?.();
+    this._unbindSpider = null;
     this._unbindZoom?.();
     this._unbindZoom = null;
     this._actionsSvg = null;
@@ -1096,6 +1116,7 @@ export class FloorplanStudioCard extends LitElement {
       if (!v.ok) throw new Error(v.errors[0]);
       if (!Object.keys(v.layout.floors).length) throw new Error("the plan has no floors");
       this._layout = v.layout;
+      this._spider = null; // its indices belonged to the layout just replaced
       this._closePopup(); // its subject belonged to the layout just replaced
       this._hideTip();
       this._error = null;
@@ -1364,8 +1385,8 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /**
-   * S7.8: each render replaces every node under the <svg> (unsafeSVG), so `.dev-person`'s transform transition would
-   * never fire on its own: the new node starts where it ends. For each person that moved, the new node is put back
+   * S7.8: a render once replaced every node under the <svg>, so `.dev-person`'s transform transition would never fire on
+   * its own: the new node started where it ended. Since S25.6 the node is kept and only its style changes, but the FLIP stays: it also covers a full render. For each person that moved, the new node is put back
    * where the old one stood, its style is flushed, and then it is given its new place, so the class rule animates the
    * move (a FLIP). Under prefers-reduced-motion the rule has no transition and the person jumps.
    */
@@ -1408,7 +1429,7 @@ export class FloorplanStudioCard extends LitElement {
 
     const svg = this.shadowRoot?.querySelector("svg") ?? null;
     if (svg !== this._actionsSvg) {
-      // Lit keeps the <svg> element itself across renders (only unsafeSVG's content is replaced), so binding
+      // Lit keeps the <svg> element itself across renders (only its content is patched, S25.6), so binding
       // once per element, not once per render, avoids piling up duplicate listeners (S2.2 "Break it": no
       // debounce, but also no double-firing from a stale second listener).
       this._unbindActions?.();
@@ -1420,8 +1441,11 @@ export class FloorplanStudioCard extends LitElement {
             openPopup: (t, at, from) => this._openPopup(t, at, from),
             getUnlinked: (i) => this._floor()?.unlinked[i],
             getPiece: (i) => this._floor()?.furniture?.[i],
+            stack: (i) => this._tapStack(i),
           })
         : null;
+      this._unbindSpider?.();
+      this._unbindSpider = svg ? this._bindSpider(svg) : null;
       this._unbindHover?.();
       this._unbindHover = svg ? this._bindHover(svg) : null;
       this._unbindZoom?.();
@@ -1867,6 +1891,70 @@ export class FloorplanStudioCard extends LitElement {
     this._popupReturn = this._popup.opener;
     this._popup = null;
     this.requestUpdate();
+  }
+
+  // ---- S25.5: spiderfy ----------------------------------------------------------------------------------------------
+
+  private _foldSpider(): void {
+    if (!this._spider) return;
+    this._spider = null;
+    this.requestUpdate();
+  }
+
+  /** The devices whose discs overlap device `i`'s on screen and are drawn at this detail level, `i` included; fewer than two when it stands alone. */
+  private _stackOf(i: number): number[] {
+    const f = this._floor(), fit = this._fit, v = this._current(), svg = this.shadowRoot?.querySelector("svg.fp-zoomable");
+    if (!f || !fit || !v || !svg || !(this._px > 0) || !(v.w > 0)) return [];
+    const unit = 1 / (this._px * (fit.w / v.w));
+    const ids: number[] = [], spots: Pt[] = [];
+    f.devices.forEach((d, j) => {
+      const g = svg.querySelector<SVGGElement>(`g[data-x="${j}"]`);
+      if (!g || getComputedStyle(g).display === "none") return; // not drawn: layer hidden, or idle at far
+      ids.push(j);
+      spots.push("a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y]);
+    });
+    const at = ids.indexOf(i);
+    if (at < 0) return [];
+    const group = stackGroups(spots, STACK_PX * unit).find((g) => g.includes(at)) ?? [];
+    // Overlaps chain, so a packed grid is one group of dozens and its ring would be wider than the card: the tapped device and its nearest neighbours.
+    const near = group.length > SPIDER_MAX ? [...group].sort((a, b) => Math.hypot(spots[a][0] - spots[at][0], spots[a][1] - spots[at][1]) - Math.hypot(spots[b][0] - spots[at][0], spots[b][1] - spots[at][1])).slice(0, SPIDER_MAX).sort((a, b) => a - b) : group;
+    return near.map((k) => ids[k]);
+  }
+
+  /** The tap of a device icon asks here first. A tap on a stack opens its ring and is handled; a tap on a ring member, or on a lone device, is not (it acts as ever). */
+  private _tapStack(i: number): boolean {
+    if (this._spider?.includes(i)) return false;
+    const members = this._stackOf(i);
+    if (members.length < 2) return false;
+    this._closePopup();
+    this._spider = members;
+    this._spiderFloor = this._floorKey();
+    this.requestUpdate();
+    return true;
+  }
+
+  /** The ring's spots for `renderFloor`, or none. The ring is a fixed size on screen (`spiderLayout`), kept inside the view. */
+  private _spiderSpots(f: Floor, fit: View, box: View, rotate: unknown): { i: number; at: Pt }[] | undefined {
+    if (this._spider && this._spiderFloor !== this._floorKey()) this._spider = null;
+    if (!this._spider || !(this._px > 0) || !(box.w > 0)) return undefined;
+    const ids = this._spider.filter((i) => i < f.devices.length);
+    const spots = ids.map((i) => { const d = f.devices[i]; return "a" in d ? ([(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] as Pt) : ([d.x, d.y] as Pt); });
+    // A turned plan is rotated after the drawing, so its view box is not in the drawing's frame: no clamp then.
+    const room = rotate ? { x: -1e9, y: -1e9, w: 2e9, h: 2e9 } : box;
+    const at = spiderLayout(spots, 1 / (this._px * (fit.w / box.w)), room);
+    return at.length ? ids.map((i, j) => ({ i, at: at[j] })) : undefined;
+  }
+
+  /** A press on the plan that is not on a member of the open ring folds it. Escape does the same (`_onViewKey`). */
+  private _bindSpider(svg: Element): () => void {
+    const onDown = (e: Event) => {
+      if (!this._spider) return;
+      const g = (e.target as Element | null)?.closest?.("g[data-x]");
+      if (g && this._spider.includes(Number(g.getAttribute("data-x")))) return;
+      this._foldSpider();
+    };
+    svg.addEventListener("pointerdown", onDown);
+    return () => svg.removeEventListener("pointerdown", onDown);
   }
 
   private _levelOf(kind: SliderKind, a: Record<string, unknown> | undefined): number | null {
@@ -2656,8 +2744,9 @@ export class FloorplanStudioCard extends LitElement {
               ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
                 <div class="fp-filtered">${list}</div>`, scope)
               : html`<div class="fp-ov-search" data-slot="search"><fp-search .entries=${this._searchEntries()} label="Search the plan" placeholder="Search rooms and devices" @fp-pick=${(e: CustomEvent<SearchEntry>) => this._onSearchPick(e)}></fp-search></div>
-                <div class="fp-ov-scopes">${this._floorOffButton()}${this._layersToggle()}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${this._overviewAll ? "true" : "false"} @click=${() => this._toggleOverviewAll()}>All floors</button>` : nothing}</div>
+                <div class="fp-ov-scopes">${this._floorOffButton()}${this._layersToggle()}${this._detailToggle()}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${this._overviewAll ? "true" : "false"} @click=${() => this._toggleOverviewAll()}>All floors</button>` : nothing}</div>
                 <div class="fp-ov-layers" data-slot="layers">${this._layerChips()}</div>
+                ${this._detailChips()}
                 ${list}
                 <p class="fp-ov-hint">Tap a row: the plan goes to it.</p>`}
           </div>`}
@@ -2722,6 +2811,36 @@ export class FloorplanStudioCard extends LitElement {
       this._pickRoom(e.room);
       void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-room-clear")?.focus());
     }
+  }
+
+  // ---- S25.8: detail mode ---------------------------------------------------------------------------------------------------------
+
+  /** The mode on show: this viewer's pick, else the card's YAML `detail`, else the default. Config is untrusted, so junk
+   *  counts as no `detail` at all. The default is `auto` only when the viewer can change the level: the Detail button
+   *  (Overview shown, so neither `kiosk` nor `active_list: false`) or the zoom buttons and gestures (`zoom` not off, no
+   *  kiosk). Otherwise `auto` would hide idle devices at fit with no way to bring them back, so it is `full`. */
+  private _detailMode(): DetailMode {
+    if (this._pickedDetail !== null) return this._pickedDetail;
+    const set = this._config.detail;
+    if (typeof set === "string" && (DETAIL_MODES as readonly string[]).includes(set)) return set as DetailMode;
+    const canChange = this._activeListVisible() || (this._zoomMode() !== false && !this._kiosk());
+    return canChange ? "auto" : "full";
+  }
+
+  /** The Detail button beside Layers; it unfolds the three choices. Its text never changes (the title names the mode): a
+   *  longer one wraps the tools row in a 260 px sheet and the taller sheet covers devices. The pressed chip shows the mode. */
+  private _detailToggle() {
+    if (!this._floor() || this._shows3d()) return nothing;
+    const m = this._detailMode();
+    return html`<button type="button" class="fp-detail-toggle" aria-expanded=${this._detailOpen ? "true" : "false"} title=${`Detail: ${DETAIL_LABELS[m]}. How much of the plan is drawn at each zoom`} @click=${() => { this._detailOpen = !this._detailOpen; this.requestUpdate(); }}>Detail</button>`;
+  }
+
+  /** Auto, Full, Minimal as pressable chips; the active one is pressed. A pick is remembered at once. */
+  private _detailChips() {
+    if (!this._detailOpen || !this._floor() || this._shows3d()) return nothing;
+    const cur = this._detailMode();
+    const titles: Record<DetailMode, string> = { auto: "Follow the zoom: rooms far out, devices closer in", full: "Always draw everything", minimal: "Always draw only rooms and what needs attention" };
+    return html`<div class="fp-ov-detail fp-layer-chips" role="group" aria-label="Detail">${DETAIL_MODES.map((m) => html`<button type="button" class="fp-detail" data-detail=${m} aria-pressed=${m === cur ? "true" : "false"} title=${titles[m]} @click=${() => { this._pickedDetail = m; this._saveViewNow(); this.requestUpdate(); }}>${DETAIL_LABELS[m]}</button>`)}</div>`;
   }
 
   // ---- S24.8: layer chips --------------------------------------------------------------------------------------------------------
@@ -2853,6 +2972,7 @@ export class FloorplanStudioCard extends LitElement {
     const body = live3d ? "" : renderFloor(f, {
       scale: this._scale(fit),
       px: this._px || undefined, // S23.2: the 11 px floor for names and discs
+      zoom: box.w > 0 ? fit.w / box.w : undefined, // S25.4: labels keep their on-screen size at any zoom
       bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - this._strip) } : undefined, // S23 review S3: names stay off the control stack
       state: this._stateForRender(),
       now: Date.now(),
@@ -2873,12 +2993,15 @@ export class FloorplanStudioCard extends LitElement {
       around: floorsAroundKey(this._layout!, this._floorKey()!),
       selectedRoom: this._picked() ?? undefined,
       hiddenLayers: this._hiddenLayers,
+      attention: this._attention() ? { floor: this._floorKey()!, result: this._attention()! } : undefined, // the Overview's own result, with the registry
+      detail: detailFor(fit, box, this._detailMode()), // S25.2: the level for this zoom and mode
+      spider: this._spiderSpots(f, fit, box, rotate), // S25.5: a fanned stack, or nothing
       keep: this._keptHere(),
       colors: this._layout!.colors, // S19.E3: the studio's per-type colours, as the editor draws them
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
+    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" ${planPatch(body)}></svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
     return html`${this._floorChips()}${stage}${note}${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(this._viewPick())}</div>` : null}${stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
@@ -2967,14 +3090,14 @@ export class FloorplanStudioCard extends LitElement {
   /** Whether anything about the view differs from what the config alone would show: a pick, a zoom, a turn. */
   private _modified(): boolean {
     return this._turn !== null || this._view !== null || this._pendingView !== null || this._camMoved
-      || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedNames, this._pickedRot].some((v) => v !== null);
+      || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedNames, this._pickedRot, this._pickedDetail].some((v) => v !== null);
   }
 
   /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
     this._fallback3d = null;
-    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = null;
+    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedDetail = null;
     this._pendingView = null;
     this._view = null;
     this._forgetCamera();

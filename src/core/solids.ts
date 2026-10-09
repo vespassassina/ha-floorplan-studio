@@ -227,12 +227,14 @@ export function collectWalls(f: Floor, px: Proj, mode: WallsMode = "cut"): WallS
  * (an open doorway) is a gap that draws nothing closed and the red frame when its sensors say open. One
  * entry per DoorKind, so a new kind fails the test that walks DOOR_KINDS until someone decides (finding 17).
  */
-export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "void" | "glass" | "panel"> = { door: "gap", open: "void", opening: "gap", glass: "glass", window: "glass", slit: "glass", sealed: "panel" };
+export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "void" | "glass" | "panel"> = { door: "gap", open: "void", opening: "gap", glass: "glass", window: "glass", slit: "glass", fullwindow: "glass", sealed: "panel" };
+/** S25.D1 (Diego, 2026-10-09): a door and a glass door fill their gap only while a sensor says closed; with none, or any other state, they are a hole. */
+export const SHUT_KINDS: readonly string[] = ["door", "glass"];
 const has = <T extends string>(table: Record<T, unknown>, k: unknown): k is T => typeof k === "string" && Object.prototype.hasOwnProperty.call(table, k);
 
 /** A door, window or opening as the wall sees it: where it lies and between which heights, and what its sensors say. */
 interface Span { a: Pt; b: Pt; at: (ceiling: number) => { sill: number; head: number }; kind: string; live: DoorState }
-const CLOSED: DoorState = { open: false, contact: false, unlocked: false, alarm: false, cover: false };
+const CLOSED: DoorState = { open: false, contact: false, unlocked: false, alarm: false, cover: false, closed: false };
 const spansOf = (f: Floor, state: StateOverlay | undefined): Span[] => [
   ...(f.doors ?? []).filter((d) => finite(d.a) && finite(d.b)).map((d) => ({ a: d.a, b: d.b, at: (c: number) => doorSpan(d, c), kind: String(d.kind), live: doorStateOf(d, state) })),
   ...(f.openings ?? []).filter((o) => finite(o.a) && finite(o.b)).map((o) => ({ a: o.a, b: o.b, at: () => openingSpan(o), kind: "opening", live: CLOSED })),
@@ -311,10 +313,11 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
       const own = s.at(w.h), sill = Math.min(own.sill, hh), head = Math.min(own.head, hh), live = solid ? liveClass(s.live) : "";
       faces.push(block(t0, t1, sill));
       const fill = has(OPENING_FILL, s.kind) ? OPENING_FILL[s.kind] : "gap";
-      if (fill === "glass") faces.push(quad(t0, t1, sill, head, `glass g-${esc(s.kind)}${live}`));
+      const shut = SHUT_KINDS.includes(s.kind), alert = s.live.open || s.live.alarm || s.live.cover;
+      if (fill === "glass") { if (!shut || s.live.closed || alert) faces.push(quad(t0, t1, sill, head, `glass g-${esc(s.kind)}${live}`)); }
       else if (fill === "panel") faces.push(quad(t0, t1, sill, head, `ws sealed${live}`));
-      // A door: closed it is a painted leaf, open (or alarmed, or its cover open) a red frame round the gap. A plain opening is only a gap.
-      else if (s.kind !== "opening" && solid && (fill !== "void" || live)) faces.push(quad(t0, t1, sill, head, live ? `opn${live}${fill === "void" ? " band" : ""}` : "door-leaf"));
+      // A door: closed (its sensor says so) it is a painted leaf, open (or alarmed, or its cover open) a red frame round the gap; with no sensor it is a hole. A plain opening is only a gap.
+      else if (s.kind !== "opening" && solid && (live || (fill !== "void" && (!shut || s.live.closed)))) faces.push(quad(t0, t1, sill, head, live ? `opn${live}${fill === "void" ? " band" : ""}` : "door-leaf"));
       faces.push(quad(t0, t1, head, hh, wall));
       if (own.head < hh || own.sill >= hh) top(t0, t1); // a header, or a sill that reaches the top, closes the wall above the gap
       cursor = t1;

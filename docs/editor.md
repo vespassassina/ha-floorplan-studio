@@ -21,7 +21,7 @@ Left to right:
   floor.
 - **Filter: all (N)** — filters which device types are drawn, so a crowded
   plan can be thinned out while you work.
-- **Add** — every drawable thing: openings (door, open doorway, window, slit window, gap), a wall of a
+- **Add** — every drawable thing: openings (door, open doorway, window, slit window, gap; the type selector also offers Glass door and Full-height window), a wall of a
   given kind, areas (zone, structure, stairs), furniture, an unlinked
   appliance icon, and (inside Home Assistant) entities from your instance.
   Device, inside Add, is the catalog of every device on this layout, placed
@@ -29,7 +29,7 @@ Left to right:
 - **Draw** — freehand outline/room drawing mode.
 - **View** — how the plan looks while you work: the installed version at the
   top, then snap grid, measure grid, lengths, names, Show names and text,
-  Preview night, theme, Re-center and Fit to window. The editor draws the plan
+  Preview night, theme, Detail (Auto, Full or Minimal), Re-center and Fit to window. The editor draws the plan
   flat only; 2.5D (and soon 3D) is a way to look, so it lives in the card.
   Everything here that is about looking, not editing, is in the card too:
   see "Studio and card" in `card.md` for the list, and for what is left out on
@@ -264,6 +264,15 @@ opened or reset keeps the view. An older entry that names a 2.5D view, a tilt or
 a field that does not parse is dropped on its own, and a browser that blocks
 storage just forgets. A floor the host asks for (`floor` on the element) wins
 over the remembered floor. Reset view clears the zoom and turn.
+
+## Detail (zoom)
+
+View, Detail picks how much of the plan is drawn at a zoom: **Auto** follows the zoom (far out only rooms, their names
+and badges, and devices that are on, alerting or unavailable as dots; closer in the icons; closest the names and
+readings), **Full** always draws everything, **Minimal** always draws only the far level. The Studio starts on **Full**:
+while you edit, a device you just placed must not vanish at fit. The choice is kept in this browser, is not in the
+layout and is not an undo step; when it is not Full the toolbar says "Detail: Auto" or "Detail: Minimal". The levels and
+thresholds are in the card's Detail section (`card.md`).
 
 ## Rotation
 

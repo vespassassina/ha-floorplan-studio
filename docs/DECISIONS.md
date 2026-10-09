@@ -2,6 +2,131 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: Sprint 25 re-check fixes (Opus)
+
+Supersedes B and D of the entry below, and "`detail` is not part of the view-memory storage key" in the entry after it.
+- **One attention result.** `attentionDevices` ran the rule without HA's entity registry, so a Zigbee2MQTT contact whose battery is a diagnostic `sensor.*_battery` on the same device showed in the Overview and was hidden at far. `RenderOpts.attention` ({ floor, result }) carries the card's own `attention(layout, states, hass.entities)`; the `needs-attention` class and the room badges (`floorRollups`) read its items for that floor. Without it (the Studio, which has no registry) both run the rule on the floor alone, as before. The Hall badge showing 2 against 3 Overview rows had the same cause: the missing battery item.
+- **Storage key seeds `detail` and `kiosk`.** A stored pick beat a card that became kiosk (stuck at far, no button) and an edited YAML `detail`. Both join the seed when set, so changing either starts a clean memory, as docs/card.md already promised. This reverses the earlier choice that `detail` stays out of the key: the pick is still the viewer's, but a config change now outranks it.
+- **A jammed lock is not closed.** `closed` needs `!jammed` beside `!unlocked` (one locked and one jammed lock read as closed).
+- **Far attention dot outline.** `--fp-warn` equals the lit lamp colour in Solarized and the open cover colour elsewhere. The dot gets a 1.5 px `--fp-ink` outline (`vector-effect: non-scaling-stroke`, so it is 1.5 screen px at any zoom).
+- **Known gaps, not fixed:** duplicate-entity icons (one entity on two icons) and 2.5D stack detection for the spider.
+
+## 2026-10-09: Sprint 25 review fixes (A, B, C, D)
+
+Supersedes parts of the two entries below.
+- **A. The `auto` default needs a way out.** With no `detail` in the YAML and no stored pick, the card is `auto` only if the viewer can change the level: the Detail button (Overview shown: not `kiosk`, not `active_list: false`) or zoom (`zoom` not `false`, not `kiosk`; a kiosk zooms by gesture only, which is not something a wall panel is told about). Otherwise it is `full`. Reason: at fit `auto` is `far`, which hides idle devices, and a kiosk viewer had no control to bring them back. An explicit YAML `detail` and a stored pick still win, so `detail: auto` in a kiosk gives `far`. `_detailMode()` in the card.
+- **B. Far keeps what needs attention, by the one rule.** `renderFloor` marks every device `attention()` reports on with `needs-attention` (`attentionDevices`, run over the floor alone), and the far rule spares that class. Before, the rule keyed on the `on` class, so an unlocked or jammed lock and a battery-low contact (class `off`) vanished at far, when they matter most. No second copy of the rules. An idle disc has no fill, so at far the class also paints the dot in `--fp-warn` (found only by looking at the render: the first version drew an invisible dot). Cost: without `hass.entities` the render cannot read a hub's battery sensor; the device's own state and attributes decide.
+- **C. A badge keeps its screen size.** `badges()` took `k`, not the zoom-corrected `kt`, so it grew with the zoom while room names did not. Now `kt`.
+- **D. A locked lock is closed evidence.** A door is closed when every contact sensor says off or a lock says locked, and no sensor is on and no lock is unlocked. A door whose only sensor is a lock read as a hole while the lock said locked. An unlocked lock alone still does not close it.
+
+## 2026-10-09: the detail mode in the menus, the YAML key and the defaults (S25.7, S25.8, S25.9)
+
+Supersedes "Mode is `full` for now" in the entry below.
+- **Card default `auto`, Studio default `full`.** Semantic zoom is the feature, so a card with no key and no stored pick runs `auto`. The Studio stays `full` while editing: placing a device must not hide it. The Studio's constant is `DEFAULT_DETAIL` in `src/editor/state.ts`.
+- **Priority in the card:** the viewer's stored pick, then `detail:` in the YAML, then `auto`. Junk in either place is `auto` (`parseDetailMode`; the stored value is dropped by `parseStoredView`). `detail` is not part of the view-memory storage key: editing it in YAML must not start a card with a clean memory, and the pick is the viewer's, not the config's. Reset view clears the pick.
+- **Kept per viewer, every storage access in try/catch.** Studio: `floorplan-studio:detail`, like the theme; card: a `detail` field in the view memory. Blocked storage means the pick lasts for the session.
+- **Tests that click idle devices at fit.** 144 card tests would miss them under `auto`. `tests/card/harness.html` and `harness-static.html` wrap `setConfig` to add `detail: "full"` when the config has no `detail`; a test sets `window.__realDetailDefault` with `addInitScript` to see the real default (`tests/card/detail-menu.spec.ts` does). No assertion changed. Alternative rejected: editing each of 50 files.
+- **Not in 3D.** The Detail button hides in live 3D, as Layers does; 3D draws every level.
+## 2026-10-09: incremental render by diffing the markup, not by patching per device (S25.6)
+
+- The card still calls `renderFloor` for the whole plan on every `hass` update and gets markup back. `src/card/plan-patch.ts`
+  parses that markup and makes the live `<svg>` equal to it, touching only the nodes that differ: a Myers edit script over
+  each parent's children (keyed by serialisation), and an in-place rewrite of an element whose tag and attribute names match.
+  Lit's `unsafeSVG` replaced every node whenever the string changed. The card now uses a `planPatch` directive on the `<svg>`.
+- Why not a per-device render function. A device change reaches the aura, the room's glow and `on` class, the night overlay,
+  the motion edge, the rollup badge, a linked furniture piece and the 3D solids. Patching "the device's nodes" and listing
+  those dependents by hand would be a second set of rules next to `renderFloor`, and the two would drift (finding 8). The diff
+  has no list to forget: whatever the one draw path says changed is what gets written. A patched plan equals a fresh render byte
+  for byte by construction; the unit test checks every `DEVICE_TYPES` member over on, off, unavailable, alert and playing.
+- What it does not save: `renderFloor` runs in full and its string is parsed (400 devices: about 15 ms for one change, 35 ms
+  for all 400 flipped, in Chromium). It saves DOM writes, style recalculation, layout, transitions restarting and the loss of
+  node identity (a hover target, a CSS fade). If the string build itself shows up as the cost, the next step is memoising
+  per device inside `renderFloor`, with the same byte-for-byte test already in place.
+- Full replacement still happens where the structure changes: an element whose attribute names or their order differ is
+  replaced whole, as is a tag change. Layout, floor, theme, zoom, detail and layer changes are ordinary diffs against the new
+  markup, and may touch most of the plan; nothing special-cases them.
+- The Attention and Active rows are Lit templates; Lit already updates only the parts that changed. The panel's editor is not
+  affected: it never used `unsafeSVG`, and the guard on its `layout` setter is unchanged.
+
+## 2026-10-09: spiderfy, card only; the ring is `renderFloor`'s (S25.5)
+
+- **A stack is two device discs that overlap: centres under `STACK_PX` = 32 screen px, not the 44 px of the brief.** 32 is a disc's width (32k plan units, never under 29 px, S23.2); 44 would call two icons side by side a stack, and a tap on either already reaches it. The members of a ring sit at least `SPIDER_GAP_PX` = 44 px apart, which is the touch target. `stackGroups(points, minDist)` links points closer than `minDist` and chains them (a-b, b-c close, a-c far: one group); junk points and junk distances give none. `spiderLayout(spots, unit, box)` puts the members on one ring about their mean, first one straight up, radius at least 40 px, `unit` = plan units per screen px so the ring is one size at any zoom; the centre moves until the ring, 24 px above and below and up to 110 px at the sides (names), lies in the view box.
+- **One draw path.** `renderFloor` takes `spider: [{ i, at }]`. A member's icon is drawn at `at` (still `g[data-x]`, so the tap, the hover and the popup are unchanged), a leader and a pin go under every icon, the name is drawn beside it. Rules are classes (`.spider-leader`, `.spider-pin`, `.spider-lbl`, none takes a click) and a `.spider` member is exempt from the far-level hiding. The 2.5D lift of a high device is not applied to a member; the leader replaces its stem.
+- **The card decides when.** `bindDeviceActions` asks `opts.stack(i)` on a tap of a device icon, before the popup; true means the card opened a ring and nothing else happens. A tap on a member of the open ring, or on a lone device, is not a stack tap. The members are the devices that are drawn (computed `display` is not `none`), so at far an idle device does not join a stack it is not in. Escape folds (after the popup, if one is open), as does a press on the plan that is not a ring member, a floor change and a new layout. Hold is unchanged (more-info).
+- **A ring takes at most `SPIDER_MAX` = 8.** Overlaps chain, so a packed grid is one group of dozens (the Sprint 23 tag-tap test's 60 switches, 20 cm apart, at 375 px). The card then fans the tapped device and its 7 nearest neighbours. That test now taps twice at 375 px: the stack, then the device.
+- **The Studio gets no ring.** It picks the top element (`hitOf`), so the device under another is not clickable there, but the Outline tab and the search select any device by name (S24.5), and the inspector then moves it. A ring would clash with drag-to-move on the same icons. Not done; say so if a ring is wanted there too.
+- **Known limits.** A card turned by Rotate does not clamp the ring to the view (the view box is in the turned frame). The ring is not kept clear of the Active panel or the control strip.
+## 2026-10-09: detail levels in `renderFloor`; mode is `full` until the menu (S25.1, S25.2)
+
+- `detailLevel(zoom, mode)` and `detailFor(fit, shown, mode)` live in `src/core/detail.ts`. Far below 1.6, mid to 3.2, near
+  from there; zoom is the smaller of `fit.w / shown.w` and `fit.h / shown.h`, as "Copy card view" takes it. Junk zoom is
+  near; junk mode is auto. The card and the Studio both call `detailFor`.
+- `renderFloor` writes `data-detail` only when `detail` is one of the three names; with none, the markup is byte for byte as
+  before. All hiding is CSS keyed on it. Far: `.dev` that is not on, danger, unavailable or selected is `display:none`; the
+  rest lose glyph and badges and keep the disc at half size. Far and mid: `text.lbl:not([data-rl]):not(.extra + .lbl)` and
+  `text.val:not([data-rv])` go (device names and readings; room names, room readings and extras stay). That selector leans
+  on an extra's name being drawn right after the extra; S25.4 must keep it or add a class.
+- **Mode is `full` for now (`detailMode` on the card and the Studio), not `auto`.** The brief said auto. Run that way, 144
+  Playwright tests fail: at fit every idle device is gone, and the tests (and the Studio's editing) click idle devices at
+  fit. Hiding idle devices while someone places them is also a real editing problem. S25.7 and S25.8 set the mode from the
+  menu and the YAML key; the Studio's default there needs Diego's call (suggest `full` while editing).
+## 2026-10-09: labels keep their screen size at any zoom (S25.4)
+
+Supersedes "Not done here: placing labels in CSS px outright" in "an 11 px floor on the card (S23.2)". `renderFloor` takes `zoom`, the view's zoom over the whole floor at fit (1 = fit). Text uses `kt = k / zoom`: every label size, its offsets, the name search steps, the leader width and the tag plate. Absent, 1 or junk (not a finite number above 0): byte for byte as before, so no snapshot changed.
+- **Labels only; icons and discs still grow with the view.** The brief is the label. `k` stays for discs, stems, the collision radii of icons and the label anchor on a device's disc edge (16k above the centre), so the label sits on the icon's rim whatever the zoom. Moving the icons too is sprint 25's detail work, not this task.
+- **The 11 px floor moves with the view.** `nameMin` is `NAME_MIN_PX / (px * zoom)`: 11 px on screen at the view on show, not only at fit. A name shrunk to fit its room can shrink back in plan units as the room grows on screen.
+- **The card passes `fit.w / box.w` on every render.** A zoom already re-renders the card's markup (the view box is in it), so this costs no second render; names are placed again at each zoom, which is how a name that did not fit at fit can sit inside its room once zoomed. A card pinned by `zoom_level` or `center` now draws its labels at the size of the whole-floor card, no longer enlarged with the pin.
+- **The Studio passes nothing.** Its `scale` is already the live view scale (`k = 1/scale`), so its labels were screen-sized already.
+- Test: `tests/core/label-zoom.test.ts` (zoom 2.5 and 4 and 6, junk input, discs unchanged) and `card-label-zoom.spec.ts` (a real wheel to 6x, `getBoundingClientRect` heights within 0.5 px, a 320 px card for the floor); it fails with the `zoom` line removed.
+## 2026-10-09: room badges and their rollup (S25.3)
+
+- **`roomRollup(f, i, state)` / `floorRollups(f, state)`** in `src/core/rollup.ts`: lights on (`classOf`, so an unavailable lamp is not on and a bound lamp counts through its relay), motion on (icons and the room's own `motion` list, once per entity), and from `attention()` run over the one floor: `open` (kind `open`: a contact sensor, door, window or garage door standing open) and `alerts` (every other kind but unavailable, which has its own folded row there). One thing counts once per class. Alert items are put in a room by what they name (device point, piece point, `doorRoomIndex`, a new index twin of `doorRoomName`).
+- **Badges are drawn by `renderFloor` (`badges()` in the same file), hidden by CSS.** `.room-badge{display:none}`; shown only under `[data-detail="far"]` or `"mid"`. No attribute, or `near`, shows none. The rule is a class rule with `pointer-events:none` (finding 18).
+- **With `labels: false` no badge is drawn.** `labels: false` is the contract "no `<text>` at all" and a count is text. The S7.1 overprint test excludes the badge's `rb-t` text from its label count; the badge's own test checks the plate against its room's name and readout.
+- **Placement is a plain rule, not label placement**: the plate sits under the room's name (and under the readout when there is one), centred on the name's anchor. Sprint 25's CSS-px placement task (S25.4) may move it.
+## 2026-10-09: full-height window (S25.D3)
+
+Diego: "allow for full height windows (we have those) so that i do not need to use a glass door for them."
+- New `DoorKind` `fullwindow`, read "Full-height window". A window in every respect (pane, jambs, sensor, cover is curtains,
+  `--fp-window`, the pane goes when open) except its span: sill 0, head `SLIT_HEAD_GAP` (40 cm) under the ceiling of its wall,
+  210 on 250. That is a glass door's top and a window's head distance, so all three line up. Chosen over a head exactly at
+  the ceiling: a window whose head touches the ceiling reads as a gap in the slab, and Diego's slit was moved off the ceiling
+  for the same reason (2026-10-06). An own `sill` or `height` wins, clamped to the wall; on a wall lower than 40 cm the head is the wall.
+- Per-kind tables: `DOOR_KINDS`, `DOOR_DEFAULTS`, `doorSpan`, `OPENING_FILL`, `PANE_KINDS`, the palette `glass-fullwindow`, the
+  curtain rule, the Studio names and sill field. A test walks `DOOR_KINDS` so a new kind fails until it is in each.
+- No migration; a stored `glass` door stays a glass door.
+
+## 2026-10-09: the glass kind is read "Glass door" (S25.D2)
+
+Diego: "rename glass into glass doors."
+- Visible name only: the type selector, the docs and SPEC say "Glass door". The stored value stays `glass`; no migration,
+  no schema change.
+
+## 2026-10-09: doors are holes, closed doors a thin line (S25.D1)
+
+Supersedes the leaf in "no door swing arcs (S23.F6)" and the leaf and "closed door's line is quiet" in "plan symbols (S23.7)".
+Diego: "for doors do not show the open close line at all, it is ugly and pollutes the diagram. open doors are just holes and
+closed doors are closed. doors with no sensor are left open (so just a hole)."
+- `doorSymbol` returns "" for `door` and `glass`; the leaf code and the room-side probe are gone. A `door-sym` path exists
+  only for a window or slit.
+- Closed = `doorStateOf(...).closed`: the door has a `sensors` list, every sensor reads `off`, no attached lock is unlocked.
+  `on`, `unavailable`, `unknown`, `""`, a missing entry, no sensor: open, a hole. With several sensors one that is not
+  `off` makes the door a hole (a dead sensor never reads as closed); one that is `on` is the red alert.
+- The thin line is the door's existing `.door` line (wall width, `--fp-door`; `.door-glass` gives `--fp-glass`). It was `quiet`
+  (transparent) when closed; now `quiet` is the hole, and it shows when closed. No new CSS rule, so the computed-style pair
+  moved (`plan-symbols-css.spec.ts`).
+- The red alert for a sensor that reports OPEN (the dashed `.door.open` line, `door-alert` band, pulse) is unchanged: Diego
+  did not ask to remove it. Vibration and an open cover on a plain door keep theirs.
+- `sealed` and the `open` doorway keep their behaviour. Windows and slits are unchanged.
+- 2.5D (`wallSolids`): a door's leaf and a glass door's glass are drawn only when closed or alerting (`SHUT_KINDS`). 3D
+  (`view3d.applyDoors`): the leaf and the glass-door pane are visible only when closed; an alerting door (open, vibrating,
+  cover open) keeps its leaf, swung and red, as the alert. The static scene still builds the leaf and glass solids (it has
+  no state); only the viewer hides them. Known small leftover: `Picker` BLOCKS still counts a door-leaf solid as hiding a
+  label behind it, though a hole no longer has one on screen.
+- Editor: no live state, so a door is a hole there; selected, it shows its selection line.
+- Tests changed on purpose: `plan-symbols.test.ts`, `door-state.test.ts`, `open-door.test.ts`, `solids-openings.test.ts`,
+  `card-3d-live.spec.ts`, `plan-symbols-css.spec.ts`; the render snapshot lost only the three leaf paths.
+
 ## 2026-10-08: no door swing arcs (S23.F6)
 
 Supersedes the arc in "plan symbols (S23.7)" below. Diego: "the door arcs are horrendous, remove them all". A door or glass

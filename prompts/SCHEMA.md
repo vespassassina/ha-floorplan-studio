@@ -85,7 +85,7 @@ Optional: `"color": "#rrggbb"` sets a floor colour; `"texture"` (`wood-light`, `
 
 `a` and `b` are the two ends of the opening, **lying on a wall**: an edge of the outline, of a room, or of a free wall. Within about 15 cm is fine; further than that the checker calls it floating. A door is roughly 80 to 100 cm wide, a window 80 to 250.
 
-`kind`: `door`, `glass` (glass door or wide glazed opening), `window`, `sealed` (a fixed, non-opening window). `name` is required text.
+`kind`: `door`, `glass` (a glass door, glass from the floor), `fullwindow` (a floor-to-ceiling window, to 40 cm under the ceiling), `window`, `slit` (a narrow band under the ceiling), `sealed` (a fixed, non-opening window), `open` (a doorway with no leaf). `name` is required text.
 
 ## Stairs
 
@@ -123,7 +123,7 @@ All in centimetres, each a number from 0 to 1000. **Leave a field out and the de
 | floor | `slab` | 25 | floor thickness between this storey and the next |
 | room | `height` | the floor's | ceiling of one room (a lower bathroom) |
 | wall | `height` | the floor's; `fence` 110; `edge` and `boundary` 0 | a low wall |
-| door, window | `height`, `sill` | door and glass 210 from 0; window 120 from 90 | `sill` is the bottom edge above the floor, `height` the opening itself |
+| door, window | `height`, `sill` | door and glass 210 from 0; full-height window from 0 up to 40 cm under the ceiling; window 120 from 90 | `sill` is the bottom edge above the floor, `height` the opening itself |
 | opening | `height`, `sill` | 210 from 0 | same |
 | furniture, unlinked | `height` | by symbol or type | top of the piece. Leave out when tracing. |
 | device | `z` | by type | mount height. Leave out when tracing. |

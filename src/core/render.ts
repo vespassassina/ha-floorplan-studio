@@ -12,8 +12,11 @@ import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
+import { badges } from "./rollup";
+import { attentionDevices, type AttentionSource } from "./attention";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
 import { layerHides, type LayerId } from "./layers";
+import type { DetailLevel } from "./detail";
 import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
@@ -26,12 +29,21 @@ export interface RenderOpts {
   /** S24.6: the families not drawn (`layers.ts`): their devices, unlinked appliances and, for "furniture", every piece.
    *  What `selection` or `keep` names is drawn anyway. Omitted or empty, everything is drawn, byte for byte as before. */
   hiddenLayers?: readonly LayerId[];
+  /** S25.2: how much of the plan the viewer's zoom shows (`detailLevel`). Written as `data-detail` on the plan root; the stylesheet does the hiding. Omitted, nothing is written and the plan is whole, as before; anything but the three names is omitted. */
+  detail?: DetailLevel;
+  /** The card's `attention()` result (run with HA's entity registry) and the key of this floor. The needs-attention dots and the room badges read it, so they match the Overview; omitted (the editor), they run the rule on this floor without a registry. */
+  attention?: AttentionSource;
   /** S24.6: one more thing drawn even when its layer is hidden: the editor's selection, which it does not pass as `selection` for furniture and unlinked items. */
   keep?: { t: string; i: number } | null;
   /** S23.2: screen pixels per plan unit, when the host knows it (the card measures its own plan). Then no name draws
    *  under `NAME_MIN_PX` and, with it, no device disc under 28 px. Omitted (the editor, whose `scale` is already its
    *  zoom), nothing changes. */
   px?: number;
+  /** S25.4: the view's zoom over the whole floor at fit (1 = fit; the card's fit width over the width on show). A label
+   *  keeps the on-screen size and offset it has at fit, so its plan size is divided by this; icons and discs keep
+   *  growing with the view. Omitted, 1, or not a finite number above 0: nothing changes, byte for byte. The editor
+   *  never passes it: its `scale` is already the live view scale. */
+  zoom?: number;
   /** S23 review S3: the part of the drawing, in its on-screen frame (the view box's own units), a room name, its tag and
    *  its leader may use: the card passes its fit box less the strip its controls cover. A candidate that leaves it is
    *  rejected. Omitted (the editor), nothing changes. */
@@ -65,6 +77,11 @@ export interface RenderOpts {
   powerLinks?: Record<string, string>;
   /** S14.8: draw range [from, to] in watts. A plug that is on and has a readable power sensor then carries `--fp-heat` (0 idle .. 1 hot) and the stylesheet tints it. Absent, nothing is written and the markup is as before. Junk is the default range; see `heatRange`. */
   plugHeat?: [number, number];
+  /** S25.5: a stack of devices fanned out. Each entry moves device `i`'s icon to `at` (plan units), with a leader line to its true
+   *  spot, a pin there and its name beside it. The card computes the spots (`spiderLayout`) and passes them while a ring is open.
+   *  Junk entries (an unknown index, a point that is not finite), a hidden device and a device with no spot are skipped.
+   *  Omitted, nothing changes, byte for byte. */
+  spider?: ReadonlyArray<{ i: number; at: Pt }>;
   /** S24.5: the thing a search or the Outline just went to. It carries a ring (class `locate`) that pulses out from it a
    *  few times, or stands still under reduced motion; the host drops the option after a moment. Omitted, nothing is drawn. */
   locate?: { t: "dev" | "furn"; i: number } | null;
@@ -413,10 +430,11 @@ ${THEME_EXTRAS}
 /* S8.9 finding 3: a door's own stroke is now as thin as the internal wall it sits on, so this invisible twin
    (drawn first, same data-d, at the old fixed 22 cm) keeps the click target exactly as wide as it always was. */
 .door-hit{stroke:transparent;pointer-events:stroke;cursor:move}
-/* S23.7: plan symbols. A door's or window's own line is quiet while it is closed and not selected; the symbol is a 1 px
-   leaf (door, glass; no swing arc since S23.F6) or three hairlines (window, slit), red only while open, alarmed or its cover is open. */
+/* S23.7: plan symbols. A window's own line is quiet while it is not selected; its symbol is three hairlines (window, slit), red only
+   while open, alarmed or its cover is open. S25.D1: a door or glass door has no symbol and no leaf. Open or with no sensor it is a hole
+   (its own line is quiet); closed (a sensor says off, or a lock says locked, and none is open, unlocked or jammed) its own line is the thin line across the gap, in --fp-door / --fp-glass. */
 .door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
-.door-sym.k-glass{stroke:var(--fp-glass)} .door-sym.k-window,.door-sym.k-slit{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
+.door-sym.k-window,.door-sym.k-slit,.door-sym.k-fullwindow{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
 /* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
    board; opaque, a glass tint mixed into the bare room. Its jambs are window hairlines, red with the state like the symbol. */
 .win-pane{fill:color-mix(in srgb,var(--fp-window) 22%,var(--fp-room-empty));stroke:none;pointer-events:none} .win-pane.open,.win-pane.alarm{fill:color-mix(in srgb,var(--fp-open-door) 22%,var(--fp-room-empty))}
@@ -496,6 +514,12 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none} .lbl-on{pointer-events:none}
+/* S25.5: a fanned stack. Leader, pin and name never take a click (finding 18: class rules); a member stays drawn at far. */
+.spider-leader{stroke:var(--fp-text);stroke-opacity:.6;stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none} .spider-pin{fill:var(--fp-text);fill-opacity:.8;pointer-events:none}
+.spider-lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round;font-family:var(--fp-font);font-weight:500;pointer-events:none}
+/* S25.3: room badges. Hidden unless the plan root says far or mid (data-detail); never a click target (finding 18: a class rule, not an attribute). */
+.room-badge{display:none;pointer-events:none} [data-detail="far"] .room-badge,[data-detail="mid"] .room-badge{display:inline} .room-badge *{pointer-events:none}
+.rb-plate{fill:var(--fp-outline);fill-opacity:.85;stroke:none} .rb-t{fill:var(--fp-text);font-family:var(--fp-font);font-weight:500;font-variant-numeric:tabular-nums} .rb-light{fill:var(--fp-dev-light)} .rb-motion{fill:var(--fp-dev-motion)} .rb-alert{fill:var(--fp-danger)} .rb-open{fill:var(--fp-open-door)}
 /* S23.1: one label style. A name is never faded: it is the text colour mixed into the surface it sits on (--fp-under,
    set per name by renderFloor), solid, so it reads as part of the room yet clears 4.5:1 on it. 92% is the least text
    that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
@@ -503,7 +527,16 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 :host,svg{--fp-font:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,system-ui,sans-serif))}
 .lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:500} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .lbl[data-rl].out{--fp-label:color-mix(in srgb,var(--fp-text-out,var(--fp-text)) 92%,var(--fp-under,var(--fp-room-empty)))} .val{font-variant-numeric:tabular-nums}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
-.sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
+.sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}
+/* S25.2: semantic zoom. renderFloor writes data-detail on the plan root (far, mid or near; none is near); every level rule is here, so the editor and
+   the card cannot differ. Far: a device that is off or idle is not drawn; one that is on, alerting (class danger, or needs-attention: what the Overview lists) or unavailable keeps its disc as a half-size dot
+   (the glyph and the badges go). Far and mid: a device's name and reading go; a room's name and reading (data-rl, data-rv) and an extra's name stay.
+   The selected device is always whole. */
+[data-detail="far"] .dev:not(.on):not(.danger):not(.unavailable):not(.needs-attention):not(.sel):not(.spider),[data-detail="far"] .heater.off,[data-detail="far"] .stem,[data-detail="far"] .stem-top{display:none}
+[data-detail="far"] .dev:not(.sel):not(.spider) path:not(.cone),[data-detail="far"] .dev:not(.sel):not(.spider) .gone-mark,[data-detail="far"] .dev:not(.sel):not(.spider) .away-mark{display:none}
+[data-detail="far"] .dev:not(.sel):not(.spider) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.5)}
+[data-detail="far"] .dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) .halo{fill:var(--fp-warn);fill-opacity:1;stroke:var(--fp-ink);stroke-opacity:1;stroke-width:1.5px;vector-effect:non-scaling-stroke}
+[data-detail="far"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="mid"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="far"] text.val:not([data-rv]),[data-detail="mid"] text.val:not([data-rv]){display:none}`;
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -685,35 +718,20 @@ export function roomAt(f: Floor, p: Pt): number {
   return best;
 }
 
-/** S23.7: the kinds drawn as a plan symbol, and so cut out of the wall like an opening. Sealed keeps its dashed line; an
- *  open doorway is already cut and draws nothing. */
-const SWING_KINDS: readonly string[] = ["door", "glass"], PANE_KINDS: readonly string[] = ["window", "slit"];
+/** S23.7: the kinds cut out of the wall like an opening. SWING_KINDS (door, glass door) draw no symbol: S25.D1 a hole, or a thin line when closed.
+ *  Sealed keeps its dashed line; an open doorway is already cut and draws nothing. */
+const SWING_KINDS: readonly string[] = ["door", "glass"], PANE_KINDS: readonly string[] = ["window", "slit", "fullwindow"];
 const OUTDOOR_KINDS: readonly RoomKind[] = ["garden", "terrace", "pavement", "water"];
-const ringArea = (p: Pt[]) => Math.abs(p.reduce((n, q, k) => n + q[0] * p[(k + 1) % p.length][1] - p[(k + 1) % p.length][0] * q[1], 0)) / 2;
 
-/** S23.7: the `d` of a door's or window's plan symbol, or "" when it has none (sealed, open, a zero-length or broken door).
- *  A door: a leaf from the hinge `a`, square to the wall and |ab| long, on the room side: the side whose probe point is in
- *  an indoor room, else in any room, else the smaller room, else the left of a to b. No swing arc: S23.F6 dropped it
- *  (Diego, 2026-10-08). A window: three hairlines along the opening, at the wall's two faces and its middle; a slit's span
- *  its narrower band (SLIT_BAND). */
+/** S23.7: the `d` of a window's plan symbol: three hairlines along the opening, at the wall's two faces and its middle; a
+ *  slit's span its narrower band (SLIT_BAND). "" for every other kind and for a zero-length or broken door. A door and a glass
+ *  door have none (S25.D1, Diego 2026-10-09): no swing arc since S23.F6, no leaf either; open they are a hole, closed a thin line. */
 function doorSymbol(f: Floor, kind: unknown, a: Pt, b: Pt): string {
   const len = dist(a, b);
-  if (!(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite)) return "";
+  if (!(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite) || !PANE_KINDS.includes(kind as string)) return "";
   const u: Pt = [(b[0] - a[0]) / len, (b[1] - a[1]) / len], left: Pt = [u[1], -u[0]];
-  if (PANE_KINDS.includes(kind as string)) {
-    const half = (wallWidthAt(f, a, b) * (kind === "slit" ? SLIT_BAND : 1)) / 2;
-    return [-half, 0, half].map((t) => `M${num(a[0] + left[0] * t)} ${num(a[1] + left[1] * t)}L${num(b[0] + left[0] * t)} ${num(b[1] + left[1] * t)}`).join("");
-  }
-  if (!SWING_KINDS.includes(kind as string)) return "";
-  const m = mid(a, b);
-  const sideOf = (n: Pt) => {
-    const i = roomAt(f, [m[0] + n[0] * len / 2, m[1] + n[1] * len / 2]), r = i < 0 ? null : f.rooms[i];
-    return { indoor: r?.kind === "room", any: !!r, area: r ? ringArea(r.pts) : Infinity };
-  };
-  const right: Pt = [-left[0], -left[1]], L = sideOf(left), R = sideOf(right);
-  const goRight = R.indoor !== L.indoor ? R.indoor : R.any !== L.any ? R.any : R.area < L.area;
-  const n = goRight ? right : left;
-  return `M${num(a[0])} ${num(a[1])}L${num(a[0] + n[0] * len)} ${num(a[1] + n[1] * len)}`;
+  const half = (wallWidthAt(f, a, b) * (kind === "slit" ? SLIT_BAND : 1)) / 2;
+  return [-half, 0, half].map((t) => `M${num(a[0] + left[0] * t)} ${num(a[1] + left[1] * t)}L${num(b[0] + left[0] * t)} ${num(b[1] + left[1] * t)}`).join("");
 }
 
 /** S1 (Opus review of S23): a window's pane and jambs, or null for any other kind. The wall is cut wider than the room
@@ -1135,7 +1153,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // S23.2: a floor in screen space. k never lets a 12k name fall under 11 px, so a 32k disc never falls under 29 px.
   // One factor for text and discs keeps the plan's proportions; full CSS-px placement is sprint 25.
   const screenPx = typeof o.px === "number" && Number.isFinite(o.px) && o.px > 0 ? o.px : 0;
-  const k = Math.max(1 / (o.scale || 1), screenPx ? NAME_MIN_PX / (12 * screenPx) : 0), nameMin = screenPx ? NAME_MIN_PX / screenPx : 0;
+  const k = Math.max(1 / (o.scale || 1), screenPx ? NAME_MIN_PX / (12 * screenPx) : 0);
+  // S25.4: `kt` is k for text: sizes and offsets of a label, divided by the view's zoom so they stay put on screen.
+  const zoomV = typeof o.zoom === "number" && Number.isFinite(o.zoom) && o.zoom > 0 ? o.zoom : 1, kt = k / zoomV;
+  const nameMin = screenPx ? NAME_MIN_PX / (screenPx * zoomV) : 0;
   const turn = o.rotate && o.rotate.deg % 360 ? o.rotate : null, planDeg = turn ? turn.deg : 0;
   /** Attribute that keeps a text upright in a turned plan: turns it back about its own anchor. */
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
@@ -1385,7 +1406,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const inPoly = inside, centroid = polyCentre;
   /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way. An extra's
    *  name; a room's name has its own search (placeName). */
-  const rows = (a: Pt): Pt[] => [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * k));
+  const rows = (a: Pt): Pt[] => [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * kt));
   const disc = (c: Pt, r: number) => { const [x, y] = toScreen(c); placed.push([x - r, y - r, 2 * r, 2 * r]); };
   // S7.8: a person whose room sensor names a room stands at that room's centroid, the same point its name is tried at
   // first. Several in one room stand on a ring round it, in device order, far enough apart that their 16k discs never
@@ -1470,7 +1491,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!c0.every(Number.isFinite)) { const size = base; return { at: place(rows(c0), size, r.name), size }; }
     const clear = (p: Pt) => inPoly(p, r.pts) && !inner.some((q) => inPoly(p, q));
     // A box fits when its corners and edge midpoints, 2k inside it, are all in the room: a room is a polygon, not a box.
-    const ring = ([x, y, w, h]: Box, d = 2 * k): Pt[] => [[x - d, y - d], [x + w + d, y - d], [x + w + d, y + h + d], [x - d, y + h + d], [x + w / 2, y - d], [x + w / 2, y + h + d], [x - d, y + h / 2], [x + w + d, y + h / 2]];
+    const ring = ([x, y, w, h]: Box, d = 2 * kt): Pt[] => [[x - d, y - d], [x + w + d, y - d], [x + w + d, y + h + d], [x - d, y + h + d], [x + w / 2, y - d], [x + w / 2, y + h + d], [x - d, y + h / 2], [x + w + d, y + h / 2]];
     const fits = (c: Pt, size: number) => inB(textBox(c, size, len)) && ring(textBox(c, size, len)).every((p) => clear(fromScreen(p)));
     const sizes: number[] = [];
     for (let s = base; s > floor * 1.001; s *= 0.85) sizes.push(s);
@@ -1478,7 +1499,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const best: { tag: Label | null } = { tag: null }; // the largest covered spot that fits, for a tag
     const search = (a: Pt): Label | null => {
       for (const size of sizes) for (const [dx, dy] of OFFSETS) {
-        const c = screenOff(a, dx * k, dy * k);
+        const c = screenOff(a, dx * kt, dy * kt);
         if (!fits(c, size)) continue;
         const box = textBox(c, size, len);
         if (!placed.some((q) => meets(box, q))) { placed.push(box); words.add(box); return { at: c, size }; }
@@ -1498,7 +1519,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (OUTDOOR.has(r.kind)) {
       const owned = f.rooms.filter((q) => q !== r && q.kind !== "zone" && Array.isArray(q.pts) && q.pts.length > 2).map((q) => q.pts);
       const bare = (p: Pt) => clear(p) || !owned.some((q) => inPoly(p, q));
-      const sx = r.pts.map((p) => toScreen(p)[0]), sy = r.pts.map((p) => toScreen(p)[1]), m = GAP * k, st = 8 * k;
+      const sx = r.pts.map((p) => toScreen(p)[0]), sy = r.pts.map((p) => toScreen(p)[1]), m = GAP * kt, st = 8 * kt;
       const [x0, y0, x1, y1] = [Math.min(...sx), Math.min(...sy), Math.max(...sx), Math.max(...sy)], [ax, ay] = toScreen(anchor);
       for (const size of sizes) {
         // Screen points for the baseline middle: under and over the area's box, slid across in 8k steps while the name
@@ -1531,7 +1552,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const [x, y, w, h] = textBox(c, size, len), dx = Math.max(B.x - x, 0) + Math.min(B.x + B.w - (x + w), 0), dy = Math.max(B.y - y, 0) + Math.min(B.y + B.h - (y + h), 0);
       return dx || dy ? screenOff(c, dx, dy) : c;
     };
-    const above = intoB(screenOff(from, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay)), below = intoB(screenOff(from, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay));
+    const above = intoB(screenOff(from, 0, Math.min(...ys) - GAP * kt - 0.25 * size - ay)), below = intoB(screenOff(from, 0, Math.max(...ys) + GAP * kt + 0.75 * size - ay));
     // The leader is one more thing that must not run across another text: its own thin box counts too.
     const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(from), [cx, cy] = toScreen(c); return [Math.min(x, cx) - k / 2, Math.min(y, cy), Math.abs(cx - x) + k, Math.abs(cy - y)]; };
     const free = (c: Pt) => !placed.some((q) => meets(textBox(c, size, len), q));
@@ -1546,8 +1567,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // S23.3: the smallest room first. It has the fewest spots, and a pond whose name goes outside on a leader then takes
   // its spot before the garden round it picks one there.
   const bySize = f.rooms.map((r, i) => [area(r.pts), i] as const).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, i]) => i);
-  for (const i of bySize) { const r = f.rooms[i]; if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * k, 7 * k); }
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * k, 6 * k); });
+  for (const i of bySize) { const r = f.rooms[i]; if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * kt, 7 * kt); }
+  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * kt, 6 * kt); });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   // S8.9 part 3: the opening's own stroke must cover whichever wall it is on, now that walls no longer share one width.
@@ -1557,8 +1578,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(w && h
       ? `<rect class="extra" data-ex="${i}" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
       : `<line class="extra" data-ex="${i}" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`);
-    const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * k, x.name);
-    if (showText) out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
+    const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * kt, x.name);
+    if (showText) out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * kt)}">${esc(x.name)}</text>`);
   });
 
   f.furniture.forEach((m, i) => {
@@ -1581,11 +1602,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S10.3: a triggered vibration sensor gives the door the same red and the same pulsing alert line as an open
     // contact, but solid, not dashed - dashed keeps meaning "open" alone. Both at once: dashed (open wins the
     // dash, class order below puts .open after .alarm so its dasharray is the one asserted last), red, one line.
-    const { open, alarm: vibrating, cover: coverOpen } = doorStateOf(d, o.state);
+    const { open, alarm: vibrating, cover: coverOpen, closed } = doorStateOf(d, o.state);
     const sel = o.selection?.t === "door" && o.selection.i === i, doorway = d.kind === "open";
     // S14.5: a tripped doorway is a solid alert band (`band`: no dash, no pulse), not an open door's look.
     const tripped = doorway && (open || vibrating || coverOpen);
-    const cls = ["door", `door-${esc(String(d.kind))}`, d.kind === "slit" ? "door-window" : "", vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : "", tripped ? "band" : ""].filter(Boolean).join(" ");
+    const cls = ["door", `door-${esc(String(d.kind))}`, d.kind === "slit" || d.kind === "fullwindow" ? "door-window" : "", vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : "", tripped ? "band" : ""].filter(Boolean).join(" ");
     // 2.5D: the wall is already cut open above, so the floor line is only a threshold, thin enough to see through the gap.
     // It keeps every class (open, alarm, cover-open) and its alert line, so a door's state still shows.
     // A slit window is the window mark drawn as a thin band (SLIT_BAND of the wall), so it reads as a slit at a glance.
@@ -1602,7 +1623,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (doorway && !sel && !open && !vibrating && !coverOpen) return;
     // S23.7: a door or window is its symbol (below); its own line stays for the title, the selection and the alert look, and
     // paints nothing while the door is closed and not selected (`quiet`).
-    const sym = doorSymbol(f, d.kind, d.a, d.b), quiet = sym && !sel && !open && !vibrating && !coverOpen;
+    // S25.D1: a door or glass door is closed (its line shows) only when a sensor says off or a lock says locked, and no lock is unlocked or jammed (`doorStateOf`); otherwise it is a hole and its line is quiet.
+    const sym = doorSymbol(f, d.kind, d.a, d.b), swing = SWING_KINDS.includes(d.kind), quiet = (sym || (swing && !closed)) && !sel && !open && !vibrating && !coverOpen;
     const state = `${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}`, pane = x25 ? null : windowPane(f, d.kind, d.a, d.b);
     // S1: a window's pane goes under its own line and the hairlines; the jambs go on top. Not in 2.5D: the raised wall
     // carries the glass on its face and hides the floor-level cut.
@@ -1618,13 +1640,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const zone = r.kind === "zone", { at: [x, y], size, from, tag } = (zone ? zoneAt : nameAt)[i];
     // The leader runs from the room's anchor to the edge of the text box nearest it, and is drawn under the text.
     if (from) {
-      const down = toScreen([x, y])[1] > toScreen(from)[1], [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * k : 0.25 * size + 0.5 * k);
-      out.push(`<line class="lbl-leader" stroke-width="${num(k)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`);
+      const down = toScreen([x, y])[1] > toScreen(from)[1], [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * kt : 0.25 * size + 0.5 * kt);
+      out.push(`<line class="lbl-leader" stroke-width="${num(kt)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`);
     }
     // S23.1: one style for every name; the class says what it is, `--fp-under` what it sits on (a zone: the room under it).
     const cls = zone ? "lbl zone" : OUTDOOR.has(r.kind) ? "lbl out" : "lbl";
     // S23.3: a name whose every spot is covered is a tag, drawn after the icons on its own plate (see below).
-    if (tag) return void tags.push(`<rect class="lbl-tag"${up(x, y)} x="${num(x - (len(r.name) * 0.6 * size) / 2 - 2 * k)}" y="${num(y - 0.75 * size - k)}" width="${num(len(r.name) * 0.6 * size + 4 * k)}" height="${num(size + 2 * k)}" rx="${num(3 * k)}"/>`,
+    if (tag) return void tags.push(`<rect class="lbl-tag"${up(x, y)} x="${num(x - (len(r.name) * 0.6 * size) / 2 - 2 * kt)}" y="${num(y - 0.75 * size - kt)}" width="${num(len(r.name) * 0.6 * size + 4 * kt)}" height="${num(size + 2 * kt)}" rx="${num(3 * kt)}"/>`,
       `<text class="${cls} lbl-on" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" style="--fp-under:var(--fp-outline)">${esc(r.name)}</text>`);
     const under = zone ? underOf(f.rooms[roomAt(f, centroid(r.pts))] ?? { kind: "room" }) : underOf(r);
     out.push(`<text class="${cls}" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}"${under}>${esc(r.name)}</text>`);
@@ -1636,12 +1658,28 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!showText || !ROOM_OWNS[r.kind]) return;
     const text = [meanReading(listOf(r, "temps"), o.state), meanReading(listOf(r, "humidity"), o.state)].filter(Boolean).join(" · ");
     if (!text) return;
-    const lab = nameAt[i], base = lab?.at ?? centroid(r.pts), size = lab?.size ?? 0, vs = 10 * k;
+    const lab = nameAt[i], base = lab?.at ?? centroid(r.pts), size = lab?.size ?? 0, vs = 10 * kt;
     if (!base.every(Number.isFinite)) return;
-    const [vx, vy] = place([screenOff(base, 0, 0.25 * size + k + 0.75 * vs), screenOff(base, 0, -0.75 * size - k - 0.25 * vs)], vs, text);
+    const [vx, vy] = place([screenOff(base, 0, 0.25 * size + kt + 0.75 * vs), screenOff(base, 0, -0.75 * size - kt - 0.25 * vs)], vs, text);
     out.push(`<text class="val" data-rv="${i}" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
   });
 
+  // S25.5: a fanned stack. Leaders and pins first, under every icon; the icons move in the loop below.
+  const spiderAt = new Map<number, Pt>();
+  const ringOut: string[] = []; // drawn last of all, so nothing else (a later device, an appliance, a name) ever covers a ring member
+  if (Array.isArray(o.spider))
+    for (const e of o.spider) {
+      const d = e && Number.isInteger(e.i) ? f.devices[e.i] : undefined;
+      if (!d || !Array.isArray(e.at) || e.at.length !== 2 || !e.at.every((v: unknown) => typeof v === "number" && Number.isFinite(v))) continue;
+      if (layerHides(o.hiddenLayers, "dev", e.i, d.type, o.selection, o.keep) || iconHidden(d)) continue;
+      const from = centreOf(d, e.i);
+      if (!from.every(Number.isFinite)) continue;
+      spiderAt.set(e.i, e.at);
+      ringOut.push(`<line class="spider-leader" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(e.at[0])}" y2="${num(e.at[1])}"/><circle class="spider-pin" cx="${num(from[0])}" cy="${num(from[1])}" r="${num(3 * k)}"/>`);
+    }
+
+  const needs = attentionDevices(f, o.state, o.attention); // S25 fix B: what the Overview's Attention lists stays a dot at far
+  const ringCx = spiderAt.size ? [...spiderAt.values()].reduce((a, p) => a + p[0], 0) / spiderAt.size : 0;
   f.devices.forEach((d, i) => {
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
@@ -1649,7 +1687,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const floorAt = centreOf(d, i);
     if (!floorAt.every(Number.isFinite)) return;
     // `c` is where the icon and all it carries are drawn; `floorAt` only the pin, the stem, the room test and a radar's targets.
-    const c = iconAt(d, floorAt);
+    const sp = spiderAt.get(i);
+    const c = sp ?? iconAt(d, floorAt);
     const person = d.type === "person";
     const { cls, style: styleParts, icon, s } = deviceMarkup(f, d, o, now, floorAt);
     // S7.8: a person's position is a CSS transform, so .dev-person's transition can glide it to a new room. A person
@@ -1693,12 +1732,16 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // 2.5D: a device mounted high (a ceiling light, a camera, a thermostat) is drawn where the real thing hangs (`c`,
     // lifted), with its aura, cone, rings and text. A small pin stays on the floor under it and a thin stem joins the
     // two. The tap target is the lifted icon. A person walks about and a heater bar lies on the floor: neither lifts.
-    if (c !== floorAt) out.push(`<line class="stem" x1="${num(floorAt[0])}" y1="${num(floorAt[1])}" x2="${num(c[0])}" y2="${num(c[1])}"/><circle class="stem-top" cx="${num(floorAt[0])}" cy="${num(floorAt[1])}" r="${num(3 * k)}"/>`);
+    if (c !== floorAt && !sp) out.push(`<line class="stem" x1="${num(floorAt[0])}" y1="${num(floorAt[1])}" x2="${num(c[0])}" y2="${num(c[1])}"/><circle class="stem-top" cx="${num(floorAt[0])}" cy="${num(floorAt[1])}" r="${num(3 * k)}"/>`);
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
     const dim = o.dimmed?.has(d.entity) ? " dim" : "";
-    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}${o.locate?.t === "dev" && o.locate.i === i ? `<circle class="locate" cx="12" cy="12" r="16"/>` : ""}</g>`);
+    (sp ? ringOut : out).push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${sp ? " spider" : ""}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${needs.has(i) ? " needs-attention" : ""}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}${o.locate?.t === "dev" && o.locate.i === i ? `<circle class="locate" cx="12" cy="12" r="16"/>` : ""}</g>`);
+    if (sp && showText) { // S25.5: the member's name, outward of the ring's side so it never covers the next member
+      const right = sp[0] >= ringCx, lx = sp[0] + (right ? 1 : -1) * 20 * k, ly = sp[1] + 4 * kt;
+      ringOut.push(`<text class="spider-lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="${right ? "start" : "end"}" font-size="${num(12 * kt)}">${esc(label)}</text>`);
+    }
     // S7.9: a radar's targets. Each pair's x (mm, right of the sensor) and y (mm, ahead of it) is turned by the
     // sensor's own `rot` the same way a plan point turns (SVG's own clockwise convention: rot 0 keeps "ahead" up),
     // converted to centimetres, then added to the sensor's own position — the world point a target dot is drawn
@@ -1722,12 +1765,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.
       const bad = !/^-?\d+(\.\d+)?$/.test(s.state.trim()) || !Number.isFinite(Number(s.state));
       const unit = typeof s.attributes.unit_of_measurement === "string" ? `\u202F${s.attributes.unit_of_measurement}` : ""; // S23.1: never wraps
-      const text = bad ? "–" : s.state + unit, vs = 11 * k, gap = 16 * k + 2 * k; // 2k clear of the 16k disc
+      const text = bad ? "–" : s.state + unit, vs = 11 * kt, gap = 16 * k + 2 * kt; // 2kt clear of the 16k disc
       // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
       const [vx, vy] = place([screenOff(c, 0, gap + 0.75 * vs), screenOff(c, 0, -gap - 0.25 * vs), screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs)], vs, text);
       if (showText) out.push(`<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
     }
-    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * kt)}">${esc(label)}</text>`);
   });
 
   // S4.25: an unlinked appliance. Flat idle-grey icon (no on/off state), an optional per-instance colour override,
@@ -1754,12 +1797,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // plan is rotated (no counter-rotation) — found by looking at the render (npm run shots), not by the unit
     // test alone: a copy of the device's "icon stays upright" logic left `rot` with no visible effect at all.
     out.push(`<g data-u="${i}" class="dev unl${playing ? ` on dev-${u.type}` : ""}${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(String(u.type))}: ${esc(label)}</title>${icon}</g>`);
-    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * kt)}">${esc(label)}</text>`);
   });
 
   out.push(...tags); // S23.3: over every icon, under the editor's handles
+  if (showText) out.push(...badges({ f, state: o.state, attn: o.attention, k: kt, up, screenOff, anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 } })); // S25.3: shown by CSS at far and mid only; text, so none with labels off
   if (o.editor)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
+  out.push(...ringOut);
   const body = out.join("\n");
   const turned = turn ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>` : body;
   // Custom properties inherit, so one style on a group reaches every device. Only known types and strict #rrggbb go in: the value ends up in an attribute.
@@ -1768,6 +1813,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // A plan-level theme, so one plan can differ from its host. No o.theme writes nothing and inherits the host's. o.theme is checked against THEMES:
   // it lands in an attribute, and a caller's stray string must not.
   const night = o.night ? ' class="night"' : "";
-  if (!o.theme || !(THEMES as readonly string[]).includes(o.theme)) return night ? `<g${night}>${coloured}</g>` : coloured;
-  return `<g data-theme="${o.theme}"${o.theme === "ha" && o.dark ? ' data-mode="dark"' : ""}${night}>${coloured}</g>`;
+  const detail = o.detail === "far" || o.detail === "mid" || o.detail === "near" ? ` data-detail="${o.detail}"` : ""; // S25.2: three literals, nothing else reaches the attribute
+  if (!o.theme || !(THEMES as readonly string[]).includes(o.theme)) return night || detail ? `<g${night}${detail}>${coloured}</g>` : coloured;
+  return `<g data-theme="${o.theme}"${o.theme === "ha" && o.dark ? ' data-mode="dark"' : ""}${night}${detail}>${coloured}</g>`;
 }

@@ -13,7 +13,7 @@ describe("palette roles", () => {
     "open-door", "door-band", "door-cover", "body-heating", "screen-on", "driver-off", "driver-on", "motion", "motion-radar", "lamp", "backdrop", // S12.5: what the live state paints
     ...ROOM_KINDS.filter((k) => k !== "zone" && k !== "structure").map((k) => `room-${k}`),
     ...WALL_KINDS.map((k) => `wall-${k}`),
-    ...["door", "glass", "window", "sealed", "opening"].map((k) => `glass-${k}`),
+    ...["door", "glass", "window", "slit", "fullwindow", "sealed", "opening"].map((k) => `glass-${k}`),
     ...FURNITURE_SYMBOLS.map((s) => `furniture-${s}`),
     ...DEVICE_TYPES.map((t) => `device-${t}`),
   ];

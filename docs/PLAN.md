@@ -2798,35 +2798,40 @@ room names, badges. Near: everything, with device labels and readings. Mode `ful
 far; `auto` follows zoom. Thresholds are constants in core, not settings.
 
 Wave 1, core (parallel):
-- [ ] S25.1 `detailLevel(zoom, mode)` in `src/core/detail.ts`: returns `far | mid | near`; unknown or non-finite input
+- [x] S25.1 `detailLevel(zoom, mode)` in `src/core/detail.ts`: returns `far | mid | near`; unknown or non-finite input
       falls back to `near` (finding 1). Exported. Test: the three bands at their edges (1.59, 1.6, 3.19, 3.2), the
       modes pin, junk input.
-- [ ] S25.2 `renderFloor` takes `detail` and writes `data-detail` on the plan root; every level rule is CSS keyed on it,
+- [x] S25.2 `renderFloor` takes `detail` and writes `data-detail` on the plan root; every level rule is CSS keyed on it,
       so editor and card cannot differ. Test: a render per level; a `getComputedStyle` pair per rule (far hides an off
       lamp's icon and keeps an on lamp's dot; mid hides device labels; near hides nothing); an iteration over
       `DEVICE_TYPES` so a new type has to say what it does at far.
-- [ ] S25.3 Room badges with rollups. `roomRollup(room, states)` in core: counts of lights on, alerts, open doors and
+- [x] S25.3 Room badges with rollups. `roomRollup(room, states)` in core: counts of lights on, alerts, open doors and
       windows, motion; a badge per room drawn by `renderFloor` at far and mid, hidden at near. Test: counts for a room
       with mixed states; the badge text; an empty room has no badge; the escape payload `"><script>` in a name.
-- [ ] S25.4 Labels placed in CSS px. A label keeps its on-screen size and offset at any zoom; placement is computed
+- [x] S25.4 Labels placed in CSS px. A label keeps its on-screen size and offset at any zoom; placement is computed
       from the view scale, not from cm. Test: at zoom 1 and 6 the label's `getBoundingClientRect` height is the same
       (asymmetric values), and 11 px floor holds.
 
 Wave 2, view and behaviour (after wave 1):
-- [ ] S25.5 Spiderfy. Devices closer than a touch target fan out on tap into a ring with their labels; Escape or a tap
+- [x] S25.5 Spiderfy. Devices closer than a touch target fan out on tap into a ring with their labels; Escape or a tap
       elsewhere folds them. Test: two stacked lamps, a real click on the stack opens the ring, a real click on one
       acts on that one; Escape folds.
-- [ ] S25.6 Incremental render. A state update for one entity rewrites only that device's nodes. Test: a mutation
+- [x] S25.6 Incremental render. A state update for one entity rewrites only that device's nodes. Test: a mutation
       observer on the plan root sees changes under one device group only after one `hass` update, and none for an
       unrelated entity; the full render still happens on layout change.
-- [ ] S25.7 Studio View menu: a Detail group with Auto, Full, Minimal; kept in the browser, per viewer; the toolbar shows
+- [x] S25.7 Studio View menu: a Detail group with Auto, Full, Minimal; kept in the browser, per viewer; the toolbar shows
       the pinned mode when it is not Auto. Test: real clicks, the plan root's `data-detail` follows, survives reload,
       one undo stack untouched.
-- [ ] S25.8 Card: the same control (a Detail button beside Layers in the chrome), same storage rule, and `detail:
+- [x] S25.8 Card: the same control (a Detail button beside Layers in the chrome), same storage rule, and `detail:
       auto|full|minimal` in the card YAML as the default (untrusted config: bad value falls back to `auto`). The card
       config editor offers it. Test: real clicks; YAML default; a stored viewer choice wins over YAML.
-- [ ] S25.9 Docs: `docs/card.md`, `docs/editor.md`, `docs/SPEC.md` (levels, thresholds, the key), CHANGELOG,
+- [x] S25.9 Docs: `docs/card.md`, `docs/editor.md`, `docs/SPEC.md` (levels, thresholds, the key), CHANGELOG,
       DECISIONS.
 
 Review (one Opus pass on the integrated build) then fixes with their tests; exit test: one sensor update writes only its
 device, on the stress house.
+
+Door follow-ups from Diego, 2026-10-09 (own branch `task/doors-open-closed`):
+- [x] S25.D1 Doors and glass doors: no leaf line; open or sensorless = a hole, closed (sensor `off`) = a thin line.
+- [x] S25.D3 New door kind `fullwindow` ("Full-height window"): a window with sill 0 and its head under the ceiling.
+- [x] S25.D2 Rename the glass kind to "Glass door" (visible name only).

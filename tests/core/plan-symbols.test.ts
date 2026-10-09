@@ -3,8 +3,8 @@ import demo from "../../demo/layout.json";
 import type { Door, Floor, Layout, Pt, Room, RoomKind } from "../../src/core/schema";
 import { renderFloor } from "../../src/core/render";
 
-// S23.7: plan symbols. A door is a gap in the wall and a 1 px leaf from the hinge (a), square to the wall, on the room
-// side; a window is three hairlines across the wall. S23.F6: no swing arc (Diego, 2026-10-08). One draw path (finding 8): the card and the editor both call this.
+// S23.7: plan symbols. A window is three hairlines across the wall. S23.F6: no swing arc (Diego, 2026-10-08). S25.D1: no leaf
+// either (Diego, 2026-10-09): an open door is a hole, a closed one a thin line across the gap. One draw path (finding 8): the card and the editor both call this.
 
 const ground = (demo as unknown as Layout).floors.ground;
 const box = (id: string, kind: RoomKind, x0: number, y0: number, x1: number, y1: number, wk = "wall"): Room =>
@@ -21,16 +21,14 @@ const nums = (s: string) => (s.match(/-?[\d.]+/g) ?? []).map(Number);
 describe("S23.7 plan symbols", () => {
   // A hall above y = 300 and a pavement below it, the door in the wall between them, 90 cm wide.
   const hallAbove = [box("hall", "room", 0, 0, 400, 300), box("pav", "pavement", 0, 300, 400, 400, "boundary")];
-  const hallBelow = [box("pav", "pavement", 0, 0, 400, 300, "boundary"), box("hall", "room", 0, 300, 400, 600)];
 
-  it("a door is only a leaf from the hinge a, |ab| long, square to the wall: no swing arc", () => {
-    const html = renderFloor(floor(hallAbove, [door("door", [100, 300], [190, 300])]), opts);
-    const m = symOf(html)!;
-    expect(m, "a door symbol").toBeTruthy();
-    expect(m[1].split(" ")).toEqual(expect.arrayContaining(["door-sym", "k-door"]));
-    const d = m[2];
-    expect(d).toMatch(/^M[^MLAa]+L[^MLAa]+$/); // one straight leaf, nothing after it
-    expect(nums(d)).toEqual([100, 300, 100, 210]); // from the hinge a into the hall (up), 90 long
+  it("a door and a glass door draw no leaf and no symbol at all (S25.D1)", () => {
+    for (const view of ["2d", "2.5d"] as const) {
+      const html = renderFloor(floor(hallAbove, [door("door", [100, 300], [190, 300]), door("glass", [200, 300], [290, 300])]), { ...opts, view } as never);
+      expect(symOf(html, 0), `${view}: door`).toBeNull();
+      expect(symOf(html, 1), `${view}: glass door`).toBeNull();
+      expect(html, view).not.toMatch(/data-ds=/);
+    }
   });
 
   it("no door kind draws an arc, in 2D or 2.5D, and the wall still has its gap (S23.F6)", () => {
@@ -40,20 +38,55 @@ describe("S23.7 plan symbols", () => {
       const html = renderFloor(floor(hallAbove, doors), { ...opts, view } as never);
       for (const [, , d] of html.matchAll(/<path data-ds="(\d+)" class="[^"]*" d="([^"]*)"/g)) expect(d, `${view}: ${d}`).not.toMatch(/[Aa]/);
       expect(html, view).not.toMatch(/<(circle|ellipse)[^>]*data-ds=/);
-      expect(symOf(html, 0), `${view}: a door keeps its leaf`).toBeTruthy();
-      expect(symOf(html, 1), `${view}: a glass door keeps its leaf`).toBeTruthy();
     }
     const mask = renderFloor(floor(hallAbove, doors), opts).match(/<mask id="fp-open-mask-[^"]*"[^>]*>(.*?)<\/mask>/)![1];
     expect(mask).toContain('x1="0" y1="300" x2="50" y2="300"'); // the door's gap
     expect(mask).toContain('x1="60" y1="300" x2="110" y2="300"'); // the glass door's gap
   });
 
-  it("the leaf goes to the room side, whichever side that is, and an indoor room wins over an outdoor one", () => {
-    const below = nums(symOf(renderFloor(floor(hallBelow, [door("door", [100, 300], [190, 300])]), opts))![2]);
-    expect(below.slice(2, 4)).toEqual([100, 390]); // the hall is below now: the leaf goes down
-    // the hinge is always a: the same door given b to a hinges at the other end
-    const flipped = nums(symOf(renderFloor(floor(hallAbove, [door("door", [190, 300], [100, 300])]), opts))![2]);
-    expect(flipped.slice(0, 4)).toEqual([190, 300, 190, 210]);
+  // S25.D1 (Diego, 2026-10-09): "open doors are just holes and closed doors are closed. doors with no sensor are left open".
+  const lineOf = (html: string, i = 0) => html.match(new RegExp(`<line data-d="${i}" class="(door [^"]*)"[^>]*stroke-width="([^"]*)"`));
+  it.each(["door", "glass"] as const)("a %s is a hole until its sensor says closed: no sensor, off = a thin line across the gap, anything else = a hole", (kind) => {
+    const sensed = door(kind, [100, 300], [190, 300], { sensors: ["binary_sensor.x"] });
+    const cls = (d: Door, state?: Record<string, ReturnType<typeof st>>) => lineOf(renderFloor(floor(hallAbove, [d]), { ...opts, state } as never))![1].split(" ");
+    expect(cls(door(kind, [100, 300], [190, 300])), "no sensor").toContain("quiet");
+    expect(cls(door(kind, [100, 300], [190, 300]), { "binary_sensor.x": st("off") }), "a state for an entity that is not attached").toContain("quiet");
+    expect(cls(sensed, { "binary_sensor.x": st("off") }), "sensor off").not.toContain("quiet");
+    for (const s of ["unavailable", "unknown", "", "garbage"]) expect(cls(sensed, { "binary_sensor.x": st(s) }), `sensor ${s || "empty"}`).toContain("quiet");
+    expect(cls(sensed, {}), "no state yet").toContain("quiet");
+    expect(cls(sensed), "no state overlay").toContain("quiet");
+    // the closed line is as thin as the wall it sits on (10 cm), not the old door line
+    expect(lineOf(renderFloor(floor(hallAbove, [sensed]), { ...opts, state: { "binary_sensor.x": st("off") } } as never))![2]).toBe("10");
+  });
+
+  it("several sensors: the door is closed only when every one says off; one open makes it open", () => {
+    const d = door("door", [100, 300], [190, 300], { sensors: ["binary_sensor.a", "binary_sensor.b"] });
+    const cls = (a: string, b: string) => lineOf(renderFloor(floor(hallAbove, [d]), { ...opts, state: { "binary_sensor.a": st(a), "binary_sensor.b": st(b) } } as never))![1].split(" ");
+    expect(cls("off", "off")).not.toContain("quiet");
+    expect(cls("off", "unavailable")).toContain("quiet");
+    expect(cls("off", "on")).toContain("open");
+  });
+
+  it("a door whose lock is unlocked is not closed, even with its sensor off", () => {
+    const d = door("door", [100, 300], [190, 300], { sensors: ["binary_sensor.a"], locks: ["lock.l"] });
+    const cls = lineOf(renderFloor(floor(hallAbove, [d]), { ...opts, state: { "binary_sensor.a": st("off"), "lock.l": st("unlocked") } } as never))![1].split(" ");
+    expect(cls).toContain("open");
+  });
+
+  it("the closed line is in --fp-door for a door and --fp-glass for a glass door (classes), in 2D and 2.5D", () => {
+    for (const view of ["2d", "2.5d"] as const) {
+      const html = renderFloor(floor(hallAbove, [door("door", [100, 300], [190, 300], { sensors: ["binary_sensor.x"] }), door("glass", [200, 300], [290, 300], { sensors: ["binary_sensor.x"] })]), { ...opts, view, state: { "binary_sensor.x": st("off") } } as never);
+      expect(lineOf(html, 0)![1], view).toBe("door door-door");
+      expect(lineOf(html, 1)![1], view).toBe("door door-glass");
+    }
+  });
+
+  it("a window, a slit, a sealed door and an open doorway keep their look whatever a sensor says", () => {
+    const html = renderFloor(floor(hallAbove, [door("window", [100, 0], [300, 0]), door("sealed", [200, 300], [290, 300]), door("open", [300, 300], [390, 300])]), { ...opts, state: {} } as never);
+    expect(symOf(html, 0)![2].match(/M/g)).toHaveLength(3);
+    expect(symOf(html, 1)).toBeNull();
+    expect(lineOf(html, 0)![1]).toContain("quiet");
+    expect(lineOf(html, 1)![1]).not.toContain("quiet"); // sealed keeps its dashed line
   });
 
   it("a window is three hairlines along the opening, at the wall's two faces and its middle", () => {
@@ -71,14 +104,6 @@ describe("S23.7 plan symbols", () => {
   it("a slit's three hairlines span its narrower band", () => {
     const segs = symOf(renderFloor(floor(hallAbove, [door("slit", [100, 0], [300, 0])]), opts))![2].match(/M[^M]+/g)!;
     expect(segs.map((s) => nums(s)[1]).sort((p, q) => p - q)).toEqual([-2, 0, 2]); // 10 cm * SLIT_BAND .4
-  });
-
-  it("a glass door draws a leaf like a door; sealed and open doorways draw no symbol", () => {
-    const html = renderFloor(floor(hallAbove, [door("glass", [100, 300], [190, 300]), door("sealed", [200, 300], [290, 300]), door("open", [300, 300], [390, 300])]), opts);
-    expect(symOf(html, 0)![1]).toContain("k-glass");
-    expect(nums(symOf(html, 0)![2])).toEqual([100, 300, 100, 210]);
-    expect(symOf(html, 1)).toBeNull();
-    expect(symOf(html, 2)).toBeNull();
   });
 
   // S1 (Opus review of S23): the wall is cut wider than the room polygon, so the outer half of a window's gap showed the
@@ -135,27 +160,24 @@ describe("S23.7 plan symbols", () => {
     expect(mask).not.toContain('x1="200" y1="300"');
   });
 
-  it("a closed, unselected door's own line paints nothing (quiet); open, alarm and selection still show it, and the symbol turns red with the state", () => {
+  it("an open (alarm) door still shows its red line and band; a selected door shows its selection line with no state", () => {
     const d = door("door", [100, 300], [190, 300], { sensors: ["binary_sensor.x"] });
-    const closed = renderFloor(floor(hallAbove, [d]), { ...opts, state: { "binary_sensor.x": st("off") } });
-    expect(closed).toMatch(/<line data-d="0" class="door door-door quiet"/);
-    expect(symOf(closed)![1]).not.toContain("open");
     const open = renderFloor(floor(hallAbove, [d]), { ...opts, state: { "binary_sensor.x": st("on") } });
     expect(open).toMatch(/<line data-d="0" class="door door-door open"/);
-    expect(symOf(open)![1].split(" ")).toContain("open");
+    expect(open).toContain('class="door-alert"');
     const sel = renderFloor(floor(hallAbove, [d]), { ...opts, selection: { t: "door", i: 0 } });
     expect(sel).toMatch(/<line data-d="0" class="door door-door sel"/);
   });
 
   it("the symbol takes no clicks: the hit line under it keeps data-d, the symbol only data-ds", () => {
-    const html = renderFloor(floor(hallAbove, [door("door", [100, 300], [190, 300])]), opts);
+    const html = renderFloor(floor(hallAbove, [door("window", [100, 0], [300, 0])]), opts);
     expect(html).toMatch(/<line data-d="0" class="door-hit"/);
     expect(html).not.toMatch(/<path data-d=/);
   });
 
-  it("2.5D draws the same symbols on the floor", () => {
+  it("2.5D draws the same window symbol on the floor", () => {
     const html = renderFloor(floor(hallAbove, [door("door", [100, 300], [190, 300]), door("window", [100, 0], [300, 0])]), { ...opts, view: "2.5d" } as never);
-    expect(nums(symOf(html, 0)![2])).toEqual([100, 300, 100, 210]);
+    expect(symOf(html, 0)).toBeNull();
     expect(symOf(html, 1)![2].match(/M/g)).toHaveLength(3);
   });
 

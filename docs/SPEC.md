@@ -180,7 +180,7 @@ in `prompts/`, then fixed in the editor.
   and shades the treads for down. 2.5D: up is the rise; down is a stairwell, a
   sunken opening with treads below the floor and a short rim on the near edges;
   both is the rise with a low kerb round the foot. Resolver: `src/core/stairs.ts`.
-- `door.kind`: door, glass, window, sealed, slit (a window 60 cm high, its head 40 cm under the ceiling of its wall like a window's, 2026-10-06; before that it touched the ceiling; shown as "slit window"), open (a doorway: a door's cut, nothing drawn while closed; tripped, a solid alert band in the gap in 2D, 2.5D and 3D, 2026-10-05, S14.5). `sensor` is a binary_sensor entity;
+- `door.kind`: door, glass (shown as "Glass door", 2026-10-09; the stored value stays `glass`), window, sealed, fullwindow (shown as "Full-height window", 2026-10-09, S25.D3: a window from the floor, sill 0, its head 40 cm under the ceiling of its wall like a window's and a glass door's, 210 on 250; a window in every other respect), slit (a window 60 cm high, its head 40 cm under the ceiling of its wall like a window's, 2026-10-06; before that it touched the ceiling; shown as "slit window"), open (a doorway: a door's cut, nothing drawn while closed; tripped, a solid alert band in the gap in 2D, 2.5D and 3D, 2026-10-05, S14.5). `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
@@ -281,7 +281,7 @@ group nested in a solarized one keeps its own ink. Device and
 extra names and values keep `--fp-text`. Room names
 are 12k, outdoor and zone names 10k, weight 500, outdoor names in italic. The font is `--fp-font`: Home Assistant's body
 font, else system-ui. Values use tabular figures and a narrow space before the unit. On the card a name is never under
-11 px, and a shrunk name never under that floor either (S23.2; `px` in `renderFloor`, measured at fit, not at zoom).
+11 px, and a shrunk name never under that floor either (S23.2; `px` in `renderFloor`, measured at fit, not at zoom). Labels keep that size at any zoom (S25.4): `zoom` in `renderFloor`, the view's width at fit over the width on show, divides a label's plan size and offsets; icons and discs still grow with the view.
 Every device icon sits on a disc three units wider than the icon (the halo), and is drawn above everything else on the
 plan, room names included. A name stays in its own room (S23.3): it goes only where its whole box is inside the room and
 inside no smaller named room, clear of icons and other text. It tries the centroid (or the room's pole of
@@ -323,14 +323,20 @@ fainter, when it is on. `room_glow` (below) keeps the fill-mix mechanism: it
 is a distinct signal, light spilling into a room, and a warm tint is the
 honest metaphor there.
 
-Plan symbols (S23.7). A door or glass door is a gap cut in the wall with a 1 px leaf, square to the wall and as long as the
-opening, and no swing arc (S23.F6); the leaf stands into the indoor room, else any room, else the smaller one. A window is three
-hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a window or slit
-also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a hairline jamb, so
-the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors,
-windows and slits cut the wall; a sealed door does not and draws no symbol. Doors wear `--fp-door`, windows and slits
-`--fp-window`, glass doors `--fp-glass`, which is the window blue in every theme. A closed door's own line paints nothing;
-open, alarm and an open cover draw it and the symbol red. The symbols take no clicks; the hit line under them does. 2.5D draws the same symbols on the floor.
+Plan symbols (S23.7, S25.D1). A door or glass door has no symbol: no swing arc (S23.F6) and, since S25.D1 (Diego,
+2026-10-09), no leaf either. It is a gap cut in the wall. Open it is just a hole and nothing is drawn; closed it is the gap
+closed by one thin line across it, as thin as the wall, in `--fp-door` (a glass door in `--fp-glass`). A door is closed only
+when it has a sensor and every sensor says `off` (and no attached lock is unlocked); no sensor, `unavailable`, `unknown` or
+a missing state all read as open, a hole. A sensor that reports open still draws the red alert band and pulse, as before. A
+window is three hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a
+window or slit also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a
+hairline jamb, so the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors, windows,
+full-height windows and slits cut the wall; a sealed door does not and draws no symbol. Windows, slits and full-height windows wear `--fp-window`, glass doors
+`--fp-glass`, which is the window blue in every theme. A window's own line paints nothing; open, alarm and an open cover
+draw it and the symbol red. The editor has no live state, so there a door is a hole, and a selected door shows its selection
+line. In 2.5D a door's leaf and a glass door's glass fill the gap on the same rule, and in 3D the leaf and the glass pane
+are there only while the door is closed (an alerting door keeps its red, swung leaf). The symbols take no clicks; the hit
+line under them does. 2.5D draws the same symbols on the floor.
 
 S14.2 (interaction model): a tap on a device, a door, an unlinked appliance or an Active row never operates it. Wherever
 the "Click" column below says "toggle", "more-info" or "chooser" for a tap, read: the tap opens a popup (name, state, one
@@ -361,7 +367,7 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | computer | grey | blue icon and halo | `--fp-dev-computer` (#2c7fb8) | more-info |
 | camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | `--fp-dev-camera` (#4a4a48) | more-info (live view) |
 | cover on a `door` or `sealed` opening | door normal | door open state shown, orange | `--fp-open` (#f28c28) | tap: confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open; long press: chooser listing every entity the door names, the cover included (S10.3 review) |
-| cover on a `window` or `glass` door | door normal | never colours the opening — here `cover` is curtains/blinds, not a security state (2026-09-28) | — | same tap/long-press behaviour as above; only the colour is suppressed |
+| cover on a `window`, `slit`, `fullwindow` or glass door (`glass`) | door normal | never colours the opening — here `cover` is curtains/blinds, not a security state (2026-09-28) | — | same tap/long-press behaviour as above; only the colour is suppressed |
 | siren | grey | `--fp-danger` icon and halo while its entity is on; rings only when the entity is in the `siren` domain | `--fp-danger` (#b02a2a) | popup (Turn on/off) |
 | alarm (`alarm_control_panel.*`) | grey while `disarmed` | `--fp-danger` icon and halo in every other state but `unavailable` (armed, arming, pending, triggered) | `--fp-danger` (#b02a2a) | more-info (no toggle) |
 | linked tv, speaker or computer piece (furniture with `entity`) | blue (`--fp-dev-tv`) body and edge | `--fp-active` body and edge, by the device rule of its type; waves while a tv or speaker is `playing` | `--fp-dev-tv` idle, `--fp-active` on | more-info, no popup; never a toggle |
@@ -617,6 +623,24 @@ terrace and pavement take ramp shades on the generated themes. The values per th
 `solarized` is bespoke, not role-generated: the real Solarized dark palette (base03 ground through base3 linework, its eight accent hues), each device type kept in its own Solarized colour rather than collapsed to one accent — Diego's call, 2026-09-22, real Solarized fidelity over reuse.
 
 `ha` is untouched by this system: its neutrals still come from Home Assistant's CSS variables, with `midnight`'s fixed hexes as the fallback, not blueprint's new palette.
+
+## Detail levels (S25)
+
+How much of a plan `renderFloor` draws depends on the zoom, `1` being the whole floor at fit (the smaller of fit width over
+shown width and fit height over shown height, `detailFor` in `src/core/detail.ts`). The plan root carries
+`data-detail="far|mid|near"`; every level rule is CSS keyed on it, so the card and the Studio cannot differ.
+
+| Level | Zoom | Drawn |
+|---|---|---|
+| far | below 1.6 (`DETAIL_MID_FROM`) | rooms, room names, room badges; devices that are on, alerting or unavailable as dots; a device `attention()` reports on (class `needs-attention`) stays a dot even when its state reads off |
+| mid | 1.6 to below 3.2 (`DETAIL_NEAR_FROM`) | device icons, room names, badges |
+| near | 3.2 and up | everything, device names and readings too |
+
+The thresholds are constants, not settings. The mode: `auto` follows the zoom, `full` is always near, `minimal` is always far;
+anything else is `auto` (`parseDetailMode`). The viewer picks it in the Studio's View menu (Detail) and the card's Detail
+button, kept per browser (`floorplan-studio:detail` in the Studio; `detail` in the card's view memory). The card's YAML key
+`detail: auto | full | minimal` is its default and a stored viewer pick wins. Defaults: card `auto` (but `full` where the viewer can neither zoom nor reach the Detail button: kiosk, or `active_list: false` with `zoom: false`), Studio `full` (a device
+just placed must not vanish at fit). Live 3D draws every level.
 
 ## Search (both apps)
 
