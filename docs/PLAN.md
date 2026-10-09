@@ -2813,7 +2813,7 @@ Wave 1, core (parallel):
       (asymmetric values), and 11 px floor holds.
 
 Wave 2, view and behaviour (after wave 1):
-- [ ] S25.5 Spiderfy. Devices closer than a touch target fan out on tap into a ring with their labels; Escape or a tap
+- [x] S25.5 Spiderfy. Devices closer than a touch target fan out on tap into a ring with their labels; Escape or a tap
       elsewhere folds them. Test: two stacked lamps, a real click on the stack opens the ring, a real click on one
       acts on that one; Escape folds.
 - [x] S25.6 Incremental render. A state update for one entity rewrites only that device's nodes. Test: a mutation

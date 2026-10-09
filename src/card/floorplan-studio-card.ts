@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { ALL_OFF_TITLE, DETAIL_LABELS, DETAIL_MODES, detailFor, parseDetailMode, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, parseDetailMode, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -470,6 +470,9 @@ export class FloorplanStudioCard extends LitElement {
   private _searchMemo: { layout: Layout; known: boolean; floors: string; entries: SearchEntry[] } | null = null;
   /** S14.2: the tap popup, or `null` for none. One at a time; `s.key` is who it is about, `x`/`y` where the pointer landed (client px), `opener` the
    *  focusable thing that opened it (an Active row), `confirming` the turn-OFF question, `draft` a slider's shown value until Home Assistant answers. */
+  /** S25.5: the device indices of the stack fanned out into a ring, on the floor `_spiderFloor`; null when folded. */
+  private _spider: number[] | null = null;
+  private _spiderFloor: string | null = null;
   private _popup: { s: PopupSubject; x: number; y: number; opener: Element | null; confirming: boolean; draft: { kind: SliderKind; value: number; from: number | null } | null } | null = null;
   private _popupFocusKey: string | null = null;
   private _popupReturn: Element | null = null;
@@ -573,6 +576,7 @@ export class FloorplanStudioCard extends LitElement {
   private _actions3d: HTMLElement | null = null;
   private _unbind3d: (() => void) | null = null;
   private _unbindHover: (() => void) | null = null;
+  private _unbindSpider: (() => void) | null = null;
   private _pick3dCache: { stamp: number; x: number; y: number; pick: Pick3D | null } | null = null;
 
   /** `localStorage` key for this card's panel state. Opus review finding 7: the seed used to be the layout's own
@@ -752,6 +756,7 @@ export class FloorplanStudioCard extends LitElement {
     // S24.8: ⌘K, Ctrl+K or / opens the search, under the same gate as the view keys: the card focused, else hovered.
     if (isSearchChord(ev)) { if (this._openSearch()) ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
+    if (ev.key === "Escape" && this._spider) { this._foldSpider(); ev.preventDefault(); return; }
     if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
       this._pickRoom(null);
       ev.preventDefault();
@@ -1082,6 +1087,8 @@ export class FloorplanStudioCard extends LitElement {
     this._unbindActions = null;
     this._unbindHover?.();
     this._unbindHover = null;
+    this._unbindSpider?.();
+    this._unbindSpider = null;
     this._unbindZoom?.();
     this._unbindZoom = null;
     this._actionsSvg = null;
@@ -1106,6 +1113,7 @@ export class FloorplanStudioCard extends LitElement {
       if (!v.ok) throw new Error(v.errors[0]);
       if (!Object.keys(v.layout.floors).length) throw new Error("the plan has no floors");
       this._layout = v.layout;
+      this._spider = null; // its indices belonged to the layout just replaced
       this._closePopup(); // its subject belonged to the layout just replaced
       this._hideTip();
       this._error = null;
@@ -1430,8 +1438,11 @@ export class FloorplanStudioCard extends LitElement {
             openPopup: (t, at, from) => this._openPopup(t, at, from),
             getUnlinked: (i) => this._floor()?.unlinked[i],
             getPiece: (i) => this._floor()?.furniture?.[i],
+            stack: (i) => this._tapStack(i),
           })
         : null;
+      this._unbindSpider?.();
+      this._unbindSpider = svg ? this._bindSpider(svg) : null;
       this._unbindHover?.();
       this._unbindHover = svg ? this._bindHover(svg) : null;
       this._unbindZoom?.();
@@ -1877,6 +1888,70 @@ export class FloorplanStudioCard extends LitElement {
     this._popupReturn = this._popup.opener;
     this._popup = null;
     this.requestUpdate();
+  }
+
+  // ---- S25.5: spiderfy ----------------------------------------------------------------------------------------------
+
+  private _foldSpider(): void {
+    if (!this._spider) return;
+    this._spider = null;
+    this.requestUpdate();
+  }
+
+  /** The devices whose discs overlap device `i`'s on screen and are drawn at this detail level, `i` included; fewer than two when it stands alone. */
+  private _stackOf(i: number): number[] {
+    const f = this._floor(), fit = this._fit, v = this._current(), svg = this.shadowRoot?.querySelector("svg.fp-zoomable");
+    if (!f || !fit || !v || !svg || !(this._px > 0) || !(v.w > 0)) return [];
+    const unit = 1 / (this._px * (fit.w / v.w));
+    const ids: number[] = [], spots: Pt[] = [];
+    f.devices.forEach((d, j) => {
+      const g = svg.querySelector<SVGGElement>(`g[data-x="${j}"]`);
+      if (!g || getComputedStyle(g).display === "none") return; // not drawn: layer hidden, or idle at far
+      ids.push(j);
+      spots.push("a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y]);
+    });
+    const at = ids.indexOf(i);
+    if (at < 0) return [];
+    const group = stackGroups(spots, STACK_PX * unit).find((g) => g.includes(at)) ?? [];
+    // Overlaps chain, so a packed grid is one group of dozens and its ring would be wider than the card: the tapped device and its nearest neighbours.
+    const near = group.length > SPIDER_MAX ? [...group].sort((a, b) => Math.hypot(spots[a][0] - spots[at][0], spots[a][1] - spots[at][1]) - Math.hypot(spots[b][0] - spots[at][0], spots[b][1] - spots[at][1])).slice(0, SPIDER_MAX).sort((a, b) => a - b) : group;
+    return near.map((k) => ids[k]);
+  }
+
+  /** The tap of a device icon asks here first. A tap on a stack opens its ring and is handled; a tap on a ring member, or on a lone device, is not (it acts as ever). */
+  private _tapStack(i: number): boolean {
+    if (this._spider?.includes(i)) return false;
+    const members = this._stackOf(i);
+    if (members.length < 2) return false;
+    this._closePopup();
+    this._spider = members;
+    this._spiderFloor = this._floorKey();
+    this.requestUpdate();
+    return true;
+  }
+
+  /** The ring's spots for `renderFloor`, or none. The ring is a fixed size on screen (`spiderLayout`), kept inside the view. */
+  private _spiderSpots(f: Floor, fit: View, box: View, rotate: unknown): { i: number; at: Pt }[] | undefined {
+    if (this._spider && this._spiderFloor !== this._floorKey()) this._spider = null;
+    if (!this._spider || !(this._px > 0) || !(box.w > 0)) return undefined;
+    const ids = this._spider.filter((i) => i < f.devices.length);
+    const spots = ids.map((i) => { const d = f.devices[i]; return "a" in d ? ([(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] as Pt) : ([d.x, d.y] as Pt); });
+    // A turned plan is rotated after the drawing, so its view box is not in the drawing's frame: no clamp then.
+    const room = rotate ? { x: -1e9, y: -1e9, w: 2e9, h: 2e9 } : box;
+    const at = spiderLayout(spots, 1 / (this._px * (fit.w / box.w)), room);
+    return at.length ? ids.map((i, j) => ({ i, at: at[j] })) : undefined;
+  }
+
+  /** A press on the plan that is not on a member of the open ring folds it. Escape does the same (`_onViewKey`). */
+  private _bindSpider(svg: Element): () => void {
+    const onDown = (e: Event) => {
+      if (!this._spider) return;
+      const g = (e.target as Element | null)?.closest?.("g[data-x]");
+      if (g && this._spider.includes(Number(g.getAttribute("data-x")))) return;
+      this._foldSpider();
+    };
+    svg.addEventListener("pointerdown", onDown);
+    return () => svg.removeEventListener("pointerdown", onDown);
   }
 
   private _levelOf(kind: SliderKind, a: Record<string, unknown> | undefined): number | null {
@@ -2909,6 +2984,7 @@ export class FloorplanStudioCard extends LitElement {
       selectedRoom: this._picked() ?? undefined,
       hiddenLayers: this._hiddenLayers,
       detail: detailFor(fit, box, this._detailMode()), // S25.2: the level for this zoom and mode
+      spider: this._spiderSpots(f, fit, box, rotate), // S25.5: a fanned stack, or nothing
       keep: this._keptHere(),
       colors: this._layout!.colors, // S19.E3: the studio's per-type colours, as the editor draws them
     });
