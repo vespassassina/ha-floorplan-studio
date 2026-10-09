@@ -22,6 +22,23 @@ Newest first. A change supersedes; nothing is edited.
 - **A drag on a member moves every unlocked member** with `moveDevices`, the delta rounded to the snap grid (Alt: 1 cm), 4 px before it starts. It records its step with `commitLiveEdit`, so a drag that ends where it began leaves none. A click on a member without a drag narrows the selection to it. A group of only locked members, or one locked device, takes the press (selection) and no drag.
 - **Escape** drops a marquee in progress, otherwise clears any selection. **Ctrl or Cmd+A** is ignored in a text field and while drawing.
 - `.marquee` and the typed-length field live in the host's `static styles` beside `.dr`, since the overlay is the host's.
+## 2026-10-09: Lock in every panel (S26.16)
+
+- The device, furniture and unlinked panels get a Lock box in Appearance (`lockBox`): ticked writes `locked: true`, unticked deletes the key, one undo step each. A wall, door and opening keep `lockField`, now worded "Lock (keeps its length)". No panel says Fix or "length locked".
+- Known edge, not changed here: `EditorState.plan()` counts a furniture piece's `locked` as geometry, so under Lock plan the furniture box (and the context-menu Lock) is refused. A device's and an unlinked appliance's `locked` are outside the compare. Left for Diego to call; it is one key in `plan()`.
+
+## 2026-10-09: the Inspector on a multi-selection (S26.15)
+
+- `devsPanel` counts by type (most first), then Controlled by when a light is in the selection, Create group as before, Lock, Delete n. Each action is a single `commit` over `bulk.ts`, so one undo step; the note is `Bound 20 lights; 2 others left alone` (`Cleared` for none). "Others" are the non-lights, plus a light that is the pick itself.
+- Controlled by offers the first selected light's choices (floor-scoped, so the same for every light) and shows the switch the lights share, "(mixed)" when they differ. No Motion entries in bulk: that flow is per light.
+- Lock is a checkbox: ticked when every device is locked, half-ticked when some are; a click on a mixed box locks all. The name list folds into a closed "Devices" section; 22 names pushed the actions out of view.
+
+## 2026-10-09: the Inspector has modes (S26.14)
+
+- The aside gets three tabs: Selection, Place, Add. `asideMode` in the host replaces `placePos` and `addDevPos`; Place and Add are no longer floating, draggable panels (`.fpanel`), they are bodies of the aside (`.imode`), so opening one moves nothing on the canvas. Ids (`#placePanel`, `#addDevPanel`, `#placeClose`, `#addDevClose`, `#placeGo`) are kept.
+- Place needs a room: its tab is off until the selection is a room with something to place, or a Place mode already holds one. Leaving for Selection keeps the ticks; the Escape key and the X return to Selection. Switching floor closes Place, as before.
+- Add stays a mode after a pick (S8.5: place many in a row); the Selection tab shows what was placed. The Left column tablist label is now named in `studio-layers.spec.ts`, since the aside has a tablist too.
+- State stays in the host, which `hass` updates do not reset (panel test). Dropped with the popups: the drag by the head, and the 780/660 px widths (S8.8); two tests changed with them, on purpose.
 
 ## 2026-10-09: the editor host is split (S26.9)
 

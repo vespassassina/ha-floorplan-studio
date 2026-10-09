@@ -29,7 +29,8 @@ import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
 import { EditorState, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 import { floorGroups, toolbarCss, toolbarView } from "./toolbar";
-import { asideView, addDevView, inspectorCss, placeView } from "./inspector";
+import { asideView, inspectorCss } from "./inspector";
+import type { AsideMode } from "./inspector";
 import { ctxMenuCss, ctxMenuView, type CtxTarget } from "./ctx-menu";
 
 /**
@@ -197,7 +198,8 @@ export class FloorplanStudioEditor extends LitElement {
   haPos: { x: number; y: number } | null = null;
   /** S8.1/S8.4: the room panel's Place popup: the room's id (null when closed), its position, the rows ticked, the type chip pressed. */
   private placeRoom: string | null = null;
-  placePos: { x: number; y: number } | null = null;
+  /** S26.14: which mode of the aside is on show (Place and Add are modes, not floating panels). */
+  asideMode: AsideMode = "selection";
   placeOn = new Set<string>();
   placeType: DeviceType | null = null;
   private sceneDraft: SceneDraft | null = null;
@@ -209,7 +211,6 @@ export class FloorplanStudioEditor extends LitElement {
   private sceneBusy = false;
   /** S8.5: Add > Device's floating panel: position (null when closed), the search text, and the four filter selects
    * (a value of "" is "All…"; "__none__" is the added "None" option). Reset every time the panel opens. */
-  addDevPos: { x: number; y: number } | null = null;
   addDevQuery = "";
   addDevFloor = "";
   addDevRoom = "";
@@ -1206,9 +1207,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private devColsHead = this.dragHead(() => this.devColsPos, (p) => { this.devColsPos = p; });
   private haHead = this.dragHead(() => this.haPos, (p) => { this.haPos = p; });
-  placeHead = this.dragHead(() => this.placePos, (p) => { this.placePos = p; });
   private sceneHead = this.dragHead(() => this.scenePos, (p) => { this.scenePos = p; });
-  addDevHead = this.dragHead(() => this.addDevPos, (p) => { this.addDevPos = p; });
 
   /** S8.1: Edit, Home Assistant. Opening closes the menu it sits in and reloads the list (HA state moves on its own). */
   toggleHa() {
@@ -1220,13 +1219,25 @@ export class FloorplanStudioEditor extends LitElement {
 
   // ---- S8.1: the room panel's Place popup ----------------------------------------------------------------------------
 
-  private openPlace(i: number) {
+  openPlace(i: number) {
     const r = this.st.f.rooms[i];
     if (!r) return;
-    this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.placePos = this.panelPos(Math.min(660, window.innerWidth - 24)); // .place-panel width
+    this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.asideMode = "place";
     this.requestUpdate();
   }
-  closePlace() { this.placeRoom = null; this.placePos = null; this.requestUpdate(); }
+  closePlace() { this.placeRoom = null; if (this.asideMode === "place") this.asideMode = "selection"; this.requestUpdate(); }
+  /** The index of the room the Place mode was opened on, -1 when none (or it left the floor). */
+  placeIndex(): number { return this.placeRoom === null ? -1 : this.st.f.rooms.findIndex((r) => r.id === this.placeRoom); }
+  /** S26.14: a tab of the aside. Place resumes its room, or opens on the selected one; Add opens as the menu entry does; Selection leaves both as they are. */
+  setAsideMode(m: AsideMode) {
+    if (m === this.asideMode) return;
+    if (m === "add") { this.openAddDev(); return; }
+    if (m === "place") {
+      if (this.placeIndex() >= 0) this.asideMode = "place";
+      else { const s = this.st.sel; if (s && s.t === "room") this.openPlace(s.i); }
+    } else this.asideMode = "selection";
+    this.requestUpdate();
+  }
   /** Places the ticked rows (one undo step, `EditorState.placeArea`) and closes the popup. */
   placeGo(i: number, ids: string[]) {
     const before = this.counted();
@@ -1296,12 +1307,12 @@ export class FloorplanStudioEditor extends LitElement {
   /** Closes the Add menu and opens the panel, filters reset, search focused. */
   openAddDev() {
     this.closeMenus();
-    this.addDevPos = this.panelPos(Math.min(780, window.innerWidth - 24)); // .add-dev-panel width
+    this.asideMode = "add";
     this.addDevQuery = ""; this.addDevFloor = ""; this.addDevRoom = ""; this.addDevArea = ""; this.addDevType = "";
     this.requestUpdate();
     void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLInputElement>("#addDevSearch")?.focus({ preventScroll: true }));
   }
-  closeAddDev() { this.addDevPos = null; this.requestUpdate(); }
+  closeAddDev() { if (this.asideMode === "add") this.asideMode = "selection"; this.requestUpdate(); }
   /**
    * Places `c`: a catalog entry through the existing `placeDevice` (which already switches to its own stored floor), or
    * an HA entity through `addHaEntity`, switching to the candidate's plan floor first when it differs from the current
@@ -1686,8 +1697,8 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
     if (ev.key === "Escape" && this.sceneDraft) { ev.preventDefault(); this.closeScene(); return; }
-    if (ev.key === "Escape" && this.placeRoom !== null) { ev.preventDefault(); this.closePlace(); return; }
-    if (ev.key === "Escape" && this.addDevPos) { ev.preventDefault(); this.closeAddDev(); return; }
+    if (ev.key === "Escape" && this.asideMode === "place") { ev.preventDefault(); this.closePlace(); return; }
+    if (ev.key === "Escape" && this.asideMode === "add") { ev.preventDefault(); this.closeAddDev(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
     if (ev.key === "Escape" && this.traceScale) { ev.preventDefault(); this.cancelTraceScale(); return; }
     if (ev.key === "Escape" && this.traceOpen) { ev.preventDefault(); this.toggleTrace(); return; }
@@ -2530,7 +2541,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.refused();
   };
 
-  setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; this.placePos = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
+  setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place") this.asideMode = "selection"; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
 
   /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
   private saveByKey() {
@@ -2779,9 +2790,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.ctxMenu ? ctxMenuView(this, this.ctxMenu) : nothing}
           ${this.devColsPos ? this.devColsView(st) : nothing}
           ${this.haPos && this.writer ? this.haView() : nothing}
-          ${(() => { const i = this.placeRoom === null ? -1 : st.f.rooms.findIndex((r) => r.id === this.placeRoom); return i >= 0 && this.placePos ? placeView(this, st, i) : nothing; })()}
           ${(() => { const d = this.sceneDraft, i = d ? st.f.rooms.findIndex((r) => r.id === d.room) : -1; return d && i >= 0 && this.scenePos ? sceneDesigner({ draft: d, pos: this.scenePos, head: this.sceneHead, roomName: st.f.rooms[i].name, targets: roomSceneTargets(st.f, i), refresh: () => this.requestUpdate(), close: () => this.closeScene(), save: () => this.saveSceneDraft(), preview: this.writer ? { hasBackup: this.sceneBackup.length > 0, busy: this.sceneBusy, run: () => void this.trySceneDraft(), restore: () => void this.restoreSceneDraft() } : undefined }) : nothing; })()}
-          ${this.addDevPos ? addDevView(this, st) : nothing}
           ${this.installCodeOpen ? this.installCodeView() : nothing}
           ${this.traceOpen ? this.traceView() : nothing}
         </div>

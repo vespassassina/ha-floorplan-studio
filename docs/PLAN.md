@@ -2958,15 +2958,15 @@ Lane A, pointer and keys (`editor-app.ts` handlers only, plus new spec files):
       filter `?` types a character.
 
 Lane B, the Inspector (`inspector.ts`, `panels.ts`):
-- [ ] S26.14 (U11, U12) Inspector modes. The aside gets tabs: Selection, Place, Add. Selection follows the selection;
+- [x] S26.14 (U11, U12) Inspector modes. The aside gets tabs: Selection, Place, Add. Selection follows the selection;
       Place (a room's HA area) and Add (Add > Device…) open as modes in the aside, never as floating panels; the canvas
       does not move. Test: room, Place devices…, the Place tab is selected, no `.fpanel` in the DOM, the Place button
       is inside the viewport at 1024x768, the canvas box unchanged; the mode survives a `hass` update in the panel.
-- [ ] S26.15 (U15) The Inspector on a multi-selection. Count by type, then Controlled by (when any light is in it:
+- [x] S26.15 (U15) The Inspector on a multi-selection. Count by type, then Controlled by (when any light is in it:
       `bindLights`, one undo step, says "Bound 20 lights; 2 others left alone"), Lock (ticked, unticked or mixed:
       `lockDevices`), Delete n, and Create group as before. Test: 20 lights and 2 sensors selected, pick a switch
       with real clicks: 20 `bound`, one undo step, the note names 2; the mixed Lock box; Delete n.
-- [ ] S26.16 (U3) Lock in every panel. The device panel gets a Lock box; "length locked" reads "Lock (keeps its
+- [x] S26.16 (U3) Lock in every panel. The device panel gets a Lock box; "length locked" reads "Lock (keeps its
       length)" on a wall, door and opening; furniture and unlinked panels say Lock. Test: tick Lock on a device, the
       layout has `locked: true`, one undo step; no panel text says Fix or "length locked".
 

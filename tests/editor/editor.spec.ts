@@ -948,6 +948,7 @@ test("a selection made from the Device menu survives the menu closing, then Dele
   await openDevice(page);
   await unplaced(page).first().click();
   await expect(page.locator("g.dev.sel")).toHaveCount(1);
+  await page.locator('aside [role=tab][data-mode="selection"]').click(); // S26.14: Add stays a mode of the aside after a pick; the Selection tab shows the new device
   await expect(page.locator("#panel")).not.toContainText("Nothing selected");
   const n = (await groundOf(page)).devices.length;
   await page.keyboard.press("Delete");
@@ -2010,17 +2011,20 @@ test("Opus review CSS pair: a long device name in the Add panel row is ellipsise
   expect(Math.abs(textLeft - sub!.x)).toBeLessThan(2);
 });
 
-test("S8.8: the Add > Device panel and the room Place popup are noticeably larger than the S8.5 baseline (520px/440px wide)", async ({ page }) => {
+test("S26.14: the Add and Place modes fill the aside, the same width as its other panels (they were floating 780/660 px panels)", async ({ page }) => {
   await openDevice(page);
-  const addBox = await page.locator("#addDevPanel").boundingBox();
-  expect(addBox!.width).toBeGreaterThan(520 * 1.4); // was 520/522, now clamped-50%-larger
+  const aside = (await page.locator("aside").boundingBox())!;
+  const addBox = (await page.locator("#addDevPanel").boundingBox())!;
+  expect(addBox.width).toBeGreaterThan(aside.width - 40);
+  expect(addBox.width).toBeLessThanOrEqual(aside.width);
   await page.locator("#addDevClose").click();
   await setHa(page, PLACE_HA_FOR_SIZE);
   const c = await screenOf(page, 200, 150); // inside Living
   await page.mouse.click(c.x, c.y);
   await page.locator("#rplace").click();
-  const placeBox = await page.locator("#placePanel").boundingBox();
-  expect(placeBox!.width).toBeGreaterThan(440 * 1.4); // was 440/442, now clamped-50%-larger
+  const placeBox = (await page.locator("#placePanel").boundingBox())!;
+  expect(placeBox.width).toBeGreaterThan(aside.width - 40);
+  expect(placeBox.width).toBeLessThanOrEqual(aside.width);
 });
 
 // A minimal HA fixture with one placeable living-room light, just to open the Place popup for the size check above.
@@ -6839,7 +6843,7 @@ test("S4.15/S8.1: the room panel's Place button opens a popup of the area's plac
   await btn.click();
   const panel = page.locator("#placePanel");
   await expect(panel).toBeVisible();
-  await expect(panel.locator(".fpanel-head > *").first()).toHaveAttribute("id", "placeClose");
+  await expect(panel.locator(".imode-head > *").first()).toHaveAttribute("id", "placeClose");
   await expect(panel.locator("[data-pent]")).toHaveCount(3);
   await expect(panel.locator('[data-pent="sensor.living_power"]')).toHaveCount(0);
   await expect(panel.locator('[data-pent="sensor.living_battery"]')).toHaveCount(0);
@@ -6920,18 +6924,10 @@ test("S8.1: the Place popup places everything when everything is ticked via Sele
   await expect(page.locator("#rplace")).toHaveCount(0); // nothing left to place
 });
 
-test("S8.1: the Place popup drags by its head, stays on a click elsewhere, and closes by its X or Escape", async ({ page }) => {
+test("S8.1/S26.14: the Place mode closes by its X or Escape (it no longer drags: it sits in the aside)", async ({ page }) => {
   await setHa(page, PLACE_HA);
   await openPlace(page);
-  const panel = page.locator("#placePanel"), head = panel.locator(".fpanel-head");
-  const b0 = (await panel.boundingBox())!, h = (await head.boundingBox())!;
-  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(h.x + h.width / 2 + 90, h.y + h.height / 2 + 60, { steps: 4 });
-  await page.mouse.up();
-  const b1 = (await panel.boundingBox())!;
-  expect(b1.x - b0.x).toBeCloseTo(90, 0);
-  expect(b1.y - b0.y).toBeCloseTo(60, 0);
+  const panel = page.locator("#placePanel");
   await page.locator("#placeClose").click();
   await expect(panel).toHaveCount(0);
   await openPlace(page);

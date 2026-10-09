@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: a Lock box on a device, a piece of furniture and an unlinked appliance. On a wall, door and opening it now reads "Lock (keeps its length)".
 - Studio (internal): pure bulk edits for devices (bind lights, remove, move, lock), ready for multi-select. No visible change yet.
 
 - Layout: a device may carry `locked: true`, so it will not be moved by a drag. The file check refuses a value that is not true or false.
@@ -12,6 +13,8 @@
 - Studio (internal): `Draw` keeps a typed length ("350" cm or "3.5m") and `placeTyped` adds the next point that far along the pointer direction. Not wired to the keys yet.
 - Studio: select many devices on the plan. Shift+click toggles any device in or out of the selection (it was lights and motion sensors of one kind); Shift+drag from the plan draws a dashed rectangle and adds every drawn device inside it, also with the view turned; Ctrl or Cmd+A selects every drawn device on the floor; Escape clears the selection. A device on a hidden Layer is not taken. A plain drag still pans.
 - Studio: a multi-selection moves and deletes as one. Drag any member and every unlocked member follows, in one undo step; Delete or Backspace removes them all, in one undo step. A locked device does not move, alone or in a group.
+- Studio: the Inspector has tabs, Selection, Place and Add. Place devices (a room's Home Assistant area) and Add, Device open in the side panel instead of floating over the plan, so the plan does not move and the buttons stay in view.
+- Studio: with several devices selected the panel counts them by type and offers Controlled by (binds every light to one switch, says how many others it left alone), Lock (ticked, unticked or half-ticked when mixed) and Delete n. Each is one undo step.
 
 ## 0.23.1 - 2026-10-09
 
