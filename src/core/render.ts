@@ -14,6 +14,7 @@ import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
 import { layerHides, type LayerId } from "./layers";
+import type { DetailLevel } from "./detail";
 import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
@@ -26,6 +27,8 @@ export interface RenderOpts {
   /** S24.6: the families not drawn (`layers.ts`): their devices, unlinked appliances and, for "furniture", every piece.
    *  What `selection` or `keep` names is drawn anyway. Omitted or empty, everything is drawn, byte for byte as before. */
   hiddenLayers?: readonly LayerId[];
+  /** S25.2: how much of the plan the viewer's zoom shows (`detailLevel`). Written as `data-detail` on the plan root; the stylesheet does the hiding. Omitted, nothing is written and the plan is whole, as before; anything but the three names is omitted. */
+  detail?: DetailLevel;
   /** S24.6: one more thing drawn even when its layer is hidden: the editor's selection, which it does not pass as `selection` for furniture and unlinked items. */
   keep?: { t: string; i: number } | null;
   /** S23.2: screen pixels per plan unit, when the host knows it (the card measures its own plan). Then no name draws
@@ -503,7 +506,15 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 :host,svg{--fp-font:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,system-ui,sans-serif))}
 .lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:500} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .lbl[data-rl].out{--fp-label:color-mix(in srgb,var(--fp-text-out,var(--fp-text)) 92%,var(--fp-under,var(--fp-room-empty)))} .val{font-variant-numeric:tabular-nums}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
-.sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
+.sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}
+/* S25.2: semantic zoom. renderFloor writes data-detail on the plan root (far, mid or near; none is near); every level rule is here, so the editor and
+   the card cannot differ. Far: a device that is off or idle is not drawn; one that is on, alerting or unavailable keeps its disc as a half-size dot
+   (the glyph and the badges go). Far and mid: a device's name and reading go; a room's name and reading (data-rl, data-rv) and an extra's name stay.
+   The selected device is always whole. */
+[data-detail="far"] .dev:not(.on):not(.danger):not(.unavailable):not(.sel),[data-detail="far"] .heater.off,[data-detail="far"] .stem,[data-detail="far"] .stem-top{display:none}
+[data-detail="far"] .dev:not(.sel) path:not(.cone),[data-detail="far"] .dev:not(.sel) .gone-mark,[data-detail="far"] .dev:not(.sel) .away-mark{display:none}
+[data-detail="far"] .dev:not(.sel) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.5)}
+[data-detail="far"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="mid"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="far"] text.val:not([data-rv]),[data-detail="mid"] text.val:not([data-rv]){display:none}`;
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -1768,6 +1779,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // A plan-level theme, so one plan can differ from its host. No o.theme writes nothing and inherits the host's. o.theme is checked against THEMES:
   // it lands in an attribute, and a caller's stray string must not.
   const night = o.night ? ' class="night"' : "";
-  if (!o.theme || !(THEMES as readonly string[]).includes(o.theme)) return night ? `<g${night}>${coloured}</g>` : coloured;
-  return `<g data-theme="${o.theme}"${o.theme === "ha" && o.dark ? ' data-mode="dark"' : ""}${night}>${coloured}</g>`;
+  const detail = o.detail === "far" || o.detail === "mid" || o.detail === "near" ? ` data-detail="${o.detail}"` : ""; // S25.2: three literals, nothing else reaches the attribute
+  if (!o.theme || !(THEMES as readonly string[]).includes(o.theme)) return night || detail ? `<g${night}${detail}>${coloured}</g>` : coloured;
+  return `<g data-theme="${o.theme}"${o.theme === "ha" && o.dark ? ' data-mode="dark"' : ""}${night}${detail}>${coloured}</g>`;
 }
