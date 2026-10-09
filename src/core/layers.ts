@@ -19,14 +19,22 @@ export function layerOfType(t: DeviceType): LayerId {
   return Object.prototype.hasOwnProperty.call(CATEGORY_OF, t) ? CATEGORY_OF[t] : "other";
 }
 
+/** What the plan can draw as selected: one thing, or (S26.4) several devices. */
+export type PlanSel = { t: string; i: number } | { t: "devs"; is: readonly number[] };
+
+/** Whether `s` is a multi-selection that holds device `i`. Junk (no list, a non-integer entry) holds nothing. Never throws. */
+export function devsHave(s: PlanSel | null | undefined, i: number): boolean {
+  return s?.t === "devs" && Array.isArray((s as { is?: unknown }).is) && (s as unknown as { is: unknown[] }).is.includes(i);
+}
+
 /**
  * Whether `hidden` leaves a device, piece of furniture or unlinked appliance off the plan. A thing that `keep` names
  * (the selection, a found thing) is drawn anyway. One rule for what is drawn and what a click can pick: the Studio's
  * computed hit-test (`furnitureNear`) asks it, so nothing invisible is picked. Never throws on junk.
  */
-export function layerHides(hidden: readonly LayerId[] | undefined, t: "dev" | "furn" | "unl", i: number, type?: DeviceType, ...keep: ({ t: string; i: number } | null | undefined)[]): boolean {
+export function layerHides(hidden: readonly LayerId[] | undefined, t: "dev" | "furn" | "unl", i: number, type?: DeviceType, ...keep: (PlanSel | null | undefined)[]): boolean {
   if (!Array.isArray(hidden) || !hidden.length) return false;
-  if (keep.some((s) => s?.t === t && s.i === i)) return false;
+  if (keep.some((s) => (s?.t === t && (s as { i?: number }).i === i) || (t === "dev" && devsHave(s, i)))) return false;
   return hidden.includes(t === "furn" ? "furniture" : layerOfType(type as DeviceType));
 }
 
