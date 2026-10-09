@@ -2954,7 +2954,7 @@ Lane A, pointer and keys (`editor-app.ts` handlers only, plus new spec files):
       Alt turns it off. Digits typed while drawing show in a small field at the rubber band; Enter places the point
       (`placeTyped`). Test: draw a wall with the pointer at 17°, the segment is at 15°; Alt held, it is not; type 350,
       Enter: the segment is 350 cm; Escape clears the typed value, a second Escape cancels.
-- [ ] S26.13 (U22) `?` opens Help from the plan (not from a text field). Test: real key, panel open; in the Outline
+- [x] S26.13 (U22) `?` opens Help from the plan (not from a text field). Test: real key, panel open; in the Outline
       filter `?` types a character.
 
 Lane B, the Inspector (`inspector.ts`, `panels.ts`):

@@ -1680,6 +1680,8 @@ export class FloorplanStudioEditor extends LitElement {
       if (is.length) { this.selectDevices(is); this.requestUpdate(); }
       return;
     }
+    // S26.13: "?" opens Help from the plan, never from a text field (the input check above, and `takesTyping` for the rest).
+    if (ev.key === "?" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !takesTyping(t)) { ev.preventDefault(); this.toggleHelp(); return; }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }

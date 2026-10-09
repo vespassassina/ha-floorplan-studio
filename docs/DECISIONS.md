@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: `?` opens Help (S26.13)
+
+- The key is handled in the editor host's `onKey`, after the text-field check (INPUT, SELECT, TEXTAREA) and guarded by `takesTyping`, so the Outline filter and every other field keep the character. It toggles, like the Help button, and works while drawing too (it is not a typed character). Ctrl, Cmd and Alt chords are left alone.
+- The test presses `?` itself: Playwright's `Shift+/` sends the key `/`, which is the search chord.
+
 ## 2026-10-09: typed lengths and 15 degree steps while drawing (S26.12)
 
 - **`snapDraw` runs `snapCorner` first, then `snapRay` only when that returned the plain grid point.** A corner, a T onto an edge or an alignment with an earlier point of the shape changes the result, so it wins inside its 14 px reach; otherwise the point goes on the nearest 15 degree ray from the last point. Alt turns the ray off with the other snaps. Shift keeps its meaning. The ray point is not rounded to whole cm (its length is on the grid).

@@ -743,3 +743,4 @@ First release.
 - The card script is added to every dashboard by the integration; no manual resource.
 - Installed and updated through HACS.
 - Studio: drawing snaps the segment from the last point to a 15 degree ray (Alt: free). A corner or an alignment with an earlier point still wins. Type digits (or `3.5m`) while drawing: the length shows at the rubber band, Enter places the point that far toward the pointer, Backspace takes back a digit, Escape clears the typed value and a second Escape cancels the drawing.
+- Studio: press `?` on the plan to open or close Help. In a text field it types a question mark.
