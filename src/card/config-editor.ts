@@ -1,6 +1,6 @@
 import { LitElement, css, html } from "lit";
-import { DEFAULT_TILT, THEMES, WALLS_LABELS, WALLS_MODES, wallsModeOf, clampTilt, migrate, validate } from "../core";
-import type { Layout, Theme, WallsMode } from "../core";
+import { DEFAULT_TILT, DETAIL_LABELS, DETAIL_MODES, parseDetailMode, THEMES, WALLS_LABELS, WALLS_MODES, wallsModeOf, clampTilt, migrate, validate } from "../core";
+import type { DetailMode, Layout, Theme, WallsMode } from "../core";
 import type { FloorplanStudioCardConfig, Hass } from "./floorplan-studio-card";
 import { defineElement } from "./define";
 import { ROTATION_STEP, normaliseRotation } from "./view-state";
@@ -183,6 +183,14 @@ export class FloorplanStudioCardEditor extends LitElement {
 
   private _onWalls(e: Event): void {
     this._set("walls", wallsModeOf((e.target as HTMLSelectElement).value), "cut");
+  }
+
+  private _detail(): DetailMode {
+    return parseDetailMode(this._config.detail);
+  }
+
+  private _onDetail(e: Event): void {
+    this._set("detail", parseDetailMode((e.target as HTMLSelectElement).value), "auto");
   }
 
   private _night(): "auto" | "on" | "off" {
@@ -518,6 +526,13 @@ export class FloorplanStudioCardEditor extends LitElement {
         <label class="main" for="walls">Walls (2.5D)</label>
         <select id="walls" @change=${this._onWalls}>
           ${WALLS_MODES.map((m) => html`<option value=${m} ?selected=${this._walls() === m}>${WALLS_LABELS[m]}</option>`)}
+        </select>
+      </div>
+
+      <div class="row">
+        <label class="main" for="detail">Detail</label>
+        <select id="detail" title="How much of the plan is drawn at each zoom" @change=${this._onDetail}>
+          ${DETAIL_MODES.map((m) => html`<option value=${m} ?selected=${this._detail() === m}>${m === "auto" ? "Auto (follow the zoom)" : `Always ${DETAIL_LABELS[m].toLowerCase()}`}</option>`)}
         </select>
       </div>
 

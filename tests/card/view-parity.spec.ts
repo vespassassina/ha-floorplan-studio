@@ -24,6 +24,8 @@ const PARITY: Record<string, Decision> = {
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
   copyCardView: { card: "deliberate", why: "authoring: it writes the card's own `center` and `zoom_level`" },
   // S24.6: Layers replaced the Filter menu; S24.8 gives the card a text chip per family in its Overview, unfolded by this button.
+  // S25.8: the Detail button beside Layers, same three choices; the card starts on Auto, the Studio on Full.
+  detailSub: { card: "yes", has: ".fp-ov-scopes button.fp-detail-toggle" },
   tabLayers: { card: "yes", has: ".fp-ov-scopes button.fp-layers-toggle" },
   zin: { card: "yes", has: 'button[aria-label="Zoom in"]' },
   zout: { card: "yes", has: 'button[aria-label="Zoom out"]' },

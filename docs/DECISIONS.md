@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: the detail mode in the menus, the YAML key and the defaults (S25.7, S25.8, S25.9)
+
+Supersedes "Mode is `full` for now" in the entry below.
+- **Card default `auto`, Studio default `full`.** Semantic zoom is the feature, so a card with no key and no stored pick runs `auto`. The Studio stays `full` while editing: placing a device must not hide it. The Studio's constant is `DEFAULT_DETAIL` in `src/editor/state.ts`.
+- **Priority in the card:** the viewer's stored pick, then `detail:` in the YAML, then `auto`. Junk in either place is `auto` (`parseDetailMode`; the stored value is dropped by `parseStoredView`). `detail` is not part of the view-memory storage key: editing it in YAML must not start a card with a clean memory, and the pick is the viewer's, not the config's. Reset view clears the pick.
+- **Kept per viewer, every storage access in try/catch.** Studio: `floorplan-studio:detail`, like the theme; card: a `detail` field in the view memory. Blocked storage means the pick lasts for the session.
+- **Tests that click idle devices at fit.** 144 card tests would miss them under `auto`. `tests/card/harness.html` and `harness-static.html` wrap `setConfig` to add `detail: "full"` when the config has no `detail`; a test sets `window.__realDetailDefault` with `addInitScript` to see the real default (`tests/card/detail-menu.spec.ts` does). No assertion changed. Alternative rejected: editing each of 50 files.
+- **Not in 3D.** The Detail button hides in live 3D, as Layers does; 3D draws every level.
+
 ## 2026-10-09: detail levels in `renderFloor`; mode is `full` until the menu (S25.1, S25.2)
 
 - `detailLevel(zoom, mode)` and `detailFor(fit, shown, mode)` live in `src/core/detail.ts`. Far below 1.6, mid to 3.2, near

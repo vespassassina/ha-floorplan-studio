@@ -156,3 +156,11 @@ describe("viewAround", () => {
     expect(v).toEqual({ x: -150, y: -75, w: 500, h: 250 });
   });
 });
+
+describe("S25.8: the stored detail mode", () => {
+  const ok = () => true;
+  it("keeps one of the three names and drops anything else on its own", () => {
+    for (const d of ["auto", "full", "minimal"]) expect(parseStoredView({ v: 1, detail: d }, ok, []).detail).toBe(d);
+    for (const d of ["FULL", "", 3, null, {}, ["full"], "<b>"]) expect(parseStoredView({ v: 1, detail: d, labels: false }, ok, [])).toEqual({ labels: false });
+  });
+});

@@ -1,6 +1,6 @@
 /** The card's view memory and rotation, as pure maths and parsing. No DOM, no storage handle: the card reads and
  * writes `localStorage` itself and hands the raw string here. */
-import { WALLS_MODES, clampTilt, parseLayers, type LayerId } from "../core";
+import { DETAIL_MODES, WALLS_MODES, clampTilt, parseLayers, type DetailMode, type LayerId } from "../core";
 import { MAX_ZOOM, MIN_ZOOM, type Pt, type View } from "./viewport";
 
 /** A user turn is a multiple of this many degrees. */
@@ -71,6 +71,8 @@ export interface StoredView {
   floor?: string;
   /** The families this viewer hid with the layer chips (S24.8); missing or empty draws everything. */
   layers?: LayerId[];
+  /** The detail mode this viewer picked (S25.8); it wins over the card's YAML `detail`. */
+  detail?: DetailMode;
 }
 
 /** Further than this from the origin is not a plan in cm; the bound keeps later arithmetic finite. */
@@ -137,5 +139,6 @@ export function parseStoredView(raw: unknown, isView: (v: unknown) => boolean, t
   if (validKey(r.floor)) out.floor = r.floor;
   const layers = parseLayers(r.layers);
   if (layers.length) out.layers = layers;
+  if (typeof r.detail === "string" && (DETAIL_MODES as readonly string[]).includes(r.detail)) out.detail = r.detail as DetailMode;
   return out;
 }

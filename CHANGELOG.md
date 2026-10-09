@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card and Studio: semantic zoom, with a setting. Far out the plan shows rooms, room names and badges, and only the devices that are on, alerting or unavailable (as dots); closer in it adds the icons, closest the device names and readings. View, Detail in the Studio and a Detail button beside Layers in the card pick Auto, Full or Minimal, and each viewer's choice is kept in the browser. The card takes `detail: auto | full | minimal` in its YAML as the default (the Edit-card form has it); a viewer's pick wins. The card starts on Auto, so idle devices are not drawn until you zoom in or pick Full; the Studio starts on Full so that devices you place stay visible.
 - Plan: semantic zoom, first part. The plan root carries `data-detail` (far, mid, near) from the zoom against the floor at fit: far drops idle devices and keeps lit, alerting and unavailable ones as dots; far and mid drop device names and readings. Not on yet: the mode is `full` until the View menu arrives, so nothing changes on screen.
 - Card: names and labels keep their size on screen when you zoom in or out. They no longer grow with the plan; the 11 px floor still holds.
 - Card and Studio: each room can carry a small badge with what is on and what is wrong in it: lights on, alerts, open doors and windows, motion. The badge is drawn and styled; the detail levels that show it at far and mid zoom come next.

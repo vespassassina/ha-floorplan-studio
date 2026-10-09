@@ -46,6 +46,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `rotate_switch` | follows the other controls | the two rotate buttons and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
 | `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names button (`Aa`) changes it for as long as the card is on screen |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D, and the control is hidden in 3D. See the Tilt slider, below |
+| `detail` | `auto` | how much of the plan is drawn at each zoom (Detail, below): `auto` follows the zoom, `full` always draws everything, `minimal` always draws only rooms and what needs attention. Anything else is `auto`. The Detail button in the Overview changes it for one viewer, and a viewer's own pick wins over this key |
 | `walls` | `cut` | how 2.5D and 3D draw wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Read in 2.5D and 3D. See Walls, below |
 | `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
 | `rotation` | `0` | degrees the plan starts turned, in steps of 45: `0`, `45`, `90` ... `315`. Any other number rounds to the nearest step; anything that is not a number is `0`. Text and icons stay upright. A viewer's own turn is remembered over this — see View memory and reset, below |
@@ -256,6 +257,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#lens` Lengths | no | an editing aid |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
+| `#detailSub` Detail (Auto, Full, Minimal) | yes | the Detail button beside Layers in the Overview, same three choices; kept per viewer; config `detail`. The Studio starts on Full, the card on Auto. Not in 3D |
 | `#tabLayers` Layers (hide a family) | yes | the Layers button in the Overview unfolds a text chip per family: a click hides it, Alt-click shows it alone; kept per viewer. Not in 3D |
 | Plan view, Tilt, Walls | card only | the View dropdown, the Tilt slider and the Walls select. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
 | Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
@@ -391,6 +393,23 @@ entity id, state and when it last changed, from Home Assistant's device
 registry. A device with no registry entry shows the entity id, state and last
 changed. Not in kiosk.
 
+## Detail
+
+A house with hundreds of devices is unreadable whole. The card draws less when you are far out and more as you zoom in.
+Zoom 1 is the whole floor at fit.
+
+| Level | Zoom | What is drawn |
+|---|---|---|
+| far | below 1.6 | rooms, room names and room badges; a device that is on, alerting or unavailable stays as a dot, idle devices go |
+| mid | 1.6 to below 3.2 | device icons, room names and badges; no device names or readings |
+| near | 3.2 and up | everything, with device names and readings |
+
+The thresholds are fixed. **Detail** (a button beside Layers in the Overview) picks the mode: **Auto** follows the zoom,
+**Full** is always near, **Minimal** is always far. The config key `detail: auto | full | minimal` sets the card's
+default (anything else is `auto`; the Edit-card form has a Detail select). A viewer's own pick is remembered in that
+browser and wins over the YAML; Reset view clears it. With storage blocked the pick lasts until the page closes. Live 3D
+draws every level.
+
 ## View memory and reset
 
 Two buttons in the stack, under the zoom buttons, turn the plan: **Rotate left** and
@@ -403,7 +422,7 @@ The card also has a Theme dropdown and a names-and-text toggle next to View.
 
 The card remembers, per browser, the viewer's zoom, the spot they zoomed to,
 the rotation, 2D, 2.5D or 3D, the tilt, the wall heights, the theme, whether
-text shows and which layer chips are off. Come
+text shows, which layer chips are off and the Detail mode. Come
 back, reload or switch dashboard tab and the plan is as it was left, with no
 flash of the configured look. The floor and the Overview are remembered
 as before.
@@ -418,7 +437,7 @@ still remember until the page closes. Entries written by an older card (one
 zoom and turn for the whole card) move to the floor they were saved on.
 
 - **A remembered value wins over the config** for as long as the config is the
-  same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `center`,
+  same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `detail`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
 - **Reset view** (the last button of the stack, greyed while nothing differs) puts

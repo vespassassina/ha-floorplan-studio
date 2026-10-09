@@ -2819,13 +2819,13 @@ Wave 2, view and behaviour (after wave 1):
 - [ ] S25.6 Incremental render. A state update for one entity rewrites only that device's nodes. Test: a mutation
       observer on the plan root sees changes under one device group only after one `hass` update, and none for an
       unrelated entity; the full render still happens on layout change.
-- [ ] S25.7 Studio View menu: a Detail group with Auto, Full, Minimal; kept in the browser, per viewer; the toolbar shows
+- [x] S25.7 Studio View menu: a Detail group with Auto, Full, Minimal; kept in the browser, per viewer; the toolbar shows
       the pinned mode when it is not Auto. Test: real clicks, the plan root's `data-detail` follows, survives reload,
       one undo stack untouched.
-- [ ] S25.8 Card: the same control (a Detail button beside Layers in the chrome), same storage rule, and `detail:
+- [x] S25.8 Card: the same control (a Detail button beside Layers in the chrome), same storage rule, and `detail:
       auto|full|minimal` in the card YAML as the default (untrusted config: bad value falls back to `auto`). The card
       config editor offers it. Test: real clicks; YAML default; a stored viewer choice wins over YAML.
-- [ ] S25.9 Docs: `docs/card.md`, `docs/editor.md`, `docs/SPEC.md` (levels, thresholds, the key), CHANGELOG,
+- [x] S25.9 Docs: `docs/card.md`, `docs/editor.md`, `docs/SPEC.md` (levels, thresholds, the key), CHANGELOG,
       DECISIONS.
 
 Review (one Opus pass on the integrated build) then fixes with their tests; exit test: one sensor update writes only its

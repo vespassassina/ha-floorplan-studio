@@ -7,7 +7,19 @@
      built module's own source into the page instead (page.addScriptTag({content, type:"module"})), which runs
      without a fetch. dist/ is rebuilt by tests/setup/build.ts. -->
 <html>
-<head><meta charset="utf-8"></head>
+<head><meta charset="utf-8"><script>
+/* S25.8: the card's own default is `auto`, which hides idle devices at fit. Every card test that clicks a device at fit
+   would then miss it, so this one place pins `detail: "full"` in the config unless the config names its own `detail`
+   or the test sets window.__realDetailDefault (addInitScript) to see the real default. Nothing else is changed. */
+customElements.whenDefined("floorplan-studio-card").then(() => {
+  const P = customElements.get("floorplan-studio-card").prototype, orig = P.setConfig;
+  P.setConfig = function (c) {
+    if (window.__realDetailDefault || !c || typeof c !== "object" || "detail" in c) return orig.call(this, c);
+    return orig.call(this, { ...c, detail: "full" });
+  };
+});
+</script>
+</head>
 <body>
 <!-- S8.2: an unstyled wrapper, not body itself, as the card's parent. :host is `height:100%` (so a fixed-height
      HA grid row is filled instead of cropped); CSS resolves a percentage height only against a parent that has
