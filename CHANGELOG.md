@@ -7,6 +7,7 @@
 - Studio: Undo, Redo, Save and Fit to window show their key at the right edge, for the platform (⌘Z on a Mac, Ctrl+Z elsewhere).
 - Studio: "Fix plan" is "Lock plan". A neutral pill with a lock reads "Plan locked" or "Plan editable"; the warning colour shows only on hover.
 
+- Studio: one context menu per object on the plan. A right-click on a device, a multi-selection, stairs, a line, a door, an opening, a wall, furniture, a room or the empty canvas opens a menu in the same order. Device and selection menus offer Lock (a locked device does not move when dragged), Delete, Controlled by..., Select same type and Hide this type; the canvas offers Add device here..., Select all devices and Zoom to fit; a room offers Select devices inside. A wall's Add an opening is now Add door, Add window and Add opening; Fix is now Lock.
 - Studio (internal): pure bulk edits for devices (bind lights, remove, move, lock), ready for multi-select. No visible change yet.
 
 - Layout: a device may carry `locked: true`, so it will not be moved by a drag. The file check refuses a value that is not true or false.

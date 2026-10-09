@@ -45,6 +45,15 @@ Newest first. A change supersedes; nothing is edited.
 - View keeps one Labels submenu (`#names`, `#labels`). The installed version is in the Help panel (`#version`), so `panels.ts` took two lines; `editor-app.ts` was not touched.
 - Keys: `MENU_KEYS` and `chordLabel` in `guide.ts`; `Mod` is ⌘ on a Mac, Ctrl elsewhere. Only Undo, Redo, Save and Fit to window carry one. Left out: Search, Select all, Delete, Help "?" (not menu items yet, or their keys land in other lanes), and the context menu (lane D owns `ctxItems`). Space is shown on Fit to window; it also turns the view upright.
 - Lock plan: the lock is a CSS mask (a data-URI SVG on a span), not an inline `<svg>`: an inline one came first in the shadow root and 105 tests, helpers included, take `querySelector("svg")` to be the plan. A test pins the plan as the first svg. Label and tooltip change with the state; the id `#fixPlan` stays so other tests still find it. Accessible name is the constant "Lock plan", state is `checked`. On is ink on paper, hover is the warning colour. The command list and the banner still say Fix plan (S26.24).
+## 2026-10-09: every context menu comes from `ctxItems` (S26.20)
+
+- `ctxMenuView` builds each menu from `ctxItems(kind, facts)` and maps an item id to an action in `runItem`; labels, order, keys and disabled state are the model's. Twelve targets, all open a menu: a hit with no menu of its own (a room kind with none, a hidden edge, the background) opens the canvas menu, a corner handle opens none. `ctxTargetFor` (in `ctx-menu.ts`) turns a hit into the target and sets the selection; the host only keeps `hitOf` and `edgeNear`.
+- Supersedes the menus of S4.18, S4.27 and S4.31 where they differ: Change colour is gone from the room menu (the panel has it); Add an opening, a submenu of five, is three items (Add door, Add window, Add opening), so Open doorway and Slit window are in the Add menu only; Fix and Unfix are Lock and Unlock; a door, opening, furniture piece and unlinked object gain Delete.
+- A right-click on a device that belongs to the selection keeps the selection (target `devs`); on any other device it selects that one. Lock on a selection unlocks only when every member is locked.
+- A locked device selects but does not start a drag.
+- The room's unplaced Home Assistant entities stay as buttons under its items (a quick Place); they are not model items.
+- Rename, Controlled by... focus the panel field (`#rn`, `#vbound`...); a device has no name field, so Rename says the name comes from Home Assistant. The F2 key shown on Rename is not bound here.
+- Add device here... keeps the click point in the host (`addAt`) for the next device the Add panel places; closing the panel clears it.
 
 ## 2026-10-09: the editor host is split (S26.9)
 

@@ -6473,18 +6473,21 @@ async function rightClickCm(page: Page, x: number, y: number) {
  */
 const PAGE_CORNER = { x: 5, y: 5 };
 
-test("S4.18: right-clicking a room selects it and opens a context menu with Change colour and Delete", async ({ page }) => {
+test("S4.18: right-clicking a room selects it and opens a context menu with Rename, Bring to front and Delete (S26.20: Change colour lives in the panel)", async ({ page }) => {
   await rightClickCm(page, 200, 150); // inside Living
   await expect(page.locator("#rk")).toHaveValue("room"); // the room panel is already open, per the design decision
   const menu = page.locator(".ctxmenu");
   await expect(menu).toBeVisible();
-  await expect(menu.locator("#cmColour")).toBeVisible();
+  await expect(menu.locator("#cmRename")).toBeVisible();
+  await expect(menu.locator("#cmToFront")).toBeVisible();
   await expect(menu.locator("#cmDelete")).toBeVisible();
 });
 
-test("S4.18: right-clicking the background or a device opens no menu", async ({ page }) => {
+test("S4.18 / S26.20: right-clicking the background opens the canvas menu, not a room's", async ({ page }) => {
   await rightClickCm(page, 950, 700); // outside every room
-  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  await expect(page.locator(".ctxmenu")).toBeVisible();
+  await expect(page.locator(".ctxmenu #cmAddDeviceHere")).toBeVisible();
+  await expect(page.locator(".ctxmenu #cmToFront")).toHaveCount(0);
 });
 
 test("S4.18: outside click, Escape and scroll all close the context menu", async ({ page }) => {
@@ -6577,23 +6580,22 @@ test("S4.26: 'Add device from <area>' places the device at the right-click point
 
 // ---- S4.27: right-click context menu on a wall (a room edge or the outline) --------------------------------------
 
-test("S4.27: right-clicking a wall selects it (the side panel shows its kind, like the room menu) and opens a context menu with Change type, Add a point, Add an opening, Delete", async ({ page }) => {
+test("S4.27: right-clicking a wall selects it (the side panel shows its kind, like the room menu) and opens a context menu with Change type, Add a point, Add door, Add window, Add opening, Delete", async ({ page }) => {
   await rightClickCm(page, 500, 300); // the Living / Kitchen shared wall
   await expect(page.locator("#ek")).toHaveValue("wall"); // the edge panel is already open, per the room ctx menu's own design decision
   const menu = page.locator(".ctxmenu");
   await expect(menu).toBeVisible();
   for (const label of ["Dotted boundary", "External wall", "Fence", "Outdoor edge", "Add a point", "Delete"])
     await expect(menu.locator("button", { hasText: label })).toBeVisible();
-  await expect(menu.locator("summary", { hasText: "Add an opening" })).toBeVisible(); // S4.31: a submenu, not a plain button
+  for (const label of ["Add door", "Add window", "Add opening"]) await expect(menu.locator("button", { hasText: label })).toBeVisible(); // S26.20: three plain items from ctxItems, no submenu
   // an edge (a room boundary) has no Fix/Unfix — only a free wall does
   await expect(menu.locator("button", { hasText: "Fix" })).toHaveCount(0);
 });
 
-test("S4.31: 'Add an opening' on a wall is a submenu offering Door, Window and Opening, each placed centred on the right-click point", async ({ page }) => {
+test("S4.31: 'Add door' on a wall's menu places a door centred on the right-click point", async ({ page }) => {
   await rightClickCm(page, 500, 300); // the wall's own midpoint is (500,200) — 100 cm away from this point
   const menu = page.locator(".ctxmenu");
-  await menu.locator("summary", { hasText: "Add an opening" }).click();
-  await menu.locator("details.sub button", { hasText: /^Door$/ }).click();
+  await menu.locator("#cmAddDoor").click();
   await expect(menu).toHaveCount(0);
   const d = (await groundOf(page)).doors.at(-1)!;
   expect(d.kind).toBe("door");
@@ -6601,23 +6603,22 @@ test("S4.31: 'Add an opening' on a wall is a submenu offering Door, Window and O
   expect((d.a[1] + d.b[1]) / 2).toBeCloseTo(300, 0);
 });
 
-test("the wall menu's 'Add an opening' offers Open doorway: a door of kind open, centred on the right-click point, one undo step", async ({ page }) => {
+test("the wall menu's 'Add window' places a window centred on the right-click point, one undo step", async ({ page }) => {
   const before = (await groundOf(page)).doors.length;
   await rightClickCm(page, 500, 300);
-  const menu = page.locator(".ctxmenu");
-  await menu.locator("summary", { hasText: "Add an opening" }).click();
-  await menu.locator("details.sub button", { hasText: /^Open doorway$/ }).click();
+  await page.locator(".ctxmenu #cmAddWindow").click();
   const d = (await groundOf(page)).doors;
   expect(d).toHaveLength(before + 1);
-  expect(d.at(-1)).toMatchObject({ kind: "open", name: "new open doorway" });
+  expect(d.at(-1)).toMatchObject({ kind: "window" });
   expect((d.at(-1)!.a[1] + d.at(-1)!.b[1]) / 2).toBeCloseTo(300, 0);
   await page.locator("#undo").click();
   expect((await groundOf(page)).doors).toHaveLength(before);
 });
 
-test("S4.27: right-clicking the background, a device or a room's interior (away from any edge) opens no wall menu", async ({ page }) => {
+test("S4.27: right-clicking the background (away from any edge) opens no wall menu", async ({ page }) => {
   await rightClickCm(page, 950, 700); // outside every room and wall
-  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  await expect(page.locator(".ctxmenu #cmKind, .ctxmenu [data-cm=\"kind\"]")).toHaveCount(0);
+  await expect(page.locator(".ctxmenu #cmAddPoint")).toHaveCount(0);
 });
 
 test("S4.27: 'Change type' from the wall menu sets the kind on both rooms sharing the wall, one undo step", async ({ page }) => {
@@ -6649,8 +6650,7 @@ test("S4.27: 'Add a point' from the wall menu inserts a point at the wall's midp
 
 test("S4.27: 'Add an opening' from the wall menu places it centred on the right-click point, not the wall's midpoint", async ({ page }) => {
   await rightClickCm(page, 500, 300); // the wall's own midpoint is (500,200) — 100 cm away from this point
-  await page.locator(".ctxmenu summary", { hasText: "Add an opening" }).click();
-  await page.locator(".ctxmenu button", { hasText: "Opening" }).click();
+  await page.locator(".ctxmenu #cmAddOpening").click();
   await expect(page.locator(".ctxmenu")).toHaveCount(0);
   const o = (await groundOf(page)).openings[0];
   expect((o.a[1] + o.b[1]) / 2).toBeCloseTo(300, 0);
@@ -6669,7 +6669,7 @@ test("S4.27: 'Delete' from the wall menu stops drawing it, same as the edge pane
 
 // ---- S4.31: right-click Fix/Unfix on a wall, door, opening, furniture piece and unattached device ------------------
 
-test("S4.31: 'Fix' on a free wall's context menu locks it, one undo step; the menu then offers 'Unfix'", async ({ page }) => {
+test("S4.31 / S26.20: 'Lock' on a free wall's context menu locks it, one undo step; the menu then offers 'Unlock'", async ({ page }) => {
   // Near the top of the plan, clear of the menu's own height, unlike withWallRow's row under the house.
   await page.evaluate((tag) => {
     const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
@@ -6678,18 +6678,18 @@ test("S4.31: 'Fix' on a free wall's context menu locks it, one undo step; the me
   }, EDITOR);
   await rightClickCm(page, 300, 20);
   const menu = page.locator(".ctxmenu");
-  await expect(menu.locator("button", { hasText: "Fix" })).toBeVisible();
-  await menu.locator("button", { hasText: "Fix" }).click();
+  await expect(menu.locator("#cmLock .cm-l")).toHaveText("Lock");
+  await menu.locator("#cmLock").click();
   await expect(menu).toHaveCount(0);
   expect((await groundOf(page)).walls[0].locked).toBe(true);
 
   await rightClickCm(page, 300, 20);
-  await expect(menu.locator("button", { hasText: "Unfix" })).toBeVisible();
-  await menu.locator("button", { hasText: "Unfix" }).click();
+  await expect(menu.locator("#cmLock .cm-l")).toHaveText("Unlock");
+  await menu.locator("#cmLock").click();
   expect((await groundOf(page)).walls[0].locked).toBe(false);
 
   await rightClickCm(page, 300, 20);
-  await menu.locator("button", { hasText: "Fix" }).click();
+  await menu.locator("#cmLock").click();
   await page.keyboard.press("Control+z");
   expect((await groundOf(page)).walls[0].locked).toBe(false); // one undo step
 });
@@ -6700,7 +6700,7 @@ async function rightClickEl(page: Page, selector: string) {
   await page.mouse.click(c.x, c.y, { button: "right" });
 }
 
-test("S4.31: right-clicking a door, an opening, a furniture piece or an unattached device opens a menu with only Fix/Unfix", async ({ page }) => {
+test("S4.31 / S26.20: right-clicking a door, an opening, a furniture piece or an unattached device opens a menu with only Lock and Delete", async ({ page }) => {
   await page.evaluate((tag) => {
     const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout));
     l.floors.ground.openings.push({ id: "opening-fix-1", a: [450, 600], b: [540, 600] });
@@ -6711,23 +6711,23 @@ test("S4.31: right-clicking a door, an opening, a furniture piece or an unattach
   const menu = page.locator(".ctxmenu");
 
   await rightClickCm(page, 345, 600); // door-ground-1, "Front door"
-  await expect(menu.locator("button")).toHaveCount(1);
-  await expect(menu.locator("button", { hasText: "Fix" })).toBeVisible();
+  await expect(menu.locator("button")).toHaveCount(2);
+  await expect(menu.locator("#cmLock")).toBeVisible();
   await page.keyboard.press("Escape");
 
   await rightClickCm(page, 495, 600); // opening-fix-1
-  await expect(menu.locator("button")).toHaveCount(1);
-  await expect(menu.locator("button", { hasText: "Fix" })).toBeVisible();
+  await expect(menu.locator("button")).toHaveCount(2);
+  await expect(menu.locator("#cmLock")).toBeVisible();
   await page.keyboard.press("Escape");
 
   await rightClickEl(page, 'g[data-f="2"]'); // furn-fix-1: the demo already has 2 furniture pieces
-  await expect(menu.locator("button")).toHaveCount(1);
-  await menu.locator("button", { hasText: "Fix" }).click();
+  await expect(menu.locator("button")).toHaveCount(2);
+  await menu.locator("#cmLock").click();
   expect((await groundOf(page)).furniture.find((m) => m.id === "furn-fix-1")!.locked).toBe(true);
 
   await rightClickEl(page, 'g[data-u="0"]'); // unl-fix-1: the only unlinked device
-  await expect(menu.locator("button")).toHaveCount(1);
-  await menu.locator("button", { hasText: "Fix" }).click();
+  await expect(menu.locator("button")).toHaveCount(2);
+  await menu.locator("#cmLock").click();
   expect((await groundOf(page)).unlinked.find((u) => u.id === "unl-fix-1")!.locked).toBe(true);
 });
 
@@ -6742,7 +6742,7 @@ test("S4.31: fixing furniture or an unattached device blocks a drag; unfixing re
   expect((await groundOf(page)).furniture.find((m) => m.id === "furn-fix-2")).toEqual(before); // locked: drag is a no-op
 
   await rightClickEl(page, 'g[data-f="2"]');
-  await page.locator(".ctxmenu button", { hasText: "Unfix" }).click();
+  await page.locator(".ctxmenu #cmLock").click();
   await drag(page, 'g[data-f="2"]', 50, 30);
   expect((await groundOf(page)).furniture.find((m) => m.id === "furn-fix-2")).not.toEqual(before); // unfixed: drag works again
 });
