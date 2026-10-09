@@ -760,6 +760,23 @@ export class FloorplanStudioEditor extends LitElement {
     return best ? (best as { hit: Hit }).hit : null;
   }
 
+  /** The two neighbours of a dragged corner: never snap targets, landing on one would leave an edge of zero length. */
+  private neighboursOf(base: Floor, ref: PtRef): Pt[] {
+    if (!("poly" in ref)) return [];
+    const pts = polyPts(base, ref.poly) ?? [], n = pts.length;
+    return [pts[(ref.j + 1) % n], pts[(ref.j + n - 1) % n]];
+  }
+  /** The loose end or polygon corner within reach of `p`, or null. Loose ends and corners compete in one list: the nearest wins. */
+  private cornerHit(base: Floor, p: Pt, from: Pt, ref: PtRef): Pt | null {
+    const th = 14 / this.scale, grp = pointsNear(base, from), neighbours = this.neighboursOf(base, ref);
+    const cands: Pt[] = looseEnds(base).map((r) => base[r.k][r.i][r.end]);
+    for (const P of polys(base)) if (P.room?.kind !== "zone") cands.push(...P.pts); // a zone corner is never a target
+    let best: Pt | null = null;
+    for (const q of cands)
+      if (!grp.includes(q) && !neighbours.some((m) => m[0] === q[0] && m[1] === q[1]) && dist(q, p) < th && (!best || dist(q, p) < dist(best, p))) best = q;
+    return best ? [best[0], best[1]] : null;
+  }
+
   /** `align`: extra points the result lines up with (the points of a shape being drawn).
    *  `zone`: the point belongs to a zone. One rule for draw and drag: it snaps to the grid and lines up with the other
    *  corners of its own zone, and to nothing else. A room, outline or stairs corner never attracts it. */
@@ -771,20 +788,10 @@ export class FloorplanStudioEditor extends LitElement {
       return round(snapPoint(none, p, { threshold: 14 / this.scale, grid: this.st.snapGrid, exclude: [], neighbours: [...own, ...align] }));
     }
     const th = 14 / this.scale, grp = pointsNear(base, from);
-    // The two neighbours of the dragged corner are never snap targets: landing on one would leave an edge of zero length.
-    let neighbours: Pt[] = [];
-    if ("poly" in ref) {
-      const pts = polyPts(base, ref.poly) ?? [], n = pts.length;
-      neighbours = [pts[(ref.j + 1) % n], pts[(ref.j + n - 1) % n]];
-    }
+    const neighbours = this.neighboursOf(base, ref);
     const isNeighbour = (q: Pt) => neighbours.some((m) => m[0] === q[0] && m[1] === q[1]);
-    // loose ends and polygon corners compete in one list: the nearest wins
-    const cands: Pt[] = looseEnds(base).map((r) => base[r.k][r.i][r.end]);
-    for (const P of polys(base)) if (P.room?.kind !== "zone") cands.push(...P.pts); // a zone corner is never a target
-    let best: Pt | null = null;
-    for (const q of cands)
-      if (!grp.includes(q) && !isNeighbour(q) && dist(q, p) < th && (!best || dist(q, p) < dist(best, p))) best = q;
-    if (best) return [best[0], best[1]];
+    const hit = this.cornerHit(base, p, from, ref);
+    if (hit) return hit;
     const snapped = round(snapPoint(base, p, { threshold: th, grid: this.st.snapGrid, exclude: grp, neighbours: [...neighbours, ...align] }));
     if (!isNeighbour(snapped)) return snapped;
     // snapPoint pulled it onto a neighbour (corner snap, or both axes lined up): keep it where the pointer is, on the grid if on
@@ -2122,10 +2129,12 @@ export class FloorplanStudioEditor extends LitElement {
   /** A snapped point for draw mode. A zone snaps to the grid only: its corners never join other shapes (S1.8). */
   private snapDraw(d: Draw, p: Pt, alt: boolean): Pt {
     const s = this.snapCorner(this.st.f, p, NOWHERE, NO_REF, alt, d.points, d.kind === "zone");
-    // S26.12: after a first point the segment goes on the nearest 15 degree ray, unless a corner or an alignment with an earlier
-    // point caught the pointer first (then the point is not the plain grid one) or Alt is held.
+    // S26.12: after a first point the segment goes on the nearest 15 degree ray, unless a corner caught the pointer (asked of the
+    // corner search itself: a corner can sit on the plain grid point, so comparing coordinates cannot tell), an alignment with an
+    // earlier point did (then the point is not the plain grid one), or Alt is held.
     const last = d.points[d.points.length - 1];
     if (alt || !last) return s;
+    if (d.kind !== "zone" && this.cornerHit(this.st.f, p, NOWHERE, NO_REF)) return s;
     const g = this.st.snapGrid || 1, free: Pt = [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g];
     return s[0] === free[0] && s[1] === free[1] ? snapRay(last, p, 15, this.st.snapGrid) : s;
   }

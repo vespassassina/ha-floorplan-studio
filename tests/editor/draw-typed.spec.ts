@@ -137,3 +137,25 @@ test("CSS pair: the typed field is readable text that never takes a click", asyn
   expect(css.stroke).not.toBe("none"); // a halo, so it reads over a room fill
   expect(css.size).toBeGreaterThan(0);
 });
+
+// Opus review R1b: a corner catches the pointer before the 15 degree ray does, even when the corner is off every ray.
+// The old test compared the corner snap with the plain grid point; a corner that sits on a grid point read as "nothing caught it".
+test("a click exactly on a wall's corner joins it, though the corner is 18 degrees off the ray from the last point", async ({ page }) => {
+  await load(page);
+  await page.evaluate((tag) => { const ed = document.querySelector(tag) as any; ed.st.edit((f: any) => { f.walls.push({ id: "w-corner", a: [500, 300], b: [500, 500], kind: "wall" }); }); ed.requestUpdate(); }, EDITOR);
+  const at = (x: number, y: number) => page.evaluate(([tag, x, y]) => {
+    const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector(".canvas > svg") as SVGSVGElement;
+    const m = svg.getScreenCTM()!, p = new DOMPoint(x as number, y as number).matrixTransform(m);
+    return [p.x, p.y];
+  }, [EDITOR, x, y] as const);
+  const c = await canvas(page);
+  const [sx, sy] = await at(200, 200), [bx, by] = await at(500, 300);
+  for (const [x, y] of [[sx, sy], [bx, by]]) { expect(x).toBeGreaterThan(c.x); expect(x).toBeLessThan(c.x + c.width); expect(y).toBeGreaterThan(c.y); expect(y).toBeLessThan(c.y + c.height); }
+  await page.mouse.move(sx, sy); await page.mouse.click(sx, sy);
+  await page.mouse.move(bx, by, { steps: 5 });
+  await page.mouse.click(bx, by);
+  await page.keyboard.press("Enter");
+  const w = (await walls(page)).filter((x) => x.a[0] === 200 && x.a[1] === 200);
+  expect(w).toHaveLength(1);
+  expect(w[0].b).toEqual([500, 300]);
+});

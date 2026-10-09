@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: a corner beats the 15 degree ray; every free click while drawing lands on a ray (Opus review R1b)
+
+- The 15° ray snap read "the corner snap gave the plain grid point" as "nothing caught the pointer". A corner on a grid point, 18° off the ray, was thrown to (509, 283) and the walls did not join. `snapDraw` now asks the corner search itself (`cornerHit`, split out of `snapCorner`), so a corner always wins.
+- **Intent, recorded:** every free click while drawing is forced onto a 15° ray from the last point unless Alt is held or a corner or an alignment caught it. That is the design of S26.12, not a side effect. It moved the Backspace room test's input from [200,668] to [295,700].
+
 ## 2026-10-09: Sprint 26 in one place: multi-select, Lock, Inspector modes, status bar, typed length, snap (S26.24, S26.25)
 
 The decisions below, each in its own entry, add up to this. Summary so a later reader need not read twelve entries.
