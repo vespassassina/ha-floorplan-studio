@@ -133,6 +133,9 @@ test("B (computed-style pair): at far an unlocked lock, a jammed lock, a battery
   expect(await level(page)).toBe("far");
   const shown = await Promise.all([0, 1, 2, 3, 4, 5, 6].map(async (i) => (await dev(page, i)).display));
   for (const i of [0, 1, 2, 3]) expect(shown[i], `device ${i} needs attention`).not.toBe("none");
+  // Drawn is not enough: an off disc has no fill, so the dot must be painted (found by looking at the render).
+  const halo = await card(page).evaluate((el) => [0, 1, 2, 3].map((i) => { const h = getComputedStyle(el.shadowRoot!.querySelector(`svg g[data-x="${i}"] .halo`)!); return { fill: h.fill, op: h.fillOpacity }; }));
+  for (const [i, h] of halo.entries()) { expect(h.op, `device ${i} dot opacity`).toBe("1"); expect(h.fill, `device ${i} dot fill`).not.toMatch(/rgba\(.*, 0\)|none/); }
   expect(shown.slice(4), "fine").toEqual(["none", "none", "none"]);
 });
 

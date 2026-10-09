@@ -533,6 +533,7 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 [data-detail="far"] .dev:not(.on):not(.danger):not(.unavailable):not(.needs-attention):not(.sel):not(.spider),[data-detail="far"] .heater.off,[data-detail="far"] .stem,[data-detail="far"] .stem-top{display:none}
 [data-detail="far"] .dev:not(.sel):not(.spider) path:not(.cone),[data-detail="far"] .dev:not(.sel):not(.spider) .gone-mark,[data-detail="far"] .dev:not(.sel):not(.spider) .away-mark{display:none}
 [data-detail="far"] .dev:not(.sel):not(.spider) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.5)}
+[data-detail="far"] .dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) .halo{fill:var(--fp-warn);fill-opacity:1;stroke:none}
 [data-detail="far"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="mid"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="far"] text.val:not([data-rv]),[data-detail="mid"] text.val:not([data-rv]){display:none}`;
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
