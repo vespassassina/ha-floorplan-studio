@@ -37,7 +37,13 @@ function commentsIn(code, sf, tpl, file) {
     const c = code[i];
     if (code.startsWith("/*", i)) { open = i; i += 2; }
     else if (c === '"' || c === "'") i = skipTo(c);
-    else if (/^url\(/i.test(code.slice(i, i + 4))) { i += 3; i = skipTo(")"); }
+    else if (/^url\(/i.test(code.slice(i, i + 4))) {
+      // A quoted argument is one string first, so a ")" inside it does not end the url() (S23.F4).
+      for (i += 4; i < to && /\s/.test(code[i]); ) i++;
+      if (code[i] === '"' || code[i] === "'") i = skipTo(code[i]);
+      i--;
+      i = skipTo(")");
+    }
     else if (c === "\\") i += 2;
     else i++;
   }

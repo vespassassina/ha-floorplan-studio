@@ -286,6 +286,12 @@ describe("S18.10 furnitureNear: a small piece is grabbed from a padded box", () 
     expect(furnitureNear(f, [500, 305 + 6], 1)).toBe(0);
     expect(furnitureNear(f, [500, 305 + 30], 1)).toBeNull();
   });
+  it("S24.R8: skips a piece `skip` names, and finds the one under it instead", () => {
+    const f = floor(piece({ id: "a" }), piece({ id: "b" })); // b is drawn over a
+    expect(furnitureNear(f, [500, 311], 1)).toBe(1);
+    expect(furnitureNear(f, [500, 311], 1, (i) => i === 1)).toBe(0);
+    expect(furnitureNear(f, [500, 311], 1, () => true)).toBeNull();
+  });
   it("pads in px, so zooming out grows the box in cm", () => {
     expect(furnitureNear(floor(piece({})), [500, 305 + 20], 0.5)).toBe(0);
   });

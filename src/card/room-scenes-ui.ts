@@ -15,7 +15,7 @@ export interface ScenesView {
   menu: RoomSceneMenu;
   /** The key (`ha:<entity>`, `custom:<id>`) of the scene that waits for its confirm, or null. */
   asking: string | null;
-  /** `key` is `ha:<entity>`, `custom:<id>`, `preset:on` or `preset:off`. */
+  /** `key` is `ha:<entity>`, `custom:<id>` or `preset:on`. */
   run: (key: string) => void;
   cancel: () => void;
   /** Whether the section is open. It starts folded (Diego, 2026-10-07). */
@@ -30,7 +30,7 @@ export function scenesTemplate(v: ScenesView) {
   const btn = (key: string, label: string, cls = "") => v.asking === key
     ? html`<button type="button" class="fp-scene fp-scene-ask" data-scene=${key} @click=${() => v.run(key)}>Confirm: ${label}</button><button type="button" class="fp-scene" @click=${v.cancel}>Cancel</button>`
     : html`<button type="button" class="fp-scene ${cls}" data-scene=${key} @click=${() => v.run(key)}>${label}</button>`;
-  const count = ha.length + custom.length + (lights.length ? 2 : 0);
+  const count = ha.length + custom.length + (lights.length ? 1 : 0);
   return html`<div class="fp-active-group">
     <button type="button" class="fp-active-group-label fp-cat fp-scenes-head" aria-expanded=${v.open ? "true" : "false"} @click=${v.toggle}>
       <span class="fp-cat-chev" aria-hidden="true">${v.open ? "▾" : "▸"}</span><span class="fp-cat-name">Scenes</span><span class="fp-active-count">${count}</span>
@@ -38,7 +38,7 @@ export function scenesTemplate(v: ScenesView) {
     ${v.open ? html`<div class="fp-scenes">
       ${ha.map((s) => btn(`ha:${s.entity}`, s.name, "fp-scene-ha"))}
       ${custom.map((s) => btn(`custom:${s.id}`, s.name))}
-      ${lights.length ? html`${btn("preset:off", "All off")}${btn("preset:on", "All on")}` : nothing}
+      ${/* S24.8 (C2): no preset All off: the room's Lights off button does it, relays too. */ lights.length ? btn("preset:on", "All on") : nothing}
     </div>` : nothing}
   </div>`;
 }

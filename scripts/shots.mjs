@@ -263,7 +263,7 @@ try {
       return el.updateComplete;
     }, [{ layout: s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}), ...(s.cfg ?? {}) }, lamp(hassFor(s.which, s.dark), s.tap === 0 || s.hover === 0)]);
     if (s.pick !== undefined) {
-      // A real click on bare floor, found with elementFromPoint (CLAUDE.md finding 3), then the first details chevron.
+      // A real click on bare floor, found with elementFromPoint (CLAUDE.md finding 3), then the first row's popup Details.
       await page.evaluate(([reg]) => { const el = document.getElementById("c"); el.hass = { ...el.hass, ...reg }; return el.updateComplete; },
         [{ entities: { "light.demo_living": { entity_id: "light.demo_living", device_id: "d1" } }, devices: { d1: { id: "d1", manufacturer: "Signify", model: "Hue white ambiance", sw_version: "1.88.1", area_id: "living" } }, areas: { living: { area_id: "living", name: "Living" } } }]);
       const at = await page.evaluate((i) => {
@@ -274,7 +274,9 @@ try {
       if (!at) errors.push(`${s.name}: no bare floor to click in room ${s.pick}`);
       else {
         await page.mouse.click(at.x, at.y);
-        await page.locator("floorplan-studio-card").locator(".fp-room-devices .fp-info-btn").first().click();
+        // S24.7: the row's chevron went; its details are under Details in the row's popup.
+        await page.locator("floorplan-studio-card").locator(".fp-room-devices .fp-active-row").first().click();
+        await page.locator("floorplan-studio-card").locator(".fp-pop .fp-pop-info > summary").click();
       }
       await page.mouse.move(0, 0);
     }

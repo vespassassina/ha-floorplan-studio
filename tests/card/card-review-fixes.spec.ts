@@ -222,10 +222,10 @@ test.describe("9 and 12: the keyboard decides like the pointer; the panel names 
     await card(page).locator("css=.fp-pop-do").click();
     expect(await calls(page)).toEqual(["light.turn_off light.demo_kitchen"]);
   });
-  test("the panel's label is the room's name while a room is shown, and 'Active devices' otherwise", async ({ page }) => {
+  test("the panel's label is the room's name while a room is shown, and 'Overview' otherwise (S24.7)", async ({ page }) => {
     await boot(page);
     const label = () => card(page).locator("css=.fp-active").getAttribute("aria-label");
-    expect(await label()).toBe("Active devices");
+    expect(await label()).toBe("Overview");
     const f = await floorPoint(page, 0);
     await page.mouse.click(f.x, f.y);
     expect(await label()).toBe("Living");

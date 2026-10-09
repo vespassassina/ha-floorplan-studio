@@ -108,7 +108,7 @@ test.describe("3D view: taps on rooms", () => {
     await expect.poll(async () => (await holder(page).getAttribute("data-inset"))).toMatch(/^0\.[3-9]/);
     await click(page, () => at(page, 60, 60, 1), { type: "room", index: 0 });
     await expect.poll(() => ring(page)).toBe("");
-    await expect(panel(page)).toHaveAttribute("aria-label", "Active devices");
+    await expect(panel(page)).toHaveAttribute("aria-label", "Overview"); // S24.7: the Active panel is the Overview
     // Kitchen, then Escape
     await click(page, () => at(page, 700, 60, 1), { type: "room", index: 1 });
     await expect.poll(() => ring(page)).toBe("1");

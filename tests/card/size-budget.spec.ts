@@ -3,6 +3,7 @@
 import { test, expect } from "@playwright/test";
 import { readdirSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import ts from "typescript";
 
 /** gzip -9 of dist/floorplan-studio-card.js built from the commit before the 3D work (36b22c4, the 0.13.x card), 2026-10-05. */
 const PRE_3D_CARD = 90780;
@@ -23,6 +24,32 @@ test("the built card carries the stylesheets' rules but not their comments", () 
   for (const comment of ["S23.1: one label style", "S8.2: height 100% on both", "S14.2: the tap popup and the hover tooltip"]) expect(src, comment).not.toContain(comment);
   for (const rule of [".lbl-on{pointer-events:none}", "@keyframes fp-motion-pulse", ".fp-pop-confirm"]) expect(src, rule).toContain(rule);
 });
+
+// S24.4 (S23.F5): the code's JSDoc and line comments do not ship either. Lib mode leaves them in; the build strips them
+// (scripts/minify-output.mjs). A block comment left in a shipped file is a licence, which must stay.
+test("the shipped card, panel and 3D chunk carry no code comments, only licences", () => {
+  for (const f of readdirSync("dist").filter((n) => n.endsWith(".js"))) {
+    const src = readFileSync(`dist/${f}`, "utf8");
+    // Sentences from a JSDoc in the card (floorplan-studio-card.ts) and in the config editor (config-editor.ts).
+    for (const sentence of ["Pan and zoom come in bursts", "the kiosk opt-in"]) expect(src, `${f}: ${sentence}`).not.toContain(sentence);
+    // Parsed, not grepped: a template such as `accept="image/*"` holds a /* that is no comment.
+    for (const c of comments(src)) expect(c.slice(0, 120), f).toMatch(/@license|@preserve|^\/\*!|^\/\/!/);
+  }
+});
+
+/** Every comment in `src`, read from the leading and trailing comment ranges of each node of its syntax tree. */
+function comments(src: string): string[] {
+  const sf = ts.createSourceFile("x.js", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const at = new Map<number, string>();
+  const add = (rs: ts.CommentRange[] | undefined) => rs?.forEach((r) => at.set(r.pos, src.slice(r.pos, r.end)));
+  const visit = (n: ts.Node) => {
+    add(ts.getLeadingCommentRanges(src, n.pos));
+    add(ts.getTrailingCommentRanges(src, n.end));
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return [...at.values()];
+}
 
 test("the 3D chunk is at most 200 KB gzipped, and it is the only chunk", () => {
   const chunks = readdirSync("dist").filter((f) => /^floorplan-studio-3d-.*\.js$/.test(f));

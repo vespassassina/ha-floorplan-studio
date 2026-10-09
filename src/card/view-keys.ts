@@ -32,6 +32,15 @@ export function isSaveChord(ev: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey
   return (ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && ev.key.toLowerCase() === "s";
 }
 
+/** S24.2: the key that opens the search, one rule for the Studio and the card. Cmd-K or Ctrl-K from anywhere (no Alt, no
+ * Shift); "/" with no Ctrl, Cmd or Alt, unless it starts in a text field, where it is a slash. Shift is allowed for "/":
+ * on an Italian or German keyboard it is Shift-7. The host binds it on itself, never on `window` (finding 6). */
+export function isSearchChord(ev: KeyboardEvent): boolean {
+  if (ev.defaultPrevented || ev.isComposing || ev.altKey) return false;
+  if (ev.ctrlKey || ev.metaKey) return !ev.shiftKey && ev.key.toLowerCase() === "k";
+  return ev.key === "/" && !takesTyping(ev.composedPath()[0] ?? ev.target);
+}
+
 /** Controls that take arrow keys for themselves (a text box, a select, a range slider, a contenteditable region
  * such as the combo's filter box). A keystroke that starts in one is theirs. */
 export function takesTyping(el: unknown): boolean {

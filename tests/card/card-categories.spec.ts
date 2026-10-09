@@ -18,6 +18,8 @@ const STATES = () => ({
   "switch.demo_hall": st("off"), "switch.demo_tv_plug": st("on"),
   "sensor.demo_living_temperature": st("21.5", { unit_of_measurement: "°C" }),
   "climate.demo_living": st("heat"), "camera.demo_hall": st("idle"),
+  // S24.3: a camera is no longer listed, so the hall motion sensor is what fills the Security group these tests fold.
+  "binary_sensor.demo_hall_motion": st("on"),
 });
 
 async function boot(page: Page, width: number, extra: Record<string, unknown> = {}, fresh = true) {
@@ -40,10 +42,10 @@ async function boot(page: Page, width: number, extra: Record<string, unknown> = 
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
-const names = (page: Page) => card(page).locator("css=.fp-active-body > .fp-active-group .fp-cat-name").allTextContents();
+const names = (page: Page) => card(page).locator("css=.fp-active-body .fp-ov-act > .fp-active-group .fp-cat-name").allTextContents();
 
 /** A real click at the header's centre, after checking that the header is the top element there. */
-async function clickHead(page: Page, cat: string, list = ".fp-active-body > .fp-active-group") {
+async function clickHead(page: Page, cat: string, list = ".fp-active-body .fp-ov-act > .fp-active-group") {
   const p = await card(page).evaluate((el, sel) => {
     const b = el.shadowRoot!.querySelector<HTMLElement>(sel)!;
     b.scrollIntoView({ block: "nearest" });
@@ -53,15 +55,15 @@ async function clickHead(page: Page, cat: string, list = ".fp-active-body > .fp-
   expect(p.hit, `the ${cat} header is the top element at its centre`).toBe(true);
   await page.mouse.click(p.x, p.y);
 }
-const rowsIn = (page: Page, cat: string, list = ".fp-active-body > .fp-active-group") => card(page).locator(`css=${list}[data-cat="${cat}"] .fp-active-row`).count();
-const expanded = (page: Page, cat: string, list = ".fp-active-body > .fp-active-group") => card(page).locator(`css=${list}[data-cat="${cat}"] > button.fp-cat`).getAttribute("aria-expanded");
+const rowsIn = (page: Page, cat: string, list = ".fp-active-body .fp-ov-act > .fp-active-group") => card(page).locator(`css=${list}[data-cat="${cat}"] .fp-active-row`).count();
+const expanded = (page: Page, cat: string, list = ".fp-active-body .fp-ov-act > .fp-active-group") => card(page).locator(`css=${list}[data-cat="${cat}"] > button.fp-cat`).getAttribute("aria-expanded");
 
 for (const width of [1100, 375]) {
   for (const theme of ["light", "midnight"]) {
     test.describe(`categories at ${width} px, theme ${theme}`, () => {
       test("the Active list is ordered by category; a real click folds one group and a second opens it", async ({ page }) => {
         await boot(page, width, { theme });
-        // the demo lists the plug (power) before the camera (security); the fixed category order puts lights, security, power
+        // the demo lists the plug (power) before the motion sensor (security); the fixed category order puts lights, security, power
         const got = await names(page);
         expect(got.slice(0, 3)).toEqual(["Lights", "Security", "Power"]);
         expect(await rowsIn(page, "lights")).toBe(2);
@@ -145,7 +147,7 @@ test.describe("the Room panel is grouped too", () => {
       expect(await rowsIn(page, "lights", room)).toBe(0);
       expect(await expanded(page, "lights", room)).toBe("false");
       // the Active list below shows the same category, and it is still open: the two lists fold apart
-      expect(await expanded(page, "lights", ".fp-filtered > .fp-active-group")).toBe("true");
+      expect(await expanded(page, "lights", ".fp-filtered .fp-ov-act > .fp-active-group")).toBe("true");
     });
   }
 });

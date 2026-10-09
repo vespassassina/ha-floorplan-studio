@@ -864,7 +864,8 @@ test.describe("S9.6 a card pinned to one room", () => {
     expect(await calls(page)).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
 
     await expect(card(page).locator("css=.fp-active")).toHaveCount(1);
-    await expect(card(page).locator("css=.fp-active-row")).not.toHaveCount(0);
+    // S24.3: nothing in states() is on now that the camera is no longer listed; the panel says so instead of a row.
+    await expect(card(page).locator("css=.fp-active-empty")).toHaveText("Nothing on");
   });
 
   test("the icon scale matches the whole-floor card at the same zoom: S9.2's scale still reads fit, not the pin", async ({ page }) => {
@@ -998,11 +999,11 @@ test.describe("S7.4 touch", () => {
   });
 
   /** Two fingers through CDP (Playwright's touchscreen has only tap). One session for the whole gesture: CDP keeps
-   * the touch state per session. */
+   * the touch state per session. `timestamp` (seconds) replaces the dispatch time, which load makes noise. */
   async function toucher(page: Page) {
     const cdp = await page.context().newCDPSession(page);
-    return (type: "touchStart" | "touchMove" | "touchEnd", touchPoints: { x: number; y: number; id: number }[]) =>
-      cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+    return (type: "touchStart" | "touchMove" | "touchEnd", touchPoints: { x: number; y: number; id: number }[], timestamp?: number) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints, ...(timestamp === undefined ? {} : { timestamp }) });
   }
 
   test("a two-finger pinch inside the plan zooms in", async ({ page }) => {
@@ -1031,13 +1032,22 @@ test.describe("S7.4 touch", () => {
     const b = await svgBox(page);
     const x = b.x + b.width / 2, y0 = b.y + b.height - 40;
     const touch = await toucher(page);
+    // S24.F1: the swipe carries its own clock, 16 ms a step, and the finger rests 100 ms before it lifts. Stamped with
+    // dispatch times, it ended in a fling whose speed was whatever the machine's load made it: the page went on
+    // scrolling after the reset below (its tail, or Playwright scrolling Zoom in back into view, left the page at
+    // 1 px before the second swipe began), or flung back to 0. A finger at rest has no speed, so there is no fling,
+    // and `scrollend` marks the end of the page's scroll.
     const swipeUp = async () => {
-      await touch("touchStart", [{ x, y: y0, id: 1 }]);
-      for (let s = 1; s <= 8; s++) await touch("touchMove", [{ x, y: y0 - s * 30, id: 1 }]);
-      await touch("touchEnd", []);
+      const t0 = Date.now() / 1000;
+      await touch("touchStart", [{ x, y: y0, id: 1 }], t0);
+      for (let s = 1; s <= 8; s++) await touch("touchMove", [{ x, y: y0 - s * 30, id: 1 }], t0 + s * 0.016);
+      await touch("touchEnd", [], t0 + 8 * 0.016 + 0.1);
     };
+    type Ended = { __scrollEnded: Promise<void> };
+    await page.evaluate(() => { (window as unknown as Ended).__scrollEnded = new Promise((r) => addEventListener("scrollend", () => r(), { once: true })); });
     await swipeUp();
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
+    await page.evaluate(() => (window as unknown as Ended).__scrollEnded);
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
     expect(await viewBox(page)).toEqual(fit);
     expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
 
@@ -1046,12 +1056,10 @@ test.describe("S7.4 touch", () => {
     await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').tap();
     const z = await viewBox(page);
     expect(z.w).toBeLessThan(fit.w);
-    // S8.2 review: the two taps just added `touch-action: none` to the svg (`.fp-zoomed`); Chromium applies
-    // touch-action on the compositor thread, a frame or two after the main-thread style/class change, so a touch
-    // that starts in the same tick can occasionally scroll the page by a stray pixel before it takes effect. Two
-    // rendered frames is the standard wait for a style change to have actually been committed and painted; it is
-    // not a blind sleep, and its absence was a real, reproducible (about 1 swipe in 10) race, not test flakiness.
-    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    // Nothing has moved the page since the reset, so the last line measures only the swipe below. S8.2 waited two
+    // frames here for `fp-zoomed` to reach the compositor; that was the same fling misread. 400 swipes under load
+    // with no frame wait never scrolled the page (S24.F1).
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
     await swipeUp();
     await expect.poll(async () => (await viewBox(page)).y).toBeGreaterThan(z.y);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
@@ -1782,13 +1790,15 @@ test.describe("S9.5: the active-devices panel", () => {
 
   test("a real click on a panel row fires hass-more-info with that row's own entity", async ({ page }) => {
     await open(page);
-    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: states() });
-    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
+    // S24.3: the Hall camera row this test used is no longer listed. The hall motion sensor stands in: one entity, no
+    // operation (the living light names a relay too, so its More info opens a chooser instead).
+    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: { ...states(), "binary_sensor.demo_hall_motion": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall motion" });
     const box = (await row.boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     expect(await moreInfo(page)).toEqual([]); // a tap opens the popup first
     await page.locator("floorplan-studio-card").locator("css=.fp-pop-more").click();
-    expect(await moreInfo(page)).toEqual([{ entityId: "camera.demo_hall" }]);
+    expect(await moreInfo(page)).toEqual([{ entityId: "binary_sensor.demo_hall_motion" }]);
   });
 
   // Opus review CSS pair (CLAUDE.md finding 10): the camera row's icon used to take `--fp-dev-camera`, which
@@ -1798,12 +1808,15 @@ test.describe("S9.5: the active-devices panel", () => {
   // reads by (`.fp-active{color:var(--fp-ink)}`), which is picked precisely so it is never the same shade as the
   // background it sits on. Reading the resolved `fill`, not just asserting the source string, is what makes this
   // a real Chromium check and not a text match blind to which rule actually won (CLAUDE.md finding 10 itself).
-  test("S9.5 CSS pair: a camera row's icon resolves to --fp-ink (legible on --fp-room), not --fp-dev-camera", async ({ page }) => {
-    await open(page);
-    await configure(page, { layout: structuredClone(demo) }, { states: states() });
-    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
-    const fill = await row.locator("css=svg").evaluate((el) => getComputedStyle(el).fill);
-    expect(fill).toBe(DARK_INK); // blueprint's --fp-ink/--fp-text, #eef3fb — not --fp-dev-camera's idle navy
+  // S24.3 (G1): that camera row is gone. A camera is never on the Active list, so the pair above has no row to read; the
+  // colour rule itself is still unit-tested (`colorVarFor`, active.test.ts). This checks the row stays gone in a real card.
+  test("S24.3: a camera has no Active row, whatever its state", async ({ page }) => {
+    for (const s of ["idle", "streaming", "recording"]) {
+      await open(page);
+      await configure(page, { layout: structuredClone(demo) }, { states: { ...states(), "camera.demo_hall": { state: s, attributes: {}, last_changed: new Date().toISOString() } } });
+      await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Living light" }), s).toHaveCount(1);
+      await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" }), s).toHaveCount(0);
+    }
   });
 
   // S10.3: the demo's front door (doors[0]) carries a contact sensor (binary_sensor.demo_front_door) that is not
