@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: every context menu comes from `ctxItems` (S26.20)
+
+- `ctxMenuView` builds each menu from `ctxItems(kind, facts)` and maps an item id to an action in `runItem`; labels, order, keys and disabled state are the model's. Twelve targets, all open a menu: a hit with no menu of its own (a room kind with none, a hidden edge, the background) opens the canvas menu, a corner handle opens none. `ctxTargetFor` (in `ctx-menu.ts`) turns a hit into the target and sets the selection; the host only keeps `hitOf` and `edgeNear`.
+- Supersedes the menus of S4.18, S4.27 and S4.31 where they differ: Change colour is gone from the room menu (the panel has it); Add an opening, a submenu of five, is three items (Add door, Add window, Add opening), so Open doorway and Slit window are in the Add menu only; Fix and Unfix are Lock and Unlock; a door, opening, furniture piece and unlinked object gain Delete.
+- A right-click on a device that belongs to the selection keeps the selection (target `devs`); on any other device it selects that one. Lock on a selection unlocks only when every member is locked.
+- A locked device selects but does not start a drag.
+- The room's unplaced Home Assistant entities stay as buttons under its items (a quick Place); they are not model items.
+- Rename, Controlled by... focus the panel field (`#rn`, `#vbound`...); a device has no name field, so Rename says the name comes from Home Assistant. The F2 key shown on Rename is not bound here.
+- Add device here... keeps the click point in the host (`addAt`) for the next device the Add panel places; closing the panel clears it.
+
 ## 2026-10-09: the editor host is split (S26.9)
 
 - `toolbar.ts`, `ctx-menu.ts` and `inspector.ts` take the host as `h` and export their own `css`; `static styles` is an array. Pure move: no test edited.

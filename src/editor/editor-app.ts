@@ -28,7 +28,7 @@ import { motionLights, openAutomation, schedule, switchControls } from "./automa
 import { EditorState, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 import { floorGroups, toolbarCss, toolbarView } from "./toolbar";
 import { asideView, addDevView, inspectorCss, placeView } from "./inspector";
-import { ctxMenuCss, ctxMenuView, type CtxTarget } from "./ctx-menu";
+import { ctxMenuCss, ctxMenuView, ctxTargetFor, type CtxTarget } from "./ctx-menu";
 
 /**
  * <floorplan-studio-editor>: draws and edits a layout.
@@ -202,6 +202,8 @@ export class FloorplanStudioEditor extends LitElement {
   /** S8.5: Add > Device's floating panel: position (null when closed), the search text, and the four filter selects
    * (a value of "" is "All…"; "__none__" is the added "None" option). Reset every time the panel opens. */
   addDevPos: { x: number; y: number } | null = null;
+  /** S26.20: where the canvas menu's "Add device here…" was clicked; the next device the Add panel places goes there. */
+  private addAt: Pt | null = null;
   addDevQuery = "";
   addDevFloor = "";
   addDevRoom = "";
@@ -825,7 +827,7 @@ export class FloorplanStudioEditor extends LitElement {
         }
         st.sel = { t: "dev", i: hit.i };
         const c: Pt = "a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y];
-        this.drag = { type: "dev", base, i: hit.i, off: [p[0] - c[0], p[1] - c[1]], moved: false };
+        if (!d.locked) this.drag = { type: "dev", base, i: hit.i, off: [p[0] - c[0], p[1] - c[1]], moved: false }; // S26.20: a locked device only selects
         break;
       }
       case "furn": {
@@ -1144,7 +1146,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   // ---- S8.1: the room panel's Place popup ----------------------------------------------------------------------------
 
-  private openPlace(i: number) {
+  openPlace(i: number) {
     const r = this.st.f.rooms[i];
     if (!r) return;
     this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.placePos = this.panelPos(Math.min(660, window.innerWidth - 24)); // .place-panel width
@@ -1218,14 +1220,15 @@ export class FloorplanStudioEditor extends LitElement {
   // ---- S8.5: Add > Device — one floating panel over the catalog and HA entities ---------------------------------------
 
   /** Closes the Add menu and opens the panel, filters reset, search focused. */
-  openAddDev() {
+  openAddDev(at?: Pt) {
+    this.addAt = at ?? null;
     this.closeMenus();
     this.addDevPos = this.panelPos(Math.min(780, window.innerWidth - 24)); // .add-dev-panel width
     this.addDevQuery = ""; this.addDevFloor = ""; this.addDevRoom = ""; this.addDevArea = ""; this.addDevType = "";
     this.requestUpdate();
     void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLInputElement>("#addDevSearch")?.focus({ preventScroll: true }));
   }
-  closeAddDev() { this.addDevPos = null; this.requestUpdate(); }
+  closeAddDev() { this.addDevPos = null; this.addAt = null; this.requestUpdate(); }
   /**
    * Places `c`: a catalog entry through the existing `placeDevice` (which already switches to its own stored floor), or
    * an HA entity through `addHaEntity`, switching to the candidate's plan floor first when it differs from the current
@@ -1403,36 +1406,20 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   /**
-   * S4.18/S4.27: right-click on a room, zone, structure or wall selects it (opening its side panel, already the
-   * "change colour"/"kind" surface) and opens a small menu at the pointer. A room offers Change colour (closes the
-   * menu, the panel is already showing), Delete, and — with a linked HA area — a section that places one of its
-   * unplaced entities as a new device at the click point (S4.26). A wall (a room/outline edge, or a free-standing
-   * wall) offers Change type, Add a point (edges only), Add an opening and Delete (S4.27). Any other target
-   * (background, a device, furniture...) just closes a menu that might already be open. Called from `onUp`, not the
-   * `contextmenu` DOM event: `onDown` already calls `preventDefault()` on every right-button pointerdown (so a
-   * right-drag pans the canvas), and that suppresses the browser's own `contextmenu` event along with it — so there
-   * is nothing to hook there. A stationary right-button press and release is the signal instead, exactly how a
-   * left-button "room" drag already tells a click from a drag (`onUp`'s `d.moved`).
+   * S4.18/S26.20: a right-click opens the menu of whatever is under the pointer: a room, wall, door, opening, piece
+   * of furniture, unlinked object, stairs, line, device or multi-selection, else the canvas (`ctxTargetFor` in
+   * `ctx-menu.ts` decides, and selects the target). Called from `onUp`, not the `contextmenu` DOM event: `onDown`
+   * already calls `preventDefault()` on every right-button pointerdown (so a right-drag pans the canvas), and that
+   * suppresses the browser's own `contextmenu` event along with it. A stationary right-button press and release is
+   * the signal instead, exactly how a left-button "room" drag already tells a click from a drag (`onUp`'s `d.moved`).
    */
   private openCtxMenuAt(clientX: number, clientY: number) {
     const el = (this.renderRoot as unknown as DocumentOrShadowRoot).elementFromPoint(clientX, clientY);
     let hit = hitOf(el);
     if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = this.edgeNear(this.toSvg({ clientX, clientY })) ?? hit;
-    if (hit.k === "room") {
-      const r = this.st.f.rooms[hit.i];
-      if (!r || (r.kind !== "room" && r.kind !== "zone" && r.kind !== "structure")) { this.closeCtxMenu(); return; }
-      this.st.sel = { t: "room", i: hit.i };
-      this.ctxMenu = { x: clientX, y: clientY, target: { k: "room", i: hit.i } };
-    } else if (hit.k === "edge") {
-      if (this.edgeKind(hit.poly, hit.i) === "none") { this.closeCtxMenu(); return; }
-      this.st.sel = { t: "edge", poly: hit.poly, i: hit.i };
-      this.ctxMenu = { x: clientX, y: clientY, target: { k: "edge", poly: hit.poly, i: hit.i } };
-    } else if (hit.k === "wall" || hit.k === "door" || hit.k === "opening" || hit.k === "furn" || hit.k === "unl") {
-      const list = hit.k === "wall" ? this.st.f.walls : hit.k === "door" ? this.st.f.doors : hit.k === "opening" ? this.st.f.openings : hit.k === "furn" ? this.st.f.furniture : this.st.f.unlinked;
-      if (!list[hit.i]) { this.closeCtxMenu(); return; }
-      this.st.sel = { t: hit.k, i: hit.i };
-      this.ctxMenu = { x: clientX, y: clientY, target: { k: hit.k, i: hit.i } };
-    } else { this.closeCtxMenu(); return; }
+    const target = ctxTargetFor(this, hit);
+    if (!target) { this.closeCtxMenu(); return; }
+    this.ctxMenu = { x: clientX, y: clientY, target };
     this.focus({ preventScroll: true }); // a right click never focuses the host on its own; Escape needs it to
     this.requestUpdate();
   }
@@ -1865,7 +1852,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   /** The new hidden set. A selection on a family that just went out of sight is let go: an invisible handle helps nobody. A view change, not an edit. */
-  private setLayers(next: LayerId[]) {
+  setLayers(next: LayerId[]) {
     const st = this.st;
     st.hidden = next;
     const s = st.sel, f = st.f;
@@ -1931,7 +1918,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** The middle of the selected room, or null (Diego, 2026-10-07: new things land there). */
   private middle(): Pt | null { return roomMiddle(this.st.f, this.st.sel, this.st.snapGrid); }
   /** Where a new device or unlinked appliance goes: the middle of the current viewport (Diego, 2026-09-28). */
-  private spawnDevice(): Pt { return spawnInView(this.st.f, this.middle() ?? this.centre(), this.st.snapGrid); }
+  private spawnDevice(): Pt { return spawnInView(this.st.f, this.addAt ?? this.middle() ?? this.centre(), this.st.snapGrid); }
   /** Brings all of `pts` into what the svg shows, with a 100 cm margin: pans by the least amount, and zooms out only when they do not fit. */
   private ensureVisible(...plan: Pt[]) {
     const st = this.st, v = st.view, s = this.scale, M = 100, r = st.rotation;
@@ -2085,7 +2072,7 @@ export class FloorplanStudioEditor extends LitElement {
     st.setFloor(target);
     this.floor = target;
     const room = st.f.rooms.find((r) => r.name === c.room);
-    let ctr = spawnInView(st.f, this.centre(), st.snapGrid);
+    let ctr = spawnInView(st.f, this.addAt ?? this.centre(), st.snapGrid);
     if (room) ctr = round([room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length, room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length]);
     const f = structuredClone(st.f);
     // Opus re-check of S8.9: `c.id` survived a delete from the plan and `newId` could since have handed that same

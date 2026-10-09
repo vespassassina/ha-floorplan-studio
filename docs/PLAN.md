@@ -2985,7 +2985,7 @@ Lane C, menus (`toolbar.ts`, `src/editor/guide.ts`, `src/core/icons.ts`):
       `--fp-danger` (or the red it had) when on; its accessible name; the guide step names it.
 
 Lane D, context menus (`ctx-menu.ts`):
-- [ ] S26.20 (U19) One context menu per object on the plan. Right-click on a device, a multi-selection, stairs, a
+- [x] S26.20 (U19) One context menu per object on the plan. Right-click on a device, a multi-selection, stairs, a
       structure line and the empty canvas now opens a menu; every menu takes its items and order from `ctxItems`;
       Escape and a click elsewhere close it, as today. Test: iterate the targets on the demo, a real right-click on
       each opens a menu whose labels equal `ctxItems` for it; device Lock then a drag does not move it; canvas "Add
