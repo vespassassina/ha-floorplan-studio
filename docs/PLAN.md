@@ -2929,7 +2929,7 @@ Wave 1, pure modules (parallel; one worktree each, two chained where noted; none
       Files: `src/editor/draw.ts`, `tests/editor/draw.test.ts`.
 
 Wave 2, alone, after wave 1 is merged:
-- [ ] S26.9 Split the host, no behaviour change. Out of `editor-app.ts`: the toolbar template into `toolbar.ts`; the
+- [x] S26.9 Split the host, no behaviour change. Out of `editor-app.ts`: the toolbar template into `toolbar.ts`; the
       context menu (open, view, actions) into `ctx-menu.ts`; the aside, the Place and Add popups and their state into
       `inspector.ts`. Each module exports its own `css`; the host's `static styles` becomes an array. The pointer and key
       handlers stay in the host. This is what lets wave 3 run in parallel. Test: the whole suite bare, no test edited,

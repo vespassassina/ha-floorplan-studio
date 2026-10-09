@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: the editor host is split (S26.9)
+
+- `toolbar.ts`, `ctx-menu.ts` and `inspector.ts` take the host as `h` and export their own `css`; `static styles` is an array. Pure move: no test edited.
+- Members these modules call lost `private`. The pointer, key and focus handlers stay in the host.
+- Kept in the host: `openCtxMenuAt` (it needs `hitOf`) and the Place and Add device state (the Escape, focus-out and drag handlers read it).
+- CSS order is kept inside each block; the blocks moved only past rules that never share an element and a property with them.
+
 ## 2026-10-09: bulk device writers (S26.2)
 
 - `src/editor/bulk.ts`: `bindLights`, `removeDevices`, `moveDevices`, `lockDevices`, `reindexAfterRemove`. Each returns a new floor (`bindLights` also `skipped`), never touches its input, and returns an equal floor when nothing changes, so `EditorState.edit` records no step. Indices are cleaned first: integers in range, distinct.
