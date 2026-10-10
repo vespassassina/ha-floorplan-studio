@@ -111,30 +111,51 @@ function residual(samples: Sample[], lines: Seg[], tx: number, ty: number): numb
 interface Fit { t: Pt; score: number; res: number }
 
 /**
- * Slide by the pull of the samples that have a line within reach until the pull is under 0.05 cm (at most
- * `REFINE_ROUNDS`). The score saturates at 100 once every sample is within `NEAR`, so a step is kept when the score
- * is no lower and the mean residual is smaller: that is what takes a floor 4 cm off to 0.
+ * Point-to-line fit: each sample with a line within reach says how far to move toward it (along the line's normal, or
+ * toward its end); the move is the weighted least-squares answer, so a sample on a vertical line speaks for x only and a
+ * sample already on its line still counts (it says "stay"). A sample far from the rest of the pulls, such as a free
+ * edge that passes near some other line, weighs little: weight 1 / (1 + (d / c)^2)^2 with c the median distance of the
+ * pulls on the same axis, at least 2 cm. Repeats until the move is under 0.05 cm (at most `REFINE_ROUNDS`). The score saturates at 100 once every
+ * sample is within `NEAR`, so a step is kept when the score is no lower and the mean residual is smaller: that is what
+ * takes a floor 4 cm off to 0.
  */
 function refine(samples: Sample[], lines: Seg[], t: Pt): Fit {
   let best: Fit = { t, score: scoreAt(samples, lines, t[0], t[1]), res: residual(samples, lines, t[0], t[1]) };
   let tx = t[0], ty = t[1];
   const lim = REFINE_REACH * REFINE_REACH;
   for (let round = 0; round < REFINE_ROUNDS; round++) {
-    let sx = 0, sy = 0, nx = 0, ny = 0;
+    const rows: { ax: number; ay: number; d: number; w: number }[] = [];
     for (const p of samples) {
       const x = p.x + tx, y = p.y + ty;
       let bd = lim, bi = -1;
       for (let i = 0; i < lines.length; i++) { const d = d2(x, y, lines[i]); if (d < bd) { bd = d; bi = i; } }
       if (bi < 0) continue;
       const s = lines[bi], dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy;
-      const u = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - s[0]) * dx + (y - s[1]) * dy) / l2));
-      const px = s[0] + dx * u - x, py = s[1] + dy * u - y;
-      // A sample on a horizontal line has no say in x, and the other way round: each axis averages the samples that pull it.
-      if (Math.abs(px) > 0.01) { sx += px; nx++; }
-      if (Math.abs(py) > 0.01) { sy += py; ny++; }
+      if (l2 === 0) continue;
+      const u = Math.max(0, Math.min(1, ((x - s[0]) * dx + (y - s[1]) * dy) / l2));
+      // Toward the nearest point of the line: along the normal, or toward the end when the sample is past it. A sample
+      // on its line has no direction of its own and says "stay" along the line's normal.
+      const vx = s[0] + dx * u - x, vy = s[1] + dy * u - y, r = Math.hypot(vx, vy);
+      if (r < 1e-9) { const l = Math.sqrt(l2); rows.push({ ax: -dy / l, ay: dx / l, d: 0, w: p.w }); }
+      else rows.push({ ax: vx / r, ay: vy / r, d: r, w: p.w });
     }
-    const mx = nx ? sx / nx : 0, my = ny ? sy / ny : 0;
-    if (Math.abs(mx) < 0.05 && Math.abs(my) < 0.05) break;
+    if (!rows.length) break;
+    // The scale of "far" is the median distance of the rows that speak for the same axis, so a lone far pull on an
+    // axis nothing else speaks for still counts, and a pair of strays among many that sit on their line do not.
+    const med = (a: number[]) => (a.length ? a.sort((p, q) => p - q)[a.length >> 1] : 0);
+    const cx = Math.max(2, med(rows.filter((r) => Math.abs(r.ax) >= Math.abs(r.ay)).map((r) => r.d)));
+    const cy = Math.max(2, med(rows.filter((r) => Math.abs(r.ax) < Math.abs(r.ay)).map((r) => r.d)));
+    let axx = 0, axy = 0, ayy = 0, bx = 0, by = 0, all = 0;
+    for (const r of rows) {
+      const c = Math.abs(r.ax) >= Math.abs(r.ay) ? cx : cy, k = 1 / (1 + (r.d / c) ** 2) ** 2, w = r.w * k;
+      axx += w * r.ax * r.ax; axy += w * r.ax * r.ay; ayy += w * r.ay * r.ay; bx += w * r.ax * r.d; by += w * r.ay * r.d; all += w;
+    }
+    // A small ridge keeps a direction that no line constrains at zero move.
+    const ridge = 1e-12 * all;
+    axx += ridge; ayy += ridge;
+    const det = axx * ayy - axy * axy;
+    const mx = (ayy * bx - axy * by) / det, my = (axx * by - axy * bx) / det;
+    if (!Number.isFinite(mx) || !Number.isFinite(my) || (Math.abs(mx) < 0.05 && Math.abs(my) < 0.05)) break;
     tx += mx; ty += my;
     const sc = scoreAt(samples, lines, tx, ty);
     if (sc < best.score) continue;

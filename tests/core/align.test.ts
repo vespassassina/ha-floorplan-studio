@@ -184,8 +184,17 @@ describe("alignFloor (S27.4)", () => {
       const x0 = left ? ox : W - ox - w, y0 = top ? oy : H - oy - h;
       const r = alignFloor(blank(rect(x0, y0, x0 + w, y0 + h)), blank(rect(0, 0, W, H)))!;
       const ex = left ? -ox : ox, ey = top ? -oy : oy;
-      if (Math.abs(r.t[0] - ex) > 30 || Math.abs(r.t[1] - ey) > 30) wrong++;
+      if (Math.abs(r.t[0] - ex) > 3 || Math.abs(r.t[1] - ey) > 3) wrong++;
     }
     expect(wrong).toBe(0);
+  });
+
+  it("a rectangle a few cm inside a larger floor lands within 0.5 cm on each axis (review 27 re-check, minor)", () => {
+    const lower = blank(rect(0, 0, 900, 700));
+    for (const o of [2, 0.5, 3.5]) {
+      const r = alignFloor(blank(rect(o, o, o + 500, o + 300)), lower)!;
+      expect(Math.abs(r.t[0] + o), `o ${o}`).toBeLessThan(0.5);
+      expect(Math.abs(r.t[1] + o), `o ${o}`).toBeLessThan(0.5);
+    }
   });
 });
