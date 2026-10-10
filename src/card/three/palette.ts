@@ -44,7 +44,7 @@ TABLE.set("door-leaf", solid("color-mix(in srgb, var(--fp-door) 60%, var(--fp-wa
 TABLE.set("frame", solid("var(--fp-frame)"));
 TABLE.set("stair", solid(mix("--fp-tread", 70, "--fp-bg")));
 TABLE.set("ring", solid("var(--fp-ink)")); // the dashed outline of the picked room
-TABLE.set("tree-crown", solid("var(--fp-tree)")); // S28.7: the crown, the colour of the 2D crown; the trunk (furniture-tree) is its darker edge colour
+TABLE.set("tree-crown", solid("color-mix(in srgb, white var(--fp-crown-lift, 0%), var(--fp-tree))")); // S28.7: the crown, the 2D crown's green; a dark theme lifts it toward white (--fp-crown-lift) or it sinks into the ground at night. The trunk (furniture-tree) is the darker edge colour
 // A linked tv, speaker or computer piece: the tv's blue at rest (as `.furn[data-linked]` on the plan), the plan's on colour when on.
 TABLE.set("furniture-linked", solid(mix("--fp-dev-tv", 70, "--fp-furniture")));
 TABLE.set("piece-on", solid("var(--fp-active)"));

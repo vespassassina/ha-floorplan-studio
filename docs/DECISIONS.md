@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: 3D crowns take a lift on dark themes (S28 final, shots)
+
+At night the 3D crowns were dark grey on near-black ground: in the blueprint shot the crown measured (45, 50, 60) on (8, 12, 20), 1.5:1. The night light multiplies both by about 0.2 in linear light (measured from that shot), so the palette's own ratio is what counts. `--fp-crown-lift` (45 % on a dark theme, 0 % on a light one, beside `--fp-paint-dim`) mixes white into the `tree-crown` role. A test reads every theme, day and night, through the palette expression against the garden and the ground plane: 1.8:1 at night on a dark theme, 1.3:1 by day, and a dark crown under relative luminance 0.5. A mix toward `--fp-ink` was tried first and cannot reach 1.8 on solarized; the lift is a token, not a per-theme colour.
+
 ## 2026-10-10: The 3D crown is a round blob, not a lens (S28 final, shots)
 
 The 4x shots showed 3D crowns as tall pointed lenses above the garden wall: the box was `w / 2` by half the 50 to 100 % range, and a 400 cm tree's range is 200 cm. Now the crown's half height is `min(range / 2, max(rx, ry))`, so it is never taller than it is wide, and it stands on `crownBottom` (the trunk enters it) instead of being centred on `crownMiddle`; a wide tree keeps its whole range. The ball is an icosahedron of detail 2 with a fixed 7 % lump per vertex, still one InstancedMesh. Supersedes the 3D half of "crown 50 to 100 %" in S28.7: the plan and 2.5D numbers are unchanged.
