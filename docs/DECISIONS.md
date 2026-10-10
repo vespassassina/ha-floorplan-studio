@@ -2,6 +2,9 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the demo carries a full-height window and a stack of four devices (S27.C)
+
+- `demo/layout.json` and `layout.v1.json` (the migrate test compares them) gain a `fullwindow` door on the Kitchen's east wall and four devices at one point in the Hall: computer, access point, printer, blind. The window is on o:1 because o:0 is the one outline edge with no door, and the delete-edge tests need it bare. The types are ones no Studio test counts: a light, switch or plug changes the bound-switch lists, a lock or camera the Security layer, a media type the empty Media layer. The stack sits at (560, 560), clear of the stairs, the furniture and the draw tests' clicks. A `fullwindow` pane carries `data-dp` like a drawn point, so the draw tests select `circle[data-dp]`. `scripts/shots.mjs` gives the four states and adds `card-ground-stack-{closed,open}-*`, which taps the stack for real. Still no real house.
 ## 2026-10-10: the exit test measures the floor against itself (S27.16)
 
 - `tests/editor/floors-exit.spec.ts` aligns `align-house.json` in the Studio with real clicks, takes the layout from the `save-request` event, and gives it to two cards. In 3D the ground floor's solid meshes are compared with the first floor drawn through the same `setBelow` with no shift, because walls have thickness and the mesh box is wider than the outline; in 2D the ghost's bounding box is compared with the first floor's outline. Both within 2 cm. A second test shows the unaligned card is over 100 cm out, so the check can fail.

@@ -66,7 +66,7 @@ test("the slit is a band 0.4 as thick as a window on the same wall, and a real c
   await page.mouse.click(2, 2); // unselected: a selected door is drawn 8 cm wider
   await expect(line(page, i)).not.toHaveClass(/sel/);
   // The stroke the browser resolves, in plan units (a line's bounding box has no thickness).
-  const thick = (sel: string) => page.locator(sel).first().evaluate((el) => parseFloat(getComputedStyle(el).strokeWidth));
+  const thick = (sel: string) => page.locator(sel).last().evaluate((el) => parseFloat(getComputedStyle(el).strokeWidth));
   const slitT = await thick(`${EDITOR} svg line.door-slit`);
   // The same door as a window, on the same wall: only the kind differs.
   await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.doors.at(-1).kind = "window"; el.layout = l; }, EDITOR);
