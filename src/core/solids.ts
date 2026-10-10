@@ -333,7 +333,7 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
     /** A block of wall from the floor to `z1`, with its darker foot. */
     const block = (t0: number, t1: number, z1: number) => quad(t0, t1, 0, z1, wall) + (solid ? quad(t0, t1, 0, Math.min(z1, FOOT_HEIGHT), "wfoot") : "");
     const here = spans.map((s) => ({ s, r: within(w, s) })).filter((x): x is { s: Span; r: [number, number] } => x.r !== null).sort((p, q) => p.r[0] - q.r[0]);
-    const faces: string[] = [], tops: [number, number][] = [];
+    const faces: string[] = [], frames: string[] = [], tops: [number, number][] = [];
     const top = (t0: number, t1: number) => { const last = tops[tops.length - 1]; if (last && last[1] >= t0 - 0.01) last[1] = Math.max(last[1], t1); else tops.push([t0, t1]); };
     let cursor = 0;
     for (const { s, r } of here) {
@@ -350,11 +350,13 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
       // A door: closed (its sensor says so) it is a painted leaf, open (or alarmed, or its cover open) a red frame round the gap; with no sensor it is a hole. A plain opening is only a gap.
       else if (s.kind !== "opening" && solid && (live || (fill !== "void" && (!shut || s.live.closed)))) faces.push(quad(t0, t1, sill, head, live ? `opn${live}${fill === "void" ? " band" : ""}` : "door-leaf"));
       faces.push(quad(t0, t1, head, hh, wall));
-      if (solid && has(OPENING_FRAMED, s.kind) && OPENING_FRAMED[s.kind]) faces.push(...frameQuads(t0, t1, sill, head, own.sill, own.head, hh));
+      if (solid && has(OPENING_FRAMED, s.kind) && OPENING_FRAMED[s.kind]) frames.push(...frameQuads(t0, t1, sill, head, own.sill, own.head, hh));
       if (own.head < hh || own.sill >= hh) top(t0, t1); // a header, or a sill that reaches the top, closes the wall above the gap
       cursor = t1;
     }
     faces.push(block(cursor, len, hh));
+    // The trim lies over the wall blocks either side of the gap, so it is drawn after every block of the wall (SVG paints in order).
+    faces.push(...frames);
     if (len > cursor) top(cursor, len);
     const kc = kindClass(w.kind), ext = w.kind === "external" || w.kind === "parapet", cap = ext ? CAP_WIDTH_EXTERNAL : CAP_WIDTH;
     // Only a wall and an external wall are thinned; a fence or an edge is a line already. The halo is 2 wider, as in 2D.

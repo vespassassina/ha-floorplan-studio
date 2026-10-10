@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: 2.5D frame quads are drawn after every wall block (S28 Opus re-check)
+
+The frame quads were pushed into the wall's face list right after the opening, so the next wall block (which starts at the gap's far edge) painted over the far jamb and the far end of the head and sill bars: one jamb 16 px, the other a 5 px sliver. Frames now go in their own list, appended after the last block of the wall, so they paint over every block, also with two openings in one wall. A unit test checks draw order at a wall end and with two openings; the Playwright probe reads both jambs and the head bar's far end at asymmetric depths. Both failed first.
+
 ## 2026-10-10: The Align key is memoised on the floor object (S28 Opus review)
 
 `alignPreview` runs on every render and built `alignKey` of both floors each time: a walk of every wall, for a string that only changes when the floor does. `alignKeyOf` puts a `WeakMap` in front, keyed on the floor object. This is safe because a floor is never edited in place: `EditorState.edit` clones, and the drag handlers clone `d.base` before changing it, so an edit is a new object and gets a new key. A test pins both sides (same object, no rebuild; changed copy, new key).

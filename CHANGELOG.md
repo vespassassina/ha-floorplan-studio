@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2.5D door and window trim is drawn over the wall on both sides of the gap; the far jamb was half hidden by the wall after it.
 - 2.5D door and window trim stands beside the gap, as in 3D, so a narrow window keeps its glass.
 - 2.5D wall shadows reach the wall foot; a strip of bare floor showed under the wall face.
 - A sealed panel has no frame in 3D either, as in 2.5D and the spec.

@@ -135,6 +135,25 @@ describe("S28.6 framed openings", () => {
     ].sort());
   });
 
+  // S28 re-check: the wall block after a gap starts at the gap's far edge and used to paint over the far jamb and the far end of the head bar.
+  it("every frame quad is drawn after every wall block of its wall: at a wall end, and with two openings in one wall", () => {
+    const order = (f: Floor) => {
+      const html = deep(f), blocks = [...html.matchAll(/<polygon class="(?:ws|wfoot)[ "]/g)].map((m) => m.index!), fr = [...html.matchAll(/<polygon class="frame"/g)].map((m) => m.index!);
+      return { blocks, fr };
+    };
+    const door = (id: string, a: number, b: number) => ({ id, name: id, kind: "door", a: [a, 0], b: [b, 0] });
+    const cases: Record<string, Floor> = {
+      one: withDoor({}), atStart: withDoor({ a: [0, 0], b: [100, 0] }), atEnd: withDoor({ a: [300, 0], b: [400, 0] }),
+      two: floor({ doors: [door("d1", 60, 140), door("d2", 220, 320)] as never }),
+    };
+    for (const [name, f] of Object.entries(cases)) {
+      const { blocks, fr } = order(f);
+      expect(fr.length, name).toBeGreaterThan(0);
+      expect(blocks.length, name).toBeGreaterThan(0);
+      expect(Math.min(...fr), name).toBeGreaterThan(Math.max(...blocks));
+    }
+  });
+
   it("every frame point lies in the opening's span widened by the frame width", () => {
     for (const kind of ["door", "glass", "window", "slit", "fullwindow"]) {
       const pts = frames(deep(withDoor({ kind }))).flatMap((q) => q.split(" ").map((p) => p.split(",").map(Number)));

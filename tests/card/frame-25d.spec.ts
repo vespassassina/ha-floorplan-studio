@@ -39,21 +39,23 @@ test("S28.6 .frame resolves to the frame token and takes no click, in every them
 test.describe("the jamb on real pixels", () => {
   test.use({ deviceScaleFactor: 4, viewport: { width: 400, height: 220 } });
   for (const [i, c] of CASES.entries()) {
-    test(`${c.t}${c.dark ? " (dark)" : ""}: the middle of the door's left jamb is the frame colour`, async ({ page }) => {
+    test(`${c.t}${c.dark ? " (dark)" : ""}: both jambs and the head bar's ends are the frame colour`, async ({ page }) => {
       await page.setContent(`<!DOCTYPE html><html><body style="margin:0"><style>${FLOORPLAN_CSS}</style>${svgOf(c, "c0")}</body></html>`);
       const token = await page.evaluate(() => { const svg = document.getElementById("c0")!, probe = document.createElement("i"); probe.style.color = "var(--fp-frame)"; svg.firstElementChild!.appendChild(probe); return getComputedStyle(probe).color; });
       const shot = (await page.screenshot({ clip: { x: 0, y: 0, width: VB[2], height: VB[3] } })).toString("base64");
       // The door's left jamb lies outside the gap: x 95..100, z 0..210, FRAME_PROUD (2 cm) south of the wall line. Its middle, 100 cm up, is plan (97.5, 2) lifted by 100.
       const rise = 0.55, skew = 0.3;
-      const at = [97.5 + 100 * skew * rise - VB[0], 2 - 100 * rise - VB[1]];
-      const [px] = await page.evaluate(async ([b64, pts]) => {
+      // Asymmetric on purpose (S28 re-check): both jambs at two depths into the trim, and the head bar's t1 end, which the wall block after the gap used to paint over.
+      const P = (x: number, z: number) => [x + z * skew * rise - VB[0], 2 - z * rise - VB[1]];
+      const at = [P(97.5, 100), P(96, 40), P(99, 150), P(202.5, 100), P(201, 40), P(204, 150), P(203, 212.5), P(97, 212.5)];
+      const px = await page.evaluate(async ([b64, pts]) => {
         const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
         const cv = document.createElement("canvas"); cv.width = bmp.width; cv.height = bmp.height;
         const g = cv.getContext("2d")!; g.drawImage(bmp, 0, 0);
         return (pts as unknown as number[][]).map(([x, y]) => Array.from(g.getImageData(Math.round(x * 4), Math.round(y * 4), 1, 1).data.slice(0, 3)));
-      }, [shot, [at]] as const);
+      }, [shot, at] as const);
       const want = rgb(token);
-      px.forEach((v, k) => expect(Math.abs(v - want[k]), `channel ${k}: got ${px} want ${want.map(Math.round)} (case ${i})`).toBeLessThanOrEqual(3));
+      px.forEach((p, j) => p.forEach((v, k) => expect(Math.abs(v - want[k]), `probe ${j} channel ${k}: got ${p} want ${want.map(Math.round)} (case ${i})`).toBeLessThanOrEqual(3)));
     });
   }
 });
