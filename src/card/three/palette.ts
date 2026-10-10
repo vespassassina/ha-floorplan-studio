@@ -58,6 +58,8 @@ TABLE.set("motion", solid("var(--fp-dev-motion)"));
 TABLE.set("motion-radar", solid("var(--fp-dev-radar)"));
 TABLE.set("lamp", solid("var(--fp-dev-light)"));
 TABLE.set("backdrop", solid("var(--fp-bg)"));
+TABLE.set("ground", solid(mix("--fp-ink", 6, "--fp-bg"))); // S28.8: the plane under the house
+TABLE.set("shade", solid("var(--fp-shade)")); // S28.8: contact shadows; their strength is --fp-shade-alpha, read by the viewer
 for (const k of ROOM_KINDS) TABLE.set(`room-${k}`, solid(ROOM[k] ?? "var(--fp-room)"));
 for (const k of WALL_KINDS) TABLE.set(`wall-${k}`, solid(WALL[k] ?? "var(--fp-wall)"));
 for (const k of ["door", "glass", "window", "slit", "fullwindow", "sealed", "opening"]) TABLE.set(`glass-${k}`, { css: k === "window" || k === "slit" || k === "fullwindow" ? "var(--fp-window)" : "var(--fp-glass)", opacity: 0.35 });

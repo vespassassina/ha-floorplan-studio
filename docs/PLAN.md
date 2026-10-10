@@ -3368,7 +3368,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       Files: `src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/view3d.ts`, a new
       `src/card/three/crowns.ts`, `tests/core/scene.test.ts`, a new `tests/card/three-crowns.test.ts`,
       `tests/card/card-3d-perf.spec.ts` (one case added).
-- [ ] S28.8 3D ground and contact shadows (V25, S15.6). The ground plane of the assumption, and one shadow mesh per drawn
+- [x] S28.8 3D ground and contact shadows (V25, S15.6). The ground plane of the assumption, and one shadow mesh per drawn
       floor from a pure `contactShadows(solids)` in `shade.ts`: wall-foot bands both sides, a soft patch under each
       furniture piece, unlinked box, device body and tree crown, vertex alpha falling to 0 at the edge, `--fp-shade` at
       `--fp-shade-alpha`, no depth write, a hair above the floor. Neither is picked; both are disposed on every build.

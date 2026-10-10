@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: 3D contact shadows multiply; the ground is a lit-free plane (S28.8)
+
+- `contactShadows(solids)` (`src/card/three/shade.ts`) is pure: a band round each wall prism (14 cm), a narrower one (8 cm) round furniture, unlinked boxes and device bodies, a soft ellipse under a tree's crown (offset +4, +6 cm, as 2D). Alpha is 1 at the footprint and 0 at the rim, per vertex. A flat piece (under 10 cm) and one floating more than 5 cm above its floor cast nothing. It sits 0.3 cm above the highest room fill that holds it, so a nested room is covered.
+- The first version alpha-blended `--fp-shade` (near black, `#2b2a27`). On blueprint that is lighter than the floor, so the "shadow" lit it: the 4 % test failed with the pixel 8 % brighter. Now the shade multiplies the floor by `1 - strength * alpha * (1 - shade)`, mixed in sRGB (where the multiply happens), unlit, so it darkens on every theme. Strength is `--fp-shade-alpha`, times 0.25 for a ghosted floor below.
+- The ground (`ground` role, `--fp-ink` 6 % into `--fp-bg`) is 1.5 times the box of everything drawn, at the lowest slab bottom, floors below included. Neither is a solid, so neither is picked. The shade is single-pass (`forceSinglePass`): a double-sided transparent material was two draw calls.
+- Seen in the shots: light shows clear soft feet; blueprint and HA dark show them faintly, as multiply on near black can. Not raised, S28.9 owns the face tones.
+
 ## 2026-10-10: 3D tree crowns carry their z range in the solid, and have their own colour role (S28.7)
 
 - `scene-build` cuts a tree's trunk at `treeShape`'s trunk top and gives the solid `ref.crown = { z0, z1, rot }` (lift included). The viewer needs no tree rule of its own: `crownMatrices(solids)` reads the size and the crown range from the solid. Chosen over deriving the height from the trunk (a 0.6 constant copied into the chunk). `treeShape` reaches the chunk through `SceneDeps`, as the other helpers do. Scene bounds include the crown top so the camera frames it.
