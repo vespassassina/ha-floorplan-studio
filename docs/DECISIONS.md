@@ -20,6 +20,25 @@ Newest first. A change supersedes; nothing is edited.
 - The card hands `renderFloor` `ghost: { floor: below, shift: floorShift(layout, below, shown) }` and draws nothing else itself. The lowest floor has no floor below: no ghost, and the button is disabled with a title that says why. In 3D there is no button: the floors below are the `floors_below` select (S27.14).
 - The button's icon is an inlined path in the card file (Material layers-outline), not an import (finding 9). A tap on a spot where only the ghost is drawn opens nothing, because the ghost is `pointer-events:none` by class rule and carries no `data-*`; the test walks the ghost's lines for a point whose top element is the bare plan and clicks it with the real mouse.
 
+## 2026-10-10: the Studio's floor switch animates (S27.12)
+
+- `setFloor` asks `floorSwitch(keys, from, to, reduced)` and, on a direction, sets `data-switch` on the plan svg after the next render. The attribute is set by hand, not bound in the template: Lit would not restart a same-direction switch, and a re-render must not replay it. It is removed first, with a reflow, so a second switch starts again, and removed on the plan's own `animationend` (glow animations of children bubble and are ignored by name). Reduced motion is read once per switch; the CSS also says `animation:none` there.
+
+## 2026-10-10: the Align tab (S27.10)
+
+- Align is an Inspector mode like Link: `asideMode "align"`, `alignKey` (the floor it opened on). It closes on Escape, the X, another floor, or another tab; a floor without a floor below cannot open it. The ghost is drawn only while the mode is open (`ghostOpts()` in the editor; S27.11 adds the View toggle to the same place).
+- The preview calls `alignFloor` itself and memoises it per pair of floor objects, so a `hass` update re-renders without searching again. Any edit makes new floor objects and so a new search. Apply writes `setOffset(lower.offset + t, whole cm)`, so the preview, the status ("Aligned to Ground: 100 % match") and the stored value agree. Score shows as a whole per cent. The move in words is the change from the current offset, so after Apply it reads "Already aligned" and Apply is disabled.
+- The two offset fields are text boxes (`inputmode=decimal`), not number inputs: junk is caught by us, says "Type a number of centimetres" and the field returns to the stored value. One undo step per accepted change; the same value is no step.
+## 2026-10-10: Floors menu, and Draw folded into Add (S27.9)
+
+- Toolbar: Add, Floors, View, Edit, File. Floors holds `addFloor` (id kept), `alignFloor`, `mFloorUp`, `mFloorDown`, `mFloorDel`; the last three are new ids because the floor panel already owns `fup`, `fdown`, `fdel` and an id must be unique in the shadow root. Move up and Move down act on the current floor and disable at the ends; Delete floor... selects nothing and raises the panel's own confirm, so one confirm path. Align is disabled on the lowest floor and its title says why. It supersedes the Draw menu of S1.21 and Add floor in Edit of S8.1.
+- Draw items kept every id. Wall gets a nested `details.sub#drawWallSub` labelled Draw (an id that existed before), Openings ends with `drawOpening`, Areas ends with the five area draws. Nested submenus work with the existing sibling rule because it only looks at direct children.
+- Guide steps now say [Add], [Wall], [Draw] and [Floors]. `openAlign` is a stub that says so, until S27.10.
+## 2026-10-10: offset writers (S27.8)
+
+- `setOffset(key, pt)` rounds to whole cm, deletes the key at `[0, 0]`, and is a no-op (no step, no lock blame) when the value equals what is stored, an absent offset counting as `[0, 0]`. A stored `[0, 0]` set to `[0, 0]` stays as written: it is valid, and a step to tidy it would be noise. Junk or out-of-range input and unknown keys return false. Under Lock plan a real change is refused with `planBlocked`.
+- `alignToBelow(key)` is `alignFloor` plus the lower floor's offset, through `setOffset`; it returns false for the lowest floor, no match, or no change. The Align tab (S27.10) shows the score by calling `alignFloor` itself and applies with `setOffset`.
+- `addFloor` copies the lowest floor's offset along with its outline.
 ## 2026-10-10: furniture Lock works under Lock plan (S27.1)
 
 - `EditorState.plan()` drops a furniture piece's `locked` from the compare, so ticking Lock in the panel or the context menu is one undo step under Lock plan. Moving, resizing or turning a piece is still refused. Diego, 2026-10-10: "furniture Lock must work under Lock plan". It supersedes the "known edge" of 'Lock in every panel (S26.16)' and the furniture line of S26.3, which listed Lock with the geometry.

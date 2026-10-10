@@ -3148,18 +3148,18 @@ Lane 3D (`scene-build.ts`, `src/card/three/`):
 Wave 2, two lanes in parallel after wave 1 is merged; tasks inside a lane run in order:
 
 Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.ts`, `guide.ts`):
-- [ ] S27.8 Writers. `EditorState.setOffset(key, pt)` and `alignToBelow(key)`: one undo step, none when the offset is
+- [x] S27.8 Writers. `EditorState.setOffset(key, pt)` and `alignToBelow(key)`: one undo step, none when the offset is
       unchanged, `[0,0]` deletes the key, refused under Lock plan with `planBlocked`; `addFloor` gives the new floor the
       lowest floor's offset. Test: every combination of (offset absent, zero, set) x (lock on, off) x (lowest, middle,
       unknown floor); every result passes `validate`; each no-op leaves no step.
       Files: `src/editor/state.ts`, a new `tests/editor/floor-offset-state.test.ts`.
-- [ ] S27.9 Floors menu, and Draw folded into Add, as the assumption says. Test: real clicks at 1024x768: the Floors
+- [x] S27.9 Floors menu, and Draw folded into Add, as the assumption says. Test: real clicks at 1024x768: the Floors
       menu holds its five items in order and its box is inside the viewport; Align is disabled on the lowest floor with
       its reason; no `#mDraw`; every former Draw id opens from Add and starts drawing; `guide-controls.spec.ts` and the
       one-word sweep follow.
       Files: `src/editor/toolbar.ts`, `src/editor/guide.ts`, `tests/editor/floors-menu.spec.ts`, the specs that opened
       `#mDraw`.
-- [ ] S27.10 The Align tab. Floors, Align to floor below… opens the Align mode in the Inspector with the ghost on; it
+- [x] S27.10 The Align tab. Floors, Align to floor below… opens the Align mode in the Inspector with the ghost on; it
       shows the score and the move, Apply writes the offset (one undo step) and says "Aligned to Ground: 94 % match";
       a weak result says so; the two offset fields nudge it, one step per change; Escape and the X close it, as Link.
       Test: on `align-house.json`, open, Apply with real clicks: the offset is within 2 cm of `[-137.4, 61.7]`, one Undo
@@ -3172,7 +3172,7 @@ Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.
       draws `g.ghost` at the shift of an offset floor, survives reload; the click; the `ghostFloor` parity row.
       Files: `src/editor/toolbar.ts`, `src/editor/editor-app.ts`, `tests/card/view-parity.spec.ts`, a new
       `tests/editor/ghost-floor.spec.ts`.
-- [ ] S27.12 The Studio's floor switch is animated. A floor chip sets `data-switch` from `floorSwitch`. Test: default
+- [x] S27.12 The Studio's floor switch is animated. A floor chip sets `data-switch` from `floorSwitch`. Test: default
       motion, a chip click starts an animation on the plan root and a real click during it selects on the new floor;
       reduced motion, no animation is ever running after the click.
       Files: `src/editor/editor-app.ts`, a new `tests/editor/floor-switch.spec.ts`.
