@@ -40,6 +40,14 @@ export interface View3D {
    * frames this floor; the old meshes are disposed.
    */
   setFloor(floor: unknown, around?: unknown): void;
+  /**
+   * S27.7: the floors below the one `setFloor` drew, under it. Each entry is `{ floor, elevation, shift }`: `elevation` is the floor's
+   * walking surface in the frame of the current floor (cm, negative below it, `floorElevation` differences) and `shift` is `floorShift` (cm,
+   * plan x and y). `mode`: "ghost" (translucent, no depth write), "solid" (their own colours), anything else draws none. They are never
+   * picked, never lowered, carry no live state, and are not framed by the camera. Every call replaces the last; `setFloor` keeps them, so
+   * the card calls this after it. Junk entries are skipped; it never throws.
+   */
+  setBelow(floors: unknown, mode: string): void;
   /** The card's theme or dark mode may have changed: `key` identifies them, and the colours are read again when it differs. */
   setTheme(key: string): void;
   /** The container's size may have changed. */
@@ -88,6 +96,8 @@ const RESTORE_MS = 3000;
 export class NoWebGL extends Error {}
 
 const FOV = 40;
+/** The most opaque a ghost floor below is (S27.7). */
+const GHOST_OPACITY = 0.25;
 /** Copy of the card's `TAP_SLOP_PX` (the chunk imports no card code); a test holds the two equal. */
 export const DRAG_PX = 6;
 /** The far plane, as a multiple of the distance that frames the house. */
@@ -368,15 +378,15 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   const dropMat = (m: MeshLambertMaterial) => { m.map?.dispose(); retire(m); };
   const dispose = (list: Mesh[]) => { for (const m of list) { scene.remove(m); m.geometry.dispose(); dropMat(m.material as MeshLambertMaterial); } };
   /** One mesh per colour from the solids `pick` accepts, drawn over the z range `zOf` gives (null: left out). A solid with a floor texture gives its top face to a mesh of its own, with UVs in plan cm (tex.ts); its other faces stay the flat colour. */
-  const meshesOf = (pick: (s: Plan3D["solids"][number]) => boolean, zOf: (s: Plan3D["solids"][number]) => [number, number] | null): Mesh[] => {
+  const meshesOf = (pick: (s: Plan3D["solids"][number]) => boolean, zOf: (s: Plan3D["solids"][number]) => [number, number] | null, from: Plan3D["solids"] = plan?.solids ?? [], textured = true): Mesh[] => {
     const groups = new Map<string, { tris: Triangles; colour: Color; opacity: number; tile?: TextureTile; uv: number[] }>();
     const group = (key: string, colour: Color, opacity: number, tile?: TextureTile) => { let g = groups.get(key); if (!g) groups.set(key, (g = { tris: { position: [], normal: [] }, colour, opacity, tile, uv: [] })); return g; };
-    for (const s of plan?.solids ?? []) {
+    for (const s of from) {
       if (s.shape.type !== "prism" || !pick(s)) continue; // a point (a device with no body of its own) is a ball, below
       const z = zOf(s);
       if (!z) continue;
       const p = paintOf(s.paint.role, s.paint.color), flat = group(`${p.colour.getHexString()}|${p.opacity}`, p.colour, p.opacity);
-      const tile = s.paint.texture !== undefined ? opts.deps.texture(s.paint.texture, s.paint.textureRot, s.paint.textureScale) : null;
+      const tile = textured && s.paint.texture !== undefined ? opts.deps.texture(s.paint.texture, s.paint.textureRot, s.paint.textureScale) : null;
       if (!tile) { prismTriangles(s.shape.base, z[0], z[1], flat.tris); continue; }
       const all: Triangles = { position: [], normal: [] };
       prismTriangles(s.shape.base, z[0], z[1], all);
@@ -677,6 +687,39 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     return { devices, rooms: roomsA };
   };
 
+  // ---- the floors below (S27.7): meshes of their own, outside `clear` and `build`, so the current floor's rebuilds do not touch them.
+  const BELOW_MAX = 32;
+  let belowMeshes: Mesh[] = [], belowArgs: { floors: unknown[]; mode: "ghost" | "solid" } | null = null;
+  /** The scene of a floor below, kept while the floor object, its elevation and its shift stay: a theme change or a repeat call does not build it again. */
+  const belowPlans = new WeakMap<object, Map<string, Plan3D>>();
+  const belowPlan = (floor: object, elevation: number, shift: unknown): Plan3D => {
+    const key = `${elevation}|${JSON.stringify(shift)}`;
+    let byKey = belowPlans.get(floor);
+    if (!byKey) belowPlans.set(floor, (byKey = new Map()));
+    let p = byKey.get(key);
+    if (!p) byKey.set(key, (p = buildScene(floor as never, { elevation, shift: shift as never })));
+    return p;
+  };
+  const buildBelow = () => {
+    dispose(belowMeshes); belowMeshes = [];
+    if (!belowArgs) return;
+    const ghost = belowArgs.mode === "ghost";
+    for (const e of belowArgs.floors) {
+      const f = (e as { floor?: unknown } | null)?.floor, elevation = (e as { elevation?: unknown } | null)?.elevation;
+      if (typeof f !== "object" || f === null || typeof elevation !== "number" || !Number.isFinite(elevation)) continue;
+      try {
+        const sc = belowPlan(f, elevation, (e as { shift?: unknown }).shift);
+        const made = meshesOf((x) => x.kind !== "device", (x) => (x.shape.type === "prism" ? [x.shape.z0, x.shape.z1] : null), sc.solids, false);
+        for (const m of made) {
+          const mat = m.material as MeshLambertMaterial;
+          if (ghost) { mat.transparent = true; mat.opacity = Math.min(mat.opacity, GHOST_OPACITY); mat.depthWrite = false; mat.side = DoubleSide; m.renderOrder = 1; }
+          m.raycast = () => undefined; // never picked
+        }
+        belowMeshes.push(...made);
+      } catch (err) { debugOnce("3D view: a floor below could not be built; the others stay", err); }
+    }
+  };
+
   const build = () => {
     clear();
     builds++;
@@ -722,11 +765,19 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       build();
       want();
     },
+    setBelow(floors, mode) {
+      if (disposed) return;
+      const m = mode === "ghost" || mode === "solid" ? mode : null;
+      belowArgs = m && Array.isArray(floors) ? { floors: floors.slice(0, BELOW_MAX), mode: m } : null;
+      buildBelow();
+      want();
+    },
     setTheme(key) {
       if (key === themeKey) return;
       themeKey = key;
       palette.clear();
       build();
+      buildBelow();
       want();
     },
     resize,
@@ -800,6 +851,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       canvas.removeEventListener("webglcontextrestored", onRestored);
       if (restoreTimer !== null) clearTimeout(restoreTimer);
       clear(); // the ring too
+      dispose(belowMeshes); belowMeshes = []; belowArgs = null;
       freeKeepers();
       pools.dispose();
       glow.dispose();
@@ -834,6 +886,19 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         return project(cx, cy, sol.shape.z1);
       },
       pick: (cx: number, cy: number) => api.pick(cx, cy),
+      setBelow: (floors: unknown, mode: string) => api.setBelow(floors, mode),
+      /** The floors below as drawn: one entry per mesh, its material and its box in plan terms [x0, y0, z0, x1, y1, z1]. */
+      below() {
+        return {
+          count: belowMeshes.length,
+          meshes: belowMeshes.map((m) => {
+            const mat = m.material as MeshLambertMaterial, g = m.geometry;
+            if (!g.boundingBox) g.computeBoundingBox();
+            const b = g.boundingBox!;
+            return { transparent: mat.transparent, opacity: mat.opacity, depthWrite: mat.depthWrite, box: [b.min.x, b.min.z, b.min.y, b.max.x, b.max.z, b.max.y] };
+          }),
+        };
+      },
       /** Gives the view a floor directly, as `setFloor` does: what the card's own check (validate) would have refused reaches the view this way. */
       setFloor: (floor: unknown) => api.setFloor(floor),
       muteGlow: (on: boolean) => { glow.mute(on); want(); },
@@ -844,7 +909,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       /** The height range of everything drawn (cm, plan z): what the one-floor test reads. */
       floors() {
         let y0 = Infinity, y1 = -Infinity;
-        for (const m of [...meshes, ...wallMeshes, ...parts.map((x) => x.mesh), ...devBodies.map((x) => x.mesh), ...pieceBodies.map((x) => x.mesh)]) { const b = m.geometry.boundingBox ?? (m.geometry.computeBoundingBox(), m.geometry.boundingBox!); y0 = Math.min(y0, b.min.y + m.position.y); y1 = Math.max(y1, b.max.y + m.position.y); }
+        for (const m of [...meshes, ...wallMeshes, ...belowMeshes, ...parts.map((x) => x.mesh), ...devBodies.map((x) => x.mesh), ...pieceBodies.map((x) => x.mesh)]) { const b = m.geometry.boundingBox ?? (m.geometry.computeBoundingBox(), m.geometry.boundingBox!); y0 = Math.min(y0, b.min.y + m.position.y); y1 = Math.max(y1, b.max.y + m.position.y); }
         return { extent: { y0, y1 } };
       },
       /** three's own count of what the graphics card holds: 21 floor switches must leave it where 2 did. */

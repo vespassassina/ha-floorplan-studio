@@ -2,6 +2,121 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: Align's fit is a robust point-to-line least squares (review 27 re-check, minor)
+
+- The refine step averaged the pulls of the samples that were off their line and left out those already on it, so samples on the free edges of a smaller floor, passing 5 to 15 cm from some other line of the lower floor, dragged the fit: a 500 x 300 floor 2 cm in a 900 x 700 one came out 0.6 cm off, 0.5 cm in gave 0.6 cm, and a floor in the corner of a wide one 3.2 cm off. Now every sample with a line in reach adds a row (the direction to its nearest point, the distance), those already on their line say "stay", and the move is the weighted least-squares answer. A row weighs 1 / (1 + (d / c)^2)^2, c the median distance of the rows that speak for the same axis (at least 2 cm), so a few strays among many exact hits count for nothing, while a lone far pull on an axis (the ends of a 3000 x 10 floor shifted 15 cm) still counts. Chosen over a fixed reach of a few cm, which drops that lone pull too. Result: the three offsets of the test are within 0.2 cm, and the earlier cases (thin floors shifted 3 to 25 cm, combs, twin walls, the house, stress layout) are unchanged. Left as it is: a stray that is the only evidence on an axis is believed.
+## 2026-10-10: Align scores the rough shortlist on the full samples before the cut (review 27 re-check, blocker)
+
+- The rough pass uses 48 samples, one of them about 2 points. A floor 26 cm and 23.7 cm in from the corner of a bigger one scored 50.0 at the near corner and 52.4 at the far ones; the near corner fell outside the 1 point tie window, was never refined, and Align moved the floor 194 cm. Now the best 10 by the rough score, and any within 4 points of the best (at most 40), are scored again on the fit samples; the tie window of 1 point and the smaller-move rule apply to those scores. Chosen over only widening the rough window, which would still cut a candidate whose rough score is far off on a different 48 samples. Tests: that floor, and 200 seeded smaller floors, each a few cm off one corner, none may land in another corner (12 of 200 did).
+## 2026-10-10: the 0.25.0 changelog is written for the integrated build (review 27, finding 5)
+
+- The Unreleased section kept per-step lines ("Align does nothing yet", "No control yet", "Nothing draws it yet", "in later steps") that were false once the steps were merged. It is one user-facing line per feature of the finished sprint: offset, Floors menu, Align tab, View Floor below, both floor switches, furniture Lock, the card's ghost and floors_below, the demo, the docs. Core helpers and the stylesheet keyframes have no line of their own: nobody uses them except through those features.
+## 2026-10-10: the Align preview does not search during a drag (review 27, finding 10)
+
+- The memo keyed on floor objects, and a drag makes a new floor object on every pointer move, so the preview ran `alignFloor` once per move. While a drag that has moved (not a pan or a marquee) is in progress the preview keeps its last answer, and the first render after the drag searches once. Chosen over a geometry hash, which would cost a pass over the structure on every render and still miss on every move of a drag that changes it. `alignSearches` counts the searches so a test can see them: 31 during a 30-move drag before, none now.
+## 2026-10-10: the floor-switch test reads the animation, not the clock (review 27, finding 9)
+
+- `card-floor-switch.spec.ts` asserted the slide ended within 400 ms of real time, which depends on the machine. It now reads the animation's own duration (`getTiming().duration` is 220) and the `elapsedTime` the browser reports at `animationend` (0.22 s). A rule changed to 300 ms fails it; the old bound would have passed it on a fast machine.
+## 2026-10-10: Apply says why it wrote nothing (review 27, finding 8)
+
+- `applyAlign` said "Already aligned" whenever `setOffset` failed without a lock, which hid an offset beyond `COORD_LIMIT`. It now says "Already aligned" only when the move is zero, and otherwise that the offset would be beyond the limit, with what to do. The lock case is unchanged.
+## 2026-10-10: the Align close check runs after the host's floor property (review 27, finding 7)
+
+- `willUpdate` checked the Align mode before it applied the `floor` property, so a host-driven floor change rendered once with the panel on the old floor. The check now follows the switch. Test: record every render across `el.floor = "ground"` and assert none has the mode open on another floor.
+## 2026-10-10: docs/card.md names the Studio menus as they are (review 27, finding 6)
+
+- The parity page listed Add, Draw, Edit, File. The toolbar is Add, Floors, View, Edit, File since S27.9, and Draw lives in Add. View is named in the table above it, so the sentence lists the menus that change the plan.
+## 2026-10-10: the shots show the floors stack (review 27, finding 4)
+
+- `scripts/shots.mjs` adds: `card-first-ghost-<theme>` (four themes) and `-2-5d`, `card-first-below-{ghost,solid}-{blueprint,light}-3d` (orbited, floors below translucent and solid) and `editor-{ghost,align}-{blueprint,light,ha}` (View, Floor below on; Align tab open over `align-house.json`, whose first floor is 137 cm out). The card shots use the demo with the first floor's offset set to [120, 40], so the floor below is displaced and part of it falls under the room fills. The editor shots fail the run if no `g.ghost` is drawn. Light and ha look alike in the editor outside Home Assistant, as before.
+## 2026-10-10: the ghost floor is drawn after the room fills and stairs, under walls (review 27, finding 3; supersedes S27.5 "first in the plan")
+
+- Drawn first, `g.ghost` sat under the current floor's opaque room fills and was hidden exactly where Align needs it. It is now pushed after the stairs and the night overlay and before the lamp auras, walls, furniture, doors, names and icons. Still one `g.ghost`, no fill, `pointer-events:none` by class, no `data-*`, one draw path for the editor and the card.
+- Tests: the markup order in `render-ghost.test.ts` (night too), and a computed-style plus paint-order pair on the real element in both hosts in blueprint, light and ha (`ghost-floor.spec.ts`, `card-ghost.spec.ts`); all six fail against the old order.
+## 2026-10-10: Align refines on residual, not only on score (review 27, findings 1 and 2)
+
+- The score saturates at 100 % once every sample is within `NEAR`, so a floor 1.5 to 4.5 cm off scored 100 where it stood and the smaller-move rule kept it there. `refine` now keeps a step when the score is no lower and the mean distance to the nearest line is smaller, each axis averages the samples that pull it, and it runs until the pull is under 0.05 cm (at most 40 rounds). Of the fits that tie, moves under `2 * NEAR` apart are one answer and the smallest residual wins in it; between answers further apart the smaller move wins.
+- Every candidate that ties the best coarse score is refined, smallest moves first, at most 16, plus the best others up to three. Before, the first three in generation order were, so the corner list decided the tie. Tests: 1.5, 3, 6, 9, 12 cm off in x, y and diagonal on `align-house.json` and a plain rectangle, all left under 1 cm.
+
+## 2026-10-10: the demo carries a full-height window and a stack of four devices (S27.C)
+
+- `demo/layout.json` and `layout.v1.json` (the migrate test compares them) gain a `fullwindow` door on the Kitchen's east wall and four devices at one point in the Hall: computer, access point, printer, blind. The window is on o:1 because o:0 is the one outline edge with no door, and the delete-edge tests need it bare. The types are ones no Studio test counts: a light, switch or plug changes the bound-switch lists, a lock or camera the Security layer, a media type the empty Media layer. The stack sits at (560, 560), clear of the stairs, the furniture and the draw tests' clicks. A `fullwindow` pane carries `data-dp` like a drawn point, so the draw tests select `circle[data-dp]`. `scripts/shots.mjs` gives the four states and adds `card-ground-stack-{closed,open}-*`, which taps the stack for real. Still no real house.
+## 2026-10-10: the exit test measures the floor against itself (S27.16)
+
+- `tests/editor/floors-exit.spec.ts` aligns `align-house.json` in the Studio with real clicks, takes the layout from the `save-request` event, and gives it to two cards. In 3D the ground floor's solid meshes are compared with the first floor drawn through the same `setBelow` with no shift, because walls have thickness and the mesh box is wider than the outline; in 2D the ghost's bounding box is compared with the first floor's outline. Both within 2 cm. A second test shows the unaligned card is over 100 cm out, so the check can fail.
+- `docs/specs/real-3d.md` criterion I is superseded: floors below are drawn, `off` by default. The 0.14.0 stack drifted because floors had no offset; Align now finds it. Floors above stay hidden.
+## 2026-10-10: View > Floor below is `st.ghostFloor`, kept in localStorage (S27.11)
+
+- `EditorState.ghostFloor` with `setGhostFloor`, key `floorplan-studio:ghost-floor`, every access in try/catch, never an undo step: the same shape as Detail. `ghostOpts()` returns the ghost when the Align mode is open on this floor or the toggle is on, and nothing on the lowest floor. The item `#ghostFloor` is disabled there and its title says why.
+- Parity: `ghostFloor` is a `yes` row (the card's Floor below button, `view-parity.spec.ts`), with a second test that a 3D card has the Floors below select and no button. The View menu item is a plain chip, so a click closes the menu.
+## 2026-10-10: the card's floor switch sets `data-switch` once per switch and clears it on `animationend` (S27.15)
+
+- `_selectFloor` asks `floorSwitch(keys, from, to, reduced)` and keeps the direction in `_switchDir`. `updated()` plays it after `_sync3d()`: remove `data-switch` from the plan svg, force a reflow, set it again, so two quick switches both animate. One `animationend` listener per svg (`_switchEnds`, a WeakSet) removes the attribute, so a stale value never replays on a later render.
+- No animation in 3D (the view cuts), on the first draw (no `from`), for the same floor, or when `matchMedia('(prefers-reduced-motion: reduce)')` matches. The card reads the media query itself (`_reducedMotion()`), as the stylesheet's rule alone would still set the attribute.
+- The Floor below button added a ninth button to the zoom bar; `card.spec.ts` "zoom buttons read at 3:1" counted eight and now counts nine.
+
+## 2026-10-10: the card's 3D floors below are `floors_below` plus a select, given after `setFloor` (S27.14)
+
+- `floors_below: off|ghost|solid` (default `off`; anything else, a wrong case included, is `off`) and a Floors below select beside Walls in 3D. The viewer's pick is kept in the view memory (`below`; a value that is not a mode is dropped) and wins over the YAML; Reset view clears it. `floors_below` joins the storage seed like `detail`. The modes are `BELOW_MODES` in `view-state.ts`, with their labels, so the select, the config form and the parser read one list.
+- `_sync3dBelow` runs after `setFloor` in every `_sync3d` and calls `setBelow` with `{ floor, elevation, shift }` per lower floor, nearest first: `elevation` is `floorElevation(lower) - floorElevation(shown)` (negative), `shift` is `floorShift`. The view rebuilds its meshes on every call, so the card calls only when the mode, the floor objects, an elevation or a shift changed; a view that never had floors below is never told `off`. A new view starts from nothing, so a rebuilt view gets its floors again.
+- Tested at the pixel end through the test hook (`below()`, `floors()`): the lowest drawn point is -320 on the stress layout in solid and ghost (ground's slab bottom), the shift moves the lower floor by exactly `ground.offset - first.offset`, and the camera each floor was left with comes back with floors below on (S14.4). The camera still frames the shown floor only.
+
+## 2026-10-10: the card's ghost floor is `ghost_floor` plus a Floor below button (S27.13)
+
+- `ghost_floor: true` in YAML (only `true`; junk is off) and a Floor below button in the view controls, 2D and 2.5D. The pick is the viewer's, kept in the view memory (`ghost`, a boolean; anything else in storage is dropped) and wins over the YAML; Reset view clears it. `ghost_floor` joins the storage seed like `detail`, so editing it starts a clean memory.
+- The card hands `renderFloor` `ghost: { floor: below, shift: floorShift(layout, below, shown) }` and draws nothing else itself. The lowest floor has no floor below: no ghost, and the button is disabled with a title that says why. In 3D there is no button: the floors below are the `floors_below` select (S27.14).
+- The button's icon is an inlined path in the card file (Material layers-outline), not an import (finding 9). A tap on a spot where only the ghost is drawn opens nothing, because the ghost is `pointer-events:none` by class rule and carries no `data-*`; the test walks the ghost's lines for a point whose top element is the bare plan and clicks it with the real mouse.
+
+## 2026-10-10: the Studio's floor switch animates (S27.12)
+
+- `setFloor` asks `floorSwitch(keys, from, to, reduced)` and, on a direction, sets `data-switch` on the plan svg after the next render. The attribute is set by hand, not bound in the template: Lit would not restart a same-direction switch, and a re-render must not replay it. It is removed first, with a reflow, so a second switch starts again, and removed on the plan's own `animationend` (glow animations of children bubble and are ignored by name). Reduced motion is read once per switch; the CSS also says `animation:none` there.
+
+## 2026-10-10: the Align tab (S27.10)
+
+- Align is an Inspector mode like Link: `asideMode "align"`, `alignKey` (the floor it opened on). It closes on Escape, the X, another floor, or another tab; a floor without a floor below cannot open it. The ghost is drawn only while the mode is open (`ghostOpts()` in the editor; S27.11 adds the View toggle to the same place).
+- The preview calls `alignFloor` itself and memoises it per pair of floor objects, so a `hass` update re-renders without searching again. Any edit makes new floor objects and so a new search. Apply writes `setOffset(lower.offset + t, whole cm)`, so the preview, the status ("Aligned to Ground: 100 % match") and the stored value agree. Score shows as a whole per cent. The move in words is the change from the current offset, so after Apply it reads "Already aligned" and Apply is disabled.
+- The two offset fields are text boxes (`inputmode=decimal`), not number inputs: junk is caught by us, says "Type a number of centimetres" and the field returns to the stored value. One undo step per accepted change; the same value is no step.
+## 2026-10-10: Floors menu, and Draw folded into Add (S27.9)
+
+- Toolbar: Add, Floors, View, Edit, File. Floors holds `addFloor` (id kept), `alignFloor`, `mFloorUp`, `mFloorDown`, `mFloorDel`; the last three are new ids because the floor panel already owns `fup`, `fdown`, `fdel` and an id must be unique in the shadow root. Move up and Move down act on the current floor and disable at the ends; Delete floor... selects nothing and raises the panel's own confirm, so one confirm path. Align is disabled on the lowest floor and its title says why. It supersedes the Draw menu of S1.21 and Add floor in Edit of S8.1.
+- Draw items kept every id. Wall gets a nested `details.sub#drawWallSub` labelled Draw (an id that existed before), Openings ends with `drawOpening`, Areas ends with the five area draws. Nested submenus work with the existing sibling rule because it only looks at direct children.
+- Guide steps now say [Add], [Wall], [Draw] and [Floors]. `openAlign` is a stub that says so, until S27.10.
+## 2026-10-10: offset writers (S27.8)
+
+- `setOffset(key, pt)` rounds to whole cm, deletes the key at `[0, 0]`, and is a no-op (no step, no lock blame) when the value equals what is stored, an absent offset counting as `[0, 0]`. A stored `[0, 0]` set to `[0, 0]` stays as written: it is valid, and a step to tidy it would be noise. Junk or out-of-range input and unknown keys return false. Under Lock plan a real change is refused with `planBlocked`.
+- `alignToBelow(key)` is `alignFloor` plus the lower floor's offset, through `setOffset`; it returns false for the lowest floor, no match, or no change. The Align tab (S27.10) shows the score by calling `alignFloor` itself and applies with `setOffset`.
+- `addFloor` copies the lowest floor's offset along with its outline.
+## 2026-10-10: furniture Lock works under Lock plan (S27.1)
+
+- `EditorState.plan()` drops a furniture piece's `locked` from the compare, so ticking Lock in the panel or the context menu is one undo step under Lock plan. Moving, resizing or turning a piece is still refused. Diego, 2026-10-10: "furniture Lock must work under Lock plan". It supersedes the "known edge" of 'Lock in every panel (S26.16)' and the furniture line of S26.3, which listed Lock with the geometry.
+## 2026-10-10: a floor has an offset; the stack helpers read it (S27.2, S27.3)
+
+- `Floor.offset?: [number, number]`, cm: where the floor sits in the house. Stored points never change; a point's place in the house is the point plus the offset. Chosen over rewriting every point so Align is one key and one undo step, the card's `center` pins, saved views and the trace image stay valid, and repeated aligns cannot drift by rounding. Schema stays v2.
+- Bound: two finite numbers, each within `COORD_LIMIT`. `validate` reports anything else; `migrate` drops it (as `dropBadHeights`), so a hand-edited file opens. A good value is kept as written, `[0, 0]` included; writers (S27.8) delete the key at `[0, 0]`.
+- `floorBelow`, `floorsBelow`, `floorShift` live in `src/core/floor-stack.ts`. Order is `Object.keys(floors)`, as `floorElevation` stacks. They never throw: junk layout means no floors, a junk or unknown-key offset reads as `[0, 0]`, and a key must be an own key (`toString` is not a floor).
+## 2026-10-10: how Align finds the move (S27.4)
+
+- `alignFloor` follows the Sprint 27 assumption. Choices the plan left open: structure lines skip zones in the room fallback; a duplicate corner within 1 cm is one corner, ranked by the total length of the edges at it; candidates are scored coarsely first (48 samples against the 150 longest lower lines), the best three plus the no-move case are refined, then all are scored in full and the tie rule (within 1 point, smaller move) picks.
+- Caps for huge input, so a 10 000-point outline answers in about a second and never hangs: at most 1500 samples (the 10 cm step grows past that), 800 lower lines in the full score, 600 in the fit. A normal floor meets none of them. `t` is rounded to 0.1 cm and the score to 0.1 point; the caller rounds the offset to whole cm.
+- Any exception returns `null`, the same as "nothing to match".
+## 2026-10-10: the floor switch is `data-switch` plus two keyframes, and `floorSwitch` decides (S27.6)
+
+- `floorSwitch(keys, from, to, reduced)` in `render.ts` returns `{ dir }` or null. `keys` is the floors lowest first; a higher new floor is "up". Null for the same floor, an unknown key, a non-array or non-string input, and `reduced === true` (a truthy junk value is not reduced, so a typo does not silently kill the motion). `indexOf` on an array, so `__proto__` is only a key like any other.
+- The host sets `data-switch="up|down"` on the plan root; the stylesheet does the rest: 16 px and opacity 0 to rest over 220 ms, from above when going up. Under `prefers-reduced-motion: reduce` a later `[data-switch]{animation:none}` of equal specificity wins, so the attribute can stay and nothing moves. No copy of the old floor is kept.
+- Pair test on the card (`card-floor-switch-css.spec.ts`): name, duration and the first keyframe's transform for each direction, and `none` with `reducedMotion: "reduce"`; removing the media rule fails it. The host that sets the attribute and clears it after the animation comes in S27.12 and S27.15.
+
+## 2026-10-10: the ghost floor is one `g.ghost` of paths, first in the plan (S27.5)
+
+- `renderFloor` draws `RenderOpts.ghost` as one `<g class="ghost">` before everything else, even before the trace image: the outline, every room, stair and wall as `path.gl`, each point moved by the shift. No fill, text, title, device, `data-*` or `use`, so it cannot be hit-tested or select anything, and no string of the ghost floor is read, so a name cannot reach the markup. The look and `pointer-events:none` are class rules (finding 18); `--fp-ghost` is 35 % of `--fp-wall` into `--fp-bg` in the generic defaults, so every theme has it.
+- Junk draws nothing: a shift that is not two finite numbers within `COORD_LIMIT`, a ring or wall with a non-finite point (skipped alone), rings over 100 000 points. With no valid path no `g` is written. The ghost sits inside the plan turn, so it rotates with the plan.
+- Rooms and stairs are drawn as outlines only; a room's own fill covers the ghost inside the room. That is the "under everything" the plan asks for, and it shows in the shots: the ghost reads outside the current floor's footprint and through unfilled areas.
+## 2026-10-10: floors below in 3D are separate meshes, set by `setBelow` (S27.7)
+
+- `View3D.setBelow(floors, mode)` takes `{ floor, elevation, shift }` entries: `elevation` is the lower floor's walking surface in the current floor's frame (negative), `shift` is the `floorShift` in cm. `SceneOpts.shift` moves every solid in plan x and y in the one `add` choke point; anything but two finite numbers means none.
+- The lower floors are meshes of their own, outside `clear` and `build`, so a rebuild of the current floor never touches them and the `Picker` never sees them (a tap through them finds nothing). They carry no devices, no textures and no live state. Ghost: transparent, opacity at most .25, no depth write. Solid: their own colours, every wall at full height (no cut).
+- `setFloor` keeps them; the card calls `setBelow` after it. The built scene of a floor is cached per floor object, elevation and shift; the meshes are rebuilt on every call and on a theme change, because the palette is read per theme.
+- Why not one scene of all floors: pick, walls cut and live state are built for one floor; mixing would have made every one of them aware of floors below.
+
 ## 2026-10-09: a disabled Undo or Redo is dimmer than an enabled one (Opus re-check 5)
 
 - `.btn:disabled{opacity:.5}` and `.btn.light{opacity:.6}` have the same specificity and the second comes later, so a disabled Undo was .6 like an enabled one, and under the pointer `.btn.light:hover` took it to 1. Added `.btn.light:disabled{opacity:.35}` and put `:not(:disabled)` on the light hover and focus rule; the other hover rules in the editor (`.lockplan`, `.lrow`, `.ti`, `.opt`, `.door-hit-open`) are not on buttons that can be disabled. Computed-style pair in `editor.spec.ts` for light, ha and blueprint: disabled lower than enabled, and unchanged under the pointer. It supersedes (e) of 'small defects' for the `.light` buttons only.

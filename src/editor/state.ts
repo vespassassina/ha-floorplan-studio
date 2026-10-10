@@ -1,4 +1,5 @@
-import { DETAIL_MODES, parseDetailMode, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { alignFloor, floorBelow, DETAIL_MODES, parseDetailMode, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { COORD_LIMIT } from "../core/schema";
 import type { DetailMode, CatalogEntry, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
@@ -53,6 +54,12 @@ function readDetail(): DetailMode {
     const raw = localStorage.getItem(DETAIL_KEY);
     return raw !== null && (DETAIL_VALUES as readonly string[]).includes(raw) ? parseDetailMode(raw) : DEFAULT_DETAIL;
   } catch { return DEFAULT_DETAIL; }
+}
+
+/** S27.11: localStorage key for View, Floor below. A viewer preference, not part of the layout, never an undo step. */
+export const GHOST_KEY = "floorplan-studio:ghost-floor";
+function readGhost(): boolean {
+  try { return localStorage.getItem(GHOST_KEY) === "true"; } catch { return false; }
 }
 
 /** localStorage key for the Help panel's open/closed state (S5.5). A viewer preference, not part of the layout, never an undo step. */
@@ -199,6 +206,8 @@ export class EditorState {
   theme: ThemeChoice = readTheme();
   /** S25.7: the detail mode (View, Detail). Kept in localStorage, not in the layout, never an undo step. */
   detail: DetailMode = readDetail();
+  /** S27.11: whether the floor below is drawn as a ghost under the plan (View, Floor below). Kept in localStorage, not in the layout, never an undo step. */
+  ghostFloor: boolean = readGhost();
   /** S5.5: whether the Help panel is open. Kept in localStorage, not in the layout, never an undo step. */
   helpOpen: boolean = readHelp();
   /** S7.6: whether the plan is drawn as at night. Kept in localStorage, not in the layout, never an undo step. */
@@ -271,7 +280,7 @@ export class EditorState {
    * What a plan lock holds still: the floor's geometry (S26.3, supersedes the 2026-10-06 rule). Points, walls, openings,
    * kinds, heights, stairs, furniture. Left out, so they stay editable: devices and objects, every name and title, colours
    * and textures, the HA area and floor id, and every entity link (a room's sensors, scenes and entity, a door's sensors,
-   * locks and cover, a piece of furniture's entity). Scenes stay out as before (2026-10-07).
+   * locks and cover, a piece of furniture's entity and its Lock, S27.1). Scenes stay out as before (2026-10-07).
    */
   private static plan(f: Floor): string {
     const drop = <T extends object>(o: T, keys: string[]): object => { const c: Record<string, unknown> = { ...(o as Record<string, unknown>) }; for (const k of keys) delete c[k]; return c; };
@@ -282,7 +291,7 @@ export class EditorState {
       stairs: f.stairs.map((t) => drop(t, paint)),
       doors: f.doors.map((d) => drop(d, ["name", "sensors", "vibration", "locks", "cover"])),
       extras: f.extras.map((x) => drop(x, ["name"])),
-      furniture: f.furniture.map((m) => drop(m, ["name", "entity"])),
+      furniture: f.furniture.map((m) => drop(m, ["name", "entity", "locked"])),
     });
   }
 
@@ -296,11 +305,41 @@ export class EditorState {
     this.snapshot();
     const first = Object.values(this.layout.floors)[0];
     const nf: Floor = { title: t, outline: structuredClone(first?.outline ?? []), rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
+    if (first?.offset) nf.offset = [first.offset[0], first.offset[1]]; // it copies that floor's outline, so it sits where that floor sits (S27.8)
     if (first?.owk) nf.owk = structuredClone(first.owk); // Opus review: the outline's kinds must follow its points, or a new floor's perimeter drops back to the wk-less default
     for (const s of first?.stairs ?? []) nf.stairs.push({ ...structuredClone(s), id: newId(nf, key, "stairs") });
     Object.defineProperty(this.layout.floors, key, { value: nf, enumerable: true, writable: true, configurable: true });
     this.floor = key; this.sel = null; this.openDoor = null; this.confirmDelete = false;
     return key;
+  }
+
+  /**
+   * Sets where a floor sits in the house (S27.8), whole cm; `[0, 0]` deletes the key. One undo step; none when the value
+   * is unchanged. False for an unknown floor, a value that is not two finite numbers within COORD_LIMIT, and under Lock
+   * plan (`planBlocked`), where the offset is geometry. Does not move the selection or the current floor.
+   */
+  setOffset(key: string, to: Pt): boolean {
+    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return false;
+    if (!Array.isArray(to) || to.length !== 2 || !to.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)) return false;
+    const x = Math.round(to[0]) + 0, y = Math.round(to[1]) + 0; // + 0: no -0
+    const cur = this.layout.floors[key].offset, cx = cur?.[0] ?? 0, cy = cur?.[1] ?? 0;
+    if (x === cx && y === cy) return false;
+    if (!this.planOpen()) return false;
+    this.snapshot();
+    const fl = this.layout.floors[key];
+    if (x === 0 && y === 0) delete fl.offset; else fl.offset = [x, y];
+    return true;
+  }
+
+  /** Lays a floor on the floor below it: the offset of the one below plus the best translation (S27.4), whole cm. False when there is no floor below, nothing to match, or nothing changes. */
+  alignToBelow(key: string): boolean {
+    if (!this.fresh()) return false;
+    const below = floorBelow(this.layout, key);
+    if (below === null) return false;
+    const r = alignFloor(this.layout.floors[key], this.layout.floors[below]);
+    if (!r) return false;
+    const lo = this.layout.floors[below].offset;
+    return this.setOffset(key, [(lo?.[0] ?? 0) + r.t[0], (lo?.[1] ?? 0) + r.t[1]]);
   }
 
   /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. False when the plan is fixed. */
@@ -960,6 +999,11 @@ export class EditorState {
     if (!(DETAIL_VALUES as readonly string[]).includes(m)) return;
     this.detail = m;
     try { localStorage.setItem(DETAIL_KEY, m); } catch { /* private mode: the choice lasts until reload */ }
+  }
+  /** View, Floor below (S27.11). A viewer preference: no undo step, never written to the layout. */
+  setGhostFloor(v: boolean) {
+    this.ghostFloor = v === true;
+    try { localStorage.setItem(GHOST_KEY, String(this.ghostFloor)); } catch { /* private mode: the choice lasts until reload */ }
   }
   /** Opens or closes the Help panel (S5.5). A viewer preference: no undo step, never written to the layout. */
   setHelp(v: boolean) {

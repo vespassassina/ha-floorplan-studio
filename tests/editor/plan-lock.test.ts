@@ -210,6 +210,33 @@ describe("EditorState: plan lock holds geometry only (S26.3)", () => {
     expect(JSON.stringify(st.layout)).toBe(before);
     expect(st.layout.floors[key].title).toBe(title);
   });
+  // S27.1: Lock on a furniture piece is not geometry. It supersedes the S26.16 "known edge".
+  it("furniture Lock on and off goes through the lock, one undo step each; x, w, rot, h stay refused", () => {
+    const st = locked(), before = JSON.stringify(st.layout);
+    expect(st.edit((f) => { f.furniture[0].locked = true; })).toBe(true);
+    expect(st.planBlocked).toBe(false);
+    expect(st.f.furniture[0].locked).toBe(true);
+    expect(st.edit((f) => { delete f.furniture[0].locked; })).toBe(true);
+    expect(st.planBlocked).toBe(false);
+    expect("locked" in st.f.furniture[0]).toBe(false);
+    expect(validate(st.layout).ok).toBe(true);
+    st.undo(); st.undo();
+    expect(JSON.stringify(st.layout)).toBe(before);
+    expect(st.canUndo).toBe(false);
+    const now = JSON.stringify(st.layout);
+    for (const [what, change] of [
+      ["x", (f: Floor) => { f.furniture[0].x += 9; }],
+      ["w", (f: Floor) => { f.furniture[0].w += 9; }],
+      ["h", (f: Floor) => { f.furniture[0].h += 9; }],
+      ["rot", (f: Floor) => { f.furniture[0].rot = (f.furniture[0].rot + 45) % 360; }],
+      ["lock and x together", (f: Floor) => { f.furniture[0].locked = true; f.furniture[0].x += 9; }],
+    ] as [string, (f: Floor) => void][]) {
+      expect(st.edit(change), what).toBe(false);
+      expect(st.planBlocked, what).toBe(true);
+      expect(JSON.stringify(st.layout), what).toBe(now);
+    }
+    expect(st.canUndo).toBe(false);
+  });
   it("a name and a corner together are refused whole", () => {
     const st = seeded(), n = st.f.rooms[0].name;
     expect(st.edit((f) => { f.rooms[0].name = "Lounge"; f.rooms[0].pts[0] = [1, 1]; })).toBe(false);

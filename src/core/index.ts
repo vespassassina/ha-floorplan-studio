@@ -28,6 +28,7 @@ export * from "./heights";
 export { HEAT_FROM, HEAT_TO, PLUG_ACTIVE_WATTS, findPowerSensor, heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 export type { PowerCandidate } from "./power";
 export * from "./stairs";
+export { floorBelow, floorShift, floorsBelow } from "./floor-stack";
 export { UNLINKED_BASE, WALLS_LABELS, WALLS_MODES, pieceDevice, wallsModeOf } from "./solids";
 export type { WallsMode } from "./solids";
 export { customCalls, customScene, haScenesFor, lampOffCalls, presetCalls, roomScenes, sceneNeedsConfirm } from "./room-scenes";
@@ -39,3 +40,5 @@ export { buildSearchIndex, entryDetail, layoutEntries, normalize, searchIndex } 
 export type { SearchEntry, SearchIndex } from "./search";
 export { FLOOR_OFF_GROUP, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, floorOffRows } from "./floor-off";
 export type { OffGroup, OffRow } from "./floor-off";
+export { NEAR, WEAK_BELOW, alignFloor } from "./align";
+export type { AlignResult } from "./align";

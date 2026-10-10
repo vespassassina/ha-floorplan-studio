@@ -132,7 +132,7 @@ test("rotating the plan refused by Fix plan keeps the angle and offers to untick
 });
 
 test("adding a floor refused by Fix plan adds nothing and offers to untick Fix plan", async ({ page }) => {
-  await openEdit(page);
+  await clickBox(page, "#mFloors > summary");
   await clickBox(page, "#addFloor");
   await expect(page.locator("#newFloor")).toBeFocused();
   await page.keyboard.type("Loft");

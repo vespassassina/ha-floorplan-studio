@@ -1,6 +1,6 @@
 import { css, html, nothing } from "lit";
 import { live } from "./live-keep";
-import { DETAIL_LABELS, DETAIL_MODES, FURNITURE_SYMBOLS, UI_ICONS, UNLINKED_TYPES, WALL_KINDS, layersSummary } from "../core";
+import { DETAIL_LABELS, DETAIL_MODES, FURNITURE_SYMBOLS, floorBelow, UI_ICONS, UNLINKED_TYPES, WALL_KINDS, layersSummary } from "../core";
 import type { FurnitureSymbol, HaData } from "../core";
 import "../card/search-box";
 import { TYPE_LABELS, WALL_LABELS, typeMenu } from "./panels";
@@ -130,7 +130,7 @@ const fitBox = (ev: Event) => {
   box.style.maxHeight = `min(75vh, ${Math.max(60, room)}px)`;
 };
 
-/** The toolbar template (floor chips, search, the Add/Draw/View/Edit/File menus, Help, Undo/Redo). Handlers stay on the host `h`. */
+/** The toolbar template (floor chips, search, the Add/Floors/View/Edit/File menus, Help, Undo/Redo). Handlers stay on the host `h`. */
 /** An icon drawn as a CSS mask, not as an inline <svg>: the plan must stay the first <svg> of the editor's shadow root, which
  * tests and helpers rely on. The path is one of our own constants, so the data URI needs no further escaping. */
 const maskOf = (d: string) => `--lk:url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='${d}'/></svg>`)}")`;
@@ -138,6 +138,7 @@ const maskOf = (d: string) => `--lk:url("data:image/svg+xml,${encodeURIComponent
 export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
   const st = h.st, ha = st.ha;
   const { groups, activeGroup } = floorGroups(st);
+  const floorKeys = Object.keys(st.layout.floors);
   const hiddenNote = layersSummary(st.hidden);
   const pressed = (b: boolean) => (b ? "true" : "false");
   const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -161,33 +162,34 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
             <button class="btn" id="addWin" @click=${() => h.addDoor("window", 120)}>Window</button>
             <button class="btn" id="addSlit" title="A window 60 cm high, from the ceiling down" @click=${() => h.addDoor("slit", 120)}>Slit window</button>
             <button class="btn" id="addGap" title="A gap in a wall: the wall is not drawn there" @click=${() => h.addOpeningGap()}>Opening</button>
+            <button class="btn" id="drawOpening" @click=${() => h.startDraw("opening")}>Draw opening</button>
           </details>
           <details class="sub" id="addWallSub" @toggle=${onSubToggle}><summary class="btn">Wall</summary>
             ${WALL_KINDS.map((k) => html`<button class="btn" id=${`addWall-${k}`} @click=${() => h.addWall(k)}>${WALL_LABELS[k]}</button>`)}
+            <details class="sub" id="drawWallSub" @toggle=${onSubToggle}><summary class="btn">Draw</summary>
+              ${WALL_KINDS.map((k) => html`<button class="btn" id=${`drawWall-${k}`} @click=${() => h.startDraw("wall", k)}>${WALL_LABELS[k]}</button>`)}
+            </details>
           </details>
           <details class="sub" id="addAreas" @toggle=${onSubToggle}><summary class="btn">Areas</summary>
             <button class="btn" id="addStr" @click=${() => h.addStructure()}>Structure</button>
             <button class="btn" id="addZone" @click=${() => h.addArea("zone")}>Zone</button>
             <button class="btn" id="addStairs" @click=${() => h.addStairs()}>Stairs</button>
-          </details>
-          <button class="btn" id="addDevBtn" @click=${() => h.openAddDev()}>Device…</button>
-          ${sub("addFurn", "Furniture", FURNITURE_SYMBOLS.map((y) => html`<button class="btn" id=${`addFurn-${y}`} @click=${() => { h.addFurniture(y); h.closeMenus(); }}>${FURNITURE_LABELS[y]}</button>`))}
-          ${sub("addUnlDev", "Unlinked device", unlinkedItems(h))}
-        </div></details>
-        <details class="menu" id="mDraw" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Draw</summary><div class="box">
-          <details class="sub" id="drawOpenings" @toggle=${onSubToggle}><summary class="btn">Openings</summary>
-            <button class="btn" id="drawOpening" @click=${() => h.startDraw("opening")}>Draw opening</button>
-          </details>
-          <details class="sub" id="drawWallSub" @toggle=${onSubToggle}><summary class="btn">Wall</summary>
-            ${WALL_KINDS.map((k) => html`<button class="btn" id=${`drawWall-${k}`} @click=${() => h.startDraw("wall", k)}>${WALL_LABELS[k]}</button>`)}
-          </details>
-          <details class="sub" id="drawAreas" @toggle=${onSubToggle}><summary class="btn">Areas</summary>
             <button class="btn" id="drawRoom" @click=${() => h.startDraw("room")}>Draw room</button>
             <button class="btn" id="drawZone" @click=${() => h.startDraw("zone")}>Draw zone</button>
             <button class="btn" id="drawWater" @click=${() => h.startDraw("water")}>Draw water</button>
             <button class="btn" id="drawOutline" title="Replaces the outline of this floor" @click=${() => h.startDraw("outline")}>Draw outline</button>
             <button class="btn" id="drawExtra" @click=${() => h.startDraw("extra")}>Draw structure line</button>
           </details>
+          <button class="btn" id="addDevBtn" @click=${() => h.openAddDev()}>Device…</button>
+          ${sub("addFurn", "Furniture", FURNITURE_SYMBOLS.map((y) => html`<button class="btn" id=${`addFurn-${y}`} @click=${() => { h.addFurniture(y); h.closeMenus(); }}>${FURNITURE_LABELS[y]}</button>`))}
+          ${sub("addUnlDev", "Unlinked device", unlinkedItems(h))}
+        </div></details>
+        <details class="menu" id="mFloors" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Floors</summary><div class="box">
+          <button class="btn" id="addFloor" title="Add a floor" @click=${() => h.startAddFloor()}>Add floor</button>
+          <button class="btn" id="alignFloor" ?disabled=${floorBelow(st.layout, st.floor) === null} title=${floorBelow(st.layout, st.floor) === null ? "This is the lowest floor: there is no floor below to align to" : "Lay this floor over the floor below"} @click=${() => h.openAlign()}>Align to floor below…</button>
+          <button class="btn" id="mFloorUp" ?disabled=${floorKeys.indexOf(st.floor) >= floorKeys.length - 1} title="Higher floor: later in the chips" @click=${() => h.moveCurrentFloor(1)}>Move up</button>
+          <button class="btn" id="mFloorDown" ?disabled=${floorKeys.indexOf(st.floor) <= 0} title="Lower floor: earlier in the chips" @click=${() => h.moveCurrentFloor(-1)}>Move down</button>
+          <button class="btn danger" id="mFloorDel" ?disabled=${floorKeys.length < 2} title=${floorKeys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => h.askDeleteFloor()}>Delete floor…</button>
         </div></details>
         <details class="menu" id="mOpt" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">View</summary><div class="box">
           <div class="rotrow" id="snap" role="group" aria-label="Snap"><span>Snap</span>
@@ -197,6 +199,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
           ${sub("labelsSub", "Labels", html`
             <button class="chip" id="names" aria-pressed=${pressed(st.showNames)} title="Show every visible device's name on the plan" @click=${() => { st.showNames = !st.showNames; h.requestUpdate(); }}>Device names</button>
             <button class="chip" id="labels" aria-pressed=${pressed(st.labels)} title="Show the names and values on the plan. Off leaves only the items and sensors." @click=${() => { st.setLabels(!st.labels); h.requestUpdate(); }}>Names and values</button>`)}
+          <button class="chip" id="ghostFloor" aria-pressed=${pressed(st.ghostFloor)} ?disabled=${floorBelow(st.layout, st.floor) === null} title=${floorBelow(st.layout, st.floor) === null ? "Floor below: this is the lowest floor, nothing is under it" : "Show the floor under this one as faint lines, at its place in the house"} @click=${() => { st.setGhostFloor(!st.ghostFloor); h.requestUpdate(); }}>Floor below</button>
           <button class="chip" id="night" aria-pressed=${pressed(st.night)} title="Draw the plan as the card does after sunset. The editor has no live lights, so every room is dark." @click=${() => { st.setNight(!st.night); h.requestUpdate(); }}>Preview night</button>
           <details class="sub" id="thSub" @toggle=${onSubToggle}><summary class="btn">Theme: ${THEME_LABELS[st.theme]}</summary>
             ${THEME_VALUES.map((t) => html`<button class="btn keep" data-th=${t} aria-pressed=${pressed(st.theme === t)} @click=${() => { st.setTheme(t); h.requestUpdate(); }}>${THEME_LABELS[t]}</button>`)}
@@ -209,7 +212,6 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
           <button class="btn" id="copyCardView" title="Copies center and zoom_level for a card pinned to what's on screen now" @click=${() => h.copyCardView()}>Copy card view</button>
         </div></details>
         <details class="menu" id="mEdit" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Edit</summary><div class="box">
-          <button class="btn" id="addFloor" title="Add a floor" @click=${() => h.startAddFloor()}>Add floor</button>
           ${h.writer ? html`<button class="btn" id="mHA" ?disabled=${!h.haList?.length && !h.haListErr} aria-expanded=${pressed(!!h.haPos)} title=${h.haListErr || (h.haList?.length ? "What Floorplan Studio made in Home Assistant" : "Nothing Floorplan Studio made is labelled in Home Assistant yet")} @click=${() => h.toggleHa()}>Home Assistant</button>` : nothing}
           ${ha ? html`<details class="sub" id="mGroup" @toggle=${onSubToggle}><summary class="btn">Group</summary>
             <button class="btn" id="groupAll" aria-pressed=${pressed(!st.activeGroup)} @click=${() => { st.activeGroup = null; h.requestUpdate(); }}>All</button>

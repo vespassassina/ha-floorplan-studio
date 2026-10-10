@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, floorBelow, floorShift, floorSwitch, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -207,6 +207,11 @@ export class FloorplanStudioEditor extends LitElement {
   /** The floor object Link mode was opened on. Its scope is device indices, so any edit, Undo or Redo (a new floor object) closes the mode. */
   private linkFloor: Floor | null = null;
   linkOff = new Set<string>();
+  /** S27.10: the key of the floor the Align mode was opened on (null when closed), and its memoised preview. */
+  alignKey: string | null = null;
+  /** How many times the Align preview has run `alignFloor` (a test reads it: a drag must not search on every pointer move). */
+  alignSearches = 0;
+  private alignMemo: { upper: Floor; lower: Floor; r: ReturnType<typeof alignFloor> } | null = null;
   placeType: DeviceType | null = null;
   private sceneDraft: SceneDraft | null = null;
   private scenePos: { x: number; y: number } | null = null;
@@ -373,7 +378,23 @@ export class FloorplanStudioEditor extends LitElement {
     return `${st.floor}|${st.labels}|${st.viewRot}|${st.hidden.join(",")}|${JSON.stringify(st.views)}`;
   }
 
+  /** S27.12: the direction of a floor switch waiting to start on the next render; the attribute itself is set by hand (see `startSwitch`), never bound in the template. */
+  private switchDir: "up" | "down" | null = null;
+  /** Sets `data-switch` on the plan root so the stylesheet's keyframes run. Removed first, with a reflow, so the same direction twice starts again. */
+  private startSwitch(dir: "up" | "down") {
+    const svg = this.renderRoot.querySelector<SVGSVGElement>(".canvas > svg") ?? this.renderRoot.querySelector<SVGSVGElement>("svg");
+    if (!svg) return;
+    svg.removeAttribute("data-switch");
+    void svg.getBoundingClientRect();
+    svg.setAttribute("data-switch", dir);
+  }
+  /** The animation of the plan root ends: clear the attribute, so the next switch is a new one. The plan's own animations (glow) bubble here too and are ignored. */
+  private onSwitchEnd = (ev: AnimationEvent) => {
+    if (ev.target === ev.currentTarget && ev.animationName.startsWith("fp-floor-in")) (ev.currentTarget as Element).removeAttribute("data-switch");
+  };
+
   protected updated() {
+    if (this.switchDir) { const d = this.switchDir; this.switchDir = null; this.startSwitch(d); }
     if (this.ctxMenu) fitCtxMenu(this.renderRoot);
     if (this.outlineFocus) {
       this.outlineFocus = false;
@@ -606,6 +627,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.linkScope && this.st.f !== this.linkFloor) { this.linkScope = null; if (this.asideMode === "link") this.asideMode = "selection"; } // R2
     if (changed.has("status") && this.banner?.text !== this.status) this.notify(this.status); // already shown by an explicit notify, with its level and action
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
+    if (this.alignKey !== null && (this.st.floor !== this.alignKey || floorBelow(this.st.layout, this.alignKey) === null)) this.closeAlign(false); // after the host's floor change above, so one render never shows the panel on the old floor: the mode belongs to one floor with a floor below
     // Always named, never left to inherit: blueprint unless the viewer chose otherwise. Reflected on the host itself, not just the svg,
     // so the editor's own chrome (menus, panels, buttons) themes with the plan. data-mode is for the ha theme only.
     this.setAttribute("data-theme", this.st.theme);
@@ -1267,6 +1289,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** S26.14: a tab of the aside. Place resumes its room, or opens on the selected one; Add opens as the menu entry does; Selection leaves both as they are. */
   setAsideMode(m: AsideMode) {
     if (this.st.helpOpen) this.st.setHelp(false); // Help covers every mode; a tab click is a way out of it
+    if (m !== "align") this.closeAlign(false);
     if (m === this.asideMode) { this.requestUpdate(); return; }
     if (m === "add") { this.openAddDev(); return; }
     if (m === "place") {
@@ -1729,6 +1752,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.sceneDraft) { ev.preventDefault(); this.closeScene(); return; }
     if (ev.key === "Escape" && this.st.helpOpen) { /* Help covers the mode, so it goes first */ ev.preventDefault(); this.toggleHelp(); return; }
     if (ev.key === "Escape" && this.asideMode === "place") { ev.preventDefault(); this.closePlace(); return; }
+    if (ev.key === "Escape" && this.asideMode === "align") { ev.preventDefault(); this.closeAlign(); return; }
     if (ev.key === "Escape" && this.asideMode === "link") { ev.preventDefault(); this.closeLink(); return; }
     if (ev.key === "Escape" && this.asideMode === "add") { ev.preventDefault(); this.closeAddDev(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
@@ -2601,6 +2625,67 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.deleteFloor(key)) { this.floorDone(`Deleted floor ${title}`); this.focus({ preventScroll: true }); }
     else this.refused();
   }
+  /** S27.9: the Floors menu acts on the current floor. */
+  moveCurrentFloor(delta: number) { this.moveFloor(this.st.floor, delta); }
+  /** Floors, Delete floor…: the floor panel asks first, as its own Delete floor button does. */
+  askDeleteFloor() {
+    if (Object.keys(this.st.layout.floors).length < 2) return;
+    this.stopDraw(); this.st.sel = null; this.asideMode = "selection"; this.st.confirmDelete = true; this.requestUpdate();
+  }
+  /** S27.10: Floors, Align to floor below… opens the Align mode on the current floor; the floor below shows as a ghost while it is open. */
+  openAlign() {
+    this.closeMenus();
+    if (floorBelow(this.st.layout, this.st.floor) === null) return;
+    this.stopDraw(); this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null;
+    if (this.st.helpOpen) this.st.setHelp(false);
+    this.requestUpdate();
+  }
+  closeAlign(update = true) {
+    this.alignKey = null; this.alignMemo = null;
+    if (this.asideMode === "align") this.asideMode = "selection";
+    if (update) this.requestUpdate();
+  }
+  /** The Align mode's numbers, from the live layout: the floor below, the best move (S27.4, memoised per pair of floor objects, so a hass update does not search again), and the offset Apply would write. */
+  alignPreview() {
+    const st = this.st, key = this.alignKey;
+    const bk = key === null ? null : floorBelow(st.layout, key);
+    if (key === null || bk === null) return null;
+    const upper = st.layout.floors[key], lower = st.layout.floors[bk];
+    // A drag edits the floor on every pointer move, and every edit is a new floor object: searching each time would stall the drag.
+    // The preview keeps the last answer while a drag is in progress and searches once when it ends.
+    const dragging = this.drag !== null && this.drag.type !== "pan" && this.drag.type !== "marquee" && this.drag.moved;
+    if (!this.alignMemo || (!dragging && (this.alignMemo.upper !== upper || this.alignMemo.lower !== lower))) { this.alignSearches++; this.alignMemo = { upper, lower, r: alignFloor(upper, lower) }; }
+    const r = this.alignMemo.r, cur = upper.offset ?? [0, 0], lo = lower.offset ?? [0, 0];
+    const next: Pt | null = r ? [Math.round(lo[0] + r.t[0]) + 0, Math.round(lo[1] + r.t[1]) + 0] : null;
+    return { key, belowKey: bk, belowTitle: lower.title || bk, r, cur, next, delta: next ? ([next[0] - cur[0], next[1] - cur[1]] as Pt) : null };
+  }
+  /** Apply: the best offset in one undo step. */
+  applyAlign() {
+    const a = this.alignPreview();
+    if (!a || !a.r || !a.next) return;
+    if (this.st.setOffset(a.key, a.next)) { this.changed(`Aligned to ${a.belowTitle}: ${Math.round(a.r.score)} % match`); return; }
+    if (this.st.planBlocked) { this.refused(); return; }
+    // Not locked, so the offset was unchanged or out of range: say which (it was always "Already aligned").
+    this.status = a.delta && a.delta[0] === 0 && a.delta[1] === 0 ? "Already aligned" : `The offset would be beyond the limit of ${COORD_LIMIT} cm. Move this floor nearer the origin first`;
+    this.requestUpdate();
+  }
+  /** One of the two offset fields (cm): a number, one undo step; junk or the same value changes nothing and the field shows the layout again. */
+  setAlignOffset(axis: 0 | 1, text: string) {
+    const a = this.alignPreview();
+    if (!a) return;
+    const n = text.trim() === "" ? NaN : Number(text.trim().replace(",", "."));
+    if (!Number.isFinite(n)) { this.status = "Type a number of centimetres"; this.requestUpdate(); return; }
+    const to: Pt = axis === 0 ? [n, a.cur[1]] : [a.cur[0], n];
+    if (this.st.setOffset(a.key, to)) this.changed("Floor offset set"); else this.refused();
+  }
+  resetAlignOffset() { const a = this.alignPreview(); if (a && (a.cur[0] !== 0 || a.cur[1] !== 0)) { if (this.st.setOffset(a.key, [0, 0])) this.changed("Floor offset reset"); else this.refused(); } }
+  /** The floor below as `renderFloor`'s ghost: while the Align mode is open, or when View, Floor below is on (S27.11). */
+  private ghostOpts(): { floor: Floor; shift: Pt } | undefined {
+    const st = this.st, bk = floorBelow(st.layout, st.floor);
+    if (bk === null) return undefined;
+    const aligning = this.asideMode === "align" && this.alignKey === st.floor;
+    return aligning || st.ghostFloor ? { floor: st.layout.floors[bk], shift: floorShift(st.layout, bk, st.floor) } : undefined;
+  }
   async startAddFloor() {
     this.addingFloor = true;
     await this.updateComplete;
@@ -2618,7 +2703,12 @@ export class FloorplanStudioEditor extends LitElement {
     else this.refused();
   };
 
-  setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
+  setFloor(name: string) {
+    const from = this.st.floor, reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.setFloorNow(name);
+    this.switchDir = floorSwitch(Object.keys(this.st.layout.floors), from, this.st.floor, reduced)?.dir ?? null; // S27.12: null for the same floor and for reduced motion
+  }
+  private setFloorNow(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.closeAlign(false); this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
 
   /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
   private saveByKey() {
@@ -2846,7 +2936,7 @@ export class FloorplanStudioEditor extends LitElement {
     const { activeGroup } = floorGroups(st);
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, labels: st.labels, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, ghost: this.ghostOpts(), labels: st.labels, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
     const find = this.findData();
     return html`
       ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span>${this.banner.action ? html`<button class="banner-act" id=${this.banner.action.id} @click=${this.banner.action.run}>${this.banner.action.label}</button>` : nothing}<button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
@@ -2855,7 +2945,7 @@ export class FloorplanStudioEditor extends LitElement {
       <div class="ed">
         ${this.sideView(find.tree)}
         <div class="canvas">
-          <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label=${`Floor plan, ${f.title || st.floor}`} class=${[this.draw ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
+          <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label=${`Floor plan, ${f.title || st.floor}`} class=${[this.draw ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @animationend=${this.onSwitchEnd} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
           <!-- After the plan svg in the DOM, not before: specs and code that ask for "the first svg" must get the plan, not a button icon. It sits on top by z-index. -->
           <div class="zoom" role="group" aria-label="Zoom">
             <button class="btn" id="zin" title="Zoom in" aria-label="Zoom in" @click=${() => this.zoomBy(1 / 1.25)}>+</button>

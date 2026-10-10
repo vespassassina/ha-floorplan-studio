@@ -16,8 +16,8 @@ rooms, doors, stairs, furniture, devices. Runs two places, same code:
 
 Left to right:
 
-- **Floor tabs** (`Ground`, `First`, ...) — switch floors. A new floor comes
-  from Edit, Add floor: it starts with the outline and stairs of the first
+- **Floor tabs** (`Ground`, `First`, ...) — switch floors; the new floor's plan slides in
+  (none under reduced motion). A new floor comes from Floors, Add floor: it starts with the outline and stairs of the first
   floor.
 - **Filter: all (N)** — filters which device types are drawn, so a crowded
   plan can be thinned out while you work.
@@ -26,8 +26,12 @@ Left to right:
   appliance icon, and (inside Home Assistant) entities from your instance.
   Device, inside Add, is the catalog of every device on this layout, placed
   or not.
-- **Draw** — freehand outline/room drawing mode.
+- **Floors** — Add floor, Align to floor below…, Move up, Move down, Delete floor….
+  Align lays this floor over the one below it: the Inspector shows the score and the
+  move in words, Apply writes the floor's offset (one undo step) and the offset can be
+  nudged by hand. It needs a floor below, and Lock plan refuses it.
 - **View** — how the plan looks while you work: snap grid, measure grid, lengths, a Labels submenu (Device names, Names and values),
+  Floor below (the floor under this one as faint lines, kept in this browser, no undo step),
   Preview night, theme, Detail (Auto, Full or Minimal), Re-center and Fit to window. The editor draws the plan
   flat only; 2.5D (and soon 3D) is a way to look, so it lives in the card.
   Everything here that is about looking, not editing, is in the card too:

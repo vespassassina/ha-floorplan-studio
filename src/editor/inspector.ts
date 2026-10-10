@@ -1,7 +1,7 @@
 import { css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { addCandidates, typeForEntity } from "../core";
-import type { AddCandidate, HaData } from "../core";
+import type { AddCandidate, HaData, Pt } from "../core";
 import { TYPE_LABELS, helpPanel, selectionPanel, typeOptions } from "./panels";
 import type { EditorState } from "./state";
 import type { FloorplanStudioEditor } from "./editor-app";
@@ -172,11 +172,12 @@ export function addDevView(h: FloorplanStudioEditor, st: EditorState) {
 }
 
 /** S26.14: the Inspector's modes. Selection follows the selection; Place (a room's HA area) and Add (Add > Device) open in the aside. */
-export type AsideMode = "selection" | "place" | "add" | "link";
+export type AsideMode = "selection" | "place" | "add" | "link" | "align";
 
 /** The mode on show: Place needs its room still on the floor, otherwise the aside falls back to Selection. */
 export function effectiveMode(h: FloorplanStudioEditor): AsideMode {
   if (h.asideMode === "place") return h.placeIndex() >= 0 ? "place" : "selection";
+  if (h.asideMode === "align") return h.alignPreview() ? "align" : "selection";
   if (h.asideMode === "link") return h.st.ha && h.linkScope ? "link" : "selection";
   return h.asideMode;
 }
@@ -202,6 +203,34 @@ export function linkView(h: FloorplanStudioEditor, st: EditorState) {
   </div>`;
 }
 
+/** S27.10: the Align mode. The floor below by name, the score, the proposed move in words, Apply, and the offset as two fields for a hand nudge, with Reset. Nothing is written before Apply or a field change. */
+export function alignView(h: FloorplanStudioEditor) {
+  const a = h.alignPreview();
+  if (!a) return nothing;
+  const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); h.closeAlign(); } };
+  const words = (d: Pt) => {
+    const parts = [d[0] ? `${Math.abs(d[0])} cm ${d[0] < 0 ? "left" : "right"}` : "", d[1] ? `${Math.abs(d[1])} cm ${d[1] < 0 ? "up" : "down"}` : ""].filter(Boolean);
+    return parts.length ? parts.join(", ") : "Already aligned";
+  };
+  const field = (id: string, label: string, axis: 0 | 1) => html`<label for=${id}>${label}</label>
+    <input id=${id} type="text" inputmode="decimal" autocomplete="off" .value=${live(String(a.cur[axis]))} @change=${(e: Event) => h.setAlignOffset(axis, (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}>`;
+  return html`<div class="imode align-panel" id="alignPanel" role="tabpanel" aria-label="Align to floor below" @keydown=${esc}>
+    <div class="imode-head">
+      <button class="btn keep" id="alignClose" aria-label="Close" @click=${() => h.closeAlign()}>&times;</button>
+      <span>Align to floor below</span>
+    </div>
+    <p>Lay this floor over <strong>${a.belowTitle}</strong>. The floor below is drawn as faint lines on the plan.</p>
+    ${a.r && a.delta
+      ? html`<p id="alignScore">${a.r.weak ? `Weak match: ${Math.round(a.r.score)} %. Check the plan before you apply it` : `${Math.round(a.r.score)} % match`}</p>
+        <p id="alignMove">${words(a.delta)}</p>`
+      : html`<p id="alignNone">Nothing to match: ${a.belowTitle} or this floor has no outline or walls.</p>`}
+    <button class="btn primary keep" id="alignApply" ?disabled=${!a.r || !a.delta || (a.delta[0] === 0 && a.delta[1] === 0)} @click=${() => h.applyAlign()}>Apply</button>
+    <h4 class="pnl-h">Offset (cm)</h4>
+    ${field("alignX", "x (right)", 0)}${field("alignY", "y (down)", 1)}
+    <button class="btn keep" id="alignReset" ?disabled=${a.cur[0] === 0 && a.cur[1] === 0} @click=${() => h.resetAlignOffset()}>Reset</button>
+  </div>`;
+}
+
 /** The side panel: tabs, then the Help text or the selection's panel, or the Place or Add mode. */
 export function asideView(h: FloorplanStudioEditor) {
   const mode = effectiveMode(h), st = h.st;
@@ -211,7 +240,7 @@ export function asideView(h: FloorplanStudioEditor) {
     html`<button class="tab" role="tab" data-mode=${id} id=${`imode-${id}`} aria-selected=${mode === id ? "true" : "false"} ?disabled=${disabled} @click=${on}>${label}</button>`;
   // Help shows in every mode (R3); a tab click closes it (setAsideMode).
   const body = st.helpOpen ? html`<div id="panel">${helpPanel(() => h.toggleHelp())}</div>`
-    : mode === "place" ? placeView(h, st, h.placeIndex()) : mode === "add" ? addDevView(h, st) : mode === "link" ? linkView(h, st)
+    : mode === "place" ? placeView(h, st, h.placeIndex()) : mode === "add" ? addDevView(h, st) : mode === "link" ? linkView(h, st) : mode === "align" ? alignView(h)
     : html`<div id="panel">${selectionPanel(h.ctx())}</div>`;
   return html`<aside>
     <div class="tabs imodes" role="tablist" aria-label="Inspector">
@@ -219,6 +248,7 @@ export function asideView(h: FloorplanStudioEditor) {
       ${tab("place", "Place", () => h.setAsideMode("place"), !canPlace)}
       ${tab("add", "Add", () => h.setAsideMode("add"))}
       ${mode === "link" ? tab("link", "Link", () => undefined) : nothing}
+      ${mode === "align" ? tab("align", "Align", () => undefined) : nothing}
     </div>
     ${body}
   </aside>`;

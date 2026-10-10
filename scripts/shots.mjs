@@ -30,26 +30,31 @@ for (const f of [CARD, EDITOR]) {
 }
 const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const cardJs = readFileSync(CARD, "utf8");
+// Review 27: the floors' offsets. The first floor sits 120 cm east and 40 cm south of the ground floor, so the floor below
+// shows as a displaced outline: part of it falls where the shown floor draws nothing, part under its room fills.
+const ghostLayout = structuredClone(layout);
+ghostLayout.floors.first.offset = [120, 40];
+const alignHouse = JSON.parse(readFileSync("tests/fixtures/align-house.json", "utf8"));
 
 // One entity table for the whole demo. `off` is every device at rest; `on` is every device doing its thing.
 const now = () => new Date().toISOString();
 const st = (state, attributes = {}) => ({ state, attributes, last_changed: now() });
 const STATES = {
   off: {
-    "light.demo_kitchen": "off", "light.demo_living": "off", "light.demo_bedroom": "off", "switch.demo_hall": "off",
+    "light.demo_kitchen": "off", "sensor.demo_hall_pc": "off", "cover.demo_hall_blind": "closed", "sensor.demo_hall_printer": "idle", "sensor.demo_hall_ap": "off", "light.demo_living": "off", "light.demo_bedroom": "off", "switch.demo_hall": "off",
     "switch.demo_tv_plug": "off", "binary_sensor.demo_hall_motion": "off", "climate.demo_living": "off",
     "media_player.demo_office": "idle", "camera.demo_hall": "idle", "sensor.demo_living_temperature": "21.5",
     "sensor.demo_bedroom_temperature": "19", "sensor.demo_bathroom_humidity": "54",
   },
   on: {
-    "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }], "light.demo_living": "on", "light.demo_bedroom": "on",
+    "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }], "sensor.demo_hall_pc": "on", "cover.demo_hall_blind": "open", "sensor.demo_hall_printer": "printing", "sensor.demo_hall_ap": "on", "light.demo_living": "on", "light.demo_bedroom": "on",
     "switch.demo_hall": "on", "switch.demo_tv_plug": "on", "binary_sensor.demo_hall_motion": "on", "climate.demo_living": "heat",
     "media_player.demo_office": "playing", "camera.demo_hall": "streaming", "sensor.demo_living_temperature": "23.5",
     "sensor.demo_bedroom_temperature": "12,5", // a comma decimal: must read as no value, never as a number (S2.5)
     "sensor.demo_bathroom_humidity": "unavailable",
   },
   gone: Object.fromEntries(Object.keys({
-    "light.demo_kitchen": 0, "light.demo_living": 0, "light.demo_bedroom": 0, "switch.demo_hall": 0, "switch.demo_tv_plug": 0,
+    "light.demo_kitchen": 0, "sensor.demo_hall_pc": 0, "cover.demo_hall_blind": 0, "sensor.demo_hall_printer": 0, "sensor.demo_hall_ap": 0, "light.demo_living": 0, "light.demo_bedroom": 0, "switch.demo_hall": 0, "switch.demo_tv_plug": 0,
     "binary_sensor.demo_hall_motion": 0, "climate.demo_living": 0, "media_player.demo_office": 0, "camera.demo_hall": 0,
     "sensor.demo_living_temperature": 0, "sensor.demo_bedroom_temperature": 0, "sensor.demo_bathroom_humidity": 0,
   }).map((k) => [k, "unavailable"])),
@@ -247,6 +252,13 @@ try {
     cardShots.push({ name: `card-ground-popup-confirm-${t.id}-${width}px`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, width, dpr: 2, cfg: { active_list: false }, tap: 3, tap2: true });
   }
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) cardShots.push({ name: `card-ground-tooltip-${t.id}`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, dpr: 2, cfg: { active_list: false }, hover: 0 });
+  // S27.C: four devices stacked on one spot in the Hall, zoomed in, closed and then fanned out by a real tap (spiderfy); and the
+  // kitchen's full-height window is in every ground shot.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const open of [false, true])
+    cardShots.push({ name: `card-ground-stack-${open ? "open" : "closed"}-${t.id}`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, dpr: 2, cfg: { active_list: false, detail: "full", center: [560, 560], zoom_level: 4 }, stack: open });
+  // Review 27: the ghost floor (Floor below) on the first floor, 2D, in every theme, and 2.5D in the default.
+  for (const t of THEMES) cardShots.push({ name: `card-first-ghost-${t.id}`, floor: "first", which: "off", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, ghost: true, cfg: { ghost_floor: true, active_list: false } });
+  cardShots.push({ name: "card-first-ghost-blueprint-2-5d", floor: "first", which: "off", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, ghost: true, view: "2.5d", cfg: { ghost_floor: true, active_list: false } });
   cardShots.push({ name: "card-ground-on-blueprint-2-5d-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375 });
   cardShots.push({ name: "card-ground-on-blueprint-2-5d-rot-45-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375, cfg: { rotation: 45 } });
   for (const s of cardShots) {
@@ -261,7 +273,7 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout: s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}), ...(s.cfg ?? {}) }, lamp(hassFor(s.which, s.dark), s.tap === 0 || s.hover === 0)]);
+    }, [{ layout: s.ghost ? ghostLayout : s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}), ...(s.cfg ?? {}) }, lamp(hassFor(s.which, s.dark), s.tap === 0 || s.hover === 0)]);
     if (s.pick !== undefined) {
       // A real click on bare floor, found with elementFromPoint (CLAUDE.md finding 3), then the first row's popup Details.
       await page.evaluate(([reg]) => { const el = document.getElementById("c"); el.hass = { ...el.hass, ...reg }; return el.updateComplete; },
@@ -284,6 +296,16 @@ try {
       await page.locator("floorplan-studio-card").locator(".fp-floors button", { hasText: s.pill }).click();
       await page.locator("floorplan-studio-card").locator(".fp-room").waitFor();
       await page.mouse.move(0, 0);
+    }
+    if (s.stack) {
+      // A real tap on the stack: the top icon at the stacked spot (CLAUDE.md finding 3), then the ring's pins.
+      const at = await page.evaluate(() => {
+        const sr = document.getElementById("c").shadowRoot, r = sr.querySelector('svg g[data-x="11"]').getBoundingClientRect(); // the last of the four stacked icons, the top one
+        for (let a = 4; a < 12; a++) for (let c = 4; c < 12; c++) { const x = r.left + (r.width * a) / 16, y = r.top + (r.height * c) / 16; if (sr.elementFromPoint(x, y)?.closest("g[data-x]")) return { x, y }; }
+        return null;
+      });
+      if (!at) errors.push(`${s.name}: no icon to tap on the stack`);
+      else { await page.mouse.click(at.x, at.y); await page.locator("floorplan-studio-card").locator("svg .spider-pin").first().waitFor(); await page.mouse.move(0, 0); }
     }
     if (s.tap !== undefined || s.hover !== undefined) {
       // Real mouse at the icon's own spot (CLAUDE.md finding 3), after checking the icon is the top element there.
@@ -333,6 +355,9 @@ try {
     shots3d.push({ name: `card-ground-popup-${t.id}-3d`, floor: "ground", t, orbit: false, tap: 0 });
     shots3d.push({ name: `card-ground-tooltip-${t.id}-3d`, floor: "ground", t, orbit: false, hover: 0 });
   }
+  // Review 27: the floors below the shown one, translucent and solid, at their own height and offset.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const mode of ["ghost", "solid"])
+    shots3d.push({ name: `card-first-below-${mode}-${t.id}-3d`, floor: "first", t, orbit: true, ghost: true, cfg: { floors_below: mode, active_list: false } });
   for (const s of shots3d) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
     const page = await ctx.newPage();
@@ -352,7 +377,7 @@ try {
       const el = document.getElementById("c");
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout: s.tex ? texLayout : s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.t.theme, view: "3d", active_list: !!s.pick }, lamp(hassFor(s.which ?? "on", s.t.dark), s.tap === 0 || s.hover === 0)]);
+    }, [{ layout: s.ghost ? ghostLayout : s.tex ? texLayout : s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.t.theme, view: "3d", active_list: !!s.pick, ...(s.cfg ?? {}) }, lamp(hassFor(s.which ?? "on", s.t.dark), s.tap === 0 || s.hover === 0)]);
     const holder = page.locator("floorplan-studio-card").locator(".fp-3d");
     try { await page.waitForFunction(() => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1, null, { timeout: 15000 }); }
     catch { errors.push(`${s.name}: the 3D view never drew a frame (WebGL missing, or the chunk failed)`); }
@@ -387,6 +412,25 @@ try {
     await page.addInitScript((t) => localStorage.setItem("floorplan-studio:theme", t), theme);
     await page.goto(pathToFileURL(resolve(EDITOR)).href);
     await page.locator("floorplan-studio-editor svg polygon[data-r]").first().waitFor();
+    await page.screenshot({ path: `${OUT}/${name}.png` });
+    shots.push(name);
+    await ctx.close();
+  }
+  // Review 27: the Studio with the floor below on (View, Floor below) and with the Align tab open, over the L-shaped house whose
+  // first floor is 137 cm out. Real clicks on the menu items.
+  for (const theme of ["blueprint", "light", "ha"]) for (const mode of ["ghost", "align"]) {
+    const name = `editor-${mode}-${theme}`;
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
+    const page = await ctx.newPage();
+    page.on("pageerror", (e) => errors.push(`${name}: ${e}`));
+    await page.addInitScript(([t, g]) => { localStorage.setItem("floorplan-studio:theme", t); if (g) localStorage.setItem("floorplan-studio:ghost-floor", "true"); }, [theme, mode === "ghost"]);
+    await page.goto(pathToFileURL(resolve(EDITOR)).href);
+    await page.locator("floorplan-studio-editor svg polygon[data-r]").first().waitFor();
+    await page.evaluate((l) => { document.querySelector("floorplan-studio-editor").layout = l; }, alignHouse);
+    await page.locator('.chip[data-f="first"]').click();
+    if (mode === "align") { await page.locator("#mFloors > summary").click(); await page.locator("#alignFloor").click(); await page.locator("#alignPanel").waitFor(); }
+    await page.mouse.move(0, 0);
+    if ((await page.locator("floorplan-studio-editor svg g.ghost").count()) !== 1) errors.push(`${name}: no ghost drawn`);
     await page.screenshot({ path: `${OUT}/${name}.png` });
     shots.push(name);
     await ctx.close();
