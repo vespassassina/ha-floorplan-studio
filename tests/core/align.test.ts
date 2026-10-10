@@ -164,4 +164,28 @@ describe("alignFloor (S27.4)", () => {
       if (r) { expect(Number.isFinite(r.t[0]) && Number.isFinite(r.t[1])).toBe(true); expect(r.score).toBeGreaterThanOrEqual(0); expect(r.score).toBeLessThanOrEqual(100); }
     }
   });
+
+  it("a smaller floor near one corner stays in that corner (review 27 re-check, blocker)", () => {
+    // Near corner scored 50.0 on the rough samples, far corners 52.4: the near one was dropped and never refined.
+    const r = alignFloor(blank(rect(26, 23.7, 861, 229.7)), blank(rect(0, 0, 1341, 422)))!;
+    expect(Math.abs(r.t[0] - -26)).toBeLessThan(2);
+    expect(Math.abs(r.t[1] - -23.7)).toBeLessThan(2);
+  });
+
+  it("200 seeded smaller floors, each a few cm off one corner of the lower one, never land in another corner", () => {
+    let seed = 12345;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+    let wrong = 0;
+    for (let n = 0; n < 200; n++) {
+      const W = 600 + rnd() * 1000, H = 300 + rnd() * 500;
+      const w = W * (0.3 + rnd() * 0.5), h = H * (0.3 + rnd() * 0.5);
+      const ox = rnd() * 40, oy = rnd() * 40;
+      const corner = n % 4, left = corner % 2 === 0, top = corner < 2;
+      const x0 = left ? ox : W - ox - w, y0 = top ? oy : H - oy - h;
+      const r = alignFloor(blank(rect(x0, y0, x0 + w, y0 + h)), blank(rect(0, 0, W, H)))!;
+      const ex = left ? -ox : ox, ey = top ? -oy : oy;
+      if (Math.abs(r.t[0] - ex) > 30 || Math.abs(r.t[1] - ey) > 30) wrong++;
+    }
+    expect(wrong).toBe(0);
+  });
 });

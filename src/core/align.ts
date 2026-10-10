@@ -30,6 +30,8 @@ export interface AlignResult {
 export const NEAR = 5;
 export const WEAK_BELOW = 50;
 const STEP = 10, MAX_SAMPLES = 1500, MAX_LOWER = 800, MAX_CORNERS = 64, COARSE = 48, TOP = 3, REFINE_ROUNDS = 40, MAX_REFINED = 16, REFINE_REACH = 25, TIE = 1;
+/** The rough pass sees 48 samples, so one sample is about 2 points: its tie window is 4, or a near corner that the full samples tie with the far ones is cut. */
+const COARSE_TIE = 4, SHORTLIST = 10, MAX_SHORT = 40;
 
 const num = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 const pt = (p: unknown): p is Pt => Array.isArray(p) && p.length === 2 && num(p[0]) && num(p[1]);
@@ -179,14 +181,19 @@ export function alignFloor(upper: Floor, lower: Floor): AlignResult | null {
     }
     const ranked = cands.map((t) => ({ t, s: scoreAt(coarse, coarseLines, t[0], t[1]) }));
     ranked.sort((a, b) => b.s - a.s);
-    // Refine every candidate that ties the best coarse score, the smallest moves first (at most MAX_REFINED), and the
-    // best few others. Taking them in generation order would let the corner list decide which tie gets looked at.
-    const move = (c: Pt) => Math.hypot(c[0], c[1]);
-    const tied = ranked.filter((c) => c.s >= ranked[0].s - TIE).sort((a, b) => move(a.t) - move(b.t)).slice(0, MAX_REFINED);
-    const picked = [...tied, ...ranked.filter((c) => c.s < ranked[0].s - TIE).slice(0, Math.max(0, TOP - tied.length))];
-
+    // The rough pass is noisy (one sample is about 2 points), so the best SHORTLIST by it, and any within COARSE_TIE,
+    // are scored again on the fit samples before the cut. Then: refine every candidate that ties the best of those,
+    // the smallest moves first (at most MAX_REFINED), and the best few others. Taking them in generation order would
+    // let the corner list decide which tie gets looked at.
     const fitSamples = samples.length > 1000 ? samples.filter((_, i) => i % Math.ceil(samples.length / 1000) === 0) : samples;
     const fitLines = longest(ls, 600);
+    const move = (c: Pt) => Math.hypot(c[0], c[1]);
+    const short = ranked.filter((c, i) => i < SHORTLIST || c.s >= ranked[0].s - COARSE_TIE).slice(0, MAX_SHORT)
+      .map((c) => ({ t: c.t, s: scoreAt(fitSamples, fitLines, c.t[0], c.t[1]) }))
+      .sort((a, b) => b.s - a.s);
+    const tied = short.filter((c) => c.s >= short[0].s - TIE).sort((a, b) => move(a.t) - move(b.t)).slice(0, MAX_REFINED);
+    const picked = [...tied, ...short.filter((c) => c.s < short[0].s - TIE).slice(0, Math.max(0, TOP - tied.length))];
+
     const finals = picked.map((c) => refine(fitSamples, fitLines, c.t));
     // The no-move case is always in the running, as is its refinement.
     finals.push(refine(fitSamples, fitLines, [0, 0]));

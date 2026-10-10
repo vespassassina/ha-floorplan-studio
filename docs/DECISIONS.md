@@ -2,6 +2,9 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: Align scores the rough shortlist on the full samples before the cut (review 27 re-check, blocker)
+
+- The rough pass uses 48 samples, one of them about 2 points. A floor 26 cm and 23.7 cm in from the corner of a bigger one scored 50.0 at the near corner and 52.4 at the far ones; the near corner fell outside the 1 point tie window, was never refined, and Align moved the floor 194 cm. Now the best 10 by the rough score, and any within 4 points of the best (at most 40), are scored again on the fit samples; the tie window of 1 point and the smaller-move rule apply to those scores. Chosen over only widening the rough window, which would still cut a candidate whose rough score is far off on a different 48 samples. Tests: that floor, and 200 seeded smaller floors, each a few cm off one corner, none may land in another corner (12 of 200 did).
 ## 2026-10-10: the 0.25.0 changelog is written for the integrated build (review 27, finding 5)
 
 - The Unreleased section kept per-step lines ("Align does nothing yet", "No control yet", "Nothing draws it yet", "in later steps") that were false once the steps were merged. It is one user-facing line per feature of the finished sprint: offset, Floors menu, Align tab, View Floor below, both floor switches, furniture Lock, the card's ghost and floors_below, the demo, the docs. Core helpers and the stylesheet keyframes have no line of their own: nobody uses them except through those features.
