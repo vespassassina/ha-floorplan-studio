@@ -15,6 +15,17 @@ Newest first. A change supersedes; nothing is edited.
 - `alignFloor` follows the Sprint 27 assumption. Choices the plan left open: structure lines skip zones in the room fallback; a duplicate corner within 1 cm is one corner, ranked by the total length of the edges at it; candidates are scored coarsely first (48 samples against the 150 longest lower lines), the best three plus the no-move case are refined, then all are scored in full and the tie rule (within 1 point, smaller move) picks.
 - Caps for huge input, so a 10 000-point outline answers in about a second and never hangs: at most 1500 samples (the 10 cm step grows past that), 800 lower lines in the full score, 600 in the fit. A normal floor meets none of them. `t` is rounded to 0.1 cm and the score to 0.1 point; the caller rounds the offset to whole cm.
 - Any exception returns `null`, the same as "nothing to match".
+## 2026-10-10: the floor switch is `data-switch` plus two keyframes, and `floorSwitch` decides (S27.6)
+
+- `floorSwitch(keys, from, to, reduced)` in `render.ts` returns `{ dir }` or null. `keys` is the floors lowest first; a higher new floor is "up". Null for the same floor, an unknown key, a non-array or non-string input, and `reduced === true` (a truthy junk value is not reduced, so a typo does not silently kill the motion). `indexOf` on an array, so `__proto__` is only a key like any other.
+- The host sets `data-switch="up|down"` on the plan root; the stylesheet does the rest: 16 px and opacity 0 to rest over 220 ms, from above when going up. Under `prefers-reduced-motion: reduce` a later `[data-switch]{animation:none}` of equal specificity wins, so the attribute can stay and nothing moves. No copy of the old floor is kept.
+- Pair test on the card (`card-floor-switch-css.spec.ts`): name, duration and the first keyframe's transform for each direction, and `none` with `reducedMotion: "reduce"`; removing the media rule fails it. The host that sets the attribute and clears it after the animation comes in S27.12 and S27.15.
+
+## 2026-10-10: the ghost floor is one `g.ghost` of paths, first in the plan (S27.5)
+
+- `renderFloor` draws `RenderOpts.ghost` as one `<g class="ghost">` before everything else, even before the trace image: the outline, every room, stair and wall as `path.gl`, each point moved by the shift. No fill, text, title, device, `data-*` or `use`, so it cannot be hit-tested or select anything, and no string of the ghost floor is read, so a name cannot reach the markup. The look and `pointer-events:none` are class rules (finding 18); `--fp-ghost` is 35 % of `--fp-wall` into `--fp-bg` in the generic defaults, so every theme has it.
+- Junk draws nothing: a shift that is not two finite numbers within `COORD_LIMIT`, a ring or wall with a non-finite point (skipped alone), rings over 100 000 points. With no valid path no `g` is written. The ghost sits inside the plan turn, so it rotates with the plan.
+- Rooms and stairs are drawn as outlines only; a room's own fill covers the ghost inside the room. That is the "under everything" the plan asks for, and it shows in the shots: the ghost reads outside the current floor's footprint and through unfilled areas.
 
 ## 2026-10-09: a disabled Undo or Redo is dimmer than an enabled one (Opus re-check 5)
 

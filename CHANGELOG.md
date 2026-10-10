@@ -6,6 +6,8 @@
 - Schema: a floor may carry `offset: [x, y]` (cm), where it sits in the house. Absent is `[0, 0]`; a bad value is reported by validation and dropped when a file is opened. Nothing draws it yet.
 - Core: `floorBelow`, `floorsBelow` and `floorShift` read the floor stack.
 - Core: `alignFloor(upper, lower)` finds the move that lays one floor on the floor below and scores the fit (S27.4).
+- The stylesheet has the floor-switch motion (`fp-floor-in-up`, `fp-floor-in-down`, 220 ms, none under reduced motion) and `floorSwitch()` says which way; the Studio and the card use them in later steps.
+- The plan can draw the floor below as faint lines under the current one (`RenderOpts.ghost`, token `--fp-ghost`); the Studio and the card switch it on in later steps.
 
 ## 0.24.0 - 2026-10-10
 

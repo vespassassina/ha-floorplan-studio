@@ -3120,14 +3120,14 @@ Lane align (a new `src/core/align.ts`):
       Files: `src/core/align.ts`, `src/core/index.ts`, `tests/core/align.test.ts`, `tests/fixtures/align-house.json`.
 
 Lane render (`src/core/render.ts`):
-- [ ] S27.5 Ghost floor in `renderFloor`. `RenderOpts.ghost?: { floor: Floor; shift: Pt }` draws a `g.ghost` first,
+- [x] S27.5 Ghost floor in `renderFloor`. `RenderOpts.ghost?: { floor: Floor; shift: Pt }` draws a `g.ghost` first,
       under everything: lines only, as the assumption says, stroke `--fp-ghost`, `pointer-events:none` by class rule.
       Absent, the markup is byte for byte as before. Test: unit, the ghost has paths and no `text`, `use` or device
       group, a payload `"><script>` in its room names never appears, junk ghost input draws nothing; the render snapshot
       unchanged without it; computed-style pairs for the stroke and `pointer-events` (card and editor stylesheets);
       `npm run shots` looked at with a ghost on, every theme.
       Files: `src/core/render.ts`, a new `tests/core/render-ghost.test.ts`, a pair in `tests/editor/editor.spec.ts`.
-- [ ] S27.6 Switch motion in core, chained after S27.5. `floorSwitch(keys, from, to, reduced)` returns
+- [x] S27.6 Switch motion in core, chained after S27.5. `floorSwitch(keys, from, to, reduced)` returns
       `{ dir: "up" | "down" }` or null (same floor, unknown key, reduced). Keyframes `fp-floor-in-up` and
       `fp-floor-in-down` (220 ms) in `FLOORPLAN_CSS`, keyed on `data-switch` on the plan root, with no animation under
       `prefers-reduced-motion: reduce`. Test: unit on the helper; a computed-style pair, `animation-name` set without
