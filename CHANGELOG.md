@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.26.0 - 2026-10-10
 
 - 2.5D door and window trim is drawn over the wall on both sides of the gap; the far jamb was half hidden by the wall after it.
 - 2.5D door and window trim stands beside the gap, as in 3D, so a narrow window keeps its glass.
