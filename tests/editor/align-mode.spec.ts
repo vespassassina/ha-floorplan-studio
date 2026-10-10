@@ -162,3 +162,32 @@ test("an offset beyond the coordinate limit says so, not 'Already aligned' (revi
   expect(await offsetOf(page, "first")).toBeUndefined();
   expect(await depth(page)).toBe(d0);
 });
+
+test("no Align search runs while a drag is in progress, one runs when it ends (review 27, finding 10)", async ({ page }) => {
+  // a light on the first floor to drag (rooms of the fixture are snapped to their walls and do not move)
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.first.devices.push({ type: "light", entity: "light.drag_me", x: 400, y: 100 });
+    el.layout = l;
+  }, EDITOR);
+  await page.locator('.chip[data-f="first"]').click();
+  await openAlign(page);
+  const searches = () => page.evaluate((tag) => (document.querySelector(tag) as any).alignSearches as number, EDITOR);
+  const n0 = await searches();
+  expect(n0).toBeGreaterThan(0); // opening the mode searched once
+  // a real press on the icon (top element checked), then a long drag in many small moves
+  const at = await page.evaluate((tag) => {
+    const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot, g = root.querySelector("svg g[data-x]")!, r = g.getBoundingClientRect();
+    for (let a = 4; a < 12; a++) for (let b = 4; b < 12; b++) { const x = r.left + (r.width * a) / 16, y = r.top + (r.height * b) / 16; if (root.elementFromPoint(x, y)?.closest("g[data-x]") === g) return { x, y }; }
+    return null;
+  }, EDITOR);
+  expect(at, "the icon is the top element somewhere").not.toBeNull();
+  await page.mouse.move(at!.x, at!.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 30; i++) await page.mouse.move(at!.x + i * 3, at!.y + i);
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).drag?.type, EDITOR), "a drag is in progress").toBe("dev");
+  expect(await searches(), "no search during the drag").toBe(n0);
+  await page.mouse.up();
+  await expect.poll(searches).toBeGreaterThan(n0);
+  expect(await searches(), "one search for the whole gesture").toBe(n0 + 1);
+});

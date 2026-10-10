@@ -209,6 +209,8 @@ export class FloorplanStudioEditor extends LitElement {
   linkOff = new Set<string>();
   /** S27.10: the key of the floor the Align mode was opened on (null when closed), and its memoised preview. */
   alignKey: string | null = null;
+  /** How many times the Align preview has run `alignFloor` (a test reads it: a drag must not search on every pointer move). */
+  alignSearches = 0;
   private alignMemo: { upper: Floor; lower: Floor; r: ReturnType<typeof alignFloor> } | null = null;
   placeType: DeviceType | null = null;
   private sceneDraft: SceneDraft | null = null;
@@ -2649,7 +2651,10 @@ export class FloorplanStudioEditor extends LitElement {
     const bk = key === null ? null : floorBelow(st.layout, key);
     if (key === null || bk === null) return null;
     const upper = st.layout.floors[key], lower = st.layout.floors[bk];
-    if (!this.alignMemo || this.alignMemo.upper !== upper || this.alignMemo.lower !== lower) this.alignMemo = { upper, lower, r: alignFloor(upper, lower) };
+    // A drag edits the floor on every pointer move, and every edit is a new floor object: searching each time would stall the drag.
+    // The preview keeps the last answer while a drag is in progress and searches once when it ends.
+    const dragging = this.drag !== null && this.drag.type !== "pan" && this.drag.type !== "marquee" && this.drag.moved;
+    if (!this.alignMemo || (!dragging && (this.alignMemo.upper !== upper || this.alignMemo.lower !== lower))) { this.alignSearches++; this.alignMemo = { upper, lower, r: alignFloor(upper, lower) }; }
     const r = this.alignMemo.r, cur = upper.offset ?? [0, 0], lo = lower.offset ?? [0, 0];
     const next: Pt | null = r ? [Math.round(lo[0] + r.t[0]) + 0, Math.round(lo[1] + r.t[1]) + 0] : null;
     return { key, belowKey: bk, belowTitle: lower.title || bk, r, cur, next, delta: next ? ([next[0] - cur[0], next[1] - cur[1]] as Pt) : null };

@@ -2,6 +2,9 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the Align preview does not search during a drag (review 27, finding 10)
+
+- The memo keyed on floor objects, and a drag makes a new floor object on every pointer move, so the preview ran `alignFloor` once per move. While a drag that has moved (not a pan or a marquee) is in progress the preview keeps its last answer, and the first render after the drag searches once. Chosen over a geometry hash, which would cost a pass over the structure on every render and still miss on every move of a drag that changes it. `alignSearches` counts the searches so a test can see them: 31 during a 30-move drag before, none now.
 ## 2026-10-10: the floor-switch test reads the animation, not the clock (review 27, finding 9)
 
 - `card-floor-switch.spec.ts` asserted the slide ended within 400 ms of real time, which depends on the machine. It now reads the animation's own duration (`getTiming().duration` is 220) and the `elapsedTime` the browser reports at `animationend` (0.22 s). A rule changed to 300 ms fails it; the old bound would have passed it on a fast machine.

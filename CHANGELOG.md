@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: the Align preview no longer searches on every pointer move of a drag; it keeps its last answer and searches once when the drag ends.
 - Studio: Align's Apply says when the offset would pass the 10 000 000 cm limit, instead of "Already aligned".
 - Studio: when the host switches the floor, the Align tab closes before the plan redraws, not one frame later.
 - The ghost floor is drawn over the room fills and under the walls, so it shows where the current floor has a fill (it was hidden under them).
