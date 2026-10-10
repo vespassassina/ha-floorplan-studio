@@ -5,6 +5,7 @@
 - Studio: a furniture piece's Lock can be ticked and unticked while the plan is locked, from the panel and from the context menu; moving, resizing and turning it are still refused.
 - Schema: a floor may carry `offset: [x, y]` (cm), where it sits in the house. Absent is `[0, 0]`; a bad value is reported by validation and dropped when a file is opened. Nothing draws it yet.
 - Core: `floorBelow`, `floorsBelow` and `floorShift` read the floor stack.
+- Core: `alignFloor(upper, lower)` finds the move that lays one floor on the floor below and scores the fit (S27.4).
 
 ## 0.24.0 - 2026-10-10
 

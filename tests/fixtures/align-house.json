@@ -1,0 +1,281 @@
+{
+ "version": 2,
+ "unit": "cm",
+ "north": 0,
+ "rotate": 0,
+ "floors": {
+  "ground": {
+   "title": "Ground",
+   "outline": [
+    [
+     0,
+     0
+    ],
+    [
+     1000,
+     0
+    ],
+    [
+     1000,
+     500
+    ],
+    [
+     500,
+     500
+    ],
+    [
+     500,
+     900
+    ],
+    [
+     0,
+     900
+    ]
+   ],
+   "owk": [
+    "external",
+    "external",
+    "external",
+    "external",
+    "external",
+    "external"
+   ],
+   "rooms": [
+    {
+     "id": "r-hall",
+     "name": "Hall",
+     "area": "",
+     "kind": "room",
+     "pts": [
+      [
+       0,
+       0
+      ],
+      [
+       500,
+       0
+      ],
+      [
+       500,
+       500
+      ],
+      [
+       0,
+       500
+      ]
+     ],
+     "wk": [
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+     ]
+    },
+    {
+     "id": "r-lounge",
+     "name": "Lounge",
+     "area": "",
+     "kind": "room",
+     "pts": [
+      [
+       500,
+       0
+      ],
+      [
+       1000,
+       0
+      ],
+      [
+       1000,
+       500
+      ],
+      [
+       500,
+       500
+      ]
+     ],
+     "wk": [
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+     ]
+    },
+    {
+     "id": "r-study",
+     "name": "Study",
+     "area": "",
+     "kind": "room",
+     "pts": [
+      [
+       0,
+       500
+      ],
+      [
+       500,
+       500
+      ],
+      [
+       500,
+       900
+      ],
+      [
+       0,
+       900
+      ]
+     ],
+     "wk": [
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+     ]
+    }
+   ],
+   "walls": [
+    {
+     "id": "w-ext-1",
+     "a": [
+      500,
+      0
+     ],
+     "b": [
+      500,
+      500
+     ],
+     "kind": "external"
+    },
+    {
+     "id": "w-in-1",
+     "a": [
+      250,
+      0
+     ],
+     "b": [
+      250,
+      500
+     ],
+     "kind": "wall"
+    }
+   ],
+   "stairs": [],
+   "doors": [],
+   "openings": [],
+   "extras": [],
+   "devices": [],
+   "furniture": [],
+   "unlinked": []
+  },
+  "first": {
+   "title": "First",
+   "outline": [
+    [
+     137.4,
+     -61.7
+    ],
+    [
+     637.4,
+     -61.7
+    ],
+    [
+     637.4,
+     838.3
+    ],
+    [
+     137.4,
+     838.3
+    ]
+   ],
+   "owk": [
+    "external",
+    "external",
+    "external",
+    "external"
+   ],
+   "rooms": [
+    {
+     "id": "r-bed1",
+     "name": "Bedroom",
+     "area": "",
+     "kind": "room",
+     "pts": [
+      [
+       137.4,
+       -61.7
+      ],
+      [
+       637.4,
+       -61.7
+      ],
+      [
+       637.4,
+       388.3
+      ],
+      [
+       137.4,
+       388.3
+      ]
+     ],
+     "wk": [
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+     ]
+    },
+    {
+     "id": "r-bed2",
+     "name": "Office",
+     "area": "",
+     "kind": "room",
+     "pts": [
+      [
+       137.4,
+       388.3
+      ],
+      [
+       637.4,
+       388.3
+      ],
+      [
+       637.4,
+       838.3
+      ],
+      [
+       137.4,
+       838.3
+      ]
+     ],
+     "wk": [
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+     ]
+    }
+   ],
+   "walls": [
+    {
+     "id": "w-in-2",
+     "a": [
+      137.4,
+      388.3
+     ],
+     "b": [
+      637.4,
+      388.3
+     ],
+     "kind": "wall"
+    }
+   ],
+   "stairs": [],
+   "doors": [],
+   "openings": [],
+   "extras": [],
+   "devices": [],
+   "furniture": [],
+   "unlinked": []
+  }
+ },
+ "catalog": []
+}

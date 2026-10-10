@@ -3111,7 +3111,7 @@ Lane schema (`schema.ts`, `migrate.ts`, a new `src/core/floor-stack.ts`):
       Files: `src/core/floor-stack.ts`, `src/core/index.ts`, `tests/core/floor-stack.test.ts`.
 
 Lane align (a new `src/core/align.ts`):
-- [ ] S27.4 Align with a score. `alignFloor(upper, lower)` returns `{ t, score, weak }` or null, as the assumption says.
+- [x] S27.4 Align with a score. `alignFloor(upper, lower)` returns `{ t, score, weak }` or null, as the assumption says.
       A new fixture `tests/fixtures/align-house.json` (demo-style, no real house): an L-shaped ground floor with external
       walls and a smaller first floor over one wing, shifted by `[137.4, -61.7]`. Test: the fixture aligns within 2 cm
       with a score over 90 %; the demo's identical floors give `[0,0]` and 100 %; a symmetric case takes the smaller

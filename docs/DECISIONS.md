@@ -10,6 +10,11 @@ Newest first. A change supersedes; nothing is edited.
 - `Floor.offset?: [number, number]`, cm: where the floor sits in the house. Stored points never change; a point's place in the house is the point plus the offset. Chosen over rewriting every point so Align is one key and one undo step, the card's `center` pins, saved views and the trace image stay valid, and repeated aligns cannot drift by rounding. Schema stays v2.
 - Bound: two finite numbers, each within `COORD_LIMIT`. `validate` reports anything else; `migrate` drops it (as `dropBadHeights`), so a hand-edited file opens. A good value is kept as written, `[0, 0]` included; writers (S27.8) delete the key at `[0, 0]`.
 - `floorBelow`, `floorsBelow`, `floorShift` live in `src/core/floor-stack.ts`. Order is `Object.keys(floors)`, as `floorElevation` stacks. They never throw: junk layout means no floors, a junk or unknown-key offset reads as `[0, 0]`, and a key must be an own key (`toString` is not a floor).
+## 2026-10-10: how Align finds the move (S27.4)
+
+- `alignFloor` follows the Sprint 27 assumption. Choices the plan left open: structure lines skip zones in the room fallback; a duplicate corner within 1 cm is one corner, ranked by the total length of the edges at it; candidates are scored coarsely first (48 samples against the 150 longest lower lines), the best three plus the no-move case are refined, then all are scored in full and the tie rule (within 1 point, smaller move) picks.
+- Caps for huge input, so a 10 000-point outline answers in about a second and never hangs: at most 1500 samples (the 10 cm step grows past that), 800 lower lines in the full score, 600 in the fit. A normal floor meets none of them. `t` is rounded to 0.1 cm and the score to 0.1 point; the caller rounds the offset to whole cm.
+- Any exception returns `null`, the same as "nothing to match".
 
 ## 2026-10-09: a disabled Undo or Redo is dimmer than an enabled one (Opus re-check 5)
 
