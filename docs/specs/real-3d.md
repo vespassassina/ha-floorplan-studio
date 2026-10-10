@@ -72,6 +72,12 @@ does not work well.
 
 Editing in 3D. Placing devices in 3D. Real shadows from sunlight. Exporting a 3D model.
 
+Contact shadows (0.26.0, S28) are not the shadows listed here. They are baked
+ambient occlusion where walls, furniture, device bodies and trees meet the floor:
+no shadow map, no light direction, the same by day and night, one draw call per
+floor. Sun shadows (a shadow that moves with the time of day) are still a
+non-goal, and `trim-three.mjs` still leaves the shadow map out.
+
 ## Risks
 
 - R1. Removing 2.5D from the editor breaks many Playwright tests that drive

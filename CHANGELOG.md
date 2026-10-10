@@ -2,19 +2,18 @@
 
 ## Unreleased
 
-- 2.5D: doors and windows are framed (jambs, head, and a sill on windows) in the frame colour.
-
-- 2.5D has contact shadows: a soft stepped band along both sides of every wall and a patch under every piece of furniture, appliance and device body, so things sit on the floor instead of floating over it. Baked, no blur, none at tilt 0. The shade colour is now the theme's ink pulled toward black, so it darkens a navy room too.
-- A tree in 2.5D stands: a 12 cm trunk rises to 60 % of its height, the crown hangs at the middle of the crown (75 %) and the shade patch lies at its foot, in the card and the Studio.
+- 2.5D has contact shadows: a soft stepped band along both sides of every wall and a patch under every piece of furniture, appliance and device body, so things sit on the floor instead of floating over it. Baked, no blur, none at tilt 0.
+- 3D has a ground plane under the house and soft contact shadows: a band along each wall foot, a patch under furniture, boxes and device bodies, and a soft ellipse under each tree. Never tappable, on every floor drawn. They are not sun shadows; nothing moves with the time of day.
 - A tree on the plan is a crown, not a grey disc: an 8-lobed green outline over the garden, a trunk dot and a soft shade patch, in the card and the Studio.
+- A tree in 2.5D stands: a 12 cm trunk rises to 60 % of its height, the crown hangs at 75 % and the shade lies at its foot.
+- A tree in 3D has a crown: a faceted ball on a 12 cm trunk that ends at 60 % of the tree's height, also on floors drawn below. A tap on a crown reaches what is under it.
+- Doors, glass doors, windows, slits and full-height windows are framed in 2.5D and 3D: a jamb each side, a head, and a sill when raised, 5 cm wide and 2 cm proud of the wall. A tap on a 3D frame is a tap on the door. A closed 3D door leaf is quiet; red only when open or alarmed.
+- 3D labels no longer pile on each other. When two would overlap, the more important one stays (a device icon, then a room name, a room readout, a device value, a device name; a room over a garden over water, a larger room first) and the other fades out in 120 ms. This happens when the view is still, never mid-drag.
+- 3D walls take the theme's own side share (`--fp-wall-side-share`, as the 2.5D sides do), and a room or stair with its own paint is dimmed on a dark theme (`--fp-paint-dim`), as in 2D. Wall tops, sun faces and shade faces step apart by 6 % or more in every theme.
 - The floor below dims at night with the rooms it lies on, in the card and in the Studio's Preview night; in a lit room it stays as by day.
-- Themes carry the colours the 2.5D and 3D polish draws with: `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` and `--fp-shade-alpha`. `npm run shots -- --polish` renders the polish set at 4x.
 - The Align tab no longer searches again on every offset nudge or undo; it searches when the outline, an external wall or the edge kinds change.
-- 3D labels no longer pile on each other. When two labels would overlap, the more important one stays (a device icon, then a room name, a room readout, a device value, a device name; a room over a garden over water, a larger room first) and the other fades out in 120 ms. This happens when the camera is still, never mid-drag, so nothing flickers while you turn the house.
-- A tree in 3D has a crown: a faceted ball on a 12 cm trunk that ends at 60 % of the tree's height, one draw call for all trees, also on floors drawn below. A tap on a crown reaches what is under it.
-- 3D has a ground plane under the house and soft contact shadows: a band along each wall foot, a patch under furniture, boxes and device bodies, and a soft ellipse under each tree. One extra draw call each, never picked, on every floor drawn.
-- 3D walls take the theme's own side share (`--fp-wall-side-share`, as the 2.5D sides do), and a room or stair with its own paint is dimmed on a dark theme (`--fp-paint-dim`), as in 2D. Tops, sun faces and shade faces step apart by 6 % or more in every theme
-- 3D doors, glass doors, windows, slits, full windows and sealed panels stand in a frame: a jamb each side, a head, and a sill when raised, 5 cm wide and 2 cm proud of the wall. A tap on the frame is a tap on the door. A closed door's leaf is quiet; red only when open or alarmed
+- Themes carry `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` and `--fp-shade-alpha`. `npm run shots -- --polish` renders the polish set at 4x.
+- Docs cover the 2.5D and 3D polish.
 
 ## 0.25.0 - 2026-10-10
 

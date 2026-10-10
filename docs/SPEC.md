@@ -113,7 +113,8 @@ the lowest floor has none. `floorShift(layout, from, to)` is what to add to a po
   (Floors, Align to floor below) shows it and Apply writes `lower.offset + t`, rounded to whole cm, as one undo step;
   Lock plan refuses it.
 - **Ghost floor.** The floor below drawn as faint lines (`--fp-ghost`) under the shown one, at its relative offset: no
-  fills, devices, text or hit targets, drawn by `renderFloor` so the editor and the card cannot differ. Studio: View,
+  fills, devices, text or hit targets, drawn by `renderFloor` so the editor and the card cannot differ. It lies under the night veil (S28), so
+  an unlit room darkens it with the floor and a lit room keeps it as by day. Studio: View,
   Floor below (off, kept in the browser). Card: `ghost_floor: true` and the Floor below button.
 - **Floors below in 3D.** Card `floors_below: off | ghost | solid` and a Floors below select beside Walls. Each lower
   floor at its own elevation and offset; never picked, not framed by the camera, no live state.
@@ -363,6 +364,41 @@ draw it and the symbol red. The editor has no live state, so there a door is a h
 line. In 2.5D a door's leaf and a glass door's glass fill the gap on the same rule, and in 3D the leaf and the glass pane
 are there only while the door is closed (an alerting door keeps its red, swung leaf). The symbols take no clicks; the hit
 line under them does. 2.5D draws the same symbols on the floor.
+
+**2.5D and 3D polish (S28).** Always on, no key, no control. Colours only through `--fp-*` tokens (`--fp-tree`,
+`--fp-tree-edge`, `--fp-frame`, `--fp-shade`, `--fp-shade-alpha`). Real shadows from the sun stay a non-goal.
+
+- **Contact shadows, baked, not cast.** No shadow map. They show where things meet the floor and do not depend on the
+  sun, so day and night share them and nothing moves when the camera turns. The shade is `--fp-shade` (the theme's ink
+  pulled toward black, so it darkens a navy room too) at `--fp-shade-alpha` (.16 light themes, .32 dark).
+  2.5D: one `g.shade` after the room fills and stairs, before the ghost, the night veil and the walls, so the veil
+  darkens it with the floor. Two stepped bands per wall side (6 cm at full alpha, 6 cm at half) and a patch under each
+  standing piece (its footprint grown 6 cm). No blur filter. A piece whose bottom is at 40 cm or more touches no floor
+  and gets none; a flat patio gets none. Not drawn at tilt 0. 3D: a ground plane under the house (1.5 times the box of
+  everything drawn, `--fp-ink` 6 % into `--fp-bg`, never picked) and one shadow mesh per drawn floor: a 14 cm band round
+  each wall, 8 cm round furniture, boxes and device bodies, a soft ellipse under a tree. It multiplies the floor, so it
+  darkens on every theme; a floor shown ghosted below gets a quarter of the strength. Both cost one draw call each.
+- **Trees.** `treeShape` (`src/core/tree.ts`) gives one shape for every view: trunk 12 cm to 60 % of the tree's height,
+  crown from 50 % to 100 % with radii `w / 2` and `h / 2`. 2D: an 8-lobed crown (`--fp-tree` at .35, a 1 px
+  `--fp-tree-edge`), a trunk dot and a shade patch offset (+4, +6) cm. 2.5D: the patch, the trunk, and the same crown
+  lifted to the crown's middle. 3D: a faceted icosahedron per tree, all trees one instanced mesh, also on floors drawn
+  below, never picked (a tap reaches what is under it); the trunk ends where the crown starts.
+- **Frames.** A door, glass door, window, slit and full-height window stand in a frame: a jamb each side and a head,
+  plus a sill when the opening is raised (not for a full-height window). 5 cm wide (`FRAME_WIDTH`), 2 cm proud of the
+  wall face (`FRAME_PROUD`), colour `--fp-frame` (`--fp-door` 40 % into the ink, at least 1.5:1 against the wall side
+  in every theme). A doorway (`open`), a plain opening and a sealed panel have none. In 2.5D the frame is class `frame`
+  (no pointer events); in 3D it is a static `opening` solid with the door's own ref, so a tap on it is a tap on the
+  door, and a lowered wall lowers it. A closed 3D door leaf is quiet (`--fp-door` 60 % into the wall side); red only
+  open or alarmed.
+- **3D light and theme.** Tops, sun faces and shade faces step apart by at least 6 %, in every theme. 3D walls take
+  `--fp-wall-side-share`, as 2.5D does. A room or stair with its own paint is dimmed by `--fp-paint-dim` on a dark
+  theme, as in 2D. On dark themes the bare floor is the darkest surface, so it does not fight the shadows.
+- **3D labels do not overlap.** A greedy pass (`declutter`) keeps the more important of two overlapping labels: a device
+  icon, then a room name (a room over a garden over water, the larger first), a room readout, a device value, a device
+  name. The loser fades out in 120 ms (none under reduced motion) and its icon is not tappable. It decides the first
+  frame and again once the view has been still for 160 ms with no pointer down, and at once on a live update when still;
+  never mid-drag.
+- **The ghost at night.** See Floors above: the ghost lies under the night veil.
 
 S14.2 (interaction model): a tap on a device, a door, an unlinked appliance or an Active row never operates it. Wherever
 the "Click" column below says "toggle", "more-info" or "chooser" for a tap, read: the tap opens a popup (name, state, one

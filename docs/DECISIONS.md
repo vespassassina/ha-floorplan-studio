@@ -2,6 +2,34 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: Sprint 28, what the build kept of its assumptions and what it changed (S28.13)
+
+One line per assumption of the plan. The lane entries above carry the detail.
+
+Held:
+- **Contact shadows, baked, not cast; no shadow map; sun shadows still a non-goal** (S28.5, S28.8). Day and night share them; `trim-three.mjs` is unchanged.
+- **2.5D shadows have no blur**; two stepped bands, 6 cm at full alpha and 6 cm at half, as one `g.shade` before the ghost, the veil and the walls, so the veil darkens them (S28.5). None at rise 0.
+- **Shade alpha** .16 light, .32 dark from `SHADE_ALPHA` (S28.1). The tests pin the order, not the value.
+- **A tree is a trunk under a crown in every view**: trunk to 60 %, crown 50 to 100 %, 12 cm trunk, radii `w / 2` and `h / 2`, shade patch (+4, +6) cm (S28.1, S28.3, S28.4, S28.7). The 2.5D crown sits at its middle (75 %).
+- **Frames** 5 cm wide, 2 cm proud, on door, glass, window, slit and fullwindow; none on `open`, `opening`, `sealed` in 3D, and in 2.5D (S28.6, S28.10). A tap on a 3D frame is a tap on its door; a lowered wall lowers it. The closed door leaf is quiet and a closed door stays shut.
+- **A ground plane** 1.5 times the box, `--fp-ink` 6 % into `--fp-bg`, at the lowest slab bottom, never picked (S28.8).
+- **3D walls read `--fp-wall-side-share`; `--fp-paint-dim` is parsed and applied** (S28.9). Face tones were already in order; a test pins the 6 % step.
+- **Labels: greedy pass by priority on a grid, 120 ms fade, no fade under reduced motion, element sizes measured once per text change** (S28.11).
+- **Align's memo ignores the offset; a drag holds its last answer** (S28.12).
+- **The ghost dims at night by moving before the night overlay**, with no night stroke of its own (S28.2).
+
+Changed:
+- **`--fp-frame` is `--fp-door` 40 % into `--fp-ink`**, not into the wall side (S28.1): the wall-side mix had the wall side's own luminance on midnight.
+- **`--fp-shade` is the ink pulled toward black**, not the ink itself (S28.5): the ink is lighter than a navy room. In 3D the shade multiplies the floor instead of blending (S28.8).
+- **The ghost's night contrast bound is .92 of the day's, not .8** (S28.2): a dark veil cannot shrink WCAG contrast further on light.
+- **A floor is not lighter than the wall sides on dark themes** (S28.9): the bare floor is the darkest surface there, by choice.
+- **The 3D trunk is `--fp-tree-edge` and the crown has a role of its own, `tree-crown`** (S28.7). The assumption named `furniture-tree` for the crown.
+- **The 2.5D trunk is 12 cm and strokes with `--fp-tree-edge`**, not the furniture colour (S28.4).
+- **Labels decide when the view has been still 160 ms with no pointer down, and on the first frame**, not "one frame after a move" (S28.11); a timer alone flipped labels under load.
+- **Align's memo is one `{ key, r }` for both floors, not the last 4 answers in a WeakMap** (S28.12). The key is the structure lines in stored coordinates plus `owk`, not a hash. An undo back to an earlier shape searches again, once.
+- **A piece with its bottom at 40 cm or more casts no 2.5D patch**, and a flat patio none (S28.5): the assumption did not say.
+- **Docs: `docs/card.md` said 3D has "no shadows" and "no floor below"**; both were out of date (S27 and S28) and now say what the card does.
+
 ## 2026-10-10: Align's memo keys on the structure the search reads, not on floor objects (S28.12)
 
 - `alignKey(floor)` (`align.ts`) is the structure lines `alignFloor` reads, in stored coordinates, plus `owk`. The offset, title, devices and everything else are left out, so a nudge, an undo or a device drag leaves the key as it was and the preview keeps its answer. The memo is `{ key, r }` with the key of both floors. During a moving drag the memo is still kept as it is. Consequence: a device drag no longer searches when it ends (it used to, once); a moved outline point, an added external wall or a changed `owk` does, once. Chosen over a geometry hash of the whole floor, which would search on a moved light. `owk` is in the key although `structure` does not read it, as the plan says. `alignKey` is also exported from `src/core/index.ts` (not named in the task; the editor imports core through it).

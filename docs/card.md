@@ -127,6 +127,12 @@ can hide the rooms behind them. `low` draws every wall at the cutaway height
 every room visible. One straight wall made of several edges (rooms side by
 side along one line) always has one height in `cut`.
 
+Depth in 2.5D (always on, no key): a soft stepped shadow band lies along both sides of every wall and a patch under
+every piece of furniture, appliance and device body, so things sit on the floor; there is none at tilt `0`, none under
+something hung on a wall, and it darkens with the rest of the floor at night. A tree stands: a trunk rises to 60 % of its
+height under a crown hung at 75 %, with its shade at the foot. Doors, glass doors, windows, slits and full-height windows
+have a frame (a jamb each side, a head, a sill on a raised window); a doorway, a plain opening and a sealed panel do not.
+
 In 2.5D a wall face is lit by which way it looks on screen (lit, plain, dim),
 with a darker foot and a thin lit top edge; the cap on top is thinner than the
 flat wall. A door is a painted leaf (`--fp-door`) and a glass door is glass only while closed:
@@ -822,7 +828,7 @@ lights, so every room is dark there.
 their real thickness and height, floors, doors and windows (glass is see-through),
 stairs, furniture, and the radiator, speaker and TV bodies. Colours come from the
 theme (the same `--fp-*` variables as 2D), and a room, wall or furniture piece
-with its own colour keeps it. There are no textures and no shadows.
+with its own colour keeps it. There are no textures. Shadows are baked contact shadows, not cast ones: the sun does not move them.
 
 - Drag turns the model around, wheel or pinch zooms. To pan: drag with the
   middle mouse button, or hold Space and drag with the left button (the pointer
@@ -842,8 +848,10 @@ with its own colour keeps it. There are no textures and no shadows.
   - *Room motion.* A room with a `motion` list gets a red edge on its floor outline: three pulses when a sensor trips, then steady, then it fades by `last_changed` and the `fade` setting, as in 2D. With reduced motion the edge is steady. The view draws frames only while a pulse plays.
   - *Labels and icons.* An HTML layer over the model shows each room's name and its sensors' mean reading, and a real icon for every visible device. The Labels and Names buttons work in 3D. A label or icon behind a wall, or behind the camera, is hidden. The layer ignores the pointer, so a drag that starts on an icon still turns the model; a tap on an icon toggles or opens more-info as in 2D.
   - A Home Assistant update changes all of this in place: no rebuild, no camera move.
-- **Floors in 3D.** Only the selected floor is drawn, solid and live. No other
-  floor is shown, above or below. Pick another floor and the model is built
+- **Depth in 3D (always on, no key).** The house stands on a ground plane. A soft shadow lies along every wall foot and under furniture, boxes, device bodies and trees, on each floor drawn (floors below too), and none of it is tappable. A tree is a faceted crown on a trunk that ends where the crown starts. Doors, glass doors, windows, slits, full-height windows and sealed panels stand in a frame, and a tap on the frame is a tap on the door. A closed door's leaf is quiet; it is red only when open or alarmed. Wall tops, sun faces and shade faces read apart on every theme, and a room or stair with its own paint is dimmed on a dark theme as in 2D.
+- **Labels do not overlap.** When two labels in 3D would overlap, the more important one stays (a device icon, then a room name, a room readout, a device value, a device name; a room over a garden over water) and the other fades out in 120 ms (none under reduced motion). This happens when the view is still, never mid-drag, so nothing flickers while you turn the house. A faded icon cannot be tapped; turn the house or zoom and it returns.
+- **Floors in 3D.** The selected floor is drawn solid and live. Floors below are drawn only
+  with `floors_below` (translucent or solid, never live); floors above are never shown. Pick another floor and the model is built
   again, the camera keeps its angle and frames the new floor. A lamp on a
   lower floor lights nothing on the upper one.
 - **No WebGL, or the graphics context is lost, or the 3D code cannot load:** the
