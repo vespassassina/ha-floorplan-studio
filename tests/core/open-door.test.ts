@@ -165,7 +165,7 @@ describe("open: 3D scene", () => {
     const prism = (s: any) => s.shape;
     for (const [kind, tag] of [["open", "band"], ["door", "door-leaf"]] as const) {
       const sc = buildScene(floor({ doors: [door(kind)] as never }));
-      expect(sc.solids.filter((s) => s.kind === "opening").map((s) => s.tag), kind).toEqual([tag]);
+      expect(sc.solids.filter((s) => s.kind === "opening" && s.tag !== "frame").map((s) => s.tag), kind).toEqual([tag]);
       const inside = sc.solids.filter((s) => s.kind === "wall").filter((s) => { const xs = prism(s).base.map((p: number[]) => p[0]); return Math.min(...xs) >= 100 && Math.max(...xs) <= 190; });
       expect(inside.map((s) => [prism(s).z0, prism(s).z1]), kind).toEqual([[210, 250]]);
     }

@@ -4,21 +4,22 @@ import { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom,
 import { acMode, attachedTest, deviceMarkup, inside, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS } from "./render";
 import { resolveStairDirection } from "./stairs";
 import {
-  DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, KERB_OUT, OPENING_FILL, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
+  DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
   pieceDevice, stairBlocks, turnAbout, tvPlacement, within,
 } from "./solids";
 import { DEVICE_TYPES, fxScale, ROOM_KINDS, WALL_KINDS } from "./schema";
 import { doorStateOf } from "./door-state";
 import { textureTile } from "./textures";
+import { treeShape } from "./tree";
 import type { LiveDeps } from "./live-build";
 import type { SceneDeps } from "./scene-build";
 
 export const sceneDeps: SceneDeps = {
   deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight,
   attachedTest, inside, resolveStairDirection,
-  DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, KERB_OUT, OPENING_FILL, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
+  DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
   pieceDevice, stairBlocks, turnAbout, tvPlacement, within,
-  DEVICE_TYPES, ROOM_KINDS, WALL_KINDS,
+  DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape,
 };
 export const liveDeps: LiveDeps = {
   acMode, attachedTest, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceDevice, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf, fxScale,

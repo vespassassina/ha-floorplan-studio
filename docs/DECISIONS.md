@@ -40,6 +40,28 @@ Newest first. A change supersedes; nothing is edited.
 ## 2026-10-10: the ghost floor lies under the night veil; its night contrast is under .92 of the day's, not .8 (S28.2)
 
 - `g.ghost` is pushed before the night overlay, after the room fills and stairs. An unlit room's veil darkens it with the floor; a lit room has no veil. Measured from the real elements in their paint order (`tests/fixtures/ghost-contrast.ts`): blueprint .78 of the day contrast, light .90, and the old order gave more than the day's. The plan said under .8; the veil alone cannot reach that on light (WCAG contrast shrinks slowly under a dark veil), and a second night rule for the ghost would also dim it in lit rooms. So the bound is .92, with over 1.15:1 kept, and a lit room within 2 % of the day.
+## 2026-10-10: 3D frames are `opening` solids tagged `frame`, on every kind but the doorway and the plain opening (S28.10)
+
+A frame is 2 jambs and a head, plus a sill bar when the opening's sill is above 0, all outside the gap (so they widen the span by `FRAME_WIDTH`) and `thickness + 2 * FRAME_PROUD` deep. Framed: door, glass, window, slit, fullwindow, sealed. Bare: `open` (a doorway, only an alert band) and `opening`. They carry the opening's own ref plus `ref.wall`, so a tap reaches that door, and a lowered wall clips them to `CUT_WALL_HEIGHT` with the wall (`wallZ` already keys on `ref.wall`). A bar that would lie wholly above the wall is dropped, not squeezed. The frame is a static wall mesh, never recoloured by state. The door leaf's rest role is `--fp-door` 60 % into `--fp-wall-side`; `open-door` stays the alert colour. Supersedes nothing.
+
+## 2026-10-10: 3D walls and paint follow the 2D theme tokens; the floor order is per theme (S28.9)
+
+Face tones were already ordered (top, sun face, shade face) by the two lights, in every theme, with steps of 15 % or more. A test now pins 6 %. No new lights. What changed: the wall palette reads `--fp-wall-side-share` (55 %, 30 % on HA dark) instead of a fixed 55, and `--fp-paint-dim` is parsed strictly (`brightness(a) saturate(b)` or nothing) and applied to own-colour room and stair paint in sRGB, as the CSS filter does. Textures take the brightness through the material colour; saturate is not applied to a raster, which lives outside this task's files.
+
+The assumption "floor lighter than wall sides" holds on the light theme only. On dark themes the bare floor is the darkest surface (blueprint 31, HA dark 39 luma against 63 to 143 on the walls). The order there is top, sun, shade, floor. Judged right: a lit dark floor would fight the contact shadows (S28.8). Supersedes nothing.
+
+## 2026-10-10: 3D contact shadows multiply; the ground is a lit-free plane (S28.8)
+
+- `contactShadows(solids)` (`src/card/three/shade.ts`) is pure: a band round each wall prism (14 cm), a narrower one (8 cm) round furniture, unlinked boxes and device bodies, a soft ellipse under a tree's crown (offset +4, +6 cm, as 2D). Alpha is 1 at the footprint and 0 at the rim, per vertex. A flat piece (under 10 cm) and one floating more than 5 cm above its floor cast nothing. It sits 0.3 cm above the highest room fill that holds it, so a nested room is covered.
+- The first version alpha-blended `--fp-shade` (near black, `#2b2a27`). On blueprint that is lighter than the floor, so the "shadow" lit it: the 4 % test failed with the pixel 8 % brighter. Now the shade multiplies the floor by `1 - strength * alpha * (1 - shade)`, mixed in sRGB (where the multiply happens), unlit, so it darkens on every theme. Strength is `--fp-shade-alpha`, times 0.25 for a ghosted floor below.
+- The ground (`ground` role, `--fp-ink` 6 % into `--fp-bg`) is 1.5 times the box of everything drawn, at the lowest slab bottom, floors below included. Neither is a solid, so neither is picked. The shade is single-pass (`forceSinglePass`): a double-sided transparent material was two draw calls.
+- Seen in the shots: light shows clear soft feet; blueprint and HA dark show them faintly, as multiply on near black can. Not raised, S28.9 owns the face tones.
+
+## 2026-10-10: 3D tree crowns carry their z range in the solid, and have their own colour role (S28.7)
+
+- `scene-build` cuts a tree's trunk at `treeShape`'s trunk top and gives the solid `ref.crown = { z0, z1, rot }` (lift included). The viewer needs no tree rule of its own: `crownMatrices(solids)` reads the size and the crown range from the solid. Chosen over deriving the height from the trunk (a 0.6 constant copied into the chunk). `treeShape` reaches the chunk through `SceneDeps`, as the other helpers do. Scene bounds include the crown top so the camera frames it.
+- The crown is an icosahedron (detail 1, 80 flat faces) scaled so its box is exactly the tree's `w` x `h` x crown height, one `InstancedMesh`, never raycast. A floor below gets its own crown mesh (translucent in ghost mode), disposed with it.
+- Colour: new viewer-only role `tree-crown` = `--fp-tree` (the 2D crown colour); the trunk (`furniture-tree`) is now `--fp-tree-edge`. Before, both were `--fp-dev-garden`, which is grey on blueprint, so a blueprint tree was a grey stick under a grey ball: still grey there, but the trunk now parts from the crown on every theme. Seen at 4x in blueprint, light and ha-dark, day and night. HA dark at night is dim: a dark green crown on near black.
 
 ## 2026-10-10: the door frame token mixes into the ink, not the wall side (S28.1)
 

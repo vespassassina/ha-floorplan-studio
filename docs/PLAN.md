@@ -3358,7 +3358,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
 
 Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/view3d.ts`, `palette.ts`, a new
 `src/card/three/shade.ts`):
-- [ ] S28.7 3D tree crowns (V22). `scene-build` cuts a tree's trunk at `treeShape`'s trunk top (`treeShape` joins
+- [x] S28.7 3D tree crowns (V22). `scene-build` cuts a tree's trunk at `treeShape`'s trunk top (`treeShape` joins
       `SceneDeps`); the view draws one `InstancedMesh` of icosahedron crowns from the tree solids' `ref.size`, role
       `furniture-tree`, built with the scene, disposed with it, drawn for floors below too, never picked (a tap on a crown
       picks what is under it). Test: unit on the trunk height and on a pure `crownMatrices(solids)` (count, centre, scale;
@@ -3368,7 +3368,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       Files: `src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/view3d.ts`, a new
       `src/card/three/crowns.ts`, `tests/core/scene.test.ts`, a new `tests/card/three-crowns.test.ts`,
       `tests/card/card-3d-perf.spec.ts` (one case added).
-- [ ] S28.8 3D ground and contact shadows (V25, S15.6). The ground plane of the assumption, and one shadow mesh per drawn
+- [x] S28.8 3D ground and contact shadows (V25, S15.6). The ground plane of the assumption, and one shadow mesh per drawn
       floor from a pure `contactShadows(solids)` in `shade.ts`: wall-foot bands both sides, a soft patch under each
       furniture piece, unlinked box, device body and tree crown, vertex alpha falling to 0 at the edge, `--fp-shade` at
       `--fp-shade-alpha`, no depth write, a hair above the floor. Neither is picked; both are disposed on every build.
@@ -3379,7 +3379,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       night, floors below solid.
       Files: `src/card/three/shade.ts`, `src/card/three/view3d.ts`, `src/card/three/palette.ts`, a new
       `tests/card/three-shade.test.ts`, a new `tests/card/card-3d-shade.spec.ts`.
-- [ ] S28.9 3D lighting and theme (V25, S23.F5). Face tones as the assumption says, by material and role, not new lights;
+- [x] S28.9 3D lighting and theme (V25, S23.F5). Face tones as the assumption says, by material and role, not new lights;
       3D walls read `--fp-wall-side-share`; `--fp-paint-dim` parsed and applied to user colours and textures. Test: unit
       on the paint-dim parser (the two theme values, `none`, junk, a `url(` payload: none); Playwright, each of blueprint,
       light and ha-dark: probes on a wall top, a sun-side face, a shade-side face and an empty floor of the demo give the
@@ -3387,7 +3387,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       unchanged; night still darkens (the `NIGHT` probe below the day one).
       Files: `src/card/three/palette.ts`, `src/card/three/view3d.ts`, `tests/card/three-palette.test.ts`,
       `tests/card/card-3d-colors.spec.ts`.
-- [ ] S28.10 3D framed openings (V26). `scene-build` adds the frame solids of the assumption beside each leaf and pane;
+- [x] S28.10 3D framed openings (V26). `scene-build` adds the frame solids of the assumption beside each leaf and pane;
       the door leaf's rest role is quiet. Test: unit, iterate `DOOR_KINDS` plus `opening`: which kinds get frames and how
       many (2 jambs and a head, a sill for a raised window), every frame within the span widened by `FRAME_WIDTH`, its
       depth the wall's thickness plus `2 * FRAME_PROUD`, `ref.wall` and `ref.index` set, a lowered wall clips it to
