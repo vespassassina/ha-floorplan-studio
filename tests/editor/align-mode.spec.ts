@@ -163,7 +163,7 @@ test("an offset beyond the coordinate limit says so, not 'Already aligned' (revi
   expect(await depth(page)).toBe(d0);
 });
 
-test("no Align search runs while a drag is in progress, one runs when it ends (review 27, finding 10)", async ({ page }) => {
+test("no Align search runs while a drag is in progress, nor when a device drag ends (review 27, finding 10; S28.12)", async ({ page }) => {
   // a light on the first floor to drag (rooms of the fixture are snapped to their walls and do not move)
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
@@ -188,6 +188,63 @@ test("no Align search runs while a drag is in progress, one runs when it ends (r
   expect(await page.evaluate((tag) => (document.querySelector(tag) as any).drag?.type, EDITOR), "a drag is in progress").toBe("dev");
   expect(await searches(), "no search during the drag").toBe(n0);
   await page.mouse.up();
-  await expect.poll(searches).toBeGreaterThan(n0);
-  expect(await searches(), "one search for the whole gesture").toBe(n0 + 1);
+  await expect.poll(() => page.evaluate((tag) => (document.querySelector(tag) as any).drag, EDITOR)).toBeNull();
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+  // S28.12: a light moved, not a wall: what the search reads is the same, so the drag's end does not search either
+  // (a changed wall searches once: the stress test below).
+  expect(await searches(), "no search for the whole gesture").toBe(n0);
+});
+
+// S28.12: the memo keys on what the search reads (`alignKey`), not on floor objects, so a nudge and an undo do not search.
+test.describe("Align on the stress layout's first floor, made heavy (S28.12)", () => {
+  const STRESS = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
+  const searches = (page: Page) => page.evaluate((tag) => (document.querySelector(tag) as any).alignSearches as number, EDITOR);
+  const frame = (page: Page) => page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+
+  test.beforeEach(async ({ page }) => {
+    // 300 short external walls on a floor give the search real work, like the huge floor of the field report
+    await page.evaluate(([tag, l]) => {
+      const el = document.querySelector(tag as string) as any, lay = JSON.parse(JSON.stringify(l));
+      for (const key of ["ground", "first"]) {
+        const f = lay.floors[key];
+        for (let i = 0; i < 300; i++) { const x = (i % 30) * 60 + (key === "first" ? 7 : 0), y = Math.floor(i / 30) * 90 + 3 * (i % 7); f.walls.push({ a: [x, y], b: [x + 50, y + 11 + (i % 5)], kind: "external" }); }
+      }
+      el.layout = lay;
+    }, [EDITOR, STRESS] as const);
+    await page.locator('.chip[data-f="first"]').click();
+    await openAlign(page);
+  });
+
+  const nudge = async (page: Page, v: string) => {
+    const box = page.locator("#alignX");
+    await box.fill(v);
+    const t0 = Date.now();
+    await page.keyboard.press("Enter");
+    await expect(box).not.toBeFocused();
+    await frame(page);
+    return Date.now() - t0;
+  };
+
+  test("10 nudges and 10 undos do not search; a moved wall adds one search; a nudge is quick", async ({ page }) => {
+    const n0 = await searches(page);
+    expect(n0, "opening the mode searched once").toBe(1);
+    const ms: number[] = [];
+    for (let i = 1; i <= 10; i++) ms.push(await nudge(page, String(i * 3)));
+    expect(await searches(page), "10 nudges").toBe(n0);
+    const x = (await layoutOf(page)).floors.first.offset!;
+    expect(x[0]).toBe(30);
+    for (let i = 0; i < 10; i++) await page.locator("#undo").click();
+    expect(await searches(page), "10 undos").toBe(n0);
+    expect((await layoutOf(page)).floors.first.offset ?? [0, 0]).toEqual([0, 0]);
+    ms.sort((a, b) => a - b);
+    expect(ms[5], `median nudge ${ms.join(",")} ms`).toBeLessThan(100);
+    // an edit of the structure searches once
+    await page.evaluate((tag) => {
+      const el = document.querySelector(tag) as any;
+      el.st.edit((f: any) => { f.walls[f.walls.length - 1].b = [900, 900]; });
+      el.requestUpdate();
+    }, EDITOR);
+    await frame(page);
+    expect(await searches(page), "a moved wall").toBe(n0 + 1);
+  });
 });

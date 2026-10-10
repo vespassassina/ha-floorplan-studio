@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Themes carry the colours the 2.5D and 3D polish draws with: `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` and `--fp-shade-alpha`. `npm run shots -- --polish` renders the polish set at 4x.
+- The Align tab no longer searches again on every offset nudge or undo; it searches when the outline, an external wall or the edge kinds change.
 
 ## 0.25.0 - 2026-10-10
 

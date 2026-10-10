@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, floorBelow, floorShift, floorSwitch, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKey, floorBelow, floorShift, floorSwitch, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -211,7 +211,7 @@ export class FloorplanStudioEditor extends LitElement {
   alignKey: string | null = null;
   /** How many times the Align preview has run `alignFloor` (a test reads it: a drag must not search on every pointer move). */
   alignSearches = 0;
-  private alignMemo: { upper: Floor; lower: Floor; r: ReturnType<typeof alignFloor> } | null = null;
+  private alignMemo: { key: string; r: ReturnType<typeof alignFloor> } | null = null;
   placeType: DeviceType | null = null;
   private sceneDraft: SceneDraft | null = null;
   private scenePos: { x: number; y: number } | null = null;
@@ -2654,7 +2654,9 @@ export class FloorplanStudioEditor extends LitElement {
     // A drag edits the floor on every pointer move, and every edit is a new floor object: searching each time would stall the drag.
     // The preview keeps the last answer while a drag is in progress and searches once when it ends.
     const dragging = this.drag !== null && this.drag.type !== "pan" && this.drag.type !== "marquee" && this.drag.moved;
-    if (!this.alignMemo || (!dragging && (this.alignMemo.upper !== upper || this.alignMemo.lower !== lower))) { this.alignSearches++; this.alignMemo = { upper, lower, r: alignFloor(upper, lower) }; }
+    // S28.12: keyed on what the search reads (`alignKey`), not on the floor objects: a nudge or an undo makes new objects with the same structure.
+    const k = dragging && this.alignMemo ? this.alignMemo.key : `${alignKey(upper)}#${alignKey(lower)}`;
+    if (!this.alignMemo || this.alignMemo.key !== k) { this.alignSearches++; this.alignMemo = { key: k, r: alignFloor(upper, lower) }; }
     const r = this.alignMemo.r, cur = upper.offset ?? [0, 0], lo = lower.offset ?? [0, 0];
     const next: Pt | null = r ? [Math.round(lo[0] + r.t[0]) + 0, Math.round(lo[1] + r.t[1]) + 0] : null;
     return { key, belowKey: bk, belowTitle: lower.title || bk, r, cur, next, delta: next ? ([next[0] - cur[0], next[1] - cur[1]] as Pt) : null };

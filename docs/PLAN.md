@@ -3407,7 +3407,7 @@ Lane labels (`src/card/three/overlay.ts`, a new `src/card/three/declutter.ts`):
       `tests/card/card-3d-labels.spec.ts`.
 
 Lane studio (`src/editor/editor-app.ts`, `src/core/align.ts`):
-- [ ] S28.12 Align does not search on a nudge or an undo. `alignKey(floor)` in `align.ts` and the memo of the assumption.
+- [x] S28.12 Align does not search on a nudge or an undo. `alignKey(floor)` in `align.ts` and the memo of the assumption.
       Test: unit, `alignKey` equal for a floor and its copy with another offset, different for a moved outline point, an
       added external wall, a changed `owk`; never throws on junk. Playwright on the stress layout's largest floor, Align
       open: 10 nudges and 10 undos leave `alignSearches` unchanged; a moved wall then adds one search; the median nudge,
