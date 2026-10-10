@@ -2,6 +2,9 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: Apply says why it wrote nothing (review 27, finding 8)
+
+- `applyAlign` said "Already aligned" whenever `setOffset` failed without a lock, which hid an offset beyond `COORD_LIMIT`. It now says "Already aligned" only when the move is zero, and otherwise that the offset would be beyond the limit, with what to do. The lock case is unchanged.
 ## 2026-10-10: the Align close check runs after the host's floor property (review 27, finding 7)
 
 - `willUpdate` checked the Align mode before it applied the `floor` property, so a host-driven floor change rendered once with the panel on the old floor. The check now follows the switch. Test: record every render across `el.floor = "ground"` and assert none has the mode open on another floor.

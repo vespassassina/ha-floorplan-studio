@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: Align's Apply says when the offset would pass the 10 000 000 cm limit, instead of "Already aligned".
 - Studio: when the host switches the floor, the Align tab closes before the plan redraws, not one frame later.
 - The ghost floor is drawn over the room fills and under the walls, so it shows where the current floor has a fill (it was hidden under them).
 - Align: a floor a few cm off is now laid flush (it stopped at 2 to 4.5 cm, or called 1.5 to 4.5 cm "already aligned"), and among equal fits the smaller move wins whatever order the corners come in.

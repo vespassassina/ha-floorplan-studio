@@ -141,3 +141,24 @@ test("a host-driven floor change never renders the Align panel on the old floor 
   for (const r of renders) expect(r.mode === "align" && r.key !== r.floor, JSON.stringify(r)).toBe(false);
   await expect(page.locator("#alignPanel")).toHaveCount(0);
 });
+
+test("an offset beyond the coordinate limit says so, not 'Already aligned' (review 27, finding 8)", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.offset = [1e7, 0]; // the limit
+    // Shift the first floor 237.4 cm west of where it is stored: laying it on the ground floor then asks for +100 cm in x.
+    const mv = (p: number[]) => [p[0] - 237.4, p[1]], f = l.floors.first;
+    f.outline = f.outline.map(mv); f.rooms = f.rooms.map((r: any) => ({ ...r, pts: r.pts.map(mv) }));
+    f.walls = f.walls.map((w: any) => ({ ...w, a: mv(w.a), b: mv(w.b) }));
+    el.layout = l;
+  }, EDITOR);
+  await page.locator('.chip[data-f="first"]').click();
+  await openAlign(page);
+  const d0 = await depth(page);
+  await expect(page.locator("#alignApply")).toBeEnabled();
+  await page.locator("#alignApply").click();
+  await expect(page.locator("#status")).not.toHaveText(/Already aligned/);
+  await expect(page.locator("#status")).toHaveText(/beyond the limit/);
+  expect(await offsetOf(page, "first")).toBeUndefined();
+  expect(await depth(page)).toBe(d0);
+});
