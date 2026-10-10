@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Core: `alignFloor(upper, lower)` finds the move that lays one floor on the floor below and scores the fit (S27.4).
+
 ## 0.24.0 - 2026-10-10
 
 - Studio: a disabled Undo or Redo is dimmed, and stays dimmed under the pointer.
