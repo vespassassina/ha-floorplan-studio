@@ -2,27 +2,17 @@
 
 ## Unreleased
 
-- Studio: the Align preview no longer searches on every pointer move of a drag; it keeps its last answer and searches once when the drag ends.
-- Studio: Align's Apply says when the offset would pass the 10 000 000 cm limit, instead of "Already aligned".
-- Studio: when the host switches the floor, the Align tab closes before the plan redraws, not one frame later.
-- The ghost floor is drawn over the room fills and under the walls, so it shows where the current floor has a fill (it was hidden under them).
-- Align: a floor a few cm off is now laid flush (it stopped at 2 to 4.5 cm, or called 1.5 to 4.5 cm "already aligned"), and among equal fits the smaller move wins whatever order the corners come in.
-- Demo: a full-height window in the Kitchen east wall (floor to ceiling minus 40 cm) and four devices stacked on one spot in the Hall, so the shots show the window and the spiderfy fan (S27.C).
-- Docs and the Help guide cover floors: offset, Align, the ghost floor, floors below in 3D and the floor switch. An exit test aligns a floor in the Studio, saves, and checks the card lays it over the floor below, in 3D and as a ghost (S27.16).
-- Studio: View, Floor below draws the floor under the shown one as faint lines, at its place in the house. Off by default, remembered in the browser, no undo step; disabled on the lowest floor (S27.11).
-- Card: switching floors in 2D and 2.5D slides the plan in, up or down with the stack (220 ms; a cut under reduced motion and in 3D). The new Floor below button and `ghost_floor` / `floors_below` keys are the S27.13 and S27.14 steps.
-- Studio: switching floor with a chip slides the plan in, up from above and down from below (220 ms); nothing moves under reduced motion (S27.12).
-- Studio: a Floors menu (Add floor, Align to floor below, Move up, Move down, Delete floor) replaces Add floor in Edit. Draw is folded into Add: Draw opening ends Openings, Wall holds a Draw submenu of the kinds, and Areas ends with Draw room, zone, water, outline and structure line. The Draw menu is gone. Align does nothing yet (S27.10).
-- Studio: `setOffset` and `alignToBelow` write a floor's offset, one undo step, refused under Lock plan; a new floor takes the lowest floor's offset (S27.8). No control yet.
-- Studio: a furniture piece's Lock can be ticked and unticked while the plan is locked, from the panel and from the context menu; moving, resizing and turning it are still refused.
-- Schema: a floor may carry `offset: [x, y]` (cm), where it sits in the house. Absent is `[0, 0]`; a bad value is reported by validation and dropped when a file is opened. Nothing draws it yet.
-- Core: `floorBelow`, `floorsBelow` and `floorShift` read the floor stack.
-- Core: `alignFloor(upper, lower)` finds the move that lays one floor on the floor below and scores the fit (S27.4).
-- The stylesheet has the floor-switch motion (`fp-floor-in-up`, `fp-floor-in-down`, 220 ms, none under reduced motion) and `floorSwitch()` says which way; the Studio and the card use them in later steps.
-- The plan can draw the floor below as faint lines under the current one (`RenderOpts.ghost`, token `--fp-ghost`); the Studio and the card switch it on in later steps.
-- 3D: the view can draw the floors below the current one, translucent (ghost) or in their own colours (solid), at their own height and offset. Never picked, not framed. The card switch for it follows.
-- Card: `ghost_floor: true` and a Floor below button in the view controls draw the floor under the shown one as faint lines, at its place in the house. The viewer's button wins over the YAML and is remembered; the lowest floor has none. The config form has the checkbox.
-- Card: `floors_below: off|ghost|solid` and a Floors below select beside Walls draw the floors under the shown one in 3D, at their own height and offset. The viewer's pick wins over the YAML and is remembered; each floor keeps its own camera. The config form has the select.
+- Floors have an offset. A floor may carry `offset: [x, y]` (cm): where it sits in the house, so upper floors can sit apart from the one below. Absent is `[0, 0]`; validation reports a bad value and opening a file drops it. The stored points never change.
+- Studio: Floors menu with Add floor, Align to floor below, Move up, Move down and Delete floor. Add floor moved here from Edit, and a new floor takes the lowest floor's offset. The Draw menu is gone: Draw opening ends Openings, Wall holds a Draw submenu of the kinds, and Areas ends with Draw room, zone, water, outline and structure line.
+- Studio: Align to floor below opens an Align tab. It lays the floor over the one below, which shows as faint lines, and says the match in per cent and the move in words ("137 cm left, 62 cm down"), or that the match is weak. Apply writes the offset in one undo step (refused under Lock plan, with Unlock offered). Two boxes set the offset by hand in cm, and Reset clears it. A floor a few cm off is laid flush, and Apply says so when the offset would pass the 10 000 000 cm limit. The preview does not search while you drag something.
+- Studio: View, Floor below draws the floor under the shown one as faint lines at its place in the house. Off by default, remembered in the browser, no undo step; disabled on the lowest floor.
+- Studio: switching floors slides the plan in, up from above and down from below (220 ms), and does not move under reduced motion.
+- Studio: a furniture piece's Lock can be ticked and unticked while the plan is locked, from the panel and from the context menu. Moving, resizing and turning it are still refused.
+- Card: `ghost_floor: true` and a Floor below button in the view controls (2D and 2.5D) draw the floor under the shown one as faint lines, drawn over the room fills and under the walls. The viewer's button wins over the YAML and is remembered; the lowest floor has none. The config form has the checkbox.
+- Card: `floors_below: off|ghost|solid` and a Floors below select beside Walls draw the floors under the shown one in 3D, translucent or in their own colours, at their own height and offset. Remembered per viewer; each floor keeps its own camera. The config form has the select.
+- Card: switching floors in 2D and 2.5D slides the plan in, up or down with the stack (220 ms), and cuts under reduced motion and in 3D.
+- Demo: a full-height window in the Kitchen east wall and four devices stacked on one spot in the Hall, for the window and the spiderfy fan.
+- Docs and the Help guide cover floors: offset, Align, the ghost floor, floors below in 3D and the floor switch.
 
 ## 0.24.0 - 2026-10-10
 

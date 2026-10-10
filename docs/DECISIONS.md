@@ -2,6 +2,9 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the 0.25.0 changelog is written for the integrated build (review 27, finding 5)
+
+- The Unreleased section kept per-step lines ("Align does nothing yet", "No control yet", "Nothing draws it yet", "in later steps") that were false once the steps were merged. It is one user-facing line per feature of the finished sprint: offset, Floors menu, Align tab, View Floor below, both floor switches, furniture Lock, the card's ghost and floors_below, the demo, the docs. Core helpers and the stylesheet keyframes have no line of their own: nobody uses them except through those features.
 ## 2026-10-10: the Align preview does not search during a drag (review 27, finding 10)
 
 - The memo keyed on floor objects, and a drag makes a new floor object on every pointer move, so the preview ran `alignFloor` once per move. While a drag that has moved (not a pan or a marquee) is in progress the preview keeps its last answer, and the first render after the drag searches once. Chosen over a geometry hash, which would cost a pass over the structure on every render and still miss on every move of a drag that changes it. `alignSearches` counts the searches so a test can see them: 31 during a 30-move drag before, none now.
