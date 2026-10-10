@@ -3209,3 +3209,220 @@ Wave 3, in order on `task/s27-floors`:
 
 Review (one Opus pass on the integrated build) then fixes with their tests; exit test: a misaligned floor aligns within
 2 cm; both motion paths tested.
+
+## Sprint 28 (0.26.0): 2.5D and 3D polish
+
+Branch `task/s28-polish`. Lanes branch off it as `task/s28-<lane>`, each in its own worktree with its own `PW_PORT`, and
+merge back into `task/s28-polish`. Diego, 2026-10-10: "start sprint 28". The roadmap row: "2.5D and 3D polish: shadows,
+lighting, tree crowns, framed openings, 3D label collision." From the visual review of 2026-10-08: V5 (3D labels
+collide), V21 (2D trees are grey discs), V22 (2.5D lollipops, bare 3D sticks: `scene-build.ts` says the crown is "the
+viewer's" and no viewer draws one), V24 (2.5D has no contact shadow), V25 (3D floats in a void, flat materials), V26 (3D
+doors are wall-height slabs, no frame). Carried: S23.F5 "paint dim in 3D" and "3D walls on HA dark still mix 55 %"; the
+card-polish spec item 23 (S15.6 blob shadows); two leftovers of Sprint 27: the ghost floor keeps full contrast at night
+while the rooms dim (`g.ghost` is pushed after the night overlay), and Align stalls about 0.8 s per nudge or undo on a
+huge floor while the tab is open (the memo keys on floor objects, and every nudge and undo makes new ones). Exit test:
+shots at 4x, three themes (blueprint, light, ha-dark), looked at.
+
+Rules. As Sprint 27: each task one outcome, its failing test written first and watched failing (finding 5); layout input
+is untrusted, every new builder never throws and skips junk (finding 1); every interpolated string escaped (finding 2);
+one draw path, all 2D and 2.5D marks come from `renderFloor` and `solids.ts`, the 3D ones from `scene-build.ts` and the
+view (finding 8); colours only through `--fp-*` variables, the 3D view reads them through `palette.ts` roles, never a hex
+in code (finding 9); every CSS rule that matters gets its `getComputedStyle` pair, and a presentation attribute is never
+the behaviour (findings 10, 18); a per-kind rule iterates its union (`FURNITURE_SYMBOLS`, `DOOR_KINDS`, every theme,
+finding 17); a new Playwright test runs `--repeat-each=10` (finding 13). Visual work is proved three ways, all three
+required: a structural assertion (markup, scene graph, instance count), a measured one (computed style, a pixel probe in
+a real browser, a contrast ratio over every theme), and the 4x shots looked at in the three themes, day and night, before
+the report (finding 16: a green suite does not mean the pixel is right). A pixel probe compares two spots of the same frame
+(a wall foot against the middle of its room), never a stored image, so it holds across machines. Budgets stay as they are:
+the card size test with its limit unchanged, the 3D chunk under `CHUNK_LIMIT`, `scripts/trim-three.mjs` unchanged (no
+shadow map comes back), the 5000-furniture and hostile-layout tests in `card-3d-perf.spec.ts` and the scene budget in
+`scene-budget.test.ts` green with their bounds unchanged. 2D and 2.5D at tilt 0 stay byte for byte as before where the
+task does not say otherwise (the render snapshot changes only on purpose, said in the commit). Studio and card parity:
+the Studio draws 2D only, so a 2D change (the tree crown, the ghost at night) shows in both through `renderFloor`; 2.5D and
+3D are the card's.
+
+Out of scope: real shadow maps, a sun that moves with the time of day, shadows in 2D (2D stays a plan); 3D camera framing
+and the empty sky (V27, with card chrome in 29); wall weights in light (V18), icon glyphs (V15), placement parity between
+editor and card (V4), state transitions and a 3D loading skeleton (V30); the 2D leader and window-contrast follow-ups
+S23.F1 and S23.F2; any new YAML key or control (shadows, frames and crowns are always on); a 3D view in the Studio.
+
+Assumptions (defaults taken; Diego can overrule any):
+- **Shadows are contact shadows, baked, not cast.** No shadow map: three's is trimmed out (`trim-three.mjs`,
+  `NoShadowMap`) and a shadow map costs a pass per light per frame on a tablet. What carries depth instead is ambient
+  occlusion where things meet the floor: a soft band along each wall foot, a soft patch under each piece of furniture,
+  appliance, device body and tree. It does not depend on where the sun is, so day and night share it, and nothing moves
+  when the camera turns. The real-3d non-goal "real shadows from sunlight" stands.
+- **One shade colour.** `--fp-shade` (the theme's `--fp-on-light`, near black) at `--fp-shade-alpha`, written by
+  `themeExtras` per theme kind: .16 on a light theme, .32 on a dark one (a dark plan needs more to show at all). Generic
+  defaults so all 13 themes have both. The coder may tune the two numbers by looking; the tests pin the ordering and a
+  minimum step, not the value.
+- **2.5D shadows have no blur filter.** An SVG `feGaussianBlur` is re-rasterised on every pan and zoom and would cost the
+  most on the 5000-furniture plan. Softness comes from two stepped bands instead: 6 cm at full alpha, then 6 cm more at half.
+  Drawn as one `g.shade` after the room fills and stairs and before the ghost, the night overlay, walls and furniture, so
+  the night veil darkens them with the floor. Not drawn at rise 0: tilt 0 stays exactly the 2D plan.
+- **The ghost floor dims at night, like the rooms.** `g.ghost` moves before the night overlay (still after the room fills
+  and stairs, where review 27 put it, so a fill never hides it). In an unlit room the veil darkens it with the floor; in a
+  lit room and on the bare board it is as by day. Chosen over a separate night stroke for the ghost: one less rule, and
+  the ghost then reads exactly as the floor it lies on. The Align tab in the Studio shows the ghost under Preview night the
+  same way.
+- **A tree is a trunk under a crown, one shape in every view.** `treeShape(m)` in a new `src/core/tree.ts` gives, from a
+  tree's `w`, `h` and its height (`furnitureHeight`, 400 cm by default): trunk top at 60 % of the height, crown from 50 % to
+  100 %, crown radii `w / 2` and `h / 2`, trunk 12 cm (`TRUNK_SIDE`). Junk gives null. 2D: an 8-lobed crown outline in
+  `--fp-tree` at .35 fill with a 1 px `--fp-tree-edge` edge, a trunk dot 6 % of `w`, and a soft patch offset (+4, +6) cm
+  in `--fp-shade`. 2.5D: the shade patch on the ground at the trunk foot, the trunk to its top, the same crown symbol at
+  the crown's lifted height. 3D: an icosahedron crown (detail 1, flat shaded) per tree, all trees one `InstancedMesh`, the
+  trunk solid cut to the trunk top. `--fp-tree` and `--fp-tree-edge` are generic defaults mixed from `--fp-dev-garden`
+  and `--fp-garden`, so every theme has them and none hard-codes a green.
+- **Framed openings.** A door, a glass door and a window get a frame: two jambs and a head, plus a sill for a window whose
+  sill is above the floor. Frame width 5 cm along the wall (`FRAME_WIDTH`), 2 cm proud of each face (`FRAME_PROUD`), in
+  `--fp-frame` (a mix of `--fp-door` into the wall side, at least 1.5:1 against `--fp-wall-side` in every theme). A plain
+  opening, an open doorway (`open`) and a sealed panel get none: they are holes or wall. In 3D the frame is an `opening`
+  solid with tag `frame` and the door's `ref`, so a tap on a frame is a tap on its door, and it carries `wall` so it lowers
+  with its wall. The 3D door leaf at rest is quiet (`--fp-door` 60 % into the wall side), red only when open or alarmed
+  as now. A closed door stays shut: the review's "15° ajar" would draw a state the sensor did not report.
+- **3D lighting.** The hemisphere and sun stay (`DAY`, `NIGHT` in `view3d.ts`); the change is in what they light. A
+  ground plane under the house, 1.5 times the plan's box, `--fp-bg` mixed 6 % toward `--fp-ink` (role `ground`), at the
+  lowest drawn slab bottom (under the floors below when they are drawn); never picked. Wall tops read lighter than the
+  sun side, the sun side lighter than the shade side, and an empty floor lighter than the wall sides: each step at least
+  6 % in relative luminance, measured, every one of the three themes. 3D walls read `--fp-wall-side-share` as 2.5D does
+  (S23.F5, HA dark). `--fp-paint-dim` applies to the user's colours and textures in 3D: the token is parsed
+  (`brightness(a) saturate(b)`, anything else none), so a painted floor matches its 2D colour.
+- **3D labels do not overlap.** A new pure `declutter(boxes)` in `src/card/three/declutter.ts`: greedy by priority on a
+  grid, device icons first, then room names (a room over a garden, a garden over water, larger area first), then room
+  readouts, then device values and names. A loser is hidden with a 120 ms opacity fade (none under reduced motion). It
+  runs when the camera settles (no change for one frame after a move) and on a live update, never mid-drag; during a drag
+  the last answer holds. Element sizes are measured once per text change, not per frame.
+- **Align caches by structure.** The search answer depends on the two floors' structure lines, not on the upper floor's
+  offset. The memo keys on a structure signature that leaves `offset` out (a hash over the outline, `external` walls, room
+  points and `owk`, kept per floor object in a WeakMap), and keeps the last 4 answers, so a nudge reuses the answer and an
+  undo back to an earlier shape finds it again. A drag still holds its last answer, as review 27 decided.
+- **The shots.** `npm run shots -- --polish` renders `shots/current/polish/`: the demo ground and first floor in 2.5D
+  (tilt .5) and 3D (default camera and one orbit), blueprint, light and ha-dark, day and night, at deviceScaleFactor 4,
+  plus 4x crops of a door, a window, a tree and a wall foot. The demo has no tree, so the script adds two to the demo
+  garden in the page (as the ghost shots set an offset); `demo/layout.json` is not touched. The run fails if a file is
+  missing or a frame is blank.
+
+Wave 0, in order on `task/s28-polish`, one coder (every lane reads what it lays down):
+- [ ] S28.1 Groundwork. `treeShape(m)` in `src/core/tree.ts`, exported from core; `FRAME_WIDTH` and `FRAME_PROUD` in
+      `solids.ts`; tokens `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` in the generic defaults and
+      `--fp-shade-alpha` in `themeExtras`; the `--polish` shot set. Nothing draws them yet. Test: unit `treeShape` on the
+      default tree, asymmetric `w` and `h`, a set height, `w: 0`, NaN, a string height, a `__proto__` symbol: numbers or
+      null, never a throw; a computed-style sweep over every theme (card and Studio): each token resolves, crown edge
+      against `--fp-garden` at least 3:1, `--fp-frame` against `--fp-wall-side` at least 1.5:1, `--fp-shade-alpha`
+      higher on every dark theme than on every light one; `npm run shots -- --polish` writes its files.
+      Files: `src/core/tree.ts`, `src/core/index.ts`, `src/core/solids.ts` (two constants), `src/core/render.ts` (the
+      generic token block only), `src/core/ink.ts`, `scripts/shots.mjs`, `tests/core/tree.test.ts`, a new
+      `tests/card/polish-tokens.spec.ts`.
+
+Wave 1, four lanes in parallel after S28.1, each in its own worktree; tasks inside a lane run in order:
+
+Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
+- [ ] S28.2 The ghost floor dims at night. `g.ghost` moves before the night overlay, as the assumption says. Test: unit,
+      the markup order (fills, stairs, ghost, night, auras, walls) with night on and off; Playwright in the card and the
+      Studio (Preview night), blueprint and light: the contrast of a ghost line against its unlit room at night is under
+      .8 times the day contrast and over 1.15:1, and in a lit room within 2 % of the day contrast. Both fail on the old
+      order. The review-27 paint-order pairs in `ghost-floor.spec.ts` and `card-ghost.spec.ts` follow the new order.
+      Files: `src/core/render.ts`, `tests/core/render-ghost.test.ts`, `tests/editor/ghost-floor.spec.ts`,
+      `tests/card/card-ghost.spec.ts`.
+- [ ] S28.3 A 2D tree is a crown (V21). The `tree` symbol becomes the crown, trunk dot and shade patch of the assumption,
+      through `treeShape`; the patch offset stays (+4, +6) cm whatever `w`, `h` and `rot` are (drawn outside the scaled
+      group). Classes, not attributes, carry the colours. Test: unit, the crown path has 8 lobes, the patch is offset by
+      exactly (4, 6) cm for a 120 x 300 tree at `rot` 30, a payload name is escaped; computed-style pairs for the crown
+      fill, edge and patch in both hosts; a selected tree still shows its selection and handles; a sweep over every theme,
+      crown edge against the garden it stands on at least 3:1. Shots: 2D gardens looked at in the three themes.
+      Files: `src/core/icons.ts`, `src/core/render.ts`, `tests/core/render.test.ts` or a new `tests/core/tree-2d.test.ts`,
+      a pair in `tests/editor/editor.spec.ts` and one in `tests/card/`.
+- [ ] S28.4 A 2.5D tree stands (V22). `furnitureSolid` for a pole draws the shade patch at the trunk foot, a 12 cm trunk
+      up to `treeShape`'s trunk top, and the S28.3 crown at the crown's lifted height, in that order inside the piece's
+      group; its depth key is unchanged. Test: unit, the order, the trunk's end point equals `lift(foot, trunkTop)`, the
+      crown's translate equals `lift(centre, crown middle)`, rise 0 draws the 2D tree; Playwright at 4x on the shot
+      layout: the pixel at the lifted crown centre is the crown's computed colour and the pixel on the trunk halfway up is
+      the trunk's. Shots: 2.5D gardens, three themes.
+      Files: `src/core/solids.ts`, `src/core/render.ts` if the order needs it, `tests/core/solids-objects.test.ts`, a new
+      `tests/card/tree-25d.spec.ts`.
+- [ ] S28.5 2.5D contact shadows (V24). One `g.shade`, as the assumption says: two stepped bands along both sides of every
+      drawn wall run, one patch under each furniture box, unlinked box and device body, in `--fp-shade` at
+      `--fp-shade-alpha`; `pointer-events:none` by class rule; nothing at rise 0. Test: unit, one `g.shade` in the order of
+      the assumption, a band pair per wall run and a patch per box (count over the demo), none at rise 0, junk walls draw
+      nothing; computed-style pairs for fill, opacity and pointer events; Playwright, light and blueprint: the pixel 4 cm
+      off a wall foot inside a room is darker than the room's middle by at least 4 % relative luminance (fails without
+      the group); the 2.5D render of 5000 furniture within the existing render bound. Shots: three themes, day and night.
+      Files: `src/core/render.ts`, `src/core/solids.ts`, a new `tests/core/shade-25d.test.ts`, a new
+      `tests/card/shade-25d.spec.ts`.
+- [ ] S28.6 2.5D framed openings. `wallSolids` draws jambs, head and (window) sill quads of `FRAME_WIDTH` on the face of
+      each framed opening, class `frame`, under the cutaway like the wall (a lowered wall lowers its frame); the open and
+      alarm red stays as it is. Test: unit, iterate `DOOR_KINDS` plus `opening`: door, glass, window, slit and fullwindow
+      framed (fullwindow with no sill), `open`, `opening` and `sealed` not; frame quads lie inside the opening's span
+      widened by `FRAME_WIDTH`; none at rise 0; a computed-style pair for `.frame`. Shots: the door and window crops.
+      Files: `src/core/solids.ts`, `tests/core/solids-openings.test.ts`, a pair in `tests/card/`.
+
+Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/view3d.ts`, `palette.ts`, a new
+`src/card/three/shade.ts`):
+- [ ] S28.7 3D tree crowns (V22). `scene-build` cuts a tree's trunk at `treeShape`'s trunk top (`treeShape` joins
+      `SceneDeps`); the view draws one `InstancedMesh` of icosahedron crowns from the tree solids' `ref.size`, role
+      `furniture-tree`, built with the scene, disposed with it, drawn for floors below too, never picked (a tap on a crown
+      picks what is under it). Test: unit on the trunk height and on a pure `crownMatrices(solids)` (count, centre, scale;
+      junk sizes skipped); Playwright through the hook on the stress layout: one crown mesh, `count` equals its trees, the
+      crowns' z range is `treeShape`'s; a hostile case of 2000 trees draws inside the existing 10 s bound; 20 floor
+      switches leave no crown mesh behind; the chunk under its limit. Shots: 3D gardens, three themes.
+      Files: `src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/view3d.ts`, a new
+      `src/card/three/crowns.ts`, `tests/core/scene.test.ts`, a new `tests/card/three-crowns.test.ts`,
+      `tests/card/card-3d-perf.spec.ts` (one case added).
+- [ ] S28.8 3D ground and contact shadows (V25, S15.6). The ground plane of the assumption, and one shadow mesh per drawn
+      floor from a pure `contactShadows(solids)` in `shade.ts`: wall-foot bands both sides, a soft patch under each
+      furniture piece, unlinked box, device body and tree crown, vertex alpha falling to 0 at the edge, `--fp-shade` at
+      `--fp-shade-alpha`, no depth write, a hair above the floor. Neither is picked; both are disposed on every build.
+      Test: unit, bands and patches counted on the demo, alpha 0 on every outer vertex, junk skipped, 5000 furniture in
+      under 100 ms; Playwright: draw calls rise by at most 2 (the hook reads `renderer.info.render.calls`), the pixel 4 cm
+      off a wall foot is darker than the middle of its room by at least 4 % in light and blueprint (fails without the mesh),
+      a tap on the ground picks nothing, the 5000-furniture tap test still under a second. Shots: three themes, day and
+      night, floors below solid.
+      Files: `src/card/three/shade.ts`, `src/card/three/view3d.ts`, `src/card/three/palette.ts`, a new
+      `tests/card/three-shade.test.ts`, a new `tests/card/card-3d-shade.spec.ts`.
+- [ ] S28.9 3D lighting and theme (V25, S23.F5). Face tones as the assumption says, by material and role, not new lights;
+      3D walls read `--fp-wall-side-share`; `--fp-paint-dim` parsed and applied to user colours and textures. Test: unit
+      on the paint-dim parser (the two theme values, `none`, junk, a `url(` payload: none); Playwright, each of blueprint,
+      light and ha-dark: probes on a wall top, a sun-side face, a shade-side face and an empty floor of the demo give the
+      ordering with 6 % steps; on midnight a painted room's 3D floor is within ΔE 3 of its 2D computed colour, and on light
+      unchanged; night still darkens (the `NIGHT` probe below the day one).
+      Files: `src/card/three/palette.ts`, `src/card/three/view3d.ts`, `tests/card/three-palette.test.ts`,
+      `tests/card/card-3d-colors.spec.ts`.
+- [ ] S28.10 3D framed openings (V26). `scene-build` adds the frame solids of the assumption beside each leaf and pane;
+      the door leaf's rest role is quiet. Test: unit, iterate `DOOR_KINDS` plus `opening`: which kinds get frames and how
+      many (2 jambs and a head, a sill for a raised window), every frame within the span widened by `FRAME_WIDTH`, its
+      depth the wall's thickness plus `2 * FRAME_PROUD`, `ref.wall` and `ref.index` set, a lowered wall clips it to
+      `CUT_WALL_HEIGHT`; Playwright: a tap on a door's frame opens that door's popup; an open door's leaf is still
+      `--fp-open-door` and a closed one is not. Shots: the door and window crops.
+      Files: `src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/palette.ts`, `tests/core/scene.test.ts`,
+      `tests/card/card-3d-doorway.spec.ts`.
+
+Lane labels (`src/card/three/overlay.ts`, a new `src/card/three/declutter.ts`):
+- [ ] S28.11 3D labels do not collide (V5). `declutter` and its use in `overlay.place`, as the assumption says. Test: unit,
+      two overlapping boxes keep the higher priority, equal priorities keep the larger room then the lower index, a chain
+      of three, no box shown overlaps another, 1000 boxes in under 5 ms, NaN boxes skipped; Playwright: on the stress
+      layout in 3D after the camera settles, no two shown label boxes intersect (fails with `declutter` removed), the demo's
+      garden pond and garden both stay when they do not touch; a drag shows no label flipping (the shown set is constant
+      across the frames of one drag); reduced motion, no transition. Shots: 3D labels, three themes.
+      Files: `src/card/three/overlay.ts`, `src/card/three/declutter.ts`, a new `tests/card/three-declutter.test.ts`, a new
+      `tests/card/card-3d-labels.spec.ts`.
+
+Lane studio (`src/editor/editor-app.ts`, `src/core/align.ts`):
+- [ ] S28.12 Align does not search on a nudge or an undo. `alignKey(floor)` in `align.ts` and the memo of the assumption.
+      Test: unit, `alignKey` equal for a floor and its copy with another offset, different for a moved outline point, an
+      added external wall, a changed `owk`; never throws on junk. Playwright on the stress layout's largest floor, Align
+      open: 10 nudges and 10 undos leave `alignSearches` unchanged; a moved wall then adds one search; the median nudge,
+      from key to the next frame, under 100 ms (it is about 800 now).
+      Files: `src/core/align.ts`, `src/editor/editor-app.ts`, `tests/core/align.test.ts`, `tests/editor/align-mode.spec.ts`.
+
+Wave 2, in order on `task/s28-polish` after every lane is merged:
+- [ ] S28.13 Exit and docs. `npm run shots -- --polish` on the integrated build; the coordinator opens every 4x shot and
+      crop in the three themes, day and night, and lists in the report what each shows and anything wrong (each defect
+      goes back to its lane, test first). Docs: `docs/SPEC.md` (2.5D and 3D: shadows, crowns, frames, labels; the ghost at
+      night), `docs/card.md` (2.5D and 3D sections), `docs/specs/real-3d.md` (contact shadows; sun shadows still a
+      non-goal), `docs/specs/card-polish-and-light.md` item 23 done, CHANGELOG, DECISIONS (one entry per assumption that
+      held, and each change from it).
+- [ ] S28.14 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests
+      `--repeat-each=10`; the size test and the 3D perf file read on their own; `npm run shots` and `--polish` looked at.
+
+Review (one Opus pass on the integrated build, the 4x shots open beside the diff) then fixes with their tests; exit test:
+shots at 4x, three themes.
