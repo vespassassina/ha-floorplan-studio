@@ -5,8 +5,10 @@
 import { BufferAttribute, IcosahedronGeometry, InstancedMesh, Matrix4, type BufferGeometry, type Material } from "three";
 import type { Solid } from "../../core/scene";
 
-/** Icosahedron detail 1: 80 flat faces, a faceted ball that reads as foliage and costs little. */
-export const CROWN_SEGMENTS = 1;
+/** Icosahedron detail 2: 320 flat faces, a rounded blob that reads as foliage and costs little (one mesh for every tree). */
+export const CROWN_SEGMENTS = 2;
+/** The share of its radius a vertex may move in or out: a slight irregularity, the same for every crown. */
+const LUMP = 0.07;
 /** cm. Past this a size is not a tree; it also keeps every matrix finite in float32. */
 const LIMIT = 1e6;
 const num = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -23,19 +25,26 @@ export function crownMatrices(solids: readonly Solid[]): { count: number; matric
     for (const p of s.shape.base) { if (!Array.isArray(p) || !num(p[0]) || !num(p[1])) { ok = false; break; } cx += p[0]; cy += p[1]; }
     if (!ok) continue;
     cx /= s.shape.base.length; cy /= s.shape.base.length;
-    const sx = size[0] / 2, sy = (crown.z1 - crown.z0) / 2, sz = size[1] / 2, th = (crown.rot * Math.PI) / 180, c = Math.cos(th), sn = Math.sin(th);
+    // A round crown (S28 final): never taller than it is wide. It stands on crown.z0, where the trunk enters it; a wide tree keeps its whole range.
+    const sx = size[0] / 2, sz = size[1] / 2, sy = Math.min((crown.z1 - crown.z0) / 2, Math.max(sx, sz)), mid = crown.z0 + sy, th = (crown.rot * Math.PI) / 180, c = Math.cos(th), sn = Math.sin(th);
     // T * rotY(-th) * S. Plan turns clockwise on the page by `rot`; in three's frame that is a turn about y by -th.
-    out.push(c * sx, 0, sn * sx, 0, 0, sy, 0, 0, -sn * sz, 0, c * sz, 0, cx, (crown.z0 + crown.z1) / 2, cy, 1);
+    out.push(c * sx, 0, sn * sx, 0, 0, sy, 0, 0, -sn * sz, 0, c * sz, 0, cx, mid, cy, 1);
   }
   return { count: out.length / 16, matrices: Float32Array.from(out) };
 }
 
 /** The unit crown, scaled so its box is exactly [-1, 1] on every axis: a matrix then puts the box where the tree's numbers say. */
 function crownGeometry(): BufferGeometry {
-  const g = new IcosahedronGeometry(1, CROWN_SEGMENTS).toNonIndexed();
+  const g = new IcosahedronGeometry(1, CROWN_SEGMENTS).toNonIndexed(), pos = g.getAttribute("position") as BufferAttribute;
+  // A slight lump: each vertex moves along its radius by a fixed pseudo-random amount from its own direction, so a shared corner moves once.
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const h = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453, k = 1 + LUMP * (2 * (h - Math.floor(h)) - 1);
+    pos.setXYZ(i, x * k, y * k, z * k);
+  }
   g.computeBoundingBox();
-  const b = g.boundingBox!, pos = g.getAttribute("position") as BufferAttribute;
-  for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) / b.max.x, pos.getY(i) / b.max.y, pos.getZ(i) / b.max.z);
+  const b = g.boundingBox!;
+  for (let i = 0; i < pos.count; i++) pos.setXYZ(i, (2 * pos.getX(i) - b.max.x - b.min.x) / (b.max.x - b.min.x), (2 * pos.getY(i) - b.max.y - b.min.y) / (b.max.y - b.min.y), (2 * pos.getZ(i) - b.max.z - b.min.z) / (b.max.z - b.min.z));
   g.computeVertexNormals(); // flat: each face is its own three vertices
   g.computeBoundingSphere();
   return g;

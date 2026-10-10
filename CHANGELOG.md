@@ -7,6 +7,7 @@
 - A tree on the plan is a crown, not a grey disc: an 8-lobed green outline over the garden, a trunk dot and a soft shade patch, in the card and the Studio.
 - A tree in 2.5D stands: a 12 cm trunk rises to 60 % of its height, the crown hangs at 75 % and the shade lies at its foot.
 - A tree in 3D has a crown: a faceted ball on a 12 cm trunk that ends at 60 % of the tree's height, also on floors drawn below. A tap on a crown reaches what is under it.
+- A 3D crown is a round, slightly lumpy blob, no taller than it is wide, standing on 50 % of the tree's height where the trunk enters it. It was a tall pointed lens.
 - Doors, glass doors, windows, slits and full-height windows are framed in 2.5D and 3D: a jamb each side, a head, and a sill when raised, 5 cm wide and 2 cm proud of the wall. A tap on a 3D frame is a tap on the door. A closed 3D door leaf is quiet; red only when open or alarmed.
 - 3D labels no longer pile on each other. When two would overlap, the more important one stays (a device icon, then a room name, a room readout, a device value, a device name; a room over a garden over water, a larger room first) and the other fades out in 120 ms. This happens when the view is still, never mid-drag.
 - 3D walls take the theme's own side share (`--fp-wall-side-share`, as the 2.5D sides do), and a room or stair with its own paint is dimmed on a dark theme (`--fp-paint-dim`), as in 2D. Wall tops, sun faces and shade faces step apart by 6 % or more in every theme.
