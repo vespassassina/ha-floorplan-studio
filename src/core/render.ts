@@ -49,7 +49,7 @@ export interface RenderOpts {
    *  rejected. Omitted (the editor), nothing changes. */
   bounds?: { x: number; y: number; w: number; h: number };
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
-  /** S27.5: the floor below, drawn first and under everything as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point moved by `shift` (`floorShift`, cm). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
+  /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point moved by `shift` (`floorShift`, cm). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
   ghost?: { floor: Floor; shift: Pt };
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
@@ -1230,8 +1230,6 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   };
   const showText = o.labels !== false; // false skips every <text> and leader below; placement still runs, so nothing else moves
   const solids: Solid[] = [];
-  const ghost = ghostMarkup(o.ghost); // S27.5: first of all, under the trace and everything else
-  if (ghost) out.push(ghost);
   // S7.11: the scan to trace over, first so everything draws on top of it. Checked again here: the layout is untrusted.
   const tr = f.trace;
   if (o.trace && tr?.on === true && typeof tr.src === "string" && tr.src.length <= MAX_TRACE_BYTES && TRACE_SRC.test(tr.src) && [tr.x, tr.y, tr.w, tr.rot, tr.alpha].every(Number.isFinite) && tr.w > 0)
@@ -1310,6 +1308,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       if (r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
       out.push(`<polygon data-night="${i}" class="room-night${glowRooms.has(i) ? " lit" : ""}" points="${pts(r.pts)}"/>`);
     });
+
+  // S27.5 (moved by review 27): the floor below, over the room fills, stairs and night overlay and under walls, names and devices.
+  // Drawn first it sat under the opaque fills and vanished where Align needs it. Still one draw path, for the editor and the card.
+  const ghost = ghostMarkup(o.ghost);
+  if (ghost) out.push(ghost);
 
   // S2.8: every lit lamp's aura, drawn as one flat pass before any device group. S8.13: and before walls, doors,
   // furniture and names, now that it reaches 150 cm and would tint them (an open door's red line most of all). One pass, not interleaved with the

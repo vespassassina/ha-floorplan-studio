@@ -17,11 +17,16 @@ describe("S27.5 ghost floor", () => {
     expect(renderFloor(first, { scale: 0.5, ghost: undefined })).toBe(plain);
   });
 
-  it("draws one g.ghost, first of all, with paths and no text, use, image or device group", () => {
+  it("draws one g.ghost, after every room fill and stair and before walls, doors, text and devices (review 27)", () => {
     const svg = ghosted({ floor: ground, shift: [0, 0] });
     const g = ghostPart(svg);
     expect(g).toContain("<path");
-    expect(svg.indexOf('<g class="ghost">')).toBe(0);
+    const night = ghosted({ floor: ground, shift: [0, 0] }, { night: true });
+    expect(night.lastIndexOf('data-night="')).toBeLessThan(night.indexOf('<g class="ghost">'));
+    const at = svg.indexOf('<g class="ghost">');
+    // Opaque room fills would hide a ghost drawn under them, exactly where Align needs it.
+    for (const over of ['data-r="', 'class="stairs room"', 'data-night="']) expect(svg.lastIndexOf(over), over).toBeLessThan(at);
+    for (const under of ['class="eh ', 'class="door ', "<text", "data-x="]) expect(svg.indexOf(under), under).toBeGreaterThan(at);
     expect(svg.match(/class="ghost"/g)).toHaveLength(1);
     for (const bad of ["<text", "<use", "<image", "data-x", "data-r", "data-e", "data-d", "<title", "<polygon"]) expect(g, bad).not.toContain(bad);
     // the rest of the plan is the plain plan, untouched
@@ -58,8 +63,12 @@ describe("S27.5 ghost floor", () => {
   });
 
   it("wraps with a theme or a rotation like any other part of the plan", () => {
-    expect(ghosted({ floor: ground, shift: [0, 0] }, { theme: "light" })).toMatch(/^<g data-theme="light"><g class="ghost">/);
-    expect(ghosted({ floor: ground, shift: [0, 0] }, { rotate: { deg: 90, pivot: [0, 0] } })).toMatch(/^<g class="plan-turn"[^>]*><g class="ghost">/);
+    const lit = ghosted({ floor: ground, shift: [0, 0] }, { theme: "light" });
+    expect(lit).toMatch(/^<g data-theme="light">/);
+    expect(lit.indexOf('<g class="ghost">')).toBeGreaterThan(0);
+    const turned = ghosted({ floor: ground, shift: [0, 0] }, { rotate: { deg: 90, pivot: [0, 0] } });
+    expect(turned).toMatch(/^<g class="plan-turn"[^>]*>/);
+    expect(turned.indexOf('<g class="ghost">')).toBeGreaterThan(0);
   });
 
   it("has a token in the generic defaults, and its rules are classes, not attributes", () => {

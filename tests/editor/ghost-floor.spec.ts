@@ -99,3 +99,28 @@ test("a real click where only the ghost is drawn selects nothing", async ({ page
   expect(await depth(page)).toBe(d0);
   await expect(ghosts(page)).toHaveCount(1);
 });
+
+// Review 27, finding 3: drawn first, the ghost sat under the opaque room fills. The pair below reads the real element in every theme:
+// its place in the paint order, and the computed style that shows it (stroke set and different from the room fill under it).
+for (const theme of ["blueprint", "light", "ha"]) {
+  test(`the ghost paints over the room fills and under the walls (${theme})`, async ({ page }) => {
+    await boot(page);
+    await page.evaluate((t) => localStorage.setItem("floorplan-studio:theme", t), theme);
+    await page.reload();
+    await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+    await load(page);
+    await toggle(page);
+    const r = await page.evaluate((tag) => {
+      const svg = (document.querySelector(tag) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+      const g = svg.querySelector("g.ghost")!, p = g.querySelector("path")!, cs = getComputedStyle(p);
+      const after = (n: Element) => !!(g.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const rooms = [...svg.querySelectorAll("polygon.room")], walls = [...svg.querySelectorAll("line.eh, line.door")], icons = [...svg.querySelectorAll("g[data-x]")];
+      const fill = getComputedStyle(rooms[0]).fill;
+      return { stroke: cs.stroke, fill: cs.fill, events: cs.pointerEvents, width: cs.strokeWidth, roomFill: fill,
+        roomsBefore: rooms.every((n) => !after(n)), wallsAfter: walls.every(after) && walls.length > 0, iconsAfter: icons.every(after) && icons.length > 0 };
+    }, EDITOR);
+    expect(r).toMatchObject({ fill: "none", events: "none", width: "1.5px", roomsBefore: true, wallsAfter: true, iconsAfter: true });
+    expect(r.stroke).not.toBe("none");
+    expect(r.stroke).not.toBe(r.roomFill);
+  });
+}

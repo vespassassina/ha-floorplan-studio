@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the ghost floor is drawn after the room fills and stairs, under walls (review 27, finding 3; supersedes S27.5 "first in the plan")
+
+- Drawn first, `g.ghost` sat under the current floor's opaque room fills and was hidden exactly where Align needs it. It is now pushed after the stairs and the night overlay and before the lamp auras, walls, furniture, doors, names and icons. Still one `g.ghost`, no fill, `pointer-events:none` by class, no `data-*`, one draw path for the editor and the card.
+- Tests: the markup order in `render-ghost.test.ts` (night too), and a computed-style plus paint-order pair on the real element in both hosts in blueprint, light and ha (`ghost-floor.spec.ts`, `card-ghost.spec.ts`); all six fail against the old order.
 ## 2026-10-10: Align refines on residual, not only on score (review 27, findings 1 and 2)
 
 - The score saturates at 100 % once every sample is within `NEAR`, so a floor 1.5 to 4.5 cm off scored 100 where it stood and the smaller-move rule kept it there. `refine` now keeps a step when the score is no lower and the mean distance to the nearest line is smaller, each axis averages the samples that pull it, and it runs until the pull is under 0.05 cm (at most 40 rounds). Of the fits that tie, moves under `2 * NEAR` apart are one answer and the smallest residual wins in it; between answers further apart the smaller move wins.

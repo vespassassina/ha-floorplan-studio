@@ -129,3 +129,21 @@ test.describe("S27.13 the card's ghost floor", () => {
     await expect(page.locator("#editor input#ghost_floor")).toBeChecked();
   });
 });
+
+// Review 27, finding 3: the same pair for the card, on the real element, in every theme.
+for (const theme of ["blueprint", "light", "ha"]) {
+  test(`the ghost paints over the room fills and under the walls (${theme})`, async ({ page }) => {
+    await boot(page, { ghost_floor: true, theme });
+    const r = await card(page).evaluate((el) => {
+      const svg = el.shadowRoot!.querySelector("svg") as SVGSVGElement;
+      const g = svg.querySelector("g.ghost")!, p = g.querySelector("path")!, cs = getComputedStyle(p);
+      const after = (n: Element) => !!(g.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const rooms = [...svg.querySelectorAll("polygon.room")], walls = [...svg.querySelectorAll("line.eh, line.door")], icons = [...svg.querySelectorAll("g[data-x]")];
+      return { stroke: cs.stroke, fill: cs.fill, events: cs.pointerEvents, width: cs.strokeWidth, roomFill: getComputedStyle(rooms[0]).fill,
+        roomsBefore: rooms.every((n) => !after(n)), wallsAfter: walls.every(after) && walls.length > 0, iconsAfter: icons.every(after) && icons.length > 0 };
+    });
+    expect(r).toMatchObject({ fill: "none", events: "none", width: "1.5px", roomsBefore: true, wallsAfter: true, iconsAfter: true });
+    expect(r.stroke).not.toBe("none");
+    expect(r.stroke).not.toBe(r.roomFill);
+  });
+}
