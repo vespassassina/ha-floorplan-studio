@@ -11,6 +11,9 @@ import type { Device, DeviceType, DoorKind, Floor, Furniture, FurnitureSymbol, P
 /** A device mount at or above this height gets a stem up from its icon (a ceiling light yes, a plug no). */
 export const STEM_MIN_Z = 100;
 
+/** S28.1: a door, glass door or window frame is 5 cm wide along the wall and stands 2 cm proud of each face. Nothing draws it yet. */
+export const FRAME_WIDTH = 5, FRAME_PROUD = 2;
+
 /** What `renderFloor` hands in: the projection, in the frame of the plan group (so a turned plan still lifts screen-up). */
 export interface Proj {
   /** Where a plan point at height h cm is drawn, in plan coordinates. */

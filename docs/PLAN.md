@@ -3303,7 +3303,7 @@ Assumptions (defaults taken; Diego can overrule any):
   missing or a frame is blank.
 
 Wave 0, in order on `task/s28-polish`, one coder (every lane reads what it lays down):
-- [ ] S28.1 Groundwork. `treeShape(m)` in `src/core/tree.ts`, exported from core; `FRAME_WIDTH` and `FRAME_PROUD` in
+- [x] S28.1 Groundwork. `treeShape(m)` in `src/core/tree.ts`, exported from core; `FRAME_WIDTH` and `FRAME_PROUD` in
       `solids.ts`; tokens `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` in the generic defaults and
       `--fp-shade-alpha` in `themeExtras`; the `--polish` shot set. Nothing draws them yet. Test: unit `treeShape` on the
       default tree, asymmetric `w` and `h`, a set height, `w: 0`, NaN, a string height, a `__proto__` symbol: numbers or

@@ -8,6 +8,7 @@
 //   npm run shots             build, then render; report which images differ from shots/baseline/
 //   npm run shots -- --accept copy shots/current/ over shots/baseline/ (after you have looked)
 //   npm run shots -- --strict exit 1 when any image differs from the baseline
+//   npm run shots -- --polish render only the Sprint 28 set to shots/current/polish/ (4x, three themes, day and night)
 //
 // The baseline is local and gitignored: PNGs differ between machines (fonts, antialiasing), so a committed
 // baseline would fail everywhere but where it was made. Only demo/ is ever drawn; no personal layout.
@@ -182,6 +183,129 @@ const tg = texLayout.floors.ground.rooms;
 Object.assign(tg.find((r) => r.name === "Kitchen"), { texture: "wood-light" });
 Object.assign(tg.find((r) => r.name === "Living"), { texture: "checker-classic", textureRot: 30, textureScale: 1.5 });
 Object.assign(tg.find((r) => r.name === "Hall"), { texture: "wood-dark" });
+
+// S28.1: `npm run shots -- --polish` renders only the Sprint 28 set to shots/current/polish/: the demo ground and first floor in
+// 2.5D (tilt .5) and 3D (default camera and one orbit), blueprint, light and ha-dark, day and night, at deviceScaleFactor 4,
+// plus 4x crops of a door, a window, a tree and a wall foot in both views. The demo has no tree, so two are added to the demo
+// garden here, in the page's layout copy; demo/layout.json is not touched. Fails when a file is missing or a frame is blank.
+if (args.has("--polish")) {
+  const POLISH = "shots/current/polish";
+  const DPR = 4;
+  const polishLayout = structuredClone(layout);
+  polishLayout.floors.ground.furniture.push(
+    { id: "polish-tree-1", symbol: "tree", x: 868, y: 408, rot: 0, w: 60, h: 60 },
+    { id: "polish-tree-2", symbol: "tree", x: 864, y: 516, rot: 20, w: 50, h: 70 });
+  const HA = {
+    light: "--primary-text-color:#212121;--secondary-text-color:#727272;--card-background-color:#ffffff;--secondary-background-color:#e5e5e5",
+    dark: "--primary-text-color:#e1e1e1;--secondary-text-color:#9b9b9b;--card-background-color:#1c1c1c;--secondary-background-color:#282828",
+  };
+  const PT = [
+    { id: "blueprint", theme: "blueprint", dark: false, vars: "", page: "#0d1522" },
+    { id: "light", theme: "light", dark: false, vars: "", page: "#fff" },
+    { id: "ha-dark", theme: "ha", dark: true, vars: HA.dark, page: "#111111" },
+  ];
+  // Plan points (cm) to look at, per floor: [kind, x, y, z of the thing, label]. Crops are 160 x 160 css px (640 x 640 px at 4x).
+  const SPOTS = {
+    ground: [["door", 345, 600, 100], ["tree", 868, 408, 200], ["wallfoot", 500, 200, 0]],
+    first: [["window", 200, 0, 110]],
+  };
+  const files = [], problems = [];
+  mkdirSync(POLISH, { recursive: true });
+  for (const f of readdirSync(POLISH)) rmSync(`${POLISH}/${f}`, { force: true });
+  const sizeOk = (path, min) => existsSync(path) && readFileSync(path).length >= min;
+  const keep = (name, min) => { files.push([name, min]); };
+  const toScreen = async (page, floorName) => {
+    // The plan to the screen at floor level: an affine map from three vertices of the first room (its drawn points, through the polygon's own CTM).
+    const pts = polishLayout.floors[floorName].rooms[0].pts.slice(0, 3);
+    return page.evaluate((plan) => {
+      const sr = document.getElementById("c").shadowRoot, poly = sr.querySelector('svg polygon[data-r="0"]'), m = poly.getScreenCTM();
+      const drawn = poly.getAttribute("points").trim().split(/[\s,]+/).map(Number);
+      const scr = [0, 1, 2].map((i) => ({ x: m.a * drawn[2 * i] + m.c * drawn[2 * i + 1] + m.e, y: m.b * drawn[2 * i] + m.d * drawn[2 * i + 1] + m.f }));
+      // solve screen = A * plan + t from the three vertices
+      const [p0, p1, p2] = plan, [s0, s1, s2] = scr;
+      const det = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p2[0] - p0[0]) * (p1[1] - p0[1]);
+      const row = (k) => {
+        const dx = ((s1[k] - s0[k]) * (p2[1] - p0[1]) - (s2[k] - s0[k]) * (p1[1] - p0[1])) / det;
+        const dy = ((s2[k] - s0[k]) * (p1[0] - p0[0]) - (s1[k] - s0[k]) * (p2[0] - p0[0])) / det;
+        return [dx, dy, s0[k] - dx * p0[0] - dy * p0[1]];
+      };
+      return [row("x"), row("y")];
+    }, pts);
+  };
+  const clip = (x, y, w = 160, h = 160) => ({ x: Math.max(0, Math.round(x - w / 2)), y: Math.max(0, Math.round(y - h / 2)), width: w, height: h });
+  const browser = await chromium.launch();
+  try {
+    for (const t of PT) for (const day of [true, false]) for (const floor of ["ground", "first"]) for (const view of ["2.5d", "3d"]) {
+      const tag = `${t.id}-${day ? "day" : "night"}`, base = `${view === "3d" ? "3d" : "2-5d"}-${floor}-${tag}`;
+      const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: DPR });
+      const page = await ctx.newPage();
+      page.on("pageerror", (e) => problems.push(`${base}: ${e}`));
+      page.on("console", (m) => { if (m.type() === "error") problems.push(`${base}: console.error ${m.text()}`); });
+      const config = { layout: polishLayout, floor, theme: t.theme, view, active_list: false, ...(view === "2.5d" ? { tilt: 0.5 } : {}) };
+      const hass = hassFor(day ? "off" : "night", t.dark);
+      if (view === "2.5d") {
+        await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${t.page};${t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
+        await page.addScriptTag({ content: cardJs, type: "module" });
+      } else {
+        const ORIGIN = "http://fp.test";
+        await page.route("**/*", (route) => {
+          const url = new URL(route.request().url());
+          if (url.origin !== ORIGIN) return route.abort();
+          if (url.pathname === "/") return route.fulfill({ contentType: "text/html", body: `<!doctype html><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=shots"></script><body style="margin:0;padding:12px;background:${t.page};${t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>` });
+          const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
+          if (!m || !existsSync(resolve(DIST, m[1]))) return route.fulfill({ status: 404, body: "not found" });
+          return route.fulfill({ contentType: "text/javascript", body: readFileSync(resolve(DIST, m[1])) });
+        });
+        await page.goto(`${ORIGIN}/`);
+      }
+      await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+      await page.evaluate(([c, h]) => { const el = document.getElementById("c"); el.setConfig(c); el.hass = h; return el.updateComplete; }, [config, hass]);
+      const card = page.locator("floorplan-studio-card");
+      if (view === "3d") {
+        try { await page.waitForFunction(() => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1, null, { timeout: 30000 }); }
+        catch { problems.push(`${base}: the 3D view never drew a frame`); await ctx.close(); continue; }
+        await page.waitForTimeout(900);
+      } else if ((await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length)) < 10) problems.push(`${base}: the plan drew almost nothing`);
+      await page.mouse.move(0, 0);
+      await card.screenshot({ path: `${POLISH}/${base}.png` });
+      keep(`${base}.png`, 30000);
+      const aff = view === "2.5d" ? await toScreen(page, floor) : null;
+      for (const [kind, x, y, z] of SPOTS[floor]) {
+        const name = `crop-${kind}-${base}`;
+        let at;
+        if (view === "3d") at = await page.evaluate(([x, y, z]) => globalThis.__fp3d.project(x, y, z), [x, y, z]);
+        else {
+          const sx = aff[0][0] * x + aff[0][1] * y + aff[0][2], sy = aff[1][0] * x + aff[1][1] * y + aff[1][2];
+          at = { x: sx, y: sy - (z ? 0.5 * z * Math.abs(aff[1][1]) : 0) }; // a lifted thing stands above its foot
+        }
+        const docH = await page.evaluate(() => document.documentElement.scrollHeight), cl = clip(at.x, at.y);
+        cl.y = Math.max(0, Math.min(cl.y, docH - cl.height));
+        await page.screenshot({ path: `${POLISH}/${name}.png`, clip: cl });
+        keep(`${name}.png`, 4000);
+      }
+      if (view === "3d") {
+        const holder = card.locator(".fp-3d"), b = await holder.boundingBox();
+        await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+        await page.mouse.down(); await page.mouse.move(b.x + b.width / 2 + 160, b.y + b.height / 2 - 40, { steps: 8 }); await page.mouse.up();
+        await page.waitForTimeout(500);
+        await page.mouse.move(0, 0);
+        await card.screenshot({ path: `${POLISH}/${base}-orbit.png` });
+        keep(`${base}-orbit.png`, 30000);
+      }
+      await ctx.close();
+    }
+  } finally {
+    await browser.close();
+  }
+  for (const [name, min] of files) {
+    const p = `${POLISH}/${name}`;
+    if (!existsSync(p)) problems.push(`${name}: missing`);
+    else if (!sizeOk(p, min)) problems.push(`${name}: blank? ${readFileSync(p).length} bytes, under ${min}`);
+  }
+  console.log(`${files.length} polish images in ${POLISH}/`);
+  if (problems.length) { console.error(`\n${problems.length} problem(s):\n${problems.join("\n")}`); process.exit(1); }
+  process.exit(0);
+}
 
 const shots = [];
 const errors = [];
