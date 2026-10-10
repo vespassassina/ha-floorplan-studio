@@ -3178,19 +3178,19 @@ Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.
       Files: `src/editor/editor-app.ts`, a new `tests/editor/floor-switch.spec.ts`.
 
 Lane card (`floorplan-studio-card.ts`, `config-editor.ts`, `view-state.ts`):
-- [ ] S27.13 Card ghost floor. `ghost_floor` in YAML and the Floor below button, as the assumption says; the plan passes
+- [x] S27.13 Card ghost floor. `ghost_floor` in YAML and the Floor below button, as the assumption says; the plan passes
       `ghost` with `floorShift`; the config editor offers it. Test: YAML default on and off, junk is off; a real click
       on the button toggles `g.ghost`; a stored viewer choice wins over YAML; the lowest floor draws none; a tap on a
       ghost-only spot opens nothing.
       Files: `src/card/floorplan-studio-card.ts`, `src/card/config-editor.ts`, `src/card/view-state.ts`, a new
       `tests/card/card-ghost.spec.ts`, `tests/card/card-view-memory.test.ts`.
-- [ ] S27.14 Card 3D floors below. `floors_below` in YAML and the select beside Walls, kept per viewer, the config editor
+- [x] S27.14 Card 3D floors below. `floors_below` in YAML and the select beside Walls, kept per viewer, the config editor
       offers it; the card calls `setBelow` with `floorsBelow`, `floorElevation` differences and `floorShift`. Test: the
       select's three values change the drawn z range as S27.7 does; YAML default; junk is `off`; a stored choice wins;
       the camera of each floor survives a switch (S14.4).
       Files: `src/card/floorplan-studio-card.ts`, `src/card/config-editor.ts`, `src/card/view-state.ts`,
       `tests/card/card-3d-below.spec.ts`.
-- [ ] S27.15 The card's floor switch is animated. `_selectFloor` sets `data-switch` from `floorSwitch`, in 2D and 2.5D;
+- [x] S27.15 The card's floor switch is animated. `_selectFloor` sets `data-switch` from `floorSwitch`, in 2D and 2.5D;
       3D cuts. Test, both paths with real clicks on the floor tabs: default motion, an animation runs on the plan root
       with the right direction and is finished within 400 ms; reduced motion (`emulateMedia`), no animation runs and the
       new floor is drawn in the same frame; a search Enter onto another floor animates too.

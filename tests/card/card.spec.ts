@@ -733,9 +733,9 @@ test.describe("S7.4 zoom and pan", () => {
             return { bg: s.backgroundColor, fg: s.color, vis: s.visibility, disp: s.display };
           }),
         );
-        // Zoom in, out, Fit, plus the rotate pair, the labels and device names toggles and Reset view (all share the
-        // zoom bar): all eight must read, so the new ones are held to the same contrast.
-        expect(got.length, `${theme} dark=${dark}`).toBe(8);
+        // Zoom in, out, Fit, plus the rotate pair, the labels and device names toggles and Reset view, and the Floor below ghost toggle
+        // (all share the zoom bar): all nine must read, so the new ones are held to the same contrast.
+        expect(got.length, `${theme} dark=${dark}`).toBe(9);
         for (const g of got) {
           expect(g.disp).not.toBe("none");
           expect(ratio(rgbOf(g.bg), rgbOf(g.fg)), `${theme} dark=${dark}`).toBeGreaterThanOrEqual(3);

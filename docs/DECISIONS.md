@@ -2,6 +2,24 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the card's floor switch sets `data-switch` once per switch and clears it on `animationend` (S27.15)
+
+- `_selectFloor` asks `floorSwitch(keys, from, to, reduced)` and keeps the direction in `_switchDir`. `updated()` plays it after `_sync3d()`: remove `data-switch` from the plan svg, force a reflow, set it again, so two quick switches both animate. One `animationend` listener per svg (`_switchEnds`, a WeakSet) removes the attribute, so a stale value never replays on a later render.
+- No animation in 3D (the view cuts), on the first draw (no `from`), for the same floor, or when `matchMedia('(prefers-reduced-motion: reduce)')` matches. The card reads the media query itself (`_reducedMotion()`), as the stylesheet's rule alone would still set the attribute.
+- The Floor below button added a ninth button to the zoom bar; `card.spec.ts` "zoom buttons read at 3:1" counted eight and now counts nine.
+
+## 2026-10-10: the card's 3D floors below are `floors_below` plus a select, given after `setFloor` (S27.14)
+
+- `floors_below: off|ghost|solid` (default `off`; anything else, a wrong case included, is `off`) and a Floors below select beside Walls in 3D. The viewer's pick is kept in the view memory (`below`; a value that is not a mode is dropped) and wins over the YAML; Reset view clears it. `floors_below` joins the storage seed like `detail`. The modes are `BELOW_MODES` in `view-state.ts`, with their labels, so the select, the config form and the parser read one list.
+- `_sync3dBelow` runs after `setFloor` in every `_sync3d` and calls `setBelow` with `{ floor, elevation, shift }` per lower floor, nearest first: `elevation` is `floorElevation(lower) - floorElevation(shown)` (negative), `shift` is `floorShift`. The view rebuilds its meshes on every call, so the card calls only when the mode, the floor objects, an elevation or a shift changed; a view that never had floors below is never told `off`. A new view starts from nothing, so a rebuilt view gets its floors again.
+- Tested at the pixel end through the test hook (`below()`, `floors()`): the lowest drawn point is -320 on the stress layout in solid and ghost (ground's slab bottom), the shift moves the lower floor by exactly `ground.offset - first.offset`, and the camera each floor was left with comes back with floors below on (S14.4). The camera still frames the shown floor only.
+
+## 2026-10-10: the card's ghost floor is `ghost_floor` plus a Floor below button (S27.13)
+
+- `ghost_floor: true` in YAML (only `true`; junk is off) and a Floor below button in the view controls, 2D and 2.5D. The pick is the viewer's, kept in the view memory (`ghost`, a boolean; anything else in storage is dropped) and wins over the YAML; Reset view clears it. `ghost_floor` joins the storage seed like `detail`, so editing it starts a clean memory.
+- The card hands `renderFloor` `ghost: { floor: below, shift: floorShift(layout, below, shown) }` and draws nothing else itself. The lowest floor has no floor below: no ghost, and the button is disabled with a title that says why. In 3D there is no button: the floors below are the `floors_below` select (S27.14).
+- The button's icon is an inlined path in the card file (Material layers-outline), not an import (finding 9). A tap on a spot where only the ghost is drawn opens nothing, because the ghost is `pointer-events:none` by class rule and carries no `data-*`; the test walks the ghost's lines for a point whose top element is the bare plan and clicks it with the real mouse.
+
 ## 2026-10-10: furniture Lock works under Lock plan (S27.1)
 
 - `EditorState.plan()` drops a furniture piece's `locked` from the compare, so ticking Lock in the panel or the context menu is one undo step under Lock plan. Moving, resizing or turning a piece is still refused. Diego, 2026-10-10: "furniture Lock must work under Lock plan". It supersedes the "known edge" of 'Lock in every panel (S26.16)' and the furniture line of S26.3, which listed Lock with the geometry.

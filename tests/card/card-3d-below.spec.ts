@@ -123,3 +123,175 @@ test.describe("3D view: floors below (S27.7)", () => {
     expect(errors).toEqual([]);
   });
 });
+
+// S27.14: the card gives the view its floors below: `floors_below` in YAML, a Floors below select beside Walls, kept per viewer. The
+// card calls `setBelow` with `floorsBelow`, the `floorElevation` differences and `floorShift`. What is drawn is read back through the
+// view's test hook, as above, so the card's numbers are tested at the pixel end, not by spying on the call.
+const EDITOR_URL = "file://" + process.cwd() + "/tests/card/config-editor-harness.html";
+const CARD_JS = readFileSync("dist/floorplan-studio-card.js", "utf8");
+async function bootCard(page: Page, config: Record<string, unknown> = {}, layout: unknown = structuredClone(stress)) {
+  await serve(page);
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await page.goto(`${ORIGIN}/harness.html`);
+  await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+  await configureCard(page, config, layout);
+  await drawn(page);
+}
+/** setConfig again on the same page: a reload of the dashboard, with the storage kept. */
+async function configureCard(page: Page, config: Record<string, unknown>, layout: unknown = structuredClone(stress)) {
+  await page.evaluate((cfg) => {
+    const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+    el.setConfig(cfg);
+    el.hass = { states: {}, callService: () => undefined };
+    return el.updateComplete;
+  }, { layout, floor: "first", view: "3d", active_list: false, ...config });
+  await drawn(page);
+}
+const belowSelect = (page: Page) => card(page).locator('css=select[aria-label="Floors below"]');
+const y0 = async (page: Page) => (await hook(page, (h) => h.floors())).extent.y0;
+/** Waits until the view draws no floor below (it renders on demand: there is no frame to wait for when nothing changes). */
+const noneBelow = (page: Page, why = "") => expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000, message: why }).toBe(0);
+
+test.describe("3D view: the card's floors below (S27.14)", () => {
+  test("the select beside Walls has off, ghost and solid, and each value changes what is drawn as S27.7 does", async ({ page }) => {
+    await bootCard(page);
+    await expect(belowSelect(page)).toHaveValue("off");
+    expect(await belowSelect(page).locator("option").evaluateAll((o) => o.map((x) => (x as HTMLOptionElement).value))).toEqual(["off", "ghost", "solid"]);
+    // beside Walls: the same toolbar
+    expect(await belowSelect(page).evaluate((s) => !!s.parentElement!.querySelector('select[aria-label="Walls"]'))).toBe(true);
+    const one = await y0(page);
+    expect(one).toBeGreaterThanOrEqual(-26);
+    expect((await hook(page, (h) => h.below())).count).toBe(0);
+
+    await belowSelect(page).selectOption("solid");
+    await expect.poll(() => y0(page), { timeout: 8000 }).toBeCloseTo(-320, 0); // ground's slab bottom: -295 - 25
+    const solid = await hook(page, (h) => h.below());
+    expect(solid.meshes.some((m) => !m.transparent && m.depthWrite && m.opacity === 1)).toBe(true);
+
+    await belowSelect(page).selectOption("ghost");
+    await expect.poll(async () => (await hook(page, (h) => h.below())).meshes.every((m) => m.transparent), { timeout: 8000 }).toBe(true);
+    const ghost = await hook(page, (h) => h.below());
+    expect(ghost.count).toBeGreaterThan(0);
+    for (const m of ghost.meshes) { expect(m.opacity).toBeLessThanOrEqual(0.25); expect(m.depthWrite).toBe(false); }
+    expect(await y0(page)).toBeCloseTo(-320, 0);
+
+    await belowSelect(page).selectOption("off");
+    await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBe(0);
+    expect(await y0(page)).toBe(one);
+  });
+
+  test("YAML: off is the default; solid and ghost draw at once; junk is off", async ({ page }) => {
+    await bootCard(page, { floors_below: "solid" });
+    await expect(belowSelect(page)).toHaveValue("solid");
+    await expect.poll(() => y0(page), { timeout: 8000 }).toBeCloseTo(-320, 0);
+    await configureCard(page, { floors_below: "ghost" });
+    await expect(belowSelect(page)).toHaveValue("ghost");
+    await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(0);
+    for (const junk of ["x", 5, {}, null, [], "SOLID", true]) {
+      await configureCard(page, { floors_below: junk });
+      await expect(belowSelect(page), JSON.stringify(junk)).toHaveValue("off");
+      await noneBelow(page, JSON.stringify(junk));
+    }
+  });
+
+  test("a stored viewer choice wins over YAML, both ways", async ({ page }) => {
+    await bootCard(page, { floors_below: "solid" });
+    await belowSelect(page).selectOption("off");
+    await configureCard(page, { floors_below: "solid" });
+    await expect(belowSelect(page)).toHaveValue("off");
+    await noneBelow(page);
+    await configureCard(page, { floors_below: "off" });
+    await belowSelect(page).selectOption("ghost");
+    await configureCard(page, { floors_below: "off" });
+    await expect(belowSelect(page)).toHaveValue("ghost");
+    await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(0);
+    // and a stored value that is not a mode is dropped, so the YAML is in charge again
+    await configureCard(page, { floors_below: "solid" });
+    await belowSelect(page).selectOption("ghost");
+    await page.evaluate(() => { for (const [k, v] of Object.entries(localStorage)) if (k.startsWith("fp-view:")) localStorage.setItem(k, v.replace('"below":"ghost"', '"below":"<b>"')); });
+    await configureCard(page, { floors_below: "solid" });
+    await expect(belowSelect(page)).toHaveValue("solid");
+    await expect.poll(() => y0(page), { timeout: 8000 }).toBeCloseTo(-320, 0);
+  });
+
+  test("the floor's offset moves the floor below: the card passes floorShift", async ({ page }) => {
+    const lows = async (layout: unknown) => {
+      await bootCard(page, { floors_below: "solid" }, layout);
+      await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(0);
+      const boxes = (await hook(page, (h) => h.below())).meshes.map((m) => m.box);
+      return [Math.min(...boxes.map((b) => b[0])), Math.min(...boxes.map((b) => b[1])), Math.min(...boxes.map((b) => b[2]))];
+    };
+    const home = await lows(structuredClone(stress));
+    const moved = structuredClone(stress);
+    moved.floors.first.offset = [100, -40]; // the first floor sits 100 cm east and 40 north: the ground floor is 100 west, 40 south of it, on the first floor's plan
+    moved.floors.ground.offset = [10, 5];
+    const after = await lows(moved);
+    expect(after[0] - home[0]).toBeCloseTo(10 - 100, 1);
+    expect(after[1] - home[1]).toBeCloseTo(5 + 40, 1); // box is [x, plan y, height, ...], as in the S27.7 test above
+    expect(after[2]).toBeCloseTo(home[2], 1); // never up or down
+  });
+
+  test("on the third floor both floors below are drawn, at their own heights", async ({ page }) => {
+    await bootCard(page, { floors_below: "solid", floor: "second" });
+    // stress: first stands 295 above ground; second above first by first's height and slab; both are drawn down to ground's slab
+    await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(1);
+    const lowest = await y0(page);
+    expect(lowest).toBeLessThan(-295 - 100); // under the first floor's slab, the ground floor is there too
+  });
+
+  test("the camera of each floor survives a switch with floors below on (S14.4)", async ({ page }) => {
+    await bootCard(page, { floors_below: "solid", floor: "all" });
+    const chip = (t: string) => card(page).locator("css=.fp-floors button", { hasText: t });
+    const still = async () => { let prev = ""; await expect.poll(async () => { const now = JSON.stringify(await cam(page)); const s = now === prev; prev = now; return s; }, { intervals: [250], timeout: 10000 }).toBe(true); };
+    const go = async (t: string) => { await chip(t).click(); await expect(chip(t)).toHaveAttribute("aria-pressed", "true"); await drawn(page); await still(); };
+    await still();
+    const orbit = async (dx: number, dy: number) => {
+      const b = (await card(page).locator("css=canvas").boundingBox())!, x = b.x + b.width / 2, y = b.y + b.height / 2;
+      await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + dx, y + dy, { steps: 8 }); await page.mouse.up();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); await still();
+    };
+    await orbit(130, 45);
+    const ground = await cam(page);
+    await go("First");
+    await orbit(-90, -30);
+    const first = await cam(page);
+    expect(Math.abs(first.az - ground.az)).toBeGreaterThan(0.05);
+    await expect.poll(() => y0(page), { timeout: 8000 }).toBeCloseTo(-320, 0); // the floor below is drawn on First
+    await go("Ground");
+    expect((await cam(page)).az).toBeCloseTo(ground.az, 3);
+    expect((await cam(page)).polar).toBeCloseTo(ground.polar, 3);
+    await go("First");
+    expect((await cam(page)).az).toBeCloseTo(first.az, 3);
+    expect((await cam(page)).polar).toBeCloseTo(first.polar, 3);
+    expect(await y0(page)).toBeCloseTo(-320, 0);
+  });
+
+  test("the config form offers floors_below: off is the default and dropped, junk reads off", async ({ page }) => {
+    await page.goto(EDITOR_URL);
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => Promise.all([customElements.whenDefined("floorplan-studio-card"), customElements.whenDefined("floorplan-studio-card-editor")]));
+    const mount = (config: Record<string, unknown>) => page.evaluate((config) => {
+      document.getElementById("editor")?.remove();
+      const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): HTMLElement };
+      const el = Ctor.getConfigElement();
+      (window as any).__events = [];
+      el.addEventListener("config-changed", (e) => (window as any).__events.push((e as CustomEvent).detail));
+      el.id = "editor";
+      document.body.appendChild(el);
+      (el as any).setConfig(config);
+    }, config);
+    const events = () => page.evaluate(() => (window as any).__events);
+    await mount({ layout: stress });
+    const sel = page.locator("#editor select#floors_below");
+    expect(await sel.locator("option").evaluateAll((o) => o.map((x) => (x as HTMLOptionElement).value))).toEqual(["off", "ghost", "solid"]);
+    await expect(sel).toHaveValue("off");
+    await sel.selectOption("solid");
+    expect((await events()).at(-1).config.floors_below).toBe("solid");
+    await sel.selectOption("off");
+    expect("floors_below" in (await events()).at(-1).config).toBe(false);
+    await mount({ floors_below: "<b>", layout: stress });
+    await expect(page.locator("#editor select#floors_below")).toHaveValue("off");
+    await mount({ floors_below: "ghost", layout: stress });
+    await expect(page.locator("#editor select#floors_below")).toHaveValue("ghost");
+  });
+});
