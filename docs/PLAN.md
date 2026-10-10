@@ -3015,3 +3015,197 @@ Wave 4, in order on `task/s26-edit` (each touches the host):
 
 Review (one Opus pass on the integrated build) then fixes with their tests; exit test: bind 20 lights in 3 actions, one
 undo step.
+
+## Sprint 27 (0.25.0): floors
+
+Branch `task/s27-floors`. Lanes branch off it as `task/s27-<lane>`, each in its own worktree with its own `PW_PORT`, and
+merge back into `task/s27-floors`. Diego, 2026-10-08: auto-align floors, floors below in 3D, an animated floor switch.
+Diego, 2026-10-10: "27", and furniture Lock must work under Lock plan. The roadmap row: "Floors: floor offset in the
+schema, Align to floor below with a score, ghost floor in 2D, floors below in 3D (off, ghost, solid), animated switch
+with a reduced-motion cut." Carried from Sprint 26: the Align tab, a Floors menu, folding Draw into Add. Why the offset
+comes first: `docs/specs/real-3d.md` (I) records that a dimmed stack of the floors below was built in 0.14.0 and removed,
+because on a real layout the floors drifted out of line. Exit test: a misaligned floor aligns within 2 cm; both motion
+paths tested.
+
+Rules. As Sprint 26: each task one outcome, its failing test written first and watched failing (finding 5); real
+`page.mouse` and `page.keyboard` on the real top element (finding 3); one undo step per gesture, none when nothing
+changed, keys on the editor host (finding 6); a writer that builds schema objects gets a test over every combination of
+its inputs and every result passes `validate` (finding 12); layout input is untrusted, `validate` and the new core
+functions never throw (finding 1); one draw path, the ghost is drawn by `renderFloor` (finding 8); every CSS rule that
+matters gets its `getComputedStyle` pair (finding 10), and a presentation attribute is never the behaviour (finding 18);
+a new Playwright test runs `--repeat-each=10` (finding 13); a change to `render.ts` runs `npm run shots` and is looked at
+(finding 16); the card size test stays green with its limit unchanged; Studio and card parity for every view feature
+(the parity table in `view-parity.spec.ts` gets its row). Motion: the floor switch adds no wait to any existing test; a
+test that races the animation is fixed with a real end condition (`getAnimations()` finished), never a retry or a sleep.
+
+Out of scope: rotating or scaling a floor to fit (translation only); aligning to any floor but the one below; floors
+above in 3D; live state (glow, open doors) on floors below in 3D; an animated switch in 3D (it cuts, as today); holding
+one point of the house on screen across a switch (each floor keeps its own view, S14.4); 3D shadows and the rest of 2.5D
+and 3D polish (28); card chrome and the phone sheet (29).
+
+Assumptions (defaults taken; Diego can overrule any):
+- **The offset is a field, not a rewrite.** `Floor.offset?: [number, number]`, cm, x right and y down as every plan
+  point: where the floor sits in the house. A point's place in the house is its stored point plus the floor's offset.
+  Stored coordinates never change. Absent means `[0, 0]`; writers delete the key at `[0, 0]`. Schema stays v2: an old
+  card ignores the field. Why not rewrite every point: Align would touch every array of the floor, the card's `center`
+  pins, each viewer's saved floor view and the trace image would all point at the old spot, and repeated aligns would
+  drift by rounding. With the field, one floor's own 2D view is byte for byte as before, Align is one key and one undo
+  step, and only the new multi-floor views (ghost, 3D stack, Align) read it.
+- `validate` reports an offset that is not two finite numbers within `COORD_LIMIT`. `migrate` drops such an offset, as
+  `dropBadHeights` drops a bad height, so a hand-edited file still opens; a good one is kept as written.
+- **The floor below** is the key before this one in `floors` order, the order `floorElevation` stacks. The lowest floor
+  has none: no ghost, Align disabled with a reason.
+- **The offset is geometry.** Lock plan refuses Align and offset edits with `planBlocked` and the Unlock offer (`plan()`
+  already compares every floor key it does not drop). `addFloor` gives the new floor the lowest floor's offset, since it
+  copies that floor's outline.
+- **Align.** `alignFloor(upper, lower)` returns the translation that best lays `upper` on `lower`, in their stored
+  coordinates, and its score; the new offset is `lower.offset + t`, rounded to whole cm. Structure lines of a floor: the
+  outline's edges and every `external` wall; with neither, every room's edges. Score: the share of the upper floor's
+  structure length, sampled every 10 cm, that lies within 5 cm of the lower floor's structure lines after the move,
+  0 to 100 %. Candidates: every pair of corners (upper, lower), capped at the 64 corners with the longest edges each, plus
+  no move; the best is refined by a translation-only nearest-line fit (at most 10 rounds, samples within 25 cm). A tie
+  within 1 point goes to the smaller move. Under 50 % the result is "weak" and says so; Apply still works. Nothing to
+  match (no lines, junk): `null`, never a throw.
+- **Ghost floor.** The floor below drawn as faint lines under the current one, at its relative offset
+  (`below.offset - current.offset`): outline, room edges, walls and stairs; no fills, devices, furniture, text or hit
+  targets. Flat at floor level in 2.5D too. One token, `--fp-ghost`, in the generic defaults (a mix of `--fp-wall` into
+  `--fp-bg`), so every theme has it. Studio: View > Floor below, off by default, kept per viewer like Detail; the Align
+  mode shows it whatever the toggle says. Card: `ghost_floor: true|false` in YAML (default false, junk false) and a
+  Floor below button in the view controls, kept per viewer in the view memory; a stored viewer choice wins over YAML.
+- **3D floors below.** `floors_below: off|ghost|solid` in the card YAML, default `off` (today's look and today's
+  one-floor test). Ghost: every lower floor translucent; solid: every lower floor in its own colours. Each at its own
+  elevation under the current floor and its relative offset. Never pickable; the camera frames the current floor. A
+  Floors below select beside Walls in 3D, kept per viewer. The Studio has no 3D view, so no Studio control.
+- **Animated switch.** 2D and 2.5D, card and Studio. The plan of the new floor fades in from 16 px in the direction of
+  travel (going up, it comes from above) over 220 ms; nothing of the old floor is kept (a copy would double every
+  selector and hit test). `prefers-reduced-motion: reduce`: no animation at all, the floor is simply there.
+- **Floors menu.** A Floors menu in the Studio toolbar: Add floor (moved from Edit, id kept), Align to floor below…,
+  Move up, Move down, Delete floor… (the floor panel keeps its own buttons). Draw folds into Add: Openings ends with
+  Draw opening, Wall gets a Draw submenu of the kinds, Areas ends with Draw room, zone, water, outline and structure line.
+  Every id is kept, so tests and the guide follow by label only.
+- **The Align tab** is an Inspector mode, as Place, Add and Link: the floor below by name, the score, the proposed move
+  in words ("137 cm left, 61 cm down"), Apply, and the offset as two number fields for a hand nudge, with Reset.
+
+Wave 1, five lanes in parallel, each in its own worktree; tasks inside a lane run in order:
+
+Lane lock (`src/editor/state.ts` `plan()` only):
+- [ ] S27.1 Furniture Lock works under Lock plan. `EditorState.plan()` drops a furniture piece's `locked` from the
+      compare, so ticking or unticking Lock on a piece under Lock plan is one undo step; moving, resizing or turning the
+      piece is still refused. Supersedes the "known edge" of the S26.16 entry and the furniture line of S26.3 (DECISIONS,
+      newest first). Test: unit, under Lock plan, `locked` on and off is allowed and one step each, `x`, `w`, `rot` are
+      refused; Playwright, Lock plan on, tick the furniture panel's Lock and the context menu's Lock with real clicks: the
+      layout has `locked: true` and no banner says locked.
+      Files: `src/editor/state.ts`, `tests/editor/plan-lock.test.ts`, `tests/editor/plan-lock.spec.ts`, `docs/DECISIONS.md`.
+
+Lane schema (`schema.ts`, `migrate.ts`, a new `src/core/floor-stack.ts`):
+- [ ] S27.2 Floors have an offset. `offset?: [number, number]` on `Floor`; `validate` reports anything but two finite
+      numbers within `COORD_LIMIT` and never throws; `migrate` drops such a value and keeps a good one. `npm run
+      docs:schema`; SPEC schema section. Test: absent, `[0,0]`, `[137,-61]`, `[1.5,2]`, `"1,2"`, `[1]`, `[1,2,3]`,
+      `[NaN,0]`, `[2e7,0]`, `null`, on a floor whose key is `__proto__`; a migrated junk offset opens and validates.
+      Files: `src/core/schema.ts`, `src/core/migrate.ts`, `docs/schema.md`, `docs/SPEC.md`, a new
+      `tests/core/floor-offset.test.ts`.
+- [ ] S27.3 Floor stack helpers, chained after S27.2. `floorBelow(layout, key)` (the key before, or null),
+      `floorsBelow(layout, key)` (every lower key, nearest first) and `floorShift(layout, from, to)` (cm to add to a
+      point of `from` to draw it on `to`: `from.offset - to.offset`, junk read as `[0,0]`). Exported from core. Test:
+      three floors with asymmetric offsets, the lowest floor, an unknown key, junk offsets, a `__proto__` key.
+      Files: `src/core/floor-stack.ts`, `src/core/index.ts`, `tests/core/floor-stack.test.ts`.
+
+Lane align (a new `src/core/align.ts`):
+- [ ] S27.4 Align with a score. `alignFloor(upper, lower)` returns `{ t, score, weak }` or null, as the assumption says.
+      A new fixture `tests/fixtures/align-house.json` (demo-style, no real house): an L-shaped ground floor with external
+      walls and a smaller first floor over one wing, shifted by `[137.4, -61.7]`. Test: the fixture aligns within 2 cm
+      with a score over 90 %; the demo's identical floors give `[0,0]` and 100 %; a symmetric case takes the smaller
+      move; a floor with no lines, an empty floor, NaN points and a 10 000-point outline give null or a result and never
+      throw; the stress layout's floors align in under 200 ms.
+      Files: `src/core/align.ts`, `src/core/index.ts`, `tests/core/align.test.ts`, `tests/fixtures/align-house.json`.
+
+Lane render (`src/core/render.ts`):
+- [ ] S27.5 Ghost floor in `renderFloor`. `RenderOpts.ghost?: { floor: Floor; shift: Pt }` draws a `g.ghost` first,
+      under everything: lines only, as the assumption says, stroke `--fp-ghost`, `pointer-events:none` by class rule.
+      Absent, the markup is byte for byte as before. Test: unit, the ghost has paths and no `text`, `use` or device
+      group, a payload `"><script>` in its room names never appears, junk ghost input draws nothing; the render snapshot
+      unchanged without it; computed-style pairs for the stroke and `pointer-events` (card and editor stylesheets);
+      `npm run shots` looked at with a ghost on, every theme.
+      Files: `src/core/render.ts`, a new `tests/core/render-ghost.test.ts`, a pair in `tests/editor/editor.spec.ts`.
+- [ ] S27.6 Switch motion in core, chained after S27.5. `floorSwitch(keys, from, to, reduced)` returns
+      `{ dir: "up" | "down" }` or null (same floor, unknown key, reduced). Keyframes `fp-floor-in-up` and
+      `fp-floor-in-down` (220 ms) in `FLOORPLAN_CSS`, keyed on `data-switch` on the plan root, with no animation under
+      `prefers-reduced-motion: reduce`. Test: unit on the helper; a computed-style pair, `animation-name` set without
+      the media query and `none` with it (`page.emulateMedia({ reducedMotion: "reduce" })`).
+      Files: `src/core/render.ts`, `tests/core/floor-switch.test.ts`, a pair in `tests/card/` (new spec).
+
+Lane 3D (`scene-build.ts`, `src/card/three/`):
+- [ ] S27.7 The 3D view can draw floors below. `SceneOpts.shift?: Pt` moves every solid in plan x and y (junk: none).
+      `View3D.setBelow(floors: { floor, elevation, shift }[], mode)` builds them under the current floor: `off` none,
+      `ghost` translucent (opacity at most .25, no depth write), `solid` in their own colours; never in `pick`; disposed
+      with the view and on every new call; cached per floor and theme. Test: unit on `shift`; Playwright on the stress
+      layout through the test hook: `solid` gives a z range below 0, `ghost` materials are transparent, `off` matches
+      today's one-floor test; a tap on a lower floor's garden picks nothing in every mode; 20 switches with `solid`
+      leave no mesh behind; the 3D chunk stays under its size limit.
+      Files: `src/core/scene-build.ts`, `src/card/three/view3d.ts`, `src/card/three/pick.ts` if needed, a new
+      `tests/card/card-3d-below.spec.ts`, `tests/card/three-*.test.ts` as needed.
+
+Wave 2, two lanes in parallel after wave 1 is merged; tasks inside a lane run in order:
+
+Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.ts`, `guide.ts`):
+- [ ] S27.8 Writers. `EditorState.setOffset(key, pt)` and `alignToBelow(key)`: one undo step, none when the offset is
+      unchanged, `[0,0]` deletes the key, refused under Lock plan with `planBlocked`; `addFloor` gives the new floor the
+      lowest floor's offset. Test: every combination of (offset absent, zero, set) x (lock on, off) x (lowest, middle,
+      unknown floor); every result passes `validate`; each no-op leaves no step.
+      Files: `src/editor/state.ts`, a new `tests/editor/floor-offset-state.test.ts`.
+- [ ] S27.9 Floors menu, and Draw folded into Add, as the assumption says. Test: real clicks at 1024x768: the Floors
+      menu holds its five items in order and its box is inside the viewport; Align is disabled on the lowest floor with
+      its reason; no `#mDraw`; every former Draw id opens from Add and starts drawing; `guide-controls.spec.ts` and the
+      one-word sweep follow.
+      Files: `src/editor/toolbar.ts`, `src/editor/guide.ts`, `tests/editor/floors-menu.spec.ts`, the specs that opened
+      `#mDraw`.
+- [ ] S27.10 The Align tab. Floors, Align to floor below… opens the Align mode in the Inspector with the ghost on; it
+      shows the score and the move, Apply writes the offset (one undo step) and says "Aligned to Ground: 94 % match";
+      a weak result says so; the two offset fields nudge it, one step per change; Escape and the X close it, as Link.
+      Test: on `align-house.json`, open, Apply with real clicks: the offset is within 2 cm of `[-137.4, 61.7]`, one Undo
+      clears it; under Lock plan Apply is refused and offers Unlock; the mode survives a `hass` update.
+      Files: `src/editor/inspector.ts`, `src/editor/editor-app.ts`, `src/editor/panels.ts`, a new
+      `tests/editor/align-mode.spec.ts`.
+- [ ] S27.11 View > Floor below, after the card lane's S27.13 is merged into `task/s27-floors` (its parity row needs the
+      card's button). The toggle passes `ghost` to `renderFloor`; kept per viewer in the browser, every storage access in
+      try/catch; no undo step. A real click on the plan where only the ghost is drawn selects nothing. Test: the toggle
+      draws `g.ghost` at the shift of an offset floor, survives reload; the click; the `ghostFloor` parity row.
+      Files: `src/editor/toolbar.ts`, `src/editor/editor-app.ts`, `tests/card/view-parity.spec.ts`, a new
+      `tests/editor/ghost-floor.spec.ts`.
+- [ ] S27.12 The Studio's floor switch is animated. A floor chip sets `data-switch` from `floorSwitch`. Test: default
+      motion, a chip click starts an animation on the plan root and a real click during it selects on the new floor;
+      reduced motion, no animation is ever running after the click.
+      Files: `src/editor/editor-app.ts`, a new `tests/editor/floor-switch.spec.ts`.
+
+Lane card (`floorplan-studio-card.ts`, `config-editor.ts`, `view-state.ts`):
+- [ ] S27.13 Card ghost floor. `ghost_floor` in YAML and the Floor below button, as the assumption says; the plan passes
+      `ghost` with `floorShift`; the config editor offers it. Test: YAML default on and off, junk is off; a real click
+      on the button toggles `g.ghost`; a stored viewer choice wins over YAML; the lowest floor draws none; a tap on a
+      ghost-only spot opens nothing.
+      Files: `src/card/floorplan-studio-card.ts`, `src/card/config-editor.ts`, `src/card/view-state.ts`, a new
+      `tests/card/card-ghost.spec.ts`, `tests/card/card-view-memory.test.ts`.
+- [ ] S27.14 Card 3D floors below. `floors_below` in YAML and the select beside Walls, kept per viewer, the config editor
+      offers it; the card calls `setBelow` with `floorsBelow`, `floorElevation` differences and `floorShift`. Test: the
+      select's three values change the drawn z range as S27.7 does; YAML default; junk is `off`; a stored choice wins;
+      the camera of each floor survives a switch (S14.4).
+      Files: `src/card/floorplan-studio-card.ts`, `src/card/config-editor.ts`, `src/card/view-state.ts`,
+      `tests/card/card-3d-below.spec.ts`.
+- [ ] S27.15 The card's floor switch is animated. `_selectFloor` sets `data-switch` from `floorSwitch`, in 2D and 2.5D;
+      3D cuts. Test, both paths with real clicks on the floor tabs: default motion, an animation runs on the plan root
+      with the right direction and is finished within 400 ms; reduced motion (`emulateMedia`), no animation runs and the
+      new floor is drawn in the same frame; a search Enter onto another floor animates too.
+      Files: `src/card/floorplan-studio-card.ts`, a new `tests/card/card-floor-switch.spec.ts`.
+
+Wave 3, in order on `task/s27-floors`:
+- [ ] S27.16 Exit test and docs. `floors-exit.spec.ts`: load `align-house.json` in the Studio, Floors, Align to floor
+      below, Apply: the offset is within 2 cm; Save; the card with `floors_below: solid` shows the first floor over the
+      ground with their outer corners within 2 cm in the test hook's bounds; the card's ghost lines up the same way.
+      Both motion paths are the S27.12 and S27.15 tests. Docs: `docs/SPEC.md` (offset, Align, ghost, floors below,
+      switch), `docs/specs/real-3d.md` (criterion I and 8 superseded, why), `docs/card.md` (keys `ghost_floor`,
+      `floors_below`, the parity table), `docs/editor.md`, guide, CHANGELOG, DECISIONS.
+- [ ] S27.17 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests
+      `--repeat-each=10`; `npm run shots` looked at, ghost on and off; screenshots of the Align tab, the Floors menu,
+      the card's ghost and 3D ghost and solid at 1280 and 1024, dark and light; the exit test walked by hand once.
+
+Review (one Opus pass on the integrated build) then fixes with their tests; exit test: a misaligned floor aligns within
+2 cm; both motion paths tested.
