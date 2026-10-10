@@ -3397,7 +3397,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       `tests/card/card-3d-doorway.spec.ts`.
 
 Lane labels (`src/card/three/overlay.ts`, a new `src/card/three/declutter.ts`):
-- [ ] S28.11 3D labels do not collide (V5). `declutter` and its use in `overlay.place`, as the assumption says. Test: unit,
+- [x] S28.11 3D labels do not collide (V5). `declutter` and its use in `overlay.place`, as the assumption says. Test: unit,
       two overlapping boxes keep the higher priority, equal priorities keep the larger room then the lower index, a chain
       of three, no box shown overlaps another, 1000 boxes in under 5 ms, NaN boxes skipped; Playwright: on the stress
       layout in 3D after the camera settles, no two shown label boxes intersect (fails with `declutter` removed), the demo's

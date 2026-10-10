@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Themes carry the colours the 2.5D and 3D polish draws with: `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` and `--fp-shade-alpha`. `npm run shots -- --polish` renders the polish set at 4x.
+- 3D labels no longer pile on each other. When two labels would overlap, the more important one stays (a device icon, then a room name, a room readout, a device value, a device name; a room over a garden over water, a larger room first) and the other fades out in 120 ms. This happens when the camera is still, never mid-drag, so nothing flickers while you turn the house.
 
 ## 0.25.0 - 2026-10-10
 
