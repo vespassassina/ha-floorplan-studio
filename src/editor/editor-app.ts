@@ -622,10 +622,10 @@ export class FloorplanStudioEditor extends LitElement {
   private closeBanner() { clearTimeout(this.bannerTimer); this.banner = null; this.status = ""; }
 
   protected willUpdate(changed: Map<string, unknown>) {
-    if (this.alignKey !== null && (this.st.floor !== this.alignKey || floorBelow(this.st.layout, this.alignKey) === null)) this.closeAlign(false); // the mode belongs to one floor with a floor below
     if (this.linkScope && this.st.f !== this.linkFloor) { this.linkScope = null; if (this.asideMode === "link") this.asideMode = "selection"; } // R2
     if (changed.has("status") && this.banner?.text !== this.status) this.notify(this.status); // already shown by an explicit notify, with its level and action
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
+    if (this.alignKey !== null && (this.st.floor !== this.alignKey || floorBelow(this.st.layout, this.alignKey) === null)) this.closeAlign(false); // after the host's floor change above, so one render never shows the panel on the old floor: the mode belongs to one floor with a floor below
     // Always named, never left to inherit: blueprint unless the viewer chose otherwise. Reflected on the host itself, not just the svg,
     // so the editor's own chrome (menus, panels, buttons) themes with the plan. data-mode is for the ha theme only.
     this.setAttribute("data-theme", this.st.theme);

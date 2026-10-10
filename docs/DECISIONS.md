@@ -2,6 +2,9 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the Align close check runs after the host's floor property (review 27, finding 7)
+
+- `willUpdate` checked the Align mode before it applied the `floor` property, so a host-driven floor change rendered once with the panel on the old floor. The check now follows the switch. Test: record every render across `el.floor = "ground"` and assert none has the mode open on another floor.
 ## 2026-10-10: docs/card.md names the Studio menus as they are (review 27, finding 6)
 
 - The parity page listed Add, Draw, Edit, File. The toolbar is Add, Floors, View, Edit, File since S27.9, and Draw lives in Add. View is named in the table above it, so the sentence lists the menus that change the plan.

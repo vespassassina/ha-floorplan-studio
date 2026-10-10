@@ -126,3 +126,18 @@ test("the mode survives a hass update", async ({ page }) => {
   await expect(page.locator("#alignPanel")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} svg g.ghost`)).toHaveCount(1);
 });
+
+test("a host-driven floor change never renders the Align panel on the old floor (review 27, finding 7)", async ({ page }) => {
+  await openAlign(page);
+  const renders = await page.evaluate(async (tag) => {
+    const el = document.querySelector(tag) as any, log: Array<{ floor: string; key: string | null; mode: string }> = [], orig = el.render.bind(el);
+    el.render = () => { log.push({ floor: el.st.floor, key: el.alignKey, mode: el.asideMode }); return orig(); };
+    el.floor = "ground"; // the host's property, not a chip click
+    await el.updateComplete;
+    el.render = orig;
+    return log;
+  }, EDITOR);
+  expect(renders.length).toBeGreaterThan(0);
+  for (const r of renders) expect(r.mode === "align" && r.key !== r.floor, JSON.stringify(r)).toBe(false);
+  await expect(page.locator("#alignPanel")).toHaveCount(0);
+});
