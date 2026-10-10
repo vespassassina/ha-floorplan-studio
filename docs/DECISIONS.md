@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: floors below in 3D are separate meshes, set by `setBelow` (S27.7)
+
+- `View3D.setBelow(floors, mode)` takes `{ floor, elevation, shift }` entries: `elevation` is the lower floor's walking surface in the current floor's frame (negative), `shift` is the `floorShift` in cm. `SceneOpts.shift` moves every solid in plan x and y in the one `add` choke point; anything but two finite numbers means none.
+- The lower floors are meshes of their own, outside `clear` and `build`, so a rebuild of the current floor never touches them and the `Picker` never sees them (a tap through them finds nothing). They carry no devices, no textures and no live state. Ghost: transparent, opacity at most .25, no depth write. Solid: their own colours, every wall at full height (no cut).
+- `setFloor` keeps them; the card calls `setBelow` after it. The built scene of a floor is cached per floor object, elevation and shift; the meshes are rebuilt on every call and on a theme change, because the palette is read per theme.
+- Why not one scene of all floors: pick, walls cut and live state are built for one floor; mixing would have made every one of them aware of floors below.
+
 ## 2026-10-09: a disabled Undo or Redo is dimmer than an enabled one (Opus re-check 5)
 
 - `.btn:disabled{opacity:.5}` and `.btn.light{opacity:.6}` have the same specificity and the second comes later, so a disabled Undo was .6 like an enabled one, and under the pointer `.btn.light:hover` took it to 1. Added `.btn.light:disabled{opacity:.35}` and put `:not(:disabled)` on the light hover and focus rule; the other hover rules in the editor (`.lockplan`, `.lrow`, `.ti`, `.opt`, `.door-hit-open`) are not on buttons that can be disabled. Computed-style pair in `editor.spec.ts` for light, ha and blueprint: disabled lower than enabled, and unchanged under the pointer. It supersedes (e) of 'small defects' for the `.light` buttons only.

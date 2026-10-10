@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- 3D: the view can draw the floors below the current one, translucent (ghost) or in their own colours (solid), at their own height and offset. Never picked, not framed. The card switch for it follows.
+
 ## 0.24.0 - 2026-10-10
 
 - Studio: a disabled Undo or Redo is dimmed, and stays dimmed under the pointer.
