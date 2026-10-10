@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the card's floor switch sets `data-switch` once per switch and clears it on `animationend` (S27.15)
+
+- `_selectFloor` asks `floorSwitch(keys, from, to, reduced)` and keeps the direction in `_switchDir`. `updated()` plays it after `_sync3d()`: remove `data-switch` from the plan svg, force a reflow, set it again, so two quick switches both animate. One `animationend` listener per svg (`_switchEnds`, a WeakSet) removes the attribute, so a stale value never replays on a later render.
+- No animation in 3D (the view cuts), on the first draw (no `from`), for the same floor, or when `matchMedia('(prefers-reduced-motion: reduce)')` matches. The card reads the media query itself (`_reducedMotion()`), as the stylesheet's rule alone would still set the attribute.
+- The Floor below button added a ninth button to the zoom bar; `card.spec.ts` "zoom buttons read at 3:1" counted eight and now counts nine.
+
 ## 2026-10-10: the card's 3D floors below are `floors_below` plus a select, given after `setFloor` (S27.14)
 
 - `floors_below: off|ghost|solid` (default `off`; anything else, a wrong case included, is `off`) and a Floors below select beside Walls in 3D. The viewer's pick is kept in the view memory (`below`; a value that is not a mode is dropped) and wins over the YAML; Reset view clears it. `floors_below` joins the storage seed like `detail`. The modes are `BELOW_MODES` in `view-state.ts`, with their labels, so the select, the config form and the parser read one list.

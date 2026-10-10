@@ -3190,7 +3190,7 @@ Lane card (`floorplan-studio-card.ts`, `config-editor.ts`, `view-state.ts`):
       the camera of each floor survives a switch (S14.4).
       Files: `src/card/floorplan-studio-card.ts`, `src/card/config-editor.ts`, `src/card/view-state.ts`,
       `tests/card/card-3d-below.spec.ts`.
-- [ ] S27.15 The card's floor switch is animated. `_selectFloor` sets `data-switch` from `floorSwitch`, in 2D and 2.5D;
+- [x] S27.15 The card's floor switch is animated. `_selectFloor` sets `data-switch` from `floorSwitch`, in 2D and 2.5D;
       3D cuts. Test, both paths with real clicks on the floor tabs: default motion, an animation runs on the plan root
       with the right direction and is finished within 400 ms; reduced motion (`emulateMedia`), no animation runs and the
       new floor is drawn in the same frame; a search Enter onto another floor animates too.

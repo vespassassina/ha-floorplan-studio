@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorShift, floorBelow, floorsBelow, floorElevation, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorShift, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -503,6 +503,8 @@ export class FloorplanStudioCard extends LitElement {
   private _view3d: View3D | null = null;
   private _view3dFloor: unknown = null;
   private _view3dAround = "";  // JSON of `FloorsAround`, to compare
+  /** S27.15: the direction the next render's plan root fades in from, set by `_selectFloor` and consumed by `updated`. */
+  private _switchDir: "up" | "down" | null = null;
   /** S27.14: what the view was last given as floors below (mode, the floor objects, their elevations and shifts), to compare. */
   private _view3dBelow: { mode: BelowMode; floors: unknown[]; nums: string } | null = null;
   private _fallback3d: string | null = null;
@@ -1332,6 +1334,9 @@ export class FloorplanStudioCard extends LitElement {
    * the plan itself).  */
   private _selectFloor(key: string): void {
     if (this._shownFloor === key) return;
+    // S27.15: 2D and 2.5D fade the new floor in from the way it travels; 3D cuts (no plan root to animate), and reduced motion cuts.
+    const from = this._floorKey(), keys = this._layout ? Object.keys(this._layout.floors) : [];
+    this._switchDir = from && this._viewPick() !== "3d" ? floorSwitch(keys, from, key, this._reducedMotion())?.dir ?? null : null;
     this._closePopup(); // its subject is on the floor just left
     this._settleTurn(false); // a turn in flight ends where it was going, under the floor it began on
     this._saveViewNow(); // the floor just left keeps its zoom, turn and camera (S14.4)
@@ -1343,6 +1348,23 @@ export class FloorplanStudioCard extends LitElement {
     this._scheduleSave();
     this.requestUpdate();
   }
+
+  /** S27.15: starts the floor switch animation on the plan root, after the render that drew the new floor. The attribute is taken off
+   * and put back after a reflow so a second switch restarts the motion; `animationend` takes it off again, so nothing stale is left. */
+  private _playSwitch(): void {
+    const dir = this._switchDir;
+    this._switchDir = null;
+    const svg = this.shadowRoot?.querySelector<SVGSVGElement>("svg.fp-zoomable");
+    if (!dir || !svg) return;
+    if (!this._switchEnds.has(svg)) {
+      this._switchEnds.add(svg);
+      svg.addEventListener("animationend", (e) => { if (e.target === svg && e.animationName.startsWith("fp-floor-in")) svg.removeAttribute("data-switch"); });
+    }
+    svg.removeAttribute("data-switch");
+    void svg.getBoundingClientRect();
+    svg.setAttribute("data-switch", dir);
+  }
+  private _switchEnds = new WeakSet<Element>();
 
   /** True while any motion sensor on the shown floor (a motion device, or a room's own `motion` list) is off and inside its fade window,
    * or for one tick after it, so the last render is made past the window and leaves no faint border behind. */
@@ -1445,6 +1467,7 @@ export class FloorplanStudioCard extends LitElement {
     else this.style.removeProperty("--fp-open-door");
 
     this._sync3d();
+    this._playSwitch();
 
     const svg = this.shadowRoot?.querySelector("svg") ?? null;
     if (svg !== this._actionsSvg) {

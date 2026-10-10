@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card: switching floors in 2D and 2.5D slides the plan in, up or down with the stack (220 ms; a cut under reduced motion and in 3D). The new Floor below button and `ghost_floor` / `floors_below` keys are the S27.13 and S27.14 steps.
 - Studio: a furniture piece's Lock can be ticked and unticked while the plan is locked, from the panel and from the context menu; moving, resizing and turning it are still refused.
 - Schema: a floor may carry `offset: [x, y]` (cm), where it sits in the house. Absent is `[0, 0]`; a bad value is reported by validation and dropped when a file is opened. Nothing draws it yet.
 - Core: `floorBelow`, `floorsBelow` and `floorShift` read the floor stack.
