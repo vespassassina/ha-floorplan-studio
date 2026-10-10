@@ -3172,7 +3172,7 @@ Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.
       draws `g.ghost` at the shift of an offset floor, survives reload; the click; the `ghostFloor` parity row.
       Files: `src/editor/toolbar.ts`, `src/editor/editor-app.ts`, `tests/card/view-parity.spec.ts`, a new
       `tests/editor/ghost-floor.spec.ts`.
-- [ ] S27.12 The Studio's floor switch is animated. A floor chip sets `data-switch` from `floorSwitch`. Test: default
+- [x] S27.12 The Studio's floor switch is animated. A floor chip sets `data-switch` from `floorSwitch`. Test: default
       motion, a chip click starts an animation on the plan root and a real click during it selects on the new floor;
       reduced motion, no animation is ever running after the click.
       Files: `src/editor/editor-app.ts`, a new `tests/editor/floor-switch.spec.ts`.

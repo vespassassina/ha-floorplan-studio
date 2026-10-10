@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the Studio's floor switch animates (S27.12)
+
+- `setFloor` asks `floorSwitch(keys, from, to, reduced)` and, on a direction, sets `data-switch` on the plan svg after the next render. The attribute is set by hand, not bound in the template: Lit would not restart a same-direction switch, and a re-render must not replay it. It is removed first, with a reflow, so a second switch starts again, and removed on the plan's own `animationend` (glow animations of children bubble and are ignored by name). Reduced motion is read once per switch; the CSS also says `animation:none` there.
+
 ## 2026-10-10: the Align tab (S27.10)
 
 - Align is an Inspector mode like Link: `asideMode "align"`, `alignKey` (the floor it opened on). It closes on Escape, the X, another floor, or another tab; a floor without a floor below cannot open it. The ghost is drawn only while the mode is open (`ghostOpts()` in the editor; S27.11 adds the View toggle to the same place).

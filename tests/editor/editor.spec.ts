@@ -8250,6 +8250,8 @@ test("S8.11: the opening is a real hole — the room fill shows through it, and 
   await setTheme(page, "light"); // pins light values; blueprint is the default since S2.12
   await page.locator('.chip[data-f="first"]').click();
   await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "light");
+  // S27.12: the plan slides in for 220 ms after a chip click; a pixel read waits for it to end (no sleep)
+  await expect.poll(() => page.locator(`${EDITOR} svg`).first().evaluate((svg) => svg.getAnimations().filter((a) => (a as CSSAnimation).animationName?.startsWith("fp-floor-in")).length)).toBe(0);
 
   const inHole = await screenOf(page, OPENING_MID_X, 600 - OFF_CENTRELINE);
   const onWall = await screenOf(page, 760, 600 - OFF_CENTRELINE); // 760: outside the opening's cap radius (711) and inside the outline (800)
