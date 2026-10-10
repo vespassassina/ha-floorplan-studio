@@ -684,7 +684,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       }
     }
     for (const [r, rs] of roomSolid) roomsA.set(r, [0, rs.z + 2, 0]);
-    return { devices, rooms: roomsA };
+    // What each room is and how large, for which label wins when two meet (S28.11).
+    const roomInfo = new Map<number, { kind: string; area: number }>();
+    for (const s of plan?.solids ?? []) if (s.kind === "room" && s.tag !== "fill" && typeof s.ref.room === "number") roomInfo.set(s.ref.room, { kind: s.tag ?? "room", area: roomShapes.find((q) => q.index === s.ref.room)?.area ?? 0 });
+    return { devices, rooms: roomsA, roomInfo };
   };
 
   // ---- the floors below (S27.7): meshes of their own, outside `clear` and `build`, so the current floor's rebuilds do not touch them.
