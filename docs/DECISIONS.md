@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the Align tab (S27.10)
+
+- Align is an Inspector mode like Link: `asideMode "align"`, `alignKey` (the floor it opened on). It closes on Escape, the X, another floor, or another tab; a floor without a floor below cannot open it. The ghost is drawn only while the mode is open (`ghostOpts()` in the editor; S27.11 adds the View toggle to the same place).
+- The preview calls `alignFloor` itself and memoises it per pair of floor objects, so a `hass` update re-renders without searching again. Any edit makes new floor objects and so a new search. Apply writes `setOffset(lower.offset + t, whole cm)`, so the preview, the status ("Aligned to Ground: 100 % match") and the stored value agree. Score shows as a whole per cent. The move in words is the change from the current offset, so after Apply it reads "Already aligned" and Apply is disabled.
+- The two offset fields are text boxes (`inputmode=decimal`), not number inputs: junk is caught by us, says "Type a number of centimetres" and the field returns to the stored value. One undo step per accepted change; the same value is no step.
 ## 2026-10-10: Floors menu, and Draw folded into Add (S27.9)
 
 - Toolbar: Add, Floors, View, Edit, File. Floors holds `addFloor` (id kept), `alignFloor`, `mFloorUp`, `mFloorDown`, `mFloorDel`; the last three are new ids because the floor panel already owns `fup`, `fdown`, `fdel` and an id must be unique in the shadow root. Move up and Move down act on the current floor and disable at the ends; Delete floor... selects nothing and raises the panel's own confirm, so one confirm path. Align is disabled on the lowest floor and its title says why. It supersedes the Draw menu of S1.21 and Add floor in Edit of S8.1.

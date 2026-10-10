@@ -3159,7 +3159,7 @@ Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.
       one-word sweep follow.
       Files: `src/editor/toolbar.ts`, `src/editor/guide.ts`, `tests/editor/floors-menu.spec.ts`, the specs that opened
       `#mDraw`.
-- [ ] S27.10 The Align tab. Floors, Align to floor below… opens the Align mode in the Inspector with the ghost on; it
+- [x] S27.10 The Align tab. Floors, Align to floor below… opens the Align mode in the Inspector with the ghost on; it
       shows the score and the move, Apply writes the offset (one undo step) and says "Aligned to Ground: 94 % match";
       a weak result says so; the two offset fields nudge it, one step per change; Escape and the X close it, as Link.
       Test: on `align-house.json`, open, Apply with real clicks: the offset is within 2 cm of `[-137.4, 61.7]`, one Undo

@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { DEFAULT_MOTION_FADE_S, alignFloor, floorBelow, floorShift, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -207,6 +207,9 @@ export class FloorplanStudioEditor extends LitElement {
   /** The floor object Link mode was opened on. Its scope is device indices, so any edit, Undo or Redo (a new floor object) closes the mode. */
   private linkFloor: Floor | null = null;
   linkOff = new Set<string>();
+  /** S27.10: the key of the floor the Align mode was opened on (null when closed), and its memoised preview. */
+  alignKey: string | null = null;
+  private alignMemo: { upper: Floor; lower: Floor; r: ReturnType<typeof alignFloor> } | null = null;
   placeType: DeviceType | null = null;
   private sceneDraft: SceneDraft | null = null;
   private scenePos: { x: number; y: number } | null = null;
@@ -603,6 +606,7 @@ export class FloorplanStudioEditor extends LitElement {
   private closeBanner() { clearTimeout(this.bannerTimer); this.banner = null; this.status = ""; }
 
   protected willUpdate(changed: Map<string, unknown>) {
+    if (this.alignKey !== null && (this.st.floor !== this.alignKey || floorBelow(this.st.layout, this.alignKey) === null)) this.closeAlign(false); // the mode belongs to one floor with a floor below
     if (this.linkScope && this.st.f !== this.linkFloor) { this.linkScope = null; if (this.asideMode === "link") this.asideMode = "selection"; } // R2
     if (changed.has("status") && this.banner?.text !== this.status) this.notify(this.status); // already shown by an explicit notify, with its level and action
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
@@ -1267,6 +1271,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** S26.14: a tab of the aside. Place resumes its room, or opens on the selected one; Add opens as the menu entry does; Selection leaves both as they are. */
   setAsideMode(m: AsideMode) {
     if (this.st.helpOpen) this.st.setHelp(false); // Help covers every mode; a tab click is a way out of it
+    if (m !== "align") this.closeAlign(false);
     if (m === this.asideMode) { this.requestUpdate(); return; }
     if (m === "add") { this.openAddDev(); return; }
     if (m === "place") {
@@ -1729,6 +1734,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.sceneDraft) { ev.preventDefault(); this.closeScene(); return; }
     if (ev.key === "Escape" && this.st.helpOpen) { /* Help covers the mode, so it goes first */ ev.preventDefault(); this.toggleHelp(); return; }
     if (ev.key === "Escape" && this.asideMode === "place") { ev.preventDefault(); this.closePlace(); return; }
+    if (ev.key === "Escape" && this.asideMode === "align") { ev.preventDefault(); this.closeAlign(); return; }
     if (ev.key === "Escape" && this.asideMode === "link") { ev.preventDefault(); this.closeLink(); return; }
     if (ev.key === "Escape" && this.asideMode === "add") { ev.preventDefault(); this.closeAddDev(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
@@ -2608,8 +2614,53 @@ export class FloorplanStudioEditor extends LitElement {
     if (Object.keys(this.st.layout.floors).length < 2) return;
     this.stopDraw(); this.st.sel = null; this.asideMode = "selection"; this.st.confirmDelete = true; this.requestUpdate();
   }
-  /** S27.9: placeholder until the Align tab (S27.10). */
-  openAlign() { this.status = "Align is coming"; this.requestUpdate(); }
+  /** S27.10: Floors, Align to floor below… opens the Align mode on the current floor; the floor below shows as a ghost while it is open. */
+  openAlign() {
+    this.closeMenus();
+    if (floorBelow(this.st.layout, this.st.floor) === null) return;
+    this.stopDraw(); this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null;
+    if (this.st.helpOpen) this.st.setHelp(false);
+    this.requestUpdate();
+  }
+  closeAlign(update = true) {
+    this.alignKey = null; this.alignMemo = null;
+    if (this.asideMode === "align") this.asideMode = "selection";
+    if (update) this.requestUpdate();
+  }
+  /** The Align mode's numbers, from the live layout: the floor below, the best move (S27.4, memoised per pair of floor objects, so a hass update does not search again), and the offset Apply would write. */
+  alignPreview() {
+    const st = this.st, key = this.alignKey;
+    const bk = key === null ? null : floorBelow(st.layout, key);
+    if (key === null || bk === null) return null;
+    const upper = st.layout.floors[key], lower = st.layout.floors[bk];
+    if (!this.alignMemo || this.alignMemo.upper !== upper || this.alignMemo.lower !== lower) this.alignMemo = { upper, lower, r: alignFloor(upper, lower) };
+    const r = this.alignMemo.r, cur = upper.offset ?? [0, 0], lo = lower.offset ?? [0, 0];
+    const next: Pt | null = r ? [Math.round(lo[0] + r.t[0]) + 0, Math.round(lo[1] + r.t[1]) + 0] : null;
+    return { key, belowKey: bk, belowTitle: lower.title || bk, r, cur, next, delta: next ? ([next[0] - cur[0], next[1] - cur[1]] as Pt) : null };
+  }
+  /** Apply: the best offset in one undo step. */
+  applyAlign() {
+    const a = this.alignPreview();
+    if (!a || !a.r || !a.next) return;
+    if (this.st.setOffset(a.key, a.next)) { this.changed(`Aligned to ${a.belowTitle}: ${Math.round(a.r.score)} % match`); return; }
+    if (this.st.planBlocked) { this.refused(); return; }
+    this.status = "Already aligned"; this.requestUpdate();
+  }
+  /** One of the two offset fields (cm): a number, one undo step; junk or the same value changes nothing and the field shows the layout again. */
+  setAlignOffset(axis: 0 | 1, text: string) {
+    const a = this.alignPreview();
+    if (!a) return;
+    const n = text.trim() === "" ? NaN : Number(text.trim().replace(",", "."));
+    if (!Number.isFinite(n)) { this.status = "Type a number of centimetres"; this.requestUpdate(); return; }
+    const to: Pt = axis === 0 ? [n, a.cur[1]] : [a.cur[0], n];
+    if (this.st.setOffset(a.key, to)) this.changed("Floor offset set"); else this.refused();
+  }
+  resetAlignOffset() { const a = this.alignPreview(); if (a && (a.cur[0] !== 0 || a.cur[1] !== 0)) { if (this.st.setOffset(a.key, [0, 0])) this.changed("Floor offset reset"); else this.refused(); } }
+  /** The floor below as `renderFloor`'s ghost: shown while the Align mode is open. */
+  private ghostOpts(): { floor: Floor; shift: Pt } | undefined {
+    const key = this.alignKey, bk = key === null ? null : floorBelow(this.st.layout, key);
+    return this.asideMode === "align" && key !== null && bk !== null && key === this.st.floor ? { floor: this.st.layout.floors[bk], shift: floorShift(this.st.layout, bk, key) } : undefined;
+  }
   async startAddFloor() {
     this.addingFloor = true;
     await this.updateComplete;
@@ -2627,7 +2678,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.refused();
   };
 
-  setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
+  setFloor(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.closeAlign(false); this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
 
   /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
   private saveByKey() {
@@ -2855,7 +2906,7 @@ export class FloorplanStudioEditor extends LitElement {
     const { activeGroup } = floorGroups(st);
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, labels: st.labels, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, ghost: this.ghostOpts(), labels: st.labels, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
     const find = this.findData();
     return html`
       ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span>${this.banner.action ? html`<button class="banner-act" id=${this.banner.action.id} @click=${this.banner.action.run}>${this.banner.action.label}</button>` : nothing}<button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
