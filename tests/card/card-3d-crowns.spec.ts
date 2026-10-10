@@ -50,10 +50,11 @@ test.describe("3D view: tree crowns (S28.7)", () => {
     expect(c.inScene).toBe(1);
     expect(c.own).toHaveLength(1);
     expect(c.own[0].count).toBe(TREES.length);
-    expect(c.own[0].faces).toBe(80); // an icosahedron, detail 1, flat
+    expect(c.own[0].faces).toBe(180); // an icosahedron, detail 2 (20 * 3 * 3 faces), flat
     const shapes = TREES.map((m) => ({ s: treeShape(m as never)!, z0: furnitureBottom(m as never) }));
     expect(c.own[0].box[2]).toBeCloseTo(Math.min(...shapes.map((t) => t.z0 + t.s.crownBottom)), 2);
-    expect(c.own[0].box[5]).toBeCloseTo(Math.max(...shapes.map((t) => t.z0 + t.s.crownTop)), 2);
+    // the crown is never taller than it is wide (S28 final): it stands on crownBottom and is 2 * min(range / 2, the larger radius) high
+    expect(c.own[0].box[5]).toBeCloseTo(Math.max(...shapes.map((t) => t.z0 + t.s.crownBottom + 2 * Math.min((t.s.crownTop - t.s.crownBottom) / 2, Math.max(t.s.rx, t.s.ry)))), 2);
     // asymmetric on purpose: the crown is as wide as the tree's w along x and h along y (rot 0 here), not a ball of one radius
     expect(c.own[0].box[0]).toBeCloseTo(Math.min(...TREES.map((m) => m.x - m.w / 2)), 2);
     expect(c.own[0].box[3]).toBeCloseTo(Math.max(...TREES.map((m) => m.x + m.w / 2)), 2);

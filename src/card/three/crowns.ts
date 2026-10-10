@@ -5,7 +5,7 @@
 import { BufferAttribute, IcosahedronGeometry, InstancedMesh, Matrix4, type BufferGeometry, type Material } from "three";
 import type { Solid } from "../../core/scene";
 
-/** Icosahedron detail 2: 320 flat faces, a rounded blob that reads as foliage and costs little (one mesh for every tree). */
+/** Icosahedron detail 2: 180 flat faces, a rounded blob that reads as foliage and costs little (one mesh for every tree). */
 export const CROWN_SEGMENTS = 2;
 /** The share of its radius a vertex may move in or out: a slight irregularity, the same for every crown. */
 const LUMP = 0.07;
@@ -46,6 +46,7 @@ function crownGeometry(): BufferGeometry {
   const b = g.boundingBox!;
   for (let i = 0; i < pos.count; i++) pos.setXYZ(i, (2 * pos.getX(i) - b.max.x - b.min.x) / (b.max.x - b.min.x), (2 * pos.getY(i) - b.max.y - b.min.y) / (b.max.y - b.min.y), (2 * pos.getZ(i) - b.max.z - b.min.z) / (b.max.z - b.min.z));
   g.computeVertexNormals(); // flat: each face is its own three vertices
+  g.computeBoundingBox(); // the box of the fitted shape: exactly [-1, 1]
   g.computeBoundingSphere();
   return g;
 }
