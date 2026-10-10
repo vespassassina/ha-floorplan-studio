@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: 2.5D shade bands start on the wall's centreline (S28 Opus review)
+
+The wall side face is drawn up from the centreline, so the foot the eye sees sits there. The bands started at the room face (5 or 10 cm out), leaving a strip of bare floor under the face, about 15 px at a steep tilt. The full band now runs from the line to face + 6 cm, the half band 6 cm more: same outer reach, no gap. The walls draw over the shade, so the part under the wall is hidden. A Playwright probe reads the pixel 2 cm off the line in a real render.
+
 ## 2026-10-10: A sealed panel has no frame in any view (S28 Opus review)
 
 The 2.5D draw and SPEC.md said no frame for a sealed panel; the 3D builder had its own condition and framed it, and the 3D test kept a local table that agreed with the builder. Now `OPENING_FRAMED` (solids.ts) is the one table: 2.5D, 3D (through `SceneDeps`) and the test over every opening kind read it. A sealed panel is a fixed pane, not something you pass or trim. `docs/card.md` now says what SPEC.md says.

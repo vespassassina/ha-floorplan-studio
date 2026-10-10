@@ -19,16 +19,16 @@ const shade = (svg: string) => /<g class="shade">(.*?)<\/g>/s.exec(svg)?.[1] ?? 
 const polys = (g: string, cls: string) => [...g.matchAll(new RegExp(`<polygon class="${cls}" points="([^"]*)"/>`, "g"))].map((m) => m[1]);
 
 describe("S28.5 2.5D contact shadows", () => {
-  it("one wall draws two bands on each side: 6 cm at full alpha then 6 cm at half, from the wall's face", () => {
-    // wall kind: the face lies 5 cm from the line, so the bands start at 5 and 11 cm.
+  it("one wall draws two bands on each side: 6 cm at full alpha then 6 cm at half, from the centreline where the face is drawn", () => {
+    // wall kind: the face lies 5 cm from the line; the bands start on the line and the full band ends 6 cm past the face (11 cm), the half band at 17.
     const g = shade(deep(bare({ outline: [], walls: [{ a: [100, 100], b: [300, 100], kind: "wall" }] as never })));
-    expect(polys(g, "s1")).toEqual(["100,105 300,105 300,111 100,111", "100,95 300,95 300,89 100,89"]);
+    expect(polys(g, "s1")).toEqual(["100,100 300,100 300,111 100,111", "100,100 300,100 300,89 100,89"]);
     expect(polys(g, "s2")).toEqual(["100,111 300,111 300,117 100,117", "100,89 300,89 300,83 100,83"]);
   });
 
-  it("an external wall's face is 10 cm out; a fence's is the line itself", () => {
+  it("an external wall's face is 10 cm out; a fence's is the line itself; every band starts on the line", () => {
     const ext = shade(deep(bare({ outline: [], walls: [{ a: [100, 100], b: [300, 100], kind: "external" }] as never })));
-    expect(polys(ext, "s1")[0]).toBe("100,110 300,110 300,116 100,116");
+    expect(polys(ext, "s1")[0]).toBe("100,100 300,100 300,116 100,116");
     const fence = shade(deep(bare({ outline: [], walls: [{ a: [100, 100], b: [300, 100], kind: "fence" }] as never })));
     expect(polys(fence, "s1")[0]).toBe("100,100 300,100 300,106 100,106");
   });

@@ -57,6 +57,19 @@ for (const c of [{ t: "light", dark: false }, { t: "blueprint", dark: false }] a
         const drop = (lum(mid) - lum(foot)) / lum(mid);
         expect(drop, `foot ${foot} mid ${mid}`).toBeGreaterThanOrEqual(0.04);
       });
+      test(`${night ? "night" : "day"}: 2 cm off the drawn wall foot (the centreline) is shaded too, no bare strip under the face (S28 review)`, async ({ page }) => {
+        await page.setContent(`<!DOCTYPE html><html><body style="margin:0"><style>${FLOORPLAN_CSS}</style>${page_(c, "c0", { night })}</body></html>`);
+        const shot = (await page.screenshot({ clip: { x: 0, y: 0, width: 640, height: 560 } })).toString("base64");
+        // The wall side face is drawn on the centreline (y = 0 for the north wall), so the foot the eye sees is there, 10 cm before the room face.
+        const at = (x: number, y: number) => [x + 20, y + 80];
+        const [near, mid] = await page.evaluate(async ([b64, pts]) => {
+          const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+          const cv = document.createElement("canvas"); cv.width = bmp.width; cv.height = bmp.height;
+          const g = cv.getContext("2d")!; g.drawImage(bmp, 0, 0);
+          return (pts as unknown as number[][]).map(([x, y]) => Array.from(g.getImageData(Math.round(x * 2), Math.round(y * 2), 1, 1).data.slice(0, 3)));
+        }, [shot, [at(120, 2), at(120, 250)]] as const);
+        expect((lum(mid) - lum(near)) / lum(mid), `near ${near} mid ${mid}`).toBeGreaterThanOrEqual(0.04);
+      });
     }
   });
 }

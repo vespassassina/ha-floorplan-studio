@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2.5D wall shadows reach the wall foot; a strip of bare floor showed under the wall face.
 - A sealed panel has no frame in 3D either, as in 2.5D and the spec.
 - 2.5D has contact shadows: a soft stepped band along both sides of every wall and a patch under every piece of furniture, appliance and device body, so things sit on the floor instead of floating over it. Baked, no blur, none at tilt 0.
 - 3D has a ground plane under the house and soft contact shadows: a band along each wall foot, a patch under furniture, boxes and device bodies, and a soft ellipse under each tree. Never tappable, on every floor drawn. They are not sun shadows; nothing moves with the time of day.

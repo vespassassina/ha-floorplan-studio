@@ -713,7 +713,9 @@ export function shadeMarkup(segs: WallSeg[], solids: Solid[], px: Proj): string 
       const at = (p: Pt, o: number): Pt => [p[0] - uy * side * o, p[1] + ux * side * o];
       return `<polygon class="${cls}" points="${pts([at(w.a, o0), at(w.b, o0), at(w.b, o1), at(w.a, o1)])}"/>`;
     };
-    for (const side of [1, -1]) out.push(band(side, face, face + SHADE_STEP, "s1"));
+    // The wall's side face is drawn on the centreline, so the foot the eye sees is there, not at the room face: start at 0 (the walls are
+    // drawn over the shade) and keep the outer reach at face + 2 steps.
+    for (const side of [1, -1]) out.push(band(side, 0, face + SHADE_STEP, "s1"));
     for (const side of [1, -1]) out.push(band(side, face + SHADE_STEP, face + 2 * SHADE_STEP, "s2"));
   }
   for (const s of solids) {
