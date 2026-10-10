@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKey, floorBelow, floorShift, floorSwitch, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKeyOf, floorBelow, floorShift, floorSwitch, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -2655,7 +2655,7 @@ export class FloorplanStudioEditor extends LitElement {
     // The preview keeps the last answer while a drag is in progress and searches once when it ends.
     const dragging = this.drag !== null && this.drag.type !== "pan" && this.drag.type !== "marquee" && this.drag.moved;
     // S28.12: keyed on what the search reads (`alignKey`), not on the floor objects: a nudge or an undo makes new objects with the same structure.
-    const k = dragging && this.alignMemo ? this.alignMemo.key : `${alignKey(upper)}#${alignKey(lower)}`;
+    const k = dragging && this.alignMemo ? this.alignMemo.key : `${alignKeyOf(upper)}#${alignKeyOf(lower)}`;
     if (!this.alignMemo || this.alignMemo.key !== k) { this.alignSearches++; this.alignMemo = { key: k, r: alignFloor(upper, lower) }; }
     const r = this.alignMemo.r, cur = upper.offset ?? [0, 0], lo = lower.offset ?? [0, 0];
     const next: Pt | null = r ? [Math.round(lo[0] + r.t[0]) + 0, Math.round(lo[1] + r.t[1]) + 0] : null;

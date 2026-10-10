@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import stress from "../fixtures/stress-layout.json";
 import house from "../fixtures/align-house.json";
-import { alignFloor, alignKey } from "../../src/core/align";
+import { alignFloor, alignKey, alignKeyOf } from "../../src/core/align";
 import { validate } from "../../src/core/schema";
 import type { Floor, Layout } from "../../src/core/schema";
 
@@ -237,3 +237,24 @@ describe("alignKey (S28.12)", () => {
   });
 });
 
+
+// S28 review: the editor asks for both keys on every render; a WeakMap on the floor object spares the string building.
+describe("alignKeyOf", () => {
+  const base = (): Floor => ({ ...blank(rect(0, 0, 800, 600)), owk: ["external", "external", "external", "external"], walls: [{ a: [0, 0], b: [800, 0], kind: "external" } as any] });
+  it("is alignKey for the same floor", () => { const f = base(); expect(alignKeyOf(f)).toBe(alignKey(f)); });
+  it("does not build the key again for an object it has seen", () => {
+    const f = base(), k = alignKeyOf(f);
+    f.outline[2] = [800, 777]; // a change in place: the cached answer stands, which proves the string was not rebuilt (floors are never edited in place; an edit makes a new object)
+    expect(alignKeyOf(f)).toBe(k);
+    expect(alignKey(f)).not.toBe(k);
+  });
+  it("an edit, which is a new floor object, changes the key", () => {
+    const a = base(), k = alignKeyOf(a), b = clone(a);
+    b.outline[2] = [800, 601];
+    expect(alignKeyOf(b)).not.toBe(k);
+    expect(alignKeyOf(a)).toBe(k);
+  });
+  it("junk that cannot be a WeakMap key still gives a string and never throws", () => {
+    for (const j of [null, undefined, 5, "x"]) expect(typeof alignKeyOf(j as any)).toBe("string");
+  });
+});

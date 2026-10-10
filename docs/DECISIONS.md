@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: The Align key is memoised on the floor object (S28 Opus review)
+
+`alignPreview` runs on every render and built `alignKey` of both floors each time: a walk of every wall, for a string that only changes when the floor does. `alignKeyOf` puts a `WeakMap` in front, keyed on the floor object. This is safe because a floor is never edited in place: `EditorState.edit` clones, and the drag handlers clone `d.base` before changing it, so an edit is a new object and gets a new key. A test pins both sides (same object, no rebuild; changed copy, new key).
+
 ## 2026-10-10: The declutter lets go of a lost pointer and re-measures after fonts (S28 Opus review)
 
 The set of held pointers (which freezes the label answer during a drag) was emptied only by `pointerup` and `pointercancel` on the window. A lost pointer capture or a tab hidden mid-drag could leave an id in it for good, and the labels would never settle. Both now empty it. Separately the size cache kept a 0 x 0 measured before layout, and kept widths measured in the fallback font: a 0 x 0 is no longer kept, and `document.fonts` `loadingdone` clears the cache and asks for a new decision.

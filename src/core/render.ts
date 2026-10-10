@@ -9,8 +9,6 @@ import { rolesToTokens } from "./theme-roles";
 import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
 import { esc, num, pts, tag } from "./fmt";
 import { treeShadeSvg } from "./tree";
-
-/** S28.3: where a tree's shade patch lies from the tree, cm in plan axes (the sun is fixed; the patch does not turn with the tree). */
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";

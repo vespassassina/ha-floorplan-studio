@@ -191,6 +191,18 @@ export function alignKey(f: unknown): string {
   }
 }
 
+const keys = new WeakMap<object, string>();
+/**
+ * `alignKey` with a memo on the floor object. The editor asks for the key of both floors on every render, and a floor is never edited in
+ * place (every edit makes a new object, see EditorState.edit), so an object seen before has the same key. Anything that is not an object is not memoised.
+ */
+export function alignKeyOf(f: unknown): string {
+  if (typeof f !== "object" || f === null) return alignKey(f);
+  let k = keys.get(f);
+  if (k === undefined) { k = alignKey(f); keys.set(f, k); }
+  return k;
+}
+
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** The translation that lays `upper` best on `lower`, and how well it fits; null when either has nothing to match. Never throws. */
