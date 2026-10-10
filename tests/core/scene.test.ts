@@ -220,7 +220,7 @@ describe("scene: openings are gaps", () => {
     const [ground, first] = demoFloors();
     const g = buildScene(ground), fs = buildScene(first);
     expect(g.solids.filter((s) => s.tag === "door-leaf").map((s) => s.ref.index).sort()).toEqual([0, 2]); // doors 0 and 2 are plain doors; 1 is glass
-    expect(g.solids.filter((s) => s.tag === "glass")).toHaveLength(1);
+    expect(g.solids.filter((s) => s.tag === "glass")).toHaveLength(2); // the patio door and, since S27.C, the kitchen's full-height window
     expect(fs.solids.filter((s) => s.tag === "glass")).toHaveLength(1);
     const win = fs.solids.find((s) => s.tag === "glass")!, { sill, head } = doorSpan(first.doors[0]);
     expect([prism(win).z0, prism(win).z1]).toEqual([sill, head]);
@@ -466,7 +466,7 @@ describe("scene: whole-scene properties", () => {
     const g = buildScene(demoFloors()[0]);
     for (const k of ["floor", "wall", "room", "furniture", "stair", "device"]) expect(g.solids.some((s) => s.kind === k), k).toBe(true);
     expect(g.solids.filter((s) => s.kind === "furniture")).toHaveLength(2);
-    expect(g.solids.filter((s) => s.kind === "device")).toHaveLength(8);
+    expect(g.solids.filter((s) => s.kind === "device")).toHaveLength(12); // 8, and the four icons stacked in the Hall (S27.C, for spiderfy)
     expect(g.solids.filter((s) => s.kind === "device" && s.shape.type === "prism").map((s) => s.tag)).toEqual(["heater"]);
     for (const s of g.solids.filter((x) => x.kind === "wall" && x.tag !== "glass" && x.tag !== "door-leaf")) expect(prism(s).z1).toBeLessThanOrEqual(floorHeight(demoFloors()[0]));
   });

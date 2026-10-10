@@ -289,6 +289,18 @@
             550
           ],
           "cover": "cover.demo_garage_door"
+        },
+        {
+          "name": "Kitchen full-height window",
+          "kind": "fullwindow",
+          "a": [
+            800,
+            60
+          ],
+          "b": [
+            800,
+            300
+          ]
         }
       ],
       "openings": [],
@@ -364,6 +376,38 @@
             260,
             8
           ]
+        },
+        {
+          "id": "computer-hall",
+          "type": "computer",
+          "entity": "sensor.demo_hall_pc",
+          "name": "Hall computer",
+          "x": 560,
+          "y": 560
+        },
+        {
+          "id": "cover-hall-blind",
+          "type": "cover",
+          "entity": "cover.demo_hall_blind",
+          "name": "Hall blind",
+          "x": 560,
+          "y": 560
+        },
+        {
+          "id": "printer-hall",
+          "type": "printer",
+          "entity": "sensor.demo_hall_printer",
+          "name": "Hall printer",
+          "x": 560,
+          "y": 560
+        },
+        {
+          "id": "ap-hall",
+          "type": "access_point",
+          "entity": "sensor.demo_hall_ap",
+          "name": "Hall access point",
+          "x": 560,
+          "y": 560
         }
       ],
       "furniture": [
@@ -813,6 +857,38 @@
       "type": "radar",
       "name": "Office radar",
       "entity": "binary_sensor.demo_office_radar_occupancy"
+    },
+    {
+      "id": "computer-hall",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "computer",
+      "name": "Hall computer",
+      "entity": "sensor.demo_hall_pc"
+    },
+    {
+      "id": "cover-hall-blind",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "cover",
+      "name": "Hall blind",
+      "entity": "cover.demo_hall_blind"
+    },
+    {
+      "id": "printer-hall",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "printer",
+      "name": "Hall printer",
+      "entity": "sensor.demo_hall_printer"
+    },
+    {
+      "id": "ap-hall",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "access_point",
+      "name": "Hall access point",
+      "entity": "sensor.demo_hall_ap"
     }
   ]
 }

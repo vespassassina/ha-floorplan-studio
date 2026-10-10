@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { serve, ORIGIN } from "./helpers-3d";
 
 // Diego, 0.12.22: "everything you do in studio must also be done in card". The rule for what is VIEWING: every
 // control the editor's View menu, its zoom group and its Filter menu draw is listed here with a decision, so a new
@@ -20,6 +21,8 @@ const PARITY: Record<string, Decision> = {
   names: { card: "yes", has: 'button[aria-label="Device names"]' },
   labels: { card: "yes", has: 'button[aria-label="Labels"]' },
   night: { card: "deliberate", why: "a preview of what the card already does: it goes dark after sunset by itself (`night`, `sun`)" },
+  // S27.11: the card's Floor below button (2D and 2.5D); in 3D the same choice is the Floors below select, checked below.
+  ghostFloor: { card: "yes", has: 'button[aria-label="Floor below"]' },
   thSub: { card: "yes", has: 'select[aria-label="Theme"]' },
   recenter: { card: "yes", has: 'button[aria-label="Fit"]' },
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
@@ -79,6 +82,21 @@ test("every control the card is said to have is on a 2.5D card", async ({ page }
     await expect(page.locator("floorplan-studio-card").locator(`css=${d.has}`), `${id}: ${d.has}`).toHaveCount(1);
   }
   for (const [id, has] of Object.entries(CARD_ONLY)) await expect(page.locator("floorplan-studio-card").locator(`css=${has}`), `${id}: ${has}`).toHaveCount(1);
+});
+
+test("in 3D the Floor below choice is the Floors below select, and the button is gone", async ({ page }) => {
+  await serve(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${ORIGIN}/harness.html`);
+  await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+  await page.evaluate((layout) => {
+    const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+    el.setConfig({ type: "custom:floorplan-studio-card", view: "3d", layout, floor: "first", active_list: false });
+    el.hass = { states: {}, callService: () => undefined };
+    return el.updateComplete;
+  }, demo);
+  await expect(page.locator("floorplan-studio-card").locator('css=select[aria-label="Floors below"]')).toHaveCount(1);
+  await expect(page.locator("floorplan-studio-card").locator('css=button[aria-label="Floor below"]')).toHaveCount(0);
 });
 
 test("docs/card.md lists every control and its decision", () => {

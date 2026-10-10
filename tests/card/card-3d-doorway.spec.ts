@@ -9,7 +9,7 @@ const SENSOR = "binary_sensor.hall_arch", VIBE = "binary_sensor.hall_arch_vibrat
 const iso = (agoS = 0) => new Date(Date.now() - agoS * 1000).toISOString();
 const st = (state: string) => ({ state, attributes: {}, last_changed: iso(5) });
 const QUIET = () => ({ [SENSOR]: st("off"), [VIBE]: st("off"), [FRONT]: st("off") });
-const ARCH = 3; // the doorway's index in the ground floor's doors (the demo has three)
+const ARCH = 4; // the doorway's index in the ground floor's doors (the demo has four, the last a full-height window)
 interface Live { builds: number; doors: { index: number; tag: string; visible: boolean; rot: number; colour: string }[] }
 const live = (page: Page) => page.evaluate(() => (window as unknown as { __fp3d: { live(): unknown } }).__fp3d.live()) as Promise<Live>;
 const band = async (page: Page) => (await live(page)).doors.find((d) => d.index === ARCH && d.tag === "band")!;

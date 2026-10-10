@@ -102,6 +102,23 @@ in `prompts/`, then fixed in the editor.
   The schema stays v2 (an old card ignores the field). Only the views that show
   more than one floor read it (ghost floor, floors below in 3D, Align); one
   floor's own plan is drawn exactly as without it.
+
+**Floors (S27).** The floor below is the key before this one in `floors` order, the order `floorElevation` stacks;
+the lowest floor has none. `floorShift(layout, from, to)` is what to add to a point of `from` to draw it on `to`
+(`from.offset - to.offset`).
+
+- **Align.** `alignFloor(upper, lower)` finds the translation that lays `upper` on `lower`, in stored coordinates, and
+  a score: the share of the upper floor's structure length (outline edges and external walls, else room edges),
+  sampled every 10 cm, within 5 cm of the lower floor's after the move. Under 50 % is "weak". The Studio's Align tab
+  (Floors, Align to floor below) shows it and Apply writes `lower.offset + t`, rounded to whole cm, as one undo step;
+  Lock plan refuses it.
+- **Ghost floor.** The floor below drawn as faint lines (`--fp-ghost`) under the shown one, at its relative offset: no
+  fills, devices, text or hit targets, drawn by `renderFloor` so the editor and the card cannot differ. Studio: View,
+  Floor below (off, kept in the browser). Card: `ghost_floor: true` and the Floor below button.
+- **Floors below in 3D.** Card `floors_below: off | ghost | solid` and a Floors below select beside Walls. Each lower
+  floor at its own elevation and offset; never picked, not framed by the camera, no live state.
+- **Floor switch.** In 2D and 2.5D the new floor's plan fades in from 16 px in the direction of travel over 220 ms
+  (`data-switch`, `fp-floor-in-up`, `fp-floor-in-down`); 3D cuts. `prefers-reduced-motion: reduce`: no animation.
 - `room.kind`: room, garden, pavement, fill, terrace, structure, zone, water.
   `room.area` is the HA area id. A zone is a dashed subdivision inside a room
   (a reading corner, a kitchen in an open living room): every edge is a

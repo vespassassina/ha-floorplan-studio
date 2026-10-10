@@ -212,11 +212,11 @@ test("Device places one and the list shrinks; removing it makes the list grow", 
   await page.locator("#vdel").click();
   // the light and its relay come back together
   expect(await unplacedCount(page)).toBe(3);
-  expect((await groundOf(page)).devices).toHaveLength(7);
+  expect((await groundOf(page)).devices).toHaveLength(11); // 7, and the four stacked in the Hall (S27.C)
   await openDevice(page);
   await devItem(page, "light-living").click(); // a real click on the visible item
   await expect(unplaced(page)).toHaveCount(2); // S8.5: the panel stays open after a pick
-  expect((await groundOf(page)).devices).toHaveLength(8);
+  expect((await groundOf(page)).devices).toHaveLength(12);
 });
 
 test("Add, Furniture, bed places a bed that can be moved and resized in the panel", async ({ page }) => {
@@ -1414,7 +1414,7 @@ async function clicksCm(page: Page, ...pts: [number, number][]) {
   for (const [x, y] of pts) await clickCm(page, x, y);
 }
 const svgCursor = (page: Page) => page.locator("svg").first().evaluate((s) => getComputedStyle(s).cursor);
-const drawnPoints = (page: Page) => page.locator("svg [data-dp]");
+const drawnPoints = (page: Page) => page.locator("svg circle[data-dp]");
 // Free ground below the house (outline ends at y 600), away from every corner. Off-grid on purpose:
 // the snapped points differ from the pointer, so a click that skipped snapping is caught.
 const FREE: [number, number][] = [[103, 632], [297, 633], [298, 668], [102, 667]];
@@ -1978,7 +1978,7 @@ test("Escape in the search field closes the panel and gives the keys back to the
   await expect(page.locator("#addDevPanel")).toHaveCount(0);
   await selectDev(page, 0);
   await page.keyboard.press("Delete");
-  expect((await groundOf(page)).devices).toHaveLength(7);
+  expect((await groundOf(page)).devices).toHaveLength(11); // 7, and the four stacked in the Hall (S27.C)
 });
 
 test("a device name with markup is text in the Device panel, and a click on it places that device", async ({ page }) => {
@@ -8660,9 +8660,9 @@ test("effect size: the field is on exactly the devices that draw an effect, and 
     l.floors.ground.devices.push({ id: "siren-x", type: "other", entity: "siren.hall", x: 300, y: 330 });
     el.layout = l;
   }, EDITOR);
-  // light 0 and motion 5 draw one; the switch 2, plug 3 and temp 4 do not; the siren 8 does, though its type is "other".
+  // light 0 and motion 5 draw one; the switch 2, plug 3 and temp 4 do not; the siren 12 (after the demo's eight and the Hall stack) does, though its type is "other".
   const devs = (await groundOf(page)).devices;
-  for (const [i, want] of [[0, true], [2, false], [3, false], [4, false], [5, true], [8, true]] as const) {
+  for (const [i, want] of [[0, true], [2, false], [3, false], [4, false], [5, true], [12, true]] as const) {
     await selectDev(page, i);
     await expect(page.locator("#vz"), `device ${i} panel is open`).toBeVisible();
     await expect(page.locator("#vfx"), `${devs[i].type} ${devs[i].entity}`).toHaveCount(want ? 1 : 0);

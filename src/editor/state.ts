@@ -56,6 +56,12 @@ function readDetail(): DetailMode {
   } catch { return DEFAULT_DETAIL; }
 }
 
+/** S27.11: localStorage key for View, Floor below. A viewer preference, not part of the layout, never an undo step. */
+export const GHOST_KEY = "floorplan-studio:ghost-floor";
+function readGhost(): boolean {
+  try { return localStorage.getItem(GHOST_KEY) === "true"; } catch { return false; }
+}
+
 /** localStorage key for the Help panel's open/closed state (S5.5). A viewer preference, not part of the layout, never an undo step. */
 export const HELP_KEY = "floorplan-studio:help";
 /** The stored choice, or closed when there is none or storage is blocked. */
@@ -200,6 +206,8 @@ export class EditorState {
   theme: ThemeChoice = readTheme();
   /** S25.7: the detail mode (View, Detail). Kept in localStorage, not in the layout, never an undo step. */
   detail: DetailMode = readDetail();
+  /** S27.11: whether the floor below is drawn as a ghost under the plan (View, Floor below). Kept in localStorage, not in the layout, never an undo step. */
+  ghostFloor: boolean = readGhost();
   /** S5.5: whether the Help panel is open. Kept in localStorage, not in the layout, never an undo step. */
   helpOpen: boolean = readHelp();
   /** S7.6: whether the plan is drawn as at night. Kept in localStorage, not in the layout, never an undo step. */
@@ -991,6 +999,11 @@ export class EditorState {
     if (!(DETAIL_VALUES as readonly string[]).includes(m)) return;
     this.detail = m;
     try { localStorage.setItem(DETAIL_KEY, m); } catch { /* private mode: the choice lasts until reload */ }
+  }
+  /** View, Floor below (S27.11). A viewer preference: no undo step, never written to the layout. */
+  setGhostFloor(v: boolean) {
+    this.ghostFloor = v === true;
+    try { localStorage.setItem(GHOST_KEY, String(this.ghostFloor)); } catch { /* private mode: the choice lasts until reload */ }
   }
   /** Opens or closes the Help panel (S5.5). A viewer preference: no undo step, never written to the layout. */
   setHelp(v: boolean) {

@@ -55,5 +55,6 @@ export const GUIDE_STEPS: GuideStep[] = [
   { title: "Add a device", body: "Open [Add], then [Device…], and pick one from the list. It lands on the plan; drag it where it belongs. For something Home Assistant does not know, open [Add], then [Unlinked device], and pick a type instead." },
   { title: "Attach it to Home Assistant", body: "Click the device you placed. Its panel opens on the right. Pick its entity in [Home Assistant entity], so the plan shows its real state." },
   { title: "Add another floor", body: "Open [Floors], then [Add floor], and type a name for the new floor. Click a floor's tab at the top to switch floors." },
+  { title: "Line the floors up", body: "If a floor sits a little off the one under it, open [Floors], then [Align to floor below…], and click Apply. To see the floor below as faint lines while you draw, open [View], then [Floor below]." },
   { title: "Save your plan", body: "Press Cmd/Ctrl+S, or open [File], then [Save]. Inside Home Assistant this keeps your plan for next time. In a plain browser window, use [Export…] to download a copy." },
 ];
