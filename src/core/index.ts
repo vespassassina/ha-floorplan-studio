@@ -42,5 +42,5 @@ export { buildSearchIndex, entryDetail, layoutEntries, normalize, searchIndex } 
 export type { SearchEntry, SearchIndex } from "./search";
 export { FLOOR_OFF_GROUP, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, floorOffRows } from "./floor-off";
 export type { OffGroup, OffRow } from "./floor-off";
-export { NEAR, WEAK_BELOW, alignFloor } from "./align";
+export { NEAR, WEAK_BELOW, alignFloor, alignKey } from "./align";
 export type { AlignResult } from "./align";

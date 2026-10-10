@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import stress from "../fixtures/stress-layout.json";
 import house from "../fixtures/align-house.json";
-import { alignFloor } from "../../src/core/align";
+import { alignFloor, alignKey } from "../../src/core/align";
 import { validate } from "../../src/core/schema";
 import type { Floor, Layout } from "../../src/core/schema";
 
@@ -198,3 +198,42 @@ describe("alignFloor (S27.4)", () => {
     }
   });
 });
+
+describe("alignKey (S28.12)", () => {
+  const base = (): Floor => ({
+    ...blank(rect(0, 0, 800, 600)), owk: ["external", "external", "external", "external"],
+    walls: [{ a: [0, 0], b: [800, 0], kind: "external" } as any, { a: [400, 0], b: [400, 600], kind: "internal" } as any],
+  });
+
+  it("is equal for a floor and its copy with another offset, another title and a moved internal wall", () => {
+    const a = base(), b = clone(a);
+    b.offset = [137.4, -61.7]; b.title = "Other"; (b.walls[1] as any).a = [450, 0];
+    expect(alignKey(b)).toBe(alignKey(a));
+    expect(typeof alignKey(a)).toBe("string");
+  });
+
+  it("differs for a moved outline point, an added external wall and a changed owk", () => {
+    const a = base(), k = alignKey(a);
+    const moved = clone(a); moved.outline[2] = [800, 601];
+    const added = clone(a); added.walls.push({ a: [0, 600], b: [800, 600], kind: "external" } as any);
+    const kind = clone(a); kind.owk = ["external", "external", "window", "external"] as any;
+    const keys = [alignKey(moved), alignKey(added), alignKey(kind)];
+    for (const x of keys) expect(x).not.toBe(k);
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("follows the rooms only when there is no outline and no external wall (what the search reads)", () => {
+    const room = (x: number) => ({ ...blank(), rooms: [{ name: "R", kind: "living", pts: rect(x, 0, x + 300, 300) }] }) as unknown as Floor;
+    expect(alignKey(room(0))).not.toBe(alignKey(room(5)));
+  });
+
+  it("never throws on junk", () => {
+    for (const j of [null, undefined, 5, "x", [], {}, { outline: 5, walls: "w", rooms: 7, owk: { a: 1 } }, { outline: [[NaN, 1], null, "a"], walls: [null, { a: 3 }], rooms: [null] }, { walls: [{ kind: "external", a: [Infinity, 0], b: [1, 1] }] }]) {
+      expect(() => alignKey(j as any), JSON.stringify(j)).not.toThrow();
+      expect(typeof alignKey(j as any)).toBe("string");
+    }
+    const circ: any = { outline: [] }; circ.self = circ;
+    expect(() => alignKey(circ)).not.toThrow();
+  });
+});
+

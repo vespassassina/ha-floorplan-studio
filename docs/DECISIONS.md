@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: Align's memo keys on the structure the search reads, not on floor objects (S28.12)
+
+- `alignKey(floor)` (`align.ts`) is the structure lines `alignFloor` reads, in stored coordinates, plus `owk`. The offset, title, devices and everything else are left out, so a nudge, an undo or a device drag leaves the key as it was and the preview keeps its answer. The memo is `{ key, r }` with the key of both floors. During a moving drag the memo is still kept as it is. Consequence: a device drag no longer searches when it ends (it used to, once); a moved outline point, an added external wall or a changed `owk` does, once. Chosen over a geometry hash of the whole floor, which would search on a moved light. `owk` is in the key although `structure` does not read it, as the plan says. `alignKey` is also exported from `src/core/index.ts` (not named in the task; the editor imports core through it).
+
 ## 2026-10-10: the door frame token mixes into the ink, not the wall side (S28.1)
 
 - The sprint 28 assumption said `--fp-frame` is a mix of `--fp-door` into the wall side. On midnight that mix has the wall side's own luminance (contrast 1.003:1), and a mix with the wall side cannot be relied on to stand off it in any theme. It is now `--fp-door` 40 % into `--fp-ink`, which is light on a dark theme and dark on a light one, so the frame leaves the wall side the same way the wall's own colour does. Measured over all 13 themes plus HA dark: at least 1.5:1. Same commit adds `--fp-tree` (garden green over the garden), `--fp-tree-edge` (garden green 55 % into ink, at least 3:1 on every garden), `--fp-shade` (`--fp-on-light`) and `--fp-shade-alpha` (.16 light, .32 dark, from `SHADE_ALPHA` in `ink.ts`). `treeShape` and `FRAME_WIDTH`/`FRAME_PROUD` land with them; nothing draws any of it yet.
