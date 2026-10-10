@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: Every room kind has a 3D label rank (S28 Opus review)
+
+`roomPriority` knew water and garden; every other kind fell through to the rank of an indoor room, so a pavement or a terrace name could push a bedroom name off the screen. Now a `Record<RoomKind, number>` and a test over `ROOM_KINDS`. Shipped ranks are kept (room 80, garden 70, water 60). New: structure 80 (a building part), zone 75 (a named area over rooms), terrace 70 (outdoor ground, with garden), pavement 65, fill 55 (decoration, still over a readout at 50). Outdoor kinds all rank below the indoor ones.
+
 ## 2026-10-10: 2.5D frame trim lies outside the gap, as in 3D (S28 Opus review)
 
 2.5D drew the jambs inside the opening gap and the head and sill bars inside its height; 3D drew them outside. On a window narrower than two jamb widths the inside jambs met in the middle and ate the glass. 2.5D now copies 3D: jambs beside the gap from sill to head, a head bar above the head and a sill bar below the sill, each a jamb wider each side. The glass span is the opening's, whatever the frame. A test over an 8 cm window reads the glass quad and every frame point.

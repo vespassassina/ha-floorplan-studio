@@ -6,6 +6,7 @@
 // core at run time (types only). Every string that reaches the DOM goes through textContent or setAttribute, never markup,
 // except the icon's inner SVG, which core builds from its own inlined table (CLAUDE.md finding 2).
 import type { Live3D } from "../../core/live";
+import type { RoomKind } from "../../core/schema";
 import { declutter, type Box } from "./declutter";
 
 type P3 = readonly [number, number, number];
@@ -20,8 +21,12 @@ const ICON_PX = 32, HIT_PX = 16;
 /** S28.11. A label that loses to another fades out; the answer is taken once the camera has been still this long (ms), never mid-drag. */
 const SETTLE_MS = 160, LEAD = 1;
 /** Who keeps the room when boxes meet: a device icon, then a room's name (a room over a garden over water), its readout, a device's value, its name. */
-const P_ICON = 100, P_ROOM = 80, P_GARDEN = 70, P_WATER = 60, P_READOUT = 50, P_VALUE = 30, P_DNAME = 20;
-const roomPriority = (kind: string) => (kind === "water" ? P_WATER : kind === "garden" ? P_GARDEN : P_ROOM);
+const P_ICON = 100, P_ROOM = 80, P_ZONE = 75, P_GARDEN = 70, P_PAVEMENT = 65, P_WATER = 60, P_FILL = 55, P_READOUT = 50, P_VALUE = 30, P_DNAME = 20;
+/** One rank per room kind (a Record, so a new kind fails to compile). Indoor names (room, structure) win; a zone is a named area on top of rooms, just under them; outdoor ground (garden, terrace) is
+ *  next, then pavement and water; a fill is decoration and ranks last of the names, still over a readout. */
+export const ROOM_PRIORITY: Record<RoomKind, number> = { room: P_ROOM, structure: P_ROOM, zone: P_ZONE, garden: P_GARDEN, terrace: P_GARDEN, pavement: P_PAVEMENT, water: P_WATER, fill: P_FILL };
+/** The rank of a room's name. The kind comes from layout data, so an unknown one ranks as a room. */
+export const roomPriority = (kind: string): number => (Object.prototype.hasOwnProperty.call(ROOM_PRIORITY, kind) ? ROOM_PRIORITY[kind as RoomKind] : P_ROOM);
 const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
 .fp3-ov *{pointer-events:none}
 .fp3-dev,.fp3-rm{position:absolute;left:0;top:0;will-change:transform}
