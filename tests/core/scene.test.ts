@@ -4,6 +4,7 @@ import { buildScene, ICON_MARGIN, type Solid } from "../../src/core/scene";
 import { deviceSolidTop, FURNITURE_SOLID, DEVICE_SOLID } from "../../src/core/solids";
 import { deviceZ, edgeHeight, floorHeight, furnitureBottom, furnitureHeight, radiatorSpan, unlinkedHeight, wallHeight, doorSpan, openingSpan } from "../../src/core/heights";
 import { stairSteps } from "../../src/core/geometry";
+import { treeShape } from "../../src/core/tree";
 import { DEVICE_TYPES, FURNITURE_SYMBOLS, ROOM_KINDS, type DeviceType, type Floor, type FurnitureSymbol, type Layout, type RoomKind } from "../../src/core/schema";
 
 // The 3D scene, in cm, z up. Every number is read from heights.ts or solids.ts, never copied (spec R3).
@@ -336,10 +337,25 @@ describe("scene: furniture, unlinked, stairs", () => {
       expect(sol[0].tag).toBe(s);
       expect(sol[0].ref.index).toBe(0);
       expect(prism(sol[0]).z0).toBe(furnitureBottom(m as never));
-      expect(prism(sol[0]).z1).toBe(furnitureBottom(m as never) + furnitureHeight(m as never));
+      expect(prism(sol[0]).z1).toBe(furnitureBottom(m as never) + (SYMBOL_DECISION[s] === "pole" ? treeShape(m as never)!.trunkTop : furnitureHeight(m as never))); // a tree's trunk stops under its crown (S28.7)
       if (SYMBOL_DECISION[s] === "pole") { expect(area(sol[0])).toBeLessThan(m.w * m.h / 10); expect(sol[0].ref.size).toEqual([120, 70]); }
       else expect(round(area(sol[0]))).toBe(120 * 70);
     }
+  });
+
+  // S28.7: the trunk is cut where treeShape says, and the solid carries the crown's z range for the viewer.
+  it("a tree's trunk ends at treeShape's trunk top, and the solid names the crown's z range and turn", () => {
+    for (const o of [{}, { w: 90, h: 240 }, { height: 700 }, { height: 700, elevation: 0, rot: 30, w: 50, h: 300 }]) {
+      const m = piece("tree", o), sc = buildScene(floor({ furniture: [m] }), { elevation: 15 }), sol = sc.solids.find((x) => x.kind === "furniture")!, t = treeShape(m as never)!;
+      const z0 = furnitureBottom(m as never) + 15;
+      expect(prism(sol).z0).toBe(z0);
+      expect(prism(sol).z1).toBeCloseTo(z0 + t.trunkTop, 6);
+      expect(sol.ref.crown).toEqual({ z0: z0 + t.crownBottom, z1: z0 + t.crownTop, rot: m.rot });
+    }
+  });
+  it("only a tree has a crown; junk sizes give none and no throw", () => {
+    const sc = buildScene(floor({ furniture: [piece("table"), piece("patio-wood"), piece("tree", { w: 0 }), piece("tree", { h: -4 }), piece("tree", { w: NaN })] }));
+    expect(sc.solids.filter((x) => x.kind === "furniture" && x.ref.crown)).toHaveLength(0);
   });
 
   it("turns a piece about its centre and takes an explicit height", () => {

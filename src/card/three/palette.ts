@@ -26,7 +26,7 @@ const WALL: Record<string, string> = {
   wall: mix("--fp-wall", 55, "--fp-bg"), boundary: mix("--fp-wall", 55, "--fp-bg"), external: mix("--fp-wall-external", 60, "--fp-bg"), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)", parapet: mix("--fp-wall-external", 60, "--fp-bg"),
 };
 const FURNITURE: Record<string, string> = {
-  tree: "var(--fp-dev-garden)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),
+  tree: "var(--fp-tree-edge)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),
   sink: mix("--fp-window", 25, "--fp-furniture"), toilet: mix("--fp-window", 25, "--fp-furniture"), shower: mix("--fp-window", 25, "--fp-furniture"), bathtub: mix("--fp-window", 25, "--fp-furniture"),
 };
 // A device with a body in the scene (radiator, speaker, TV) is drawn at rest here; the live tints are the LIVE roles below. Every other type is a point.
@@ -40,6 +40,7 @@ TABLE.set("panel", solid("var(--fp-sealed)"));
 TABLE.set("door-leaf", solid("var(--fp-door)"));
 TABLE.set("stair", solid(mix("--fp-tread", 70, "--fp-bg")));
 TABLE.set("ring", solid("var(--fp-ink)")); // the dashed outline of the picked room
+TABLE.set("tree-crown", solid("var(--fp-tree)")); // S28.7: the crown, the colour of the 2D crown; the trunk (furniture-tree) is its darker edge colour
 // A linked tv, speaker or computer piece: the tv's blue at rest (as `.furn[data-linked]` on the plan), the plan's on colour when on.
 TABLE.set("furniture-linked", solid(mix("--fp-dev-tv", 70, "--fp-furniture")));
 TABLE.set("piece-on", solid("var(--fp-active)"));

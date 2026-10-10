@@ -3358,7 +3358,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
 
 Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/view3d.ts`, `palette.ts`, a new
 `src/card/three/shade.ts`):
-- [ ] S28.7 3D tree crowns (V22). `scene-build` cuts a tree's trunk at `treeShape`'s trunk top (`treeShape` joins
+- [x] S28.7 3D tree crowns (V22). `scene-build` cuts a tree's trunk at `treeShape`'s trunk top (`treeShape` joins
       `SceneDeps`); the view draws one `InstancedMesh` of icosahedron crowns from the tree solids' `ref.size`, role
       `furniture-tree`, built with the scene, disposed with it, drawn for floors below too, never picked (a tap on a crown
       picks what is under it). Test: unit on the trunk height and on a pure `crownMatrices(solids)` (count, centre, scale;

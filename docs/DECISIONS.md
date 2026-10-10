@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: 3D tree crowns carry their z range in the solid, and have their own colour role (S28.7)
+
+- `scene-build` cuts a tree's trunk at `treeShape`'s trunk top and gives the solid `ref.crown = { z0, z1, rot }` (lift included). The viewer needs no tree rule of its own: `crownMatrices(solids)` reads the size and the crown range from the solid. Chosen over deriving the height from the trunk (a 0.6 constant copied into the chunk). `treeShape` reaches the chunk through `SceneDeps`, as the other helpers do. Scene bounds include the crown top so the camera frames it.
+- The crown is an icosahedron (detail 1, 80 flat faces) scaled so its box is exactly the tree's `w` x `h` x crown height, one `InstancedMesh`, never raycast. A floor below gets its own crown mesh (translucent in ghost mode), disposed with it.
+- Colour: new viewer-only role `tree-crown` = `--fp-tree` (the 2D crown colour); the trunk (`furniture-tree`) is now `--fp-tree-edge`. Before, both were `--fp-dev-garden`, which is grey on blueprint, so a blueprint tree was a grey stick under a grey ball: still grey there, but the trunk now parts from the crown on every theme. Seen at 4x in blueprint, light and ha-dark, day and night. HA dark at night is dim: a dark green crown on near black.
+
 ## 2026-10-10: the door frame token mixes into the ink, not the wall side (S28.1)
 
 - The sprint 28 assumption said `--fp-frame` is a mix of `--fp-door` into the wall side. On midnight that mix has the wall side's own luminance (contrast 1.003:1), and a mix with the wall side cannot be relied on to stand off it in any theme. It is now `--fp-door` 40 % into `--fp-ink`, which is light on a dark theme and dark on a light one, so the frame leaves the wall side the same way the wall's own colour does. Measured over all 13 themes plus HA dark: at least 1.5:1. Same commit adds `--fp-tree` (garden green over the garden), `--fp-tree-edge` (garden green 55 % into ink, at least 3:1 on every garden), `--fp-shade` (`--fp-on-light`) and `--fp-shade-alpha` (.16 light, .32 dark, from `SHADE_ALPHA` in `ink.ts`). `treeShape` and `FRAME_WIDTH`/`FRAME_PROUD` land with them; nothing draws any of it yet.

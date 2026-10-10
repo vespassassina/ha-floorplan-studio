@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Themes carry the colours the 2.5D and 3D polish draws with: `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` and `--fp-shade-alpha`. `npm run shots -- --polish` renders the polish set at 4x.
+- A tree in 3D has a crown: a faceted ball on a 12 cm trunk that ends at 60 % of the tree's height, one draw call for all trees, also on floors drawn below. A tap on a crown reaches what is under it.
 
 ## 0.25.0 - 2026-10-10
 

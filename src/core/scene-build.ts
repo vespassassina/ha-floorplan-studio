@@ -20,7 +20,7 @@ type Schema = typeof import("./schema");
 export type SceneDeps = Pick<Heights, "deviceZ" | "doorSpan" | "edgeHeight" | "floorHeight" | "floorSlab" | "furnitureBottom" | "furnitureHeight" | "openingSpan" | "radiatorSpan" | "unlinkedHeight" | "wallHeight">
   & Pick<Render, "attachedTest" | "inside"> & Pick<typeof import("./stairs"), "resolveStairDirection">
   & Pick<Solids, "DEVICE_SOLID" | "FURNITURE_SOLID" | "KERB_HIGH" | "KERB_OUT" | "OPENING_FILL" | "RADIATOR_DEEP" | "SPEAKER_HEIGHT" | "SPEAKER_SIDE" | "TV_HEIGHT" | "TV_THICK" | "TV_WIDTH" | "UNLINKED_BASE" | "WELL_DEPTH" | "pieceDevice" | "stairBlocks" | "turnAbout" | "tvPlacement" | "within">
-  & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS">;
+  & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape">;
 
 /** A vertical extrusion of a polygon from `z0` to `z1` (every box is one), or a single point (a device with no body of its own). */
 export type Shape = { type: "prism"; base: Pt[]; z0: number; z1: number } | { type: "point"; at: Pt; z: number };
@@ -35,6 +35,8 @@ export type SolidKind = "floor" | "room" | "wall" | "opening" | "furniture" | "u
  * `wall`, the `poly:index` of the wall it sits in, so a viewer that lowers that wall can lower the infill with it.
  */
 export interface SolidRef { poly?: string; index?: number; room?: number; id?: string; entity?: string; entities?: string[]; size?: [number, number]; faces?: [number, number][]; wall?: string;
+  /** A tree's crown (S28.7): its z range in the scene (lift included, as the shapes' are) and the tree's turn in degrees. The viewer draws it; the trunk is the prism. */
+  crown?: { z0: number; z1: number; rot: number };
   /** A device that is a room's own sensor (its `temps`, `humidity` or `motion` list): it draws no marker, and a tap passes through it (DECISIONS S11.1, S12.5). */
   hidden?: true }
 /** `role` is a token the viewer maps to a theme colour; `color` and `texture` are the user's own choice, passed on as written. */
@@ -68,7 +70,7 @@ const JOINT_TOLERANCE = 1;
 
 /** The scene builder, bound to the helpers of core it needs. The 3D chunk builds one per view; `core/scene.ts` binds the real ones for the tests. */
 export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) => Scene {
-  const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, KERB_OUT, OPENING_FILL, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS } = d;
+  const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, KERB_OUT, OPENING_FILL, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape } = d;
   const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && fin(p[0]) && fin(p[1]);
   const ring = (p: unknown): Pt[] | null => (Array.isArray(p) && p.length >= 3 && p.every(isPt) ? (p as Pt[]) : null);
@@ -155,7 +157,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     const add = (kind: SolidKind, id: string, tag: string, shape: Shape, ref: SolidRef, paint: Paint) => {
       if (shape.type === "prism") {
         if (shape.base.length < 3 || !shape.base.every(isPt) || !fin(shape.z0) || !fin(shape.z1) || !(shape.z1 > shape.z0)) return;
-        solids.push({ id, kind, tag, shape: { type: "prism", base: shape.base.map((p): Pt => [p[0] + sh[0], p[1] + sh[1]]), z0: shape.z0 + lift, z1: shape.z1 + lift }, ref, paint });
+        const at = ref.crown ? { ...ref, crown: { ...ref.crown, z0: ref.crown.z0 + lift, z1: ref.crown.z1 + lift } } : ref; // the crown's z range is given without the lift, like the shape
+        solids.push({ id, kind, tag, shape: { type: "prism", base: shape.base.map((p): Pt => [p[0] + sh[0], p[1] + sh[1]]), z0: shape.z0 + lift, z1: shape.z1 + lift }, ref: at, paint });
       } else if (isPt(shape.at) && fin(shape.z)) solids.push({ id, kind, tag, shape: { type: "point", at: [shape.at[0] + sh[0], shape.at[1] + sh[1]], z: shape.z + lift }, ref, paint });
     };
     /** Runs one piece's builder; whatever it throws, the piece is lost and the scene is not. */
@@ -303,12 +306,14 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     // Furniture: a block, a trunk (a tree: the crown is the viewer's, from `ref.size`) or a flat slab, by FURNITURE_SOLID.
     list(f.furniture).forEach((m, i) => piece(() => {
       if (!isObj(m) || !has(FURNITURE_SOLID, m.symbol) || ![m.x, m.y, m.rot, m.w, m.h].every(fin) || !(m.w > 0) || !(m.h > 0)) return;
-      const z0 = furnitureBottom(m as never), h = z0 + furnitureHeight(m as never), c: Pt = [m.x, m.y], pole = FURNITURE_SOLID[m.symbol as FurnitureSymbol] === "pole";
+      const z0 = furnitureBottom(m as never), c: Pt = [m.x, m.y], pole = FURNITURE_SOLID[m.symbol as FurnitureSymbol] === "pole";
+      // A tree is a trunk to treeShape's trunk top, and a crown (the viewer's) above it; any other piece stands to its height.
+      const tree = pole ? treeShape(m as never) : null, h = z0 + (tree ? tree.trunkTop : furnitureHeight(m as never));
       const half = pole ? [TRUNK_SIDE / 2, TRUNK_SIDE / 2] : [m.w / 2, m.h / 2];
       const base = ([[-half[0], -half[1]], [half[0], -half[1]], [half[0], half[1]], [-half[0], half[1]]] as Pt[]).map((q) => turnAbout([c[0] + q[0], c[1] + q[1]], pole ? 0 : m.rot, c));
       // A linked tv, speaker or computer (`pieceDevice`) carries its entity and its own colour: the viewer recolours it by state and hands a tap on it to the gesture code.
       const linked = pieceDevice(m as never);
-      add("furniture", `furniture:${i}`, m.symbol, { type: "prism", base, z0, z1: h }, { index: i, id: text(m.id), size: [m.w, m.h], ...(linked ? { entity: linked.entity } : {}) }, { role: linked ? "furniture-linked" : `furniture-${m.symbol}` });
+      add("furniture", `furniture:${i}`, m.symbol, { type: "prism", base, z0, z1: h }, { index: i, id: text(m.id), size: [m.w, m.h], ...(tree ? { crown: { z0: z0 + tree.crownBottom, z1: z0 + tree.crownTop, rot: m.rot } } : {}), ...(linked ? { entity: linked.entity } : {}) }, { role: linked ? "furniture-linked" : `furniture-${m.symbol}` });
     }));
 
     // An unlinked appliance: a low block at its own height, 40 cm across times its scale. Its rotation is not drawn, as in 2.5D.
@@ -354,7 +359,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     const lo: [number, number, number] = [Infinity, Infinity, Infinity], hi: [number, number, number] = [-Infinity, -Infinity, -Infinity];
     const grow = (x: number, y: number, z: number) => { lo[0] = Math.min(lo[0], x); lo[1] = Math.min(lo[1], y); lo[2] = Math.min(lo[2], z); hi[0] = Math.max(hi[0], x); hi[1] = Math.max(hi[1], y); hi[2] = Math.max(hi[2], z); };
     for (const s of solids) {
-      if (s.shape.type === "prism") for (const p of s.shape.base) { grow(p[0], p[1], s.shape.z0); grow(p[0], p[1], s.shape.z1); }
+      if (s.shape.type === "prism") for (const p of s.shape.base) { grow(p[0], p[1], s.shape.z0); grow(p[0], p[1], s.shape.z1); if (s.ref.crown) grow(p[0], p[1], s.ref.crown.z1); } // a tree's crown stands above its trunk: the frame holds it
       else grow(s.shape.at[0], s.shape.at[1], s.shape.z);
     }
     return solids.length ? { solids, bounds: { min: lo, max: hi } } : { solids, bounds: { min: [0, 0, 0], max: [0, 0, 0] } };

@@ -19,6 +19,7 @@ import { createPools, createRings } from "./fx";
 import { createGlow, type GlowSide, type GlowSpec } from "./glow";
 import { createRasters, textureKey, uvOf, type TextureTile } from "./tex";
 import { createOverlay, type Anchors } from "./overlay";
+import { crownMesh } from "./crowns";
 import { debugOnce } from "../../core/debug-once";
 import { pulseAt } from "./ring";
 
@@ -152,7 +153,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
 
   let framed = false;
   let orbit = new Orbit({ min: [0, 0, 0], max: [0, 0, 0] }, 1, FOV, opts.turnDeg);
-  let plan: Plan3D | null = null, themeKey = "", meshes: Mesh[] = [], raf = 0, dragged = false;
+  let plan: Plan3D | null = null, themeKey = "", meshes: Mesh[] = [], crowns: Mesh[] = [], raf = 0, dragged = false;
   // The walls are meshes of their own, built again only when the set of lowered walls changes, never per frame.
   let picker: Picker | null = null, markers: InstancedMesh | null = null, ring: LineLoop | null = null;
   let ringRoom: number | null = null, inset: [number, number] = [0, 0];
@@ -376,7 +377,13 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   /** A restored context starts a new program cache, and the view's end ends it: the kept materials go. */
   function freeKeepers() { for (const m of keepers.values()) m.dispose(); keepers.clear(); }
   const dropMat = (m: MeshLambertMaterial) => { m.map?.dispose(); retire(m); };
-  const dispose = (list: Mesh[]) => { for (const m of list) { scene.remove(m); m.geometry.dispose(); dropMat(m.material as MeshLambertMaterial); } };
+  const dispose = (list: Mesh[]) => { for (const m of list) { scene.remove(m); m.geometry.dispose(); dropMat(m.material as MeshLambertMaterial); if ((m as InstancedMesh).isInstancedMesh) (m as InstancedMesh).dispose(); } };
+  /** S28.7: the crowns of the trees in `solids`, one InstancedMesh, in the tree role's colour; null when there is none. */
+  const crownsOf = (solids: Plan3D["solids"]): InstancedMesh | null => {
+    const p = paintOf("tree-crown", undefined), m = crownMesh(solids, new MeshLambertMaterial({ color: p.colour, flatShading: true }));
+    if (m) scene.add(m);
+    return m;
+  };
   /** One mesh per colour from the solids `pick` accepts, drawn over the z range `zOf` gives (null: left out). A solid with a floor texture gives its top face to a mesh of its own, with UVs in plan cm (tex.ts); its other faces stay the flat colour. */
   const meshesOf = (pick: (s: Plan3D["solids"][number]) => boolean, zOf: (s: Plan3D["solids"][number]) => [number, number] | null, from: Plan3D["solids"] = plan?.solids ?? [], textured = true): Mesh[] => {
     const groups = new Map<string, { tris: Triangles; colour: Color; opacity: number; tile?: TextureTile; uv: number[] }>();
@@ -433,7 +440,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   const isPart = (s: Solid) => s.kind === "opening" && (s.tag === "door-leaf" || s.tag === "glass" || s.tag === "band");
   const drop = (m: Mesh) => { scene.remove(m); m.geometry.dispose(); dropMat(m.material as MeshLambertMaterial); };
   const clear = () => {
-    dispose(meshes); dispose(wallMeshes); meshes = []; wallMeshes = []; texMeshes = [];
+    dispose(meshes); dispose(wallMeshes); dispose(crowns); meshes = []; wallMeshes = []; crowns = []; texMeshes = [];
     wallSides = []; glowSpecs = []; deviceZ = new Map();
     for (const x of parts) drop(x.mesh);
     for (const b of devBodies) { drop(b.mesh); b.lit.forEach(drop); }
@@ -689,7 +696,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
 
   // ---- the floors below (S27.7): meshes of their own, outside `clear` and `build`, so the current floor's rebuilds do not touch them.
   const BELOW_MAX = 32;
-  let belowMeshes: Mesh[] = [], belowArgs: { floors: unknown[]; mode: "ghost" | "solid" } | null = null;
+  let belowMeshes: Mesh[] = [], belowCrowns: Mesh[] = [], belowArgs: { floors: unknown[]; mode: "ghost" | "solid" } | null = null;
   /** The scene of a floor below, kept while the floor object, its elevation and its shift stay: a theme change or a repeat call does not build it again. */
   const belowPlans = new WeakMap<object, Map<string, Plan3D>>();
   const belowPlan = (floor: object, elevation: number, shift: unknown): Plan3D => {
@@ -701,7 +708,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     return p;
   };
   const buildBelow = () => {
-    dispose(belowMeshes); belowMeshes = [];
+    dispose(belowMeshes); dispose(belowCrowns); belowMeshes = []; belowCrowns = [];
     if (!belowArgs) return;
     const ghost = belowArgs.mode === "ghost";
     for (const e of belowArgs.floors) {
@@ -716,6 +723,11 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           m.raycast = () => undefined; // never picked
         }
         belowMeshes.push(...made);
+        const tops = crownsOf(sc.solids); // the trees of a floor below keep their crowns, as the floor keeps its walls
+        if (tops) {
+          if (ghost) { const mat = tops.material as MeshLambertMaterial; mat.transparent = true; mat.opacity = GHOST_OPACITY; mat.depthWrite = false; mat.side = DoubleSide; tops.renderOrder = 1; }
+          belowCrowns.push(tops);
+        }
       } catch (err) { debugOnce("3D view: a floor below could not be built; the others stay", err); }
     }
   };
@@ -726,6 +738,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     if (!plan) { anchors = { devices: new Map(), rooms: new Map() }; applyLive(); return; }
     meshes = meshesOf((s) => !isWall(s) && s.kind !== "device" && !isPiece(s), (s) => (s.shape.type === "prism" ? [s.shape.z0, s.shape.z1] : null));
     applyTextures();
+    const own = crownsOf(plan.solids);
+    if (own) crowns = [own];
     // Rooms by index: where lamps and edges go, and which room a vertex belongs to.
     for (const s of plan.solids) {
       if (s.kind === "room" && s.tag !== "fill" && s.shape.type === "prism" && typeof s.ref.room === "number") {
@@ -851,7 +865,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       canvas.removeEventListener("webglcontextrestored", onRestored);
       if (restoreTimer !== null) clearTimeout(restoreTimer);
       clear(); // the ring too
-      dispose(belowMeshes); belowMeshes = []; belowArgs = null;
+      dispose(belowMeshes); dispose(belowCrowns); belowMeshes = []; belowCrowns = []; belowArgs = null;
       freeKeepers();
       pools.dispose();
       glow.dispose();
@@ -898,6 +912,24 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
             return { transparent: mat.transparent, opacity: mat.opacity, depthWrite: mat.depthWrite, box: [b.min.x, b.min.z, b.min.y, b.max.x, b.max.z, b.max.y] };
           }),
         };
+      },
+      /** S28.7: the crown meshes as drawn (this floor's and the floors below's), each with its instance count, its box in plan terms [x0, y0, z0, x1, y1, z1] over all its instances, and its material. `inScene` counts the ones the scene holds: a floor switch must not leave one behind. */
+      crowns() {
+        const one = (m: Mesh) => {
+          const im = m as InstancedMesh, g = m.geometry;
+          if (!g.boundingBox) g.computeBoundingBox();
+          const b = g.boundingBox!, at = new Matrix4(), v = new Vector3(), lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+          for (let i = 0; i < im.count; i++) {
+            im.getMatrixAt(i, at);
+            for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) {
+              v.set(x, y, z).applyMatrix4(at);
+              lo[0] = Math.min(lo[0], v.x); hi[0] = Math.max(hi[0], v.x); lo[1] = Math.min(lo[1], v.z); hi[1] = Math.max(hi[1], v.z); lo[2] = Math.min(lo[2], v.y); hi[2] = Math.max(hi[2], v.y);
+            }
+          }
+          const mat = m.material as MeshLambertMaterial;
+          return { count: im.count, box: [...lo, ...hi], transparent: mat.transparent, opacity: mat.opacity, faces: g.getAttribute("position").count / 3 };
+        };
+        return { own: crowns.map(one), below: belowCrowns.map(one), inScene: scene.children.filter((c) => c.name === "crowns").length };
       },
       /** Gives the view a floor directly, as `setFloor` does: what the card's own check (validate) would have refused reaches the view this way. */
       setFloor: (floor: unknown) => api.setFloor(floor),

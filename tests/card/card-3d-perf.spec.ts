@@ -108,6 +108,7 @@ test.describe("3D view: hostile layouts, in a real browser (S12.6)", () => {
   const cases: [string, (g: any) => void][] = [
     ["5000 pieces of furniture", (g) => { g.furniture = Array.from({ length: 5000 }, (_, i) => ({ id: `f${i}`, symbol: "table", x: (i % 100) * 8, y: Math.floor(i / 100) * 12, rot: i % 360, w: 15, h: 15 })); }],
     ["a zero-height wall", (g) => { g.walls.push({ id: "z", a: [0, 0], b: [300, 0], kind: "wall", height: 0 }); }],
+    ["2000 trees", (g) => { g.furniture = Array.from({ length: 2000 }, (_, i) => ({ id: `t${i}`, symbol: "tree", x: (i % 50) * 18, y: Math.floor(i / 50) * 18, rot: i % 360, w: 120 + (i % 7), h: 90 + (i % 5) })); }],
     ["a NaN and an Infinity size", (g) => { g.furniture.push({ id: "nan", symbol: "sofa", x: 10, y: 10, rot: 0, w: null, h: 50 }, { id: "inf", symbol: "table", x: 1e999, y: 0, rot: 0, w: 50, h: 50 }); }],
     ["a room with 2000 points", (g) => { g.rooms.push({ id: "big", name: "Big", kind: "room", pts: Array.from({ length: 2000 }, (_, i) => [450 + 200 * Math.cos((i / 2000) * 2 * Math.PI), 300 + 200 * Math.sin((i / 2000) * 2 * Math.PI)]) }); }],
     ["300 devices", (g) => { for (let i = 0; i < 300; i++) g.devices.push({ id: `d${i}`, type: i % 3 ? "light" : "temp", entity: `light.many_${i}`, name: `D${i}`, x: (i % 30) * 25, y: Math.floor(i / 30) * 40 }); }],
@@ -130,6 +131,7 @@ test.describe("3D view: hostile layouts, in a real browser (S12.6)", () => {
       await expect.poll(async () => (await canvas(page).count()) + (await card(page).locator("css=.fp-3d-note, p.msg").count()), { timeout: 10000 }).toBeGreaterThan(0);
       // a layout the validator accepts must draw; one it refuses (NaN) falls back to its line
       if (!name.startsWith("a NaN")) expect(await canvas(page).count()).toBe(1);
+      if (name === "2000 trees") { await drawn(page); expect((await page.evaluate(() => (window as unknown as { __fp3d: { crowns(): { own: { count: number }[] } } }).__fp3d.crowns().own[0]?.count))).toBe(2000); }
       if (await canvas(page).count()) await drawn(page);
       else expect(await card(page).locator("css=.fp-3d-note, p.msg").first().textContent()).toMatch(/3D|plan could not be used/i); // the fallback says why, in its one line
       expect(Date.now() - t0).toBeLessThan(10000);

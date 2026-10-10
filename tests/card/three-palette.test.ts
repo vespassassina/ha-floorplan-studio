@@ -9,7 +9,7 @@ import { isKnownRole, roleStyle } from "../../src/card/three/palette";
 
 describe("palette roles", () => {
   const roles = [
-    "slab", "panel", "door-leaf", "stair", "unlinked",
+    "slab", "panel", "door-leaf", "stair", "unlinked", "ring", "tree-crown",
     "open-door", "door-band", "door-cover", "body-heating", "screen-on", "driver-off", "driver-on", "motion", "motion-radar", "lamp", "backdrop", // S12.5: what the live state paints
     ...ROOM_KINDS.filter((k) => k !== "zone" && k !== "structure").map((k) => `room-${k}`),
     ...WALL_KINDS.map((k) => `wall-${k}`),
