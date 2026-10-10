@@ -56,7 +56,7 @@ in `prompts/`, then fixed in the editor.
   "version": 2, "unit": "cm", "north": 0, "rotate": 0,
   "floors": {
     "ground": {
-      "title": "Ground", "ha": "downstairs",
+      "title": "Ground", "ha": "downstairs", "offset"?: [x, y],
       "outline": [[x, y], ...], "owk": ["external", ...],
       "rooms":   [{"id", "name", "area", "kind", "pts", "wk", "color"?, "texture"?, "textureRot"?, "free"?, "entity"?, "temps"?, "humidity"?, "motion"?, "scenes"?, "haScenes"?}],
       "walls":   [{"id", "a", "b", "kind"}],
@@ -94,6 +94,14 @@ in `prompts/`, then fixed in the editor.
   conditioner's colours come from its state (`--fp-dev-ac-cool`, blue, and
   `--fp-dev-ac-heat`, orange), one knob cannot name two of them. Decided in
   S2.10; a cool and a heat knob can come later if anyone asks.
+- `floor.offset` (optional, S27.2) is where the floor sits in the house, in cm, x
+  right and y down as every plan point. A point's place in the house is its
+  stored point plus the floor's offset; stored coordinates never change. Absent
+  means `[0, 0]`, and writers delete the key at `[0, 0]`. Two finite numbers
+  within +-10 000 000 cm: `validate` reports anything else, `migrate` drops it.
+  The schema stays v2 (an old card ignores the field). Only the views that show
+  more than one floor read it (ghost floor, floors below in 3D, Align); one
+  floor's own plan is drawn exactly as without it.
 - `room.kind`: room, garden, pavement, fill, terrace, structure, zone, water.
   `room.area` is the HA area id. A zone is a dashed subdivision inside a room
   (a reading corner, a kitchen in an open living room): every edge is a
