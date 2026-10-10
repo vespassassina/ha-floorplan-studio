@@ -2,6 +2,9 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the shots show the floors stack (review 27, finding 4)
+
+- `scripts/shots.mjs` adds: `card-first-ghost-<theme>` (four themes) and `-2-5d`, `card-first-below-{ghost,solid}-{blueprint,light}-3d` (orbited, floors below translucent and solid) and `editor-{ghost,align}-{blueprint,light,ha}` (View, Floor below on; Align tab open over `align-house.json`, whose first floor is 137 cm out). The card shots use the demo with the first floor's offset set to [120, 40], so the floor below is displaced and part of it falls under the room fills. The editor shots fail the run if no `g.ghost` is drawn. Light and ha look alike in the editor outside Home Assistant, as before.
 ## 2026-10-10: the ghost floor is drawn after the room fills and stairs, under walls (review 27, finding 3; supersedes S27.5 "first in the plan")
 
 - Drawn first, `g.ghost` sat under the current floor's opaque room fills and was hidden exactly where Align needs it. It is now pushed after the stairs and the night overlay and before the lamp auras, walls, furniture, doors, names and icons. Still one `g.ghost`, no fill, `pointer-events:none` by class, no `data-*`, one draw path for the editor and the card.
