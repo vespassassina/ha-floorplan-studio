@@ -3178,7 +3178,7 @@ Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.
       Files: `src/editor/editor-app.ts`, a new `tests/editor/floor-switch.spec.ts`.
 
 Lane card (`floorplan-studio-card.ts`, `config-editor.ts`, `view-state.ts`):
-- [ ] S27.13 Card ghost floor. `ghost_floor` in YAML and the Floor below button, as the assumption says; the plan passes
+- [x] S27.13 Card ghost floor. `ghost_floor` in YAML and the Floor below button, as the assumption says; the plan passes
       `ghost` with `floorShift`; the config editor offers it. Test: YAML default on and off, junk is off; a real click
       on the button toggles `g.ghost`; a stored viewer choice wins over YAML; the lowest floor draws none; a tap on a
       ghost-only spot opens nothing.

@@ -73,6 +73,8 @@ export interface StoredView {
   layers?: LayerId[];
   /** The detail mode this viewer picked (S25.8); it wins over the card's YAML `detail`. */
   detail?: DetailMode;
+  /** The Floor below button (S27.13): the floor under this one drawn as faint lines. It wins over the card's YAML `ghost_floor`. */
+  ghost?: boolean;
 }
 
 /** Further than this from the origin is not a plan in cm; the bound keeps later arithmetic finite. */
@@ -140,5 +142,6 @@ export function parseStoredView(raw: unknown, isView: (v: unknown) => boolean, t
   const layers = parseLayers(r.layers);
   if (layers.length) out.layers = layers;
   if (typeof r.detail === "string" && (DETAIL_MODES as readonly string[]).includes(r.detail)) out.detail = r.detail as DetailMode;
+  if (typeof r.ghost === "boolean") out.ghost = r.ghost;
   return out;
 }

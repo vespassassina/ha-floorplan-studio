@@ -193,6 +193,10 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("detail", parseDetailMode((e.target as HTMLSelectElement).value), "auto");
   }
 
+  private _onGhost(e: Event): void {
+    this._set("ghost_floor", (e.target as HTMLInputElement).checked, false);
+  }
+
   private _night(): "auto" | "on" | "off" {
     const n = this._config.night;
     return n && (NIGHT_CHOICES as readonly string[]).includes(n) ? n : DEFAULT_NIGHT;
@@ -534,6 +538,11 @@ export class FloorplanStudioCardEditor extends LitElement {
         <select id="detail" title="How much of the plan is drawn at each zoom" @change=${this._onDetail}>
           ${DETAIL_MODES.map((m) => html`<option value=${m} ?selected=${this._detail() === m}>${m === "auto" ? "Auto (follow the zoom)" : `Always ${DETAIL_LABELS[m].toLowerCase()}`}</option>`)}
         </select>
+      </div>
+
+      <div class="row">
+        <label class="main" for="ghost_floor">Floor below (2D, 2.5D)</label>
+        <input id="ghost_floor" type="checkbox" title="Draw the floor under the shown one as faint lines" .checked=${this._config.ghost_floor === true} @change=${this._onGhost} />
       </div>
 
       <div class="row">

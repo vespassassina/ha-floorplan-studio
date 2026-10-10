@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the card's ghost floor is `ghost_floor` plus a Floor below button (S27.13)
+
+- `ghost_floor: true` in YAML (only `true`; junk is off) and a Floor below button in the view controls, 2D and 2.5D. The pick is the viewer's, kept in the view memory (`ghost`, a boolean; anything else in storage is dropped) and wins over the YAML; Reset view clears it. `ghost_floor` joins the storage seed like `detail`, so editing it starts a clean memory.
+- The card hands `renderFloor` `ghost: { floor: below, shift: floorShift(layout, below, shown) }` and draws nothing else itself. The lowest floor has no floor below: no ghost, and the button is disabled with a title that says why. In 3D there is no button: the floors below are the `floors_below` select (S27.14).
+- The button's icon is an inlined path in the card file (Material layers-outline), not an import (finding 9). A tap on a spot where only the ghost is drawn opens nothing, because the ghost is `pointer-events:none` by class rule and carries no `data-*`; the test walks the ghost's lines for a point whose top element is the bare plan and clicks it with the real mouse.
+
 ## 2026-10-10: furniture Lock works under Lock plan (S27.1)
 
 - `EditorState.plan()` drops a furniture piece's `locked` from the compare, so ticking Lock in the panel or the context menu is one undo step under Lock plan. Moving, resizing or turning a piece is still refused. Diego, 2026-10-10: "furniture Lock must work under Lock plan". It supersedes the "known edge" of 'Lock in every panel (S26.16)' and the furniture line of S26.3, which listed Lock with the geometry.

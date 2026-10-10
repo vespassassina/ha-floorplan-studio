@@ -643,3 +643,65 @@ describe("the view is remembered per floor (S14.4)", () => {
     expect(deg()).toBe(135);
   });
 });
+
+describe("the ghost floor: YAML default and the viewer's choice (S27.13)", () => {
+  // The demo's first floor has the ground under it; "test" is the third. The card hands renderFloor the floor below and floorShift.
+  const ghostOf = () => lastOpts().ghost;
+  const ghostBtn = (el: FloorplanStudioCard) => btn(el, "Floor below");
+
+  it("ghost_floor: true draws the floor below with its shift; false, absent and junk draw none", async () => {
+    const lay = structuredClone(L);
+    (lay.floors.ground as { offset?: [number, number] }).offset = [100, 40];
+    (lay.floors.first as { offset?: [number, number] }).offset = [30, -10];
+    const on = await mount({ floor: "first", ghost_floor: true }, lay);
+    expect(ghostOf()?.floor.rooms).toEqual(lay.floors.ground.rooms); // the card migrates a copy: equal, not the same object
+    expect(ghostOf()?.floor.rooms.length).toBeGreaterThan(0);
+    expect(ghostOf()?.shift).toEqual([70, 50]); // ground.offset - first.offset
+    on.remove();
+    for (const v of [false, undefined, "true", 1, "yes", {}, null, []]) {
+      const el = await mount({ floor: "first", ghost_floor: v as never }, lay);
+      expect(ghostOf(), JSON.stringify(v)).toBeUndefined();
+      el.remove();
+      localStorage.clear();
+    }
+  });
+
+  it("the lowest floor has no floor below: nothing is drawn and the button is disabled", async () => {
+    const el = await mount({ floor: "ground", ghost_floor: true });
+    expect(ghostOf()).toBeUndefined();
+    expect(ghostBtn(el)!.disabled).toBe(true);
+  });
+
+  it("the button toggles it, is remembered, and the stored choice wins over YAML either way; Reset view drops it", async () => {
+    const a = await mount({ floor: "first", ghost_floor: true });
+    expect(ghostBtn(a)!.getAttribute("aria-pressed")).toBe("true");
+    await click(a, "Floor below");
+    expect(ghostOf()).toBeUndefined();
+    expect(ghostBtn(a)!.getAttribute("aria-pressed")).toBe("false");
+    a.remove();
+    const b = await mount({ floor: "first", ghost_floor: true }); // same YAML, the viewer said off
+    expect(ghostOf()).toBeUndefined();
+    await click(b, "Reset view");
+    expect(ghostOf()).toBeDefined(); // back to the YAML default
+    b.remove();
+    localStorage.clear();
+
+    const c = await mount({ floor: "first" });
+    expect(ghostOf()).toBeUndefined();
+    await click(c, "Floor below");
+    expect(ghostOf()).toBeDefined();
+    c.remove();
+    await mount({ floor: "first" }); // YAML says nothing, the viewer said on
+    expect(ghostOf()).toBeDefined();
+  });
+
+  it("a stored value that is not a boolean is dropped", async () => {
+    const a = await mount({ floor: "first" });
+    await click(a, "Floor below");
+    a.remove();
+    const [[k, v]] = stored();
+    localStorage.setItem(k, v.replace('"ghost":true', '"ghost":"yes"'));
+    await mount({ floor: "first" });
+    expect(ghostOf()).toBeUndefined();
+  });
+});
