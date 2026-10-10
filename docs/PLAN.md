@@ -3317,14 +3317,14 @@ Wave 0, in order on `task/s28-polish`, one coder (every lane reads what it lays 
 Wave 1, four lanes in parallel after S28.1, each in its own worktree; tasks inside a lane run in order:
 
 Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
-- [ ] S28.2 The ghost floor dims at night. `g.ghost` moves before the night overlay, as the assumption says. Test: unit,
+- [x] S28.2 The ghost floor dims at night. `g.ghost` moves before the night overlay, as the assumption says. Test: unit,
       the markup order (fills, stairs, ghost, night, auras, walls) with night on and off; Playwright in the card and the
       Studio (Preview night), blueprint and light: the contrast of a ghost line against its unlit room at night is under
       .8 times the day contrast and over 1.15:1, and in a lit room within 2 % of the day contrast. Both fail on the old
       order. The review-27 paint-order pairs in `ghost-floor.spec.ts` and `card-ghost.spec.ts` follow the new order.
       Files: `src/core/render.ts`, `tests/core/render-ghost.test.ts`, `tests/editor/ghost-floor.spec.ts`,
       `tests/card/card-ghost.spec.ts`.
-- [ ] S28.3 A 2D tree is a crown (V21). The `tree` symbol becomes the crown, trunk dot and shade patch of the assumption,
+- [x] S28.3 A 2D tree is a crown (V21). The `tree` symbol becomes the crown, trunk dot and shade patch of the assumption,
       through `treeShape`; the patch offset stays (+4, +6) cm whatever `w`, `h` and `rot` are (drawn outside the scaled
       group). Classes, not attributes, carry the colours. Test: unit, the crown path has 8 lobes, the patch is offset by
       exactly (4, 6) cm for a 120 x 300 tree at `rot` 30, a payload name is escaped; computed-style pairs for the crown
@@ -3332,7 +3332,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
       crown edge against the garden it stands on at least 3:1. Shots: 2D gardens looked at in the three themes.
       Files: `src/core/icons.ts`, `src/core/render.ts`, `tests/core/render.test.ts` or a new `tests/core/tree-2d.test.ts`,
       a pair in `tests/editor/editor.spec.ts` and one in `tests/card/`.
-- [ ] S28.4 A 2.5D tree stands (V22). `furnitureSolid` for a pole draws the shade patch at the trunk foot, a 12 cm trunk
+- [x] S28.4 A 2.5D tree stands (V22). `furnitureSolid` for a pole draws the shade patch at the trunk foot, a 12 cm trunk
       up to `treeShape`'s trunk top, and the S28.3 crown at the crown's lifted height, in that order inside the piece's
       group; its depth key is unchanged. Test: unit, the order, the trunk's end point equals `lift(foot, trunkTop)`, the
       crown's translate equals `lift(centre, crown middle)`, rise 0 draws the 2D tree; Playwright at 4x on the shot
@@ -3340,7 +3340,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
       the trunk's. Shots: 2.5D gardens, three themes.
       Files: `src/core/solids.ts`, `src/core/render.ts` if the order needs it, `tests/core/solids-objects.test.ts`, a new
       `tests/card/tree-25d.spec.ts`.
-- [ ] S28.5 2.5D contact shadows (V24). One `g.shade`, as the assumption says: two stepped bands along both sides of every
+- [x] S28.5 2.5D contact shadows (V24). One `g.shade`, as the assumption says: two stepped bands along both sides of every
       drawn wall run, one patch under each furniture box, unlinked box and device body, in `--fp-shade` at
       `--fp-shade-alpha`; `pointer-events:none` by class rule; nothing at rise 0. Test: unit, one `g.shade` in the order of
       the assumption, a band pair per wall run and a patch per box (count over the demo), none at rise 0, junk walls draw
@@ -3349,7 +3349,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
       the group); the 2.5D render of 5000 furniture within the existing render bound. Shots: three themes, day and night.
       Files: `src/core/render.ts`, `src/core/solids.ts`, a new `tests/core/shade-25d.test.ts`, a new
       `tests/card/shade-25d.spec.ts`.
-- [ ] S28.6 2.5D framed openings. `wallSolids` draws jambs, head and (window) sill quads of `FRAME_WIDTH` on the face of
+- [x] S28.6 2.5D framed openings. `wallSolids` draws jambs, head and (window) sill quads of `FRAME_WIDTH` on the face of
       each framed opening, class `frame`, under the cutaway like the wall (a lowered wall lowers its frame); the open and
       alarm red stays as it is. Test: unit, iterate `DOOR_KINDS` plus `opening`: door, glass, window, slit and fullwindow
       framed (fullwindow with no sill), `open`, `opening` and `sealed` not; frame quads lie inside the opening's span

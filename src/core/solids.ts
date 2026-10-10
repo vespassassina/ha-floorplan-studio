@@ -3,6 +3,8 @@
 // numbers: they arrive in a `Proj`, so this file never imports render.ts.
 import { deviceZ, deviceZOr, doorSpan, edgeHeight, floorHeight, furnitureBottom, furnitureHeight, furnitureTop, openingSpan, radiatorSpan, unlinkedHeight, wallHeight } from "./heights";
 import { esc, num, pts, tag } from "./fmt";
+import { TREE_CROWN } from "./icons";
+import { treeShadeSvg, treeShape } from "./tree";
 import { edgeKindAt, nearestEdge, stairSteps } from "./geometry";
 import { doorStateOf, type DoorState } from "./door-state";
 import type { StateOverlay } from "./render";
@@ -29,6 +31,8 @@ export interface Solid {
   key: number; svg: string;
   /** Lies below the floor (a stairwell): drawn before every standing thing, in key order among its own kind, not sorted with them. */
   under?: boolean;
+  /** S28.5: the standing footprint on the floor (plan cm), when the piece stands on it: a contact shadow is drawn round it. */
+  foot?: Pt[];
 }
 
 const finite = (p: unknown): p is Pt => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
@@ -120,7 +124,7 @@ export const WALLS_LABELS: Record<WallsMode, string> = { full: "Full height", cu
 export const wallsModeOf = (v: unknown): WallsMode => (typeof v === "string" && (WALLS_MODES as readonly string[]).includes(v) ? (v as WallsMode) : "cut");
 
 /** One wall piece of the 2.5D plan: an edge or a free wall with a height above zero. */
-interface WallSeg {
+export interface WallSeg {
   a: Pt; b: Pt; h: number; /** 0..1: how far it is lowered toward the cutaway. */ cut: number; kind: string;
   /** Unit outward normals of the room edges that made this piece, in the screen frame; none for a free wall. */
   faces: Pt[];
@@ -231,6 +235,12 @@ export function collectWalls(f: Floor, px: Proj, mode: WallsMode = "cut"): WallS
  * entry per DoorKind, so a new kind fails the test that walks DOOR_KINDS until someone decides (finding 17).
  */
 export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "void" | "glass" | "panel"> = { door: "gap", open: "void", opening: "gap", glass: "glass", window: "glass", slit: "glass", fullwindow: "glass", sealed: "panel" };
+/**
+ * S28.6: which openings wear a frame in 2.5D: two jambs, a head and, above the floor, a sill, each `FRAME_WIDTH` wide. A door, glass
+ * door and the three window kinds do; an open doorway, a plain opening and a sealed panel are holes or wall. One entry per kind, so a new
+ * `DoorKind` fails the test that walks the list until someone decides (finding 17).
+ */
+export const OPENING_FRAMED: Record<DoorKind | "opening", boolean> = { door: true, glass: true, window: true, slit: true, fullwindow: true, sealed: false, open: false, opening: false };
 /** S25.D1 (Diego, 2026-10-09): a door and a glass door fill their gap only while a sensor says closed; with none, or any other state, they are a hole. */
 export const SHUT_KINDS: readonly string[] = ["door", "glass"];
 const has = <T extends string>(table: Record<T, unknown>, k: unknown): k is T => typeof k === "string" && Object.prototype.hasOwnProperty.call(table, k);
@@ -292,9 +302,9 @@ function lighting(w: WallSeg, px: Proj, ux: number, uy: number): { tone: string;
  * window, a glass door) or a panel (sealed). `state` is what the sensors say: an open or alarmed opening wears the
  * same red as its line in 2D (Diego, 0.12.23).
  */
-export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: StateOverlay): Solid[] {
+export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: StateOverlay, segs: WallSeg[] = collectWalls(f, px, mode)): Solid[] {
   const spans = spansOf(f, state);
-  return collectWalls(f, px, mode).map((w) => {
+  return segs.map((w) => {
     const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), ux = (w.b[0] - w.a[0]) / len, uy = (w.b[1] - w.a[1]) / len;
     // Seen from straight above (no lift) a wall has no face: it is drawn exactly as it always was.
     const solid = px.rise > 0, hh = drawnHeight(w, px), { tone, toward } = solid ? lighting(w, px, ux, uy) : { tone: "", toward: [0, 0] as Pt };
@@ -302,6 +312,19 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
     const quad = (t0: number, t1: number, z0: number, z1: number, cls: string) =>
       z1 > z0 && t1 > t0 ? `<polygon class="${cls}" points="${pts([px.lift(at(t0), z0), px.lift(at(t1), z0), px.lift(at(t1), z1), px.lift(at(t0), z1)])}"/>` : "";
     const wall = `ws${kindClass(w.kind)}${tone}`;
+    // S28.6: a frame lies on the face the viewer sees, FRAME_PROUD toward him. A header the lowered wall has cut away has no head bar, and a
+    // sill at or above the wall top no sill bar, so a lowered wall lowers its frame. `sill` and `head` are clipped to the wall; `ownSill` and `ownHead` are not.
+    const proud: Pt = [toward[0] * FRAME_PROUD, toward[1] * FRAME_PROUD];
+    const fq = (t0: number, t1: number, z0: number, z1: number) => {
+      if (!(z1 > z0) || !(t1 > t0)) return "";
+      const c = (t: number, z: number) => px.lift([at(t)[0] + proud[0], at(t)[1] + proud[1]], z);
+      return `<polygon class="frame" points="${pts([c(t0, z0), c(t1, z0), c(t1, z1), c(t0, z1)])}"/>`;
+    };
+    const frameQuads = (t0: number, t1: number, sill: number, head: number, ownSill: number, ownHead: number, top: number): string[] => {
+      const fw = Math.min(FRAME_WIDTH, (t1 - t0) / 2), hasHead = ownHead <= top, hasSill = ownSill > 0 && ownSill < top;
+      const z0 = hasSill ? sill + FRAME_WIDTH : sill, z1 = hasHead ? head - FRAME_WIDTH : head;
+      return [fq(t0, t0 + fw, z0, z1), fq(t1 - fw, t1, z0, z1), hasHead ? fq(t0, t1, head - FRAME_WIDTH, head) : "", hasSill ? fq(t0, t1, sill, sill + FRAME_WIDTH) : ""];
+    };
     /** A block of wall from the floor to `z1`, with its darker foot. */
     const block = (t0: number, t1: number, z1: number) => quad(t0, t1, 0, z1, wall) + (solid ? quad(t0, t1, 0, Math.min(z1, FOOT_HEIGHT), "wfoot") : "");
     const here = spans.map((s) => ({ s, r: within(w, s) })).filter((x): x is { s: Span; r: [number, number] } => x.r !== null).sort((p, q) => p.r[0] - q.r[0]);
@@ -322,6 +345,7 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
       // A door: closed (its sensor says so) it is a painted leaf, open (or alarmed, or its cover open) a red frame round the gap; with no sensor it is a hole. A plain opening is only a gap.
       else if (s.kind !== "opening" && solid && (live || (fill !== "void" && (!shut || s.live.closed)))) faces.push(quad(t0, t1, sill, head, live ? `opn${live}${fill === "void" ? " band" : ""}` : "door-leaf"));
       faces.push(quad(t0, t1, head, hh, wall));
+      if (solid && has(OPENING_FRAMED, s.kind) && OPENING_FRAMED[s.kind]) faces.push(...frameQuads(t0, t1, sill, head, own.sill, own.head, hh));
       if (own.head < hh || own.sill >= hh) top(t0, t1); // a header, or a sill that reaches the top, closes the wall above the gap
       cursor = t1;
     }
@@ -404,14 +428,20 @@ export function pieceDevice(m: Furniture): Device | null {
 export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on: boolean, symbol: string, px: Proj, waves?: string | null): Solid | null {
   const z0 = furnitureBottom(m), h = furnitureTop(m), c: Pt = [m.x, m.y];
   const base = ([[-m.w / 2, -m.h / 2], [m.w / 2, -m.h / 2], [m.w / 2, m.h / 2], [-m.w / 2, m.h / 2]] as Pt[]).map((q) => turnAbout([m.x + q[0], m.y + q[1]], m.rot, c));
-  const top = px.lift(c, h);
+  // S28.4: a tree stands. Its shade patch lies at the foot, a 12 cm trunk rises to `trunkTop` and the crown (no trunk dot: the
+  // trunk is the line) is drawn at the crown's middle. Anything else keeps the symbol at the full height.
+  const tree = mode === "pole" && m.symbol === "tree" ? treeShape(m) : null;
+  const top = px.lift(c, tree ? tree.crownMiddle : h);
   let body: string;
   if (mode === "box") { const p = prism(base, h, px, z0); if (!p) return null; body = p; }
-  else body = `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(top[0])}" y2="${num(top[1])}"/>`;
-  const sym = `<g transform="translate(${num(top[0])} ${num(top[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${symbol}</g>`;
+  else {
+    const end = tree ? px.lift(c, tree.trunkTop) : top;
+    body = (tree ? treeShadeSvg(m) : "") + `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(end[0])}" y2="${num(end[1])}"/>`;
+  }
+  const sym = `<g transform="translate(${num(top[0])} ${num(top[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${tree ? TREE_CROWN : symbol}</g>`;
   // S18.9: a playing tv or speaker sends its waves from the lid, outside the scaled symbol group so they stay round.
   const w = waves ? waves.replace("%AT%", `${num(top[0])} ${num(top[1])}`) : "";
-  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)"${furnitureLinked(m)}>${body}${sym}${w}</g>` };
+  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)"${furnitureLinked(m)}>${body}${sym}${w}</g>`, ...(mode === "box" && z0 < SHADE_MAX_LIFT ? { foot: base } : {}) };
 }
 
 /** cm across the block under an unlinked appliance, times its own scale: a small thing, the icon says what it is. */
@@ -422,7 +452,7 @@ export function unlinkedSolid(u: Unlinked, px: Proj): Solid | null {
   const scale = typeof u.scale === "number" && Number.isFinite(u.scale) && u.scale > 0 ? u.scale : 1, r = (UNLINKED_BASE * scale) / 2;
   const base: Pt[] = [[u.x - r, u.y - r], [u.x + r, u.y - r], [u.x + r, u.y + r], [u.x - r, u.y + r]];
   const p = prism(base, unlinkedHeight(u), px);
-  return p ? { key: nearest(px, base), svg: `<g class="obj">${p}</g>` } : null;
+  return p ? { key: nearest(px, base), svg: `<g class="obj">${p}</g>`, foot: base } : null;
 }
 
 /**
@@ -499,7 +529,7 @@ function tvSolid(f: Floor, d: Device, on: string, px: Proj): Solid | null {
   const b = TV_BEZEL, screen = v[1] - px.skew * v[0] > 1e-9
     ? `<polygon class="tv-screen" points="${pts([px.lift(at(-w + b, off + TV_THICK), z0 + b), px.lift(at(w - b, off + TV_THICK), z0 + b), px.lift(at(w - b, off + TV_THICK), z1 - b), px.lift(at(-w + b, off + TV_THICK), z1 - b)])}"/>`
     : "";
-  return { key: hit ? onWallKey(f, hit, nearest(px, base), px) : nearest(px, base), svg: `<g class="obj dsolid tv ${on}">${body}${screen}</g>` };
+  return { key: hit ? onWallKey(f, hit, nearest(px, base), px) : nearest(px, base), svg: `<g class="obj dsolid tv ${on}">${body}${screen}</g>`, ...(z0 < SHADE_MAX_LIFT ? { foot: base } : {}) };
 }
 
 /** The heater bar as a box: 8 cm deep along the bar, from 10 cm up to its top. */
@@ -512,7 +542,7 @@ function radiatorSolid(f: Floor, d: Device, on: string, px: Proj): Solid | null 
   const body = prism(base, top, px, bottom);
   // It stands under a window, on a wall: sorted after that wall, if one is within its own depth of the bar's middle.
   const host = nearestEdge(f, [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2], RADIATOR_WALL_REACH, { walls: true }), own = nearest(px, base);
-  return body ? { key: host ? onWallKey(f, host, own, px) : own, svg: `<g class="obj dsolid radiator ${on}">${body}</g>` } : null;
+  return body ? { key: host ? onWallKey(f, host, own, px) : own, svg: `<g class="obj dsolid radiator ${on}">${body}</g>`, ...(bottom < SHADE_MAX_LIFT ? { foot: base } : {}) } : null;
 }
 
 /** A small cabinet on the floor at the device's point, two round drivers on the face that looks most at the viewer. */
@@ -532,7 +562,7 @@ function speakerSolid(d: Device, on: string, px: Proj): Solid | null {
   const a = base[front], b = base[(front + 1) % 4], u: Pt = [(b[0] - a[0]) / SPEAKER_SIDE, (b[1] - a[1]) / SPEAKER_SIDE];
   const l = px.lift([0, 0], 1), m = `matrix(${num(u[0])} ${num(u[1])} ${num(l[0])} ${num(l[1])} ${num(a[0])} ${num(a[1])})`;
   const drivers = [SPEAKER_SIDE / 4, (SPEAKER_SIDE * 3) / 4].map((t) => `<circle class="drv" transform="${m}" cx="${num(t)}" cy="${DRIVER_Z}" r="${DRIVER_R}"/>`).join("");
-  return { key: nearest(px, base), svg: `<g class="obj dsolid speaker${d.type === "media" ? " media" : ""} ${on}">${body}${drivers}</g>` };
+  return { key: nearest(px, base), svg: `<g class="obj dsolid speaker${d.type === "media" ? " media" : ""} ${on}">${body}${drivers}</g>`, foot: base };
 }
 
 /** The 2.5D solid of a device, or null when its type has none or its numbers cannot be drawn. `on` is the class the icon wears. */
@@ -644,4 +674,51 @@ function stairWell({ steps, lowEdge, foot }: NonNullable<ReturnType<typeof stair
   const rim = outline.map((_, i) => face(outline, i, 0, WELL_RIM, "well-rim", true)).filter(Boolean);
   if (rim.length) out.push({ key: Math.max(...steps.map((b) => nearest(px, b))), svg: `<g class="obj">${rim.join("")}</g>` });
   return out;
+}
+
+// S28.5: contact shadows. No blur filter (it is re-rasterised on every pan and zoom): two stepped bands instead, SHADE_STEP cm at full
+// alpha then SHADE_STEP cm more at half. A wall casts one pair on each side, from the face of the wall outwards; a standing box
+// casts one patch, its footprint grown by SHADE_STEP. A thing hung higher than SHADE_MAX_LIFT touches no floor: no patch.
+export const SHADE_STEP = 6, SHADE_MAX_LIFT = 40;
+
+/** A convex polygon pushed out by `d` cm on every side (mitred corners); null for one with no area or a hairpin corner. */
+export function growPoly(poly: Pt[], d: number): Pt[] | null {
+  const n = poly.length;
+  if (n < 3 || !poly.every(finite)) return null;
+  const area = poly.reduce((a, p, i) => a + p[0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * p[1], 0), sg = Math.sign(area);
+  if (!sg) return null;
+  const out = (a: Pt, b: Pt): Pt => { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [(sg * dy) / l, (-sg * dx) / l]; };
+  const grown: Pt[] = [];
+  for (let i = 0; i < n; i++) {
+    const p = poly[i], n0 = out(poly[(i + n - 1) % n], p), n1 = out(p, poly[(i + 1) % n]), k = 1 + n0[0] * n1[0] + n0[1] * n1[1];
+    if (k < 1e-3) return null;
+    grown.push([p[0] + ((n0[0] + n1[0]) * d) / k, p[1] + ((n0[1] + n1[1]) * d) / k]);
+  }
+  return grown.every(finite) ? grown : null;
+}
+
+/**
+ * The one `g.shade` of a 2.5D floor, or "" when there is nothing to draw (and at rise 0, where the plan stays the 2D plan): a band
+ * pair on each side of every wall run, then a patch per standing footprint. Pure, never throws, skips what is not finite.
+ */
+export function shadeMarkup(segs: WallSeg[], solids: Solid[], px: Proj): string {
+  if (!(px.rise > 0)) return "";
+  const out: string[] = [];
+  for (const w of segs) {
+    if (!finite(w.a) || !finite(w.b)) continue;
+    const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]);
+    if (!(len > 0)) continue;
+    const ux = (w.b[0] - w.a[0]) / len, uy = (w.b[1] - w.a[1]) / len, face = wallFace(String(w.kind));
+    const band = (side: number, o0: number, o1: number, cls: string) => {
+      const at = (p: Pt, o: number): Pt => [p[0] - uy * side * o, p[1] + ux * side * o];
+      return `<polygon class="${cls}" points="${pts([at(w.a, o0), at(w.b, o0), at(w.b, o1), at(w.a, o1)])}"/>`;
+    };
+    for (const side of [1, -1]) out.push(band(side, face, face + SHADE_STEP, "s1"));
+    for (const side of [1, -1]) out.push(band(side, face + SHADE_STEP, face + 2 * SHADE_STEP, "s2"));
+  }
+  for (const s of solids) {
+    const g = s.foot ? growPoly(s.foot, SHADE_STEP) : null;
+    if (g) out.push(`<polygon class="sp" points="${pts(g)}"/>`);
+  }
+  return out.length ? `<g class="shade">${out.join("")}</g>` : "";
 }

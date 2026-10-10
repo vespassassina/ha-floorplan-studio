@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { readGhostIn } from "../fixtures/ghost-contrast";
 
 // S27.11: View > Floor below draws the floor under the shown one as faint lines (renderFloor's ghost). A viewer preference: kept in
 // the browser, never an undo step. The first floor of the demo sits 200 cm east of the ground floor, so the ground floor's ghost is
@@ -122,5 +123,30 @@ for (const theme of ["blueprint", "light", "ha"]) {
     expect(r).toMatchObject({ fill: "none", events: "none", width: "1.5px", roomsBefore: true, wallsAfter: true, iconsAfter: true });
     expect(r.stroke).not.toBe("none");
     expect(r.stroke).not.toBe(r.roomFill);
+  });
+}
+
+// S28.2: Preview night veils every room, and the ghost lies under the veil: it dims with the floor it lies on. The Studio has no live
+// lights, so every room is dark. Measured from the real elements in the real paint order; the old order (ghost over the veil) gave
+// more than the day's contrast.
+for (const theme of ["blueprint", "light"]) {
+  test(`Preview night dims the ghost floor with the rooms (${theme})`, async ({ page }) => {
+    await boot(page);
+    await page.evaluate((t) => localStorage.setItem("floorplan-studio:theme", t), theme);
+    await page.reload();
+    await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+    await load(page);
+    await toggle(page);
+    const read = (only: number | null) => readGhostIn(page, EDITOR, "unlit", only);
+    const day = await read(null);
+    expect(day, "a ghost line lies over a room by day").not.toBeNull();
+    if (!(await page.evaluate((tag) => (document.querySelector(tag) as any).shadowRoot.querySelector("#mOpt").open, EDITOR))) await page.locator("#mOpt > summary").click();
+    await page.locator("#night").click();
+    await expect(page.locator(`${EDITOR} svg polygon[data-night]`).first()).toBeAttached();
+    const night = await read(day!.room);
+    expect(night, "the same room at night").not.toBeNull();
+    expect(night!.veiled, "the veil is painted over the ghost").toBe(true);
+    expect(night!.contrast).toBeLessThan(day!.contrast * 0.92);
+    expect(night!.contrast).toBeGreaterThan(1.15);
   });
 }
