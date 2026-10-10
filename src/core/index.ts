@@ -28,6 +28,7 @@ export * from "./heights";
 export { HEAT_FROM, HEAT_TO, PLUG_ACTIVE_WATTS, findPowerSensor, heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 export type { PowerCandidate } from "./power";
 export * from "./stairs";
+export { floorBelow, floorShift, floorsBelow } from "./floor-stack";
 export { UNLINKED_BASE, WALLS_LABELS, WALLS_MODES, pieceDevice, wallsModeOf } from "./solids";
 export type { WallsMode } from "./solids";
 export { customCalls, customScene, haScenesFor, lampOffCalls, presetCalls, roomScenes, sceneNeedsConfirm } from "./room-scenes";

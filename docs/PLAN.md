@@ -3098,13 +3098,13 @@ Lane lock (`src/editor/state.ts` `plan()` only):
       Files: `src/editor/state.ts`, `tests/editor/plan-lock.test.ts`, `tests/editor/plan-lock.spec.ts`, `docs/DECISIONS.md`.
 
 Lane schema (`schema.ts`, `migrate.ts`, a new `src/core/floor-stack.ts`):
-- [ ] S27.2 Floors have an offset. `offset?: [number, number]` on `Floor`; `validate` reports anything but two finite
+- [x] S27.2 Floors have an offset. `offset?: [number, number]` on `Floor`; `validate` reports anything but two finite
       numbers within `COORD_LIMIT` and never throws; `migrate` drops such a value and keeps a good one. `npm run
       docs:schema`; SPEC schema section. Test: absent, `[0,0]`, `[137,-61]`, `[1.5,2]`, `"1,2"`, `[1]`, `[1,2,3]`,
       `[NaN,0]`, `[2e7,0]`, `null`, on a floor whose key is `__proto__`; a migrated junk offset opens and validates.
       Files: `src/core/schema.ts`, `src/core/migrate.ts`, `docs/schema.md`, `docs/SPEC.md`, a new
       `tests/core/floor-offset.test.ts`.
-- [ ] S27.3 Floor stack helpers, chained after S27.2. `floorBelow(layout, key)` (the key before, or null),
+- [x] S27.3 Floor stack helpers, chained after S27.2. `floorBelow(layout, key)` (the key before, or null),
       `floorsBelow(layout, key)` (every lower key, nearest first) and `floorShift(layout, from, to)` (cm to add to a
       point of `from` to draw it on `to`: `from.offset - to.offset`, junk read as `[0,0]`). Exported from core. Test:
       three floors with asymmetric offsets, the lowest floor, an unknown key, junk offsets, a `__proto__` key.

@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: a floor has an offset; the stack helpers read it (S27.2, S27.3)
+
+- `Floor.offset?: [number, number]`, cm: where the floor sits in the house. Stored points never change; a point's place in the house is the point plus the offset. Chosen over rewriting every point so Align is one key and one undo step, the card's `center` pins, saved views and the trace image stay valid, and repeated aligns cannot drift by rounding. Schema stays v2.
+- Bound: two finite numbers, each within `COORD_LIMIT`. `validate` reports anything else; `migrate` drops it (as `dropBadHeights`), so a hand-edited file opens. A good value is kept as written, `[0, 0]` included; writers (S27.8) delete the key at `[0, 0]`.
+- `floorBelow`, `floorsBelow`, `floorShift` live in `src/core/floor-stack.ts`. Order is `Object.keys(floors)`, as `floorElevation` stacks. They never throw: junk layout means no floors, a junk or unknown-key offset reads as `[0, 0]`, and a key must be an own key (`toString` is not a floor).
+
 ## 2026-10-09: a disabled Undo or Redo is dimmer than an enabled one (Opus re-check 5)
 
 - `.btn:disabled{opacity:.5}` and `.btn.light{opacity:.6}` have the same specificity and the second comes later, so a disabled Undo was .6 like an enabled one, and under the pointer `.btn.light:hover` took it to 1. Added `.btn.light:disabled{opacity:.35}` and put `:not(:disabled)` on the light hover and focus rule; the other hover rules in the editor (`.lockplan`, `.lrow`, `.ti`, `.opt`, `.door-hit-open`) are not on buttons that can be disabled. Computed-style pair in `editor.spec.ts` for light, ha and blueprint: disabled lower than enabled, and unchanged under the pointer. It supersedes (e) of 'small defects' for the `.light` buttons only.

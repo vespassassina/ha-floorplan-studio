@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Schema: a floor may carry `offset: [x, y]` (cm), where it sits in the house. Absent is `[0, 0]`; a bad value is reported by validation and dropped when a file is opened. Nothing draws it yet.
+- Core: `floorBelow`, `floorsBelow` and `floorShift` read the floor stack.
+
 ## 0.24.0 - 2026-10-10
 
 - Studio: a disabled Undo or Redo is dimmed, and stays dimmed under the pointer.
