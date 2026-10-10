@@ -273,8 +273,8 @@ editor and fails on a control that has no row here, so a new one gets a decision
 
 Also the same in both: the floor switcher (chips and tabs), pan and zoom by
 pointer, the view remembered per browser, and Reset view clearing it. The
-editor's other menus (Add, Draw, Edit, File, Help, Undo) change the plan, which
-a card does not.
+editor's other menus (Add, which also holds Draw, Floors, Edit, File, Help, Undo) change the plan,
+which a card does not.
 
 ## Kiosk mode
 

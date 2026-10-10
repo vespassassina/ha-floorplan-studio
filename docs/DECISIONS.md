@@ -2,6 +2,9 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: docs/card.md names the Studio menus as they are (review 27, finding 6)
+
+- The parity page listed Add, Draw, Edit, File. The toolbar is Add, Floors, View, Edit, File since S27.9, and Draw lives in Add. View is named in the table above it, so the sentence lists the menus that change the plan.
 ## 2026-10-10: the shots show the floors stack (review 27, finding 4)
 
 - `scripts/shots.mjs` adds: `card-first-ghost-<theme>` (four themes) and `-2-5d`, `card-first-below-{ghost,solid}-{blueprint,light}-3d` (orbited, floors below translucent and solid) and `editor-{ghost,align}-{blueprint,light,ha}` (View, Floor below on; Align tab open over `align-house.json`, whose first floor is 137 cm out). The card shots use the demo with the first floor's offset set to [120, 40], so the floor below is displaced and part of it falls under the room fills. The editor shots fail the run if no `g.ghost` is drawn. Light and ha look alike in the editor outside Home Assistant, as before.
