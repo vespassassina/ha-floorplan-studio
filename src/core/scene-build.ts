@@ -47,6 +47,8 @@ export interface SceneOpts {
   elevation?: number;
   /** Whether a floor lies above and below, which sets where an unmarked stair goes (see `resolveStairDirection`). Absent: up. */
   around?: FloorsAround;
+  /** cm: moves every solid in plan x and y (S27.7: a floor below drawn at its place in the house). Anything but two finite numbers: none. */
+  shift?: Pt;
 }
 
 /** cm. How thick a wall is, by kind (the plan draws 10, and 20 for an external wall; a fence is a thin rail). Centred on its line. */
@@ -147,13 +149,14 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
   function buildScene(floor: Floor, opts: SceneOpts = {}): Scene {
     const solids: Solid[] = [];
     const lift = isObj(opts) && fin(opts.elevation) ? opts.elevation : 0;
+    const sh: Pt = isObj(opts) && isPt(opts.shift) && Array.isArray(opts.shift) && opts.shift.length === 2 ? opts.shift : [0, 0];
     const f = (isObj(floor) ? floor : {}) as Floor;
     /** One choke point: a shape with a non-finite number or no thickness never leaves here. */
     const add = (kind: SolidKind, id: string, tag: string, shape: Shape, ref: SolidRef, paint: Paint) => {
       if (shape.type === "prism") {
         if (shape.base.length < 3 || !shape.base.every(isPt) || !fin(shape.z0) || !fin(shape.z1) || !(shape.z1 > shape.z0)) return;
-        solids.push({ id, kind, tag, shape: { type: "prism", base: shape.base.map((p): Pt => [p[0], p[1]]), z0: shape.z0 + lift, z1: shape.z1 + lift }, ref, paint });
-      } else if (isPt(shape.at) && fin(shape.z)) solids.push({ id, kind, tag, shape: { type: "point", at: [shape.at[0], shape.at[1]], z: shape.z + lift }, ref, paint });
+        solids.push({ id, kind, tag, shape: { type: "prism", base: shape.base.map((p): Pt => [p[0] + sh[0], p[1] + sh[1]]), z0: shape.z0 + lift, z1: shape.z1 + lift }, ref, paint });
+      } else if (isPt(shape.at) && fin(shape.z)) solids.push({ id, kind, tag, shape: { type: "point", at: [shape.at[0] + sh[0], shape.at[1] + sh[1]], z: shape.z + lift }, ref, paint });
     };
     /** Runs one piece's builder; whatever it throws, the piece is lost and the scene is not. */
     const piece = (fn: () => void) => { try { fn(); } catch (e) { debugOnce("3D scene: a piece of the layout could not be built and was left out", e); } };

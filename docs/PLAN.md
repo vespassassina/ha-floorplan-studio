@@ -3135,7 +3135,7 @@ Lane render (`src/core/render.ts`):
       Files: `src/core/render.ts`, `tests/core/floor-switch.test.ts`, a pair in `tests/card/` (new spec).
 
 Lane 3D (`scene-build.ts`, `src/card/three/`):
-- [ ] S27.7 The 3D view can draw floors below. `SceneOpts.shift?: Pt` moves every solid in plan x and y (junk: none).
+- [x] S27.7 The 3D view can draw floors below. `SceneOpts.shift?: Pt` moves every solid in plan x and y (junk: none).
       `View3D.setBelow(floors: { floor, elevation, shift }[], mode)` builds them under the current floor: `off` none,
       `ghost` translucent (opacity at most .25, no depth write), `solid` in their own colours; never in `pick`; disposed
       with the view and on every new call; cached per floor and theme. Test: unit on `shift`; Playwright on the stress

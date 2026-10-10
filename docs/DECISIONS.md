@@ -26,6 +26,12 @@ Newest first. A change supersedes; nothing is edited.
 - `renderFloor` draws `RenderOpts.ghost` as one `<g class="ghost">` before everything else, even before the trace image: the outline, every room, stair and wall as `path.gl`, each point moved by the shift. No fill, text, title, device, `data-*` or `use`, so it cannot be hit-tested or select anything, and no string of the ghost floor is read, so a name cannot reach the markup. The look and `pointer-events:none` are class rules (finding 18); `--fp-ghost` is 35 % of `--fp-wall` into `--fp-bg` in the generic defaults, so every theme has it.
 - Junk draws nothing: a shift that is not two finite numbers within `COORD_LIMIT`, a ring or wall with a non-finite point (skipped alone), rings over 100 000 points. With no valid path no `g` is written. The ghost sits inside the plan turn, so it rotates with the plan.
 - Rooms and stairs are drawn as outlines only; a room's own fill covers the ghost inside the room. That is the "under everything" the plan asks for, and it shows in the shots: the ghost reads outside the current floor's footprint and through unfilled areas.
+## 2026-10-10: floors below in 3D are separate meshes, set by `setBelow` (S27.7)
+
+- `View3D.setBelow(floors, mode)` takes `{ floor, elevation, shift }` entries: `elevation` is the lower floor's walking surface in the current floor's frame (negative), `shift` is the `floorShift` in cm. `SceneOpts.shift` moves every solid in plan x and y in the one `add` choke point; anything but two finite numbers means none.
+- The lower floors are meshes of their own, outside `clear` and `build`, so a rebuild of the current floor never touches them and the `Picker` never sees them (a tap through them finds nothing). They carry no devices, no textures and no live state. Ghost: transparent, opacity at most .25, no depth write. Solid: their own colours, every wall at full height (no cut).
+- `setFloor` keeps them; the card calls `setBelow` after it. The built scene of a floor is cached per floor object, elevation and shift; the meshes are rebuilt on every call and on a theme change, because the palette is read per theme.
+- Why not one scene of all floors: pick, walls cut and live state are built for one floor; mixing would have made every one of them aware of floors below.
 
 ## 2026-10-09: a disabled Undo or Redo is dimmer than an enabled one (Opus re-check 5)
 

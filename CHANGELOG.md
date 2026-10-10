@@ -8,6 +8,7 @@
 - Core: `alignFloor(upper, lower)` finds the move that lays one floor on the floor below and scores the fit (S27.4).
 - The stylesheet has the floor-switch motion (`fp-floor-in-up`, `fp-floor-in-down`, 220 ms, none under reduced motion) and `floorSwitch()` says which way; the Studio and the card use them in later steps.
 - The plan can draw the floor below as faint lines under the current one (`RenderOpts.ghost`, token `--fp-ghost`); the Studio and the card switch it on in later steps.
+- 3D: the view can draw the floors below the current one, translucent (ghost) or in their own colours (solid), at their own height and offset. Never picked, not framed. The card switch for it follows.
 
 ## 0.24.0 - 2026-10-10
 
