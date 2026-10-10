@@ -37,10 +37,13 @@ test.describe("S28.4 the 2.5D tree stands", () => {
       const svgBox = await page.evaluate((k) => { for (let j = 0; j < 14; j++) if (j !== k) document.getElementById(`c${j}`)!.style.display = "none"; const r = document.getElementById(`c${k}`)!.getBoundingClientRect(); return { x: r.x, y: r.y }; }, i);
       const style = await page.evaluate((k) => {
         const svg = document.getElementById(`c${k}`)!, s = (sel: string) => getComputedStyle(svg.querySelector(sel)!);
-        return { crown: s(".tree-crown").fill, op: s(".tree-crown").fillOpacity, trunk: s(".trunk").stroke, edge: s(".tree-crown").stroke, trunkW: s(".trunk").strokeWidth, shade: s(".tree-shade").fill, shadeOp: s(".tree-shade").fillOpacity };
+        return { crown: s(".tree-crown").fill, op: s(".tree-crown").fillOpacity, trunk: s(".trunk").stroke, edge: s(".tree-crown").stroke, trunkW: s(".trunk").strokeWidth, lift: s(".trunk").getPropertyValue("--fp-crown-lift").trim(), shade: s(".tree-shade").fill, shadeOp: s(".tree-shade").fillOpacity };
       }, i);
+      const lift = style.lift;
       expect(style.trunkW).toBe("12px");
-      expect(style.trunk, "the trunk takes the crown's edge colour (--fp-tree-edge), not the furniture blue").toBe(style.edge);
+      // S28 final: the trunk is the crown's edge colour on a light theme (--fp-tree-edge, not the furniture blue) and a dark, ground-like version on a dark one (--fp-trunk), never lighter than the edge
+      if (!(Number.parseFloat(lift) > 0)) expect(style.trunk, "the trunk takes the crown's edge colour (--fp-tree-edge), not the furniture blue").toBe(style.edge);
+      else expect(rgb(style.trunk).reduce((a, v) => a + v, 0), "a dark theme's trunk is darker than its crown's edge").toBeLessThan(rgb(style.edge).reduce((a, v) => a + v, 0));
       const shot = (await page.screenshot({ clip: { x: svgBox.x, y: svgBox.y, width: VB[2], height: VB[3] } })).toString("base64");
       const probe = async (pts: number[][]) => page.evaluate(async ([b64, pts]) => {
         const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());

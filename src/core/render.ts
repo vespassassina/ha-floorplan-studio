@@ -286,7 +286,7 @@ ${THEME_EXTRAS}
    that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own.
    The side is 55% wall unless the theme sets --fp-wall-side-share (HA dark, whose wall is its light text colour). The share
    is its own variable, never a second --fp-wall-side, so this rule, later and as specific as THEME_EXTRAS, cannot beat it. */
-:host,.fp,[data-theme]{--fp-ghost:color-mix(in srgb,var(--fp-wall) 35%,var(--fp-bg));--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg));--fp-tree:color-mix(in srgb,var(--fp-dev-garden) 70%,var(--fp-garden));--fp-tree-edge:color-mix(in srgb,var(--fp-dev-garden) 55%,var(--fp-ink));--fp-frame:color-mix(in srgb,var(--fp-door) 40%,var(--fp-ink));--fp-shade:color-mix(in srgb,var(--fp-on-light) 35%,black)}
+:host,.fp,[data-theme]{--fp-ghost:color-mix(in srgb,var(--fp-wall) 35%,var(--fp-bg));--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg));--fp-tree:color-mix(in srgb,var(--fp-dev-garden) 70%,var(--fp-garden));--fp-tree-edge:color-mix(in srgb,var(--fp-dev-garden) 55%,var(--fp-ink));--fp-trunk:color-mix(in srgb,color-mix(in srgb,var(--fp-tree) 35%,var(--fp-garden)) calc(var(--fp-crown-lift,0%) * 2.2),var(--fp-tree-edge));--fp-frame:color-mix(in srgb,var(--fp-door) 40%,var(--fp-ink));--fp-shade:color-mix(in srgb,var(--fp-on-light) 35%,black)}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
@@ -385,7 +385,7 @@ ${THEME_EXTRAS}
 .bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
 .shade{fill:var(--fp-shade);fill-opacity:var(--fp-shade-alpha);pointer-events:none} .shade .s2{fill-opacity:calc(var(--fp-shade-alpha) / 2)}
-.trunk{stroke:var(--fp-tree-edge);stroke-width:12;stroke-linecap:round}
+.trunk{stroke:var(--fp-trunk);stroke-width:12;stroke-linecap:round}
 .dsolid .bs,.dsolid .bt{stroke:color-mix(in srgb,var(--fp-body) 60%,var(--fp-on-light))}
 .dsolid .bt{fill:color-mix(in srgb,var(--fp-body) 70%,var(--fp-on-dark))} .dsolid .bs{fill:var(--fp-body)} .dsolid .bs.w{fill:color-mix(in srgb,var(--fp-body) 80%,var(--fp-on-light))}
 .dsolid.radiator{--fp-body:color-mix(in srgb,var(--fp-idle) 55%,var(--fp-bg))} .dsolid.radiator.on{--fp-body:color-mix(in srgb,var(--fp-heater) 75%,var(--fp-bg))}

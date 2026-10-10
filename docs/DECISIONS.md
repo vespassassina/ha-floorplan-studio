@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: A 2.5D trunk is the crown's fill on a dark theme (S28 final, shots)
+
+In blueprint at night the trunk was `--fp-tree-edge`, pale grey, under a dark slate crown: inverted, like a lit stick. The edge has to stay pale (3:1 against the garden, it outlines the crown), so the trunk gets its own token `--fp-trunk`: the edge colour on a light theme, and on a dark one (`--fp-crown-lift` above 0) the crown's own painted fill, `--fp-tree` at 35 % over the garden. A first try, darker than the garden, vanished on the dark plane; the crown's fill reads there, so the trunk does. A test over every theme says the trunk is no lighter than the crown fill by more than 0.02 of relative luminance, and not under 1.1:1 against the garden. Width stays 12 cm (`TRUNK_SIDE`, one shape in every view): the shots' 60 cm test crowns look like lollipops, a 200 cm crown does not; thinning it in 2.5D alone would break "one shape".
+
 ## 2026-10-10: 3D crowns take a lift on dark themes (S28 final, shots)
 
 At night the 3D crowns were dark grey on near-black ground: in the blueprint shot the crown measured (45, 50, 60) on (8, 12, 20), 1.5:1. The night light multiplies both by about 0.2 in linear light (measured from that shot), so the palette's own ratio is what counts. `--fp-crown-lift` (45 % on a dark theme, 0 % on a light one, beside `--fp-paint-dim`) mixes white into the `tree-crown` role. A test reads every theme, day and night, through the palette expression against the garden and the ground plane: 1.8:1 at night on a dark theme, 1.3:1 by day, and a dark crown under relative luminance 0.5. A mix toward `--fp-ink` was tried first and cannot reach 1.8 on solarized; the lift is a token, not a per-theme colour.

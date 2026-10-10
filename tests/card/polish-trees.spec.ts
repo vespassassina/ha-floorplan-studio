@@ -47,3 +47,12 @@ test("S28 final: a 3D crown reads against the ground at 1.8:1 at night in every 
     if (dark) expect.soft(lum(rgb(v.crown3)), `${tag}: not bright`).toBeLessThan(0.5);
   });
 });
+
+test("S28 final: a 2.5D trunk is never lighter than the crown fill it holds up, in every theme", async ({ page }) => {
+  const r = await read(page);
+  CASES.forEach((c, i) => {
+    const v = r[i], a = Number(v.op), g = rgb(v.garden), fill = rgb(v.crown).map((x, k) => x * a + g[k] * (1 - a)), tag = `${c.t}/${c.mode}`;
+    expect.soft(lum(rgb(v.trunk)) - lum(fill), `${tag}: trunk ${v.trunk} over crown fill`).toBeLessThanOrEqual(0.02);
+    expect.soft(ratio(lum(rgb(v.trunk)), lum(g)), `${tag}: the trunk still shows against the garden`).toBeGreaterThanOrEqual(1.1);
+  });
+});
