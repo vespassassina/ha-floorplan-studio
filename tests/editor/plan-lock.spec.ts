@@ -93,3 +93,26 @@ test("fixed: Draw wall and Add wall are refused with the message", async ({ page
   expect((await g(page)).walls).toHaveLength(n);
   await expect(page.locator("#status")).toContainText("plan is locked");
 });
+
+// S27.1: Lock on a furniture piece works under Lock plan, from the panel's box and from the context menu. Real clicks.
+test("Lock plan on: the furniture panel's Lock box and the context menu's Lock write locked: true, and no banner says locked", async ({ page }) => {
+  await page.locator("#fixPlan").check();
+  await expect(page.locator("#fixPlan")).toBeChecked();
+  const b = (await page.locator(`${EDITOR} svg [data-f="0"]`).first().boundingBox())!;
+  const at = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator("#fulock")).toBeVisible();
+  await page.locator("#fulock").check();
+  expect((await g(page)).furniture[0].locked).toBe(true);
+  await expect(page.locator(".banner.error")).toHaveCount(0);
+  await expect(page.locator("#status")).not.toContainText("plan is locked"); // ticking the plan lock itself says "Plan locked: ..."; the refusal says "The plan is locked"
+  await page.locator("#fulock").uncheck();
+  expect("locked" in (await g(page)).furniture[0]).toBe(false);
+  await page.mouse.click(at.x, at.y, { button: "right" });
+  const lock = page.locator(`${EDITOR} .ctxmenu [data-cm="lock"]`);
+  await expect(lock).toBeVisible();
+  await lock.click();
+  expect((await g(page)).furniture[0].locked).toBe(true);
+  await expect(page.locator(".banner.error")).toHaveCount(0);
+  await expect(page.locator("#status")).not.toContainText("plan is locked");
+});
