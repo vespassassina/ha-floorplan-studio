@@ -112,6 +112,8 @@ export function rolesToTokens(roles: ThemeRoles): string {
     `--fp-warn:#f28c28`, `--fp-danger:#b02a2a`, `--fp-primary:#1f6699`, `--fp-furniture:${shades.furniture}`,
     // S23.6: paint the user chose is dimmed on a dark theme, never recoloured; a light theme shows it as chosen.
     `--fp-paint-dim:${roles.dark ? "brightness(.62) saturate(.85)" : "none"}`,
+    // S28 final: how much white a 3D crown takes on a dark theme, so it reads against a dark ground at night; none on a light theme.
+    `--fp-crown-lift:${roles.dark ? "45%" : "0%"}`,
     `--fp-wall-external:${shades.wallExternal}`, `--fp-wall-fence:${shades.wallFence}`,
     `--fp-wall-edge:${shades.wallEdge}`, `--fp-measure:${roles.line}`, `--fp-glow:${roles.accent}`, `--fp-aura:${roles.accent}`,
     `--fp-active:${roles.accent}`,

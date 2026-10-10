@@ -25,6 +25,8 @@ export type { LayerId } from "./layers";
 export type { CategoryGroup, CategoryId } from "./categories";
 export { entitiesOfDevice, entitiesOfDoor, moreInfoEntities, playerOf } from "./attachments";
 export * from "./heights";
+export { TRUNK_SIDE, treeShape } from "./tree";
+export type { TreeShape } from "./tree";
 export { HEAT_FROM, HEAT_TO, PLUG_ACTIVE_WATTS, findPowerSensor, heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 export type { PowerCandidate } from "./power";
 export * from "./stairs";
@@ -40,5 +42,5 @@ export { buildSearchIndex, entryDetail, layoutEntries, normalize, searchIndex } 
 export type { SearchEntry, SearchIndex } from "./search";
 export { FLOOR_OFF_GROUP, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, floorOffRows } from "./floor-off";
 export type { OffGroup, OffRow } from "./floor-off";
-export { NEAR, WEAK_BELOW, alignFloor } from "./align";
+export { NEAR, WEAK_BELOW, alignFloor, alignKey, alignKeyOf } from "./align";
 export type { AlignResult } from "./align";

@@ -176,6 +176,33 @@ function corners(segs: Seg[]): Pt[] {
   return [...m.values()].sort((a, b) => b.w - a.w).slice(0, MAX_CORNERS).map((c) => c.p);
 }
 
+/**
+ * S28.12: what `alignFloor` reads of a floor, as a string: the structure lines in stored coordinates, and `owk`. The
+ * offset, the title and everything else are left out, so a nudge or an undo (a new floor object, the same structure)
+ * gives the same key and the editor does not search again. Never throws; junk gives a key too.
+ */
+export function alignKey(f: unknown): string {
+  try {
+    const o = typeof f === "object" && f !== null ? (f as Record<string, unknown>) : {};
+    const owk = Array.isArray(o.owk) ? o.owk.map((k) => (typeof k === "string" ? k : "?")).join(",") : "";
+    return `${structure(f).join(";")}|${owk}`;
+  } catch {
+    return "";
+  }
+}
+
+const keys = new WeakMap<object, string>();
+/**
+ * `alignKey` with a memo on the floor object. The editor asks for the key of both floors on every render, and a floor is never edited in
+ * place (every edit makes a new object, see EditorState.edit), so an object seen before has the same key. Anything that is not an object is not memoised.
+ */
+export function alignKeyOf(f: unknown): string {
+  if (typeof f !== "object" || f === null) return alignKey(f);
+  let k = keys.get(f);
+  if (k === undefined) { k = alignKey(f); keys.set(f, k); }
+  return k;
+}
+
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** The translation that lays `upper` best on `lower`, and how well it fits; null when either has nothing to match. Never throws. */

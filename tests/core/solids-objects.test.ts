@@ -44,7 +44,8 @@ describe("2.5D furniture", () => {
       } else if (SOLID[symbol] === "pole") {
         expect(tops(html), symbol).toEqual([]);
         expect(html, symbol).toContain('class="trunk"');
-        expect(html, symbol).toContain(`translate(${n(300 + h * K * R)} ${n(250 - h * R)}) rotate(0)`);
+        // S28.4: the crown is lifted to the middle of the crown, 75 % of the height; the trunk ends at 60 %
+        expect(html, symbol).toContain(`translate(${n(300 + h * 0.75 * K * R)} ${n(250 - h * 0.75 * R)}) rotate(0)`);
       } else {
         expect(tops(html), symbol).toEqual([]);
         expect(html, symbol).toContain("translate(300 250) rotate(0)");
@@ -85,7 +86,7 @@ describe("2.5D furniture", () => {
 
   it("is drawn after a wall behind it and before a wall in front of it", () => {
     const f = floor({ furniture: [piece("sofa")] as never, walls: [{ id: "b", a: [0, 100], b: [600, 100], kind: "wall" }, { id: "n", a: [0, 400], b: [600, 400], kind: "wall" }] as never });
-    const html = deep(f), at = html.indexOf('class="furn'), back = html.indexOf(`points="0,100 600,100 `), front = html.indexOf(`points="0,400 600,400 `);
+    const html = deep(f), at = html.indexOf('class="furn'), face = (y: number) => html.search(new RegExp(`<polygon class="ws[^"]*" points="0,${y} 600,${y} `)), back = face(100), front = face(400); // the wall faces, not the shade bands that now start on the same line
     expect([back, front].every((i) => i >= 0)).toBe(true);
     expect(back).toBeLessThan(at);
     expect(front).toBeGreaterThan(at);

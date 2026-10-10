@@ -42,7 +42,7 @@ Picked: 1, 2, 3 (with Hue scenes), 5, 7, 8, 9, 10. Not picked: 4 (room "3 of 5 o
 | 20 | Open leaf and sash in 3D, alert band for open doorways in 3D (S15.4) | An open door's leaf is drawn swung ajar, a tilted window's sash ajar, driven by the sensor; item 9's band in 3D. | 3D shows the state; tap on an open doorway works |
 | 21 | Top view and frame a room (S15.5) | A "top view" button next to Reset; a double tap on a room (3D) frames the camera on it. Remembered per floor (item 8). | Button sets polar to the top; double tap frames the room |
 | 22 | Evening tint (S15.3) | Indoor warm tint as the sun lowers (3D), with the daylight maths; none at noon, none at night. | Elevation test |
-| 23 | Blob shadows (S15.6) | A soft dark patch under furniture and device bodies on the floor, so a lit room reads as lit; cheap decals, no shadow map. | Visible in a shot; cost within budget |
+| 23 | Blob shadows (S15.6) | A soft dark patch under furniture and device bodies on the floor, so a lit room reads as lit; cheap decals, no shadow map. | Visible in a shot; cost within budget. **Done in 0.26.0 (S28.8):** baked contact shadows in 3D, one extra draw call per floor, no shadow map; 2.5D has them too (S28.5) |
 | 24 | Plug colour by power (S14.8) | A plug (or any device with a power sensor) is tinted from idle to hot by its draw, between two thresholds (card option, default 0 W and 2000 W); needs the plug's `power` sensor. | Two draws give two colours; no sensor = today |
 
 ## Non-goals

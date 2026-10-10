@@ -3303,7 +3303,7 @@ Assumptions (defaults taken; Diego can overrule any):
   missing or a frame is blank.
 
 Wave 0, in order on `task/s28-polish`, one coder (every lane reads what it lays down):
-- [ ] S28.1 Groundwork. `treeShape(m)` in `src/core/tree.ts`, exported from core; `FRAME_WIDTH` and `FRAME_PROUD` in
+- [x] S28.1 Groundwork. `treeShape(m)` in `src/core/tree.ts`, exported from core; `FRAME_WIDTH` and `FRAME_PROUD` in
       `solids.ts`; tokens `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` in the generic defaults and
       `--fp-shade-alpha` in `themeExtras`; the `--polish` shot set. Nothing draws them yet. Test: unit `treeShape` on the
       default tree, asymmetric `w` and `h`, a set height, `w: 0`, NaN, a string height, a `__proto__` symbol: numbers or
@@ -3317,14 +3317,14 @@ Wave 0, in order on `task/s28-polish`, one coder (every lane reads what it lays 
 Wave 1, four lanes in parallel after S28.1, each in its own worktree; tasks inside a lane run in order:
 
 Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
-- [ ] S28.2 The ghost floor dims at night. `g.ghost` moves before the night overlay, as the assumption says. Test: unit,
+- [x] S28.2 The ghost floor dims at night. `g.ghost` moves before the night overlay, as the assumption says. Test: unit,
       the markup order (fills, stairs, ghost, night, auras, walls) with night on and off; Playwright in the card and the
       Studio (Preview night), blueprint and light: the contrast of a ghost line against its unlit room at night is under
       .8 times the day contrast and over 1.15:1, and in a lit room within 2 % of the day contrast. Both fail on the old
       order. The review-27 paint-order pairs in `ghost-floor.spec.ts` and `card-ghost.spec.ts` follow the new order.
       Files: `src/core/render.ts`, `tests/core/render-ghost.test.ts`, `tests/editor/ghost-floor.spec.ts`,
       `tests/card/card-ghost.spec.ts`.
-- [ ] S28.3 A 2D tree is a crown (V21). The `tree` symbol becomes the crown, trunk dot and shade patch of the assumption,
+- [x] S28.3 A 2D tree is a crown (V21). The `tree` symbol becomes the crown, trunk dot and shade patch of the assumption,
       through `treeShape`; the patch offset stays (+4, +6) cm whatever `w`, `h` and `rot` are (drawn outside the scaled
       group). Classes, not attributes, carry the colours. Test: unit, the crown path has 8 lobes, the patch is offset by
       exactly (4, 6) cm for a 120 x 300 tree at `rot` 30, a payload name is escaped; computed-style pairs for the crown
@@ -3332,7 +3332,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
       crown edge against the garden it stands on at least 3:1. Shots: 2D gardens looked at in the three themes.
       Files: `src/core/icons.ts`, `src/core/render.ts`, `tests/core/render.test.ts` or a new `tests/core/tree-2d.test.ts`,
       a pair in `tests/editor/editor.spec.ts` and one in `tests/card/`.
-- [ ] S28.4 A 2.5D tree stands (V22). `furnitureSolid` for a pole draws the shade patch at the trunk foot, a 12 cm trunk
+- [x] S28.4 A 2.5D tree stands (V22). `furnitureSolid` for a pole draws the shade patch at the trunk foot, a 12 cm trunk
       up to `treeShape`'s trunk top, and the S28.3 crown at the crown's lifted height, in that order inside the piece's
       group; its depth key is unchanged. Test: unit, the order, the trunk's end point equals `lift(foot, trunkTop)`, the
       crown's translate equals `lift(centre, crown middle)`, rise 0 draws the 2D tree; Playwright at 4x on the shot
@@ -3340,7 +3340,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
       the trunk's. Shots: 2.5D gardens, three themes.
       Files: `src/core/solids.ts`, `src/core/render.ts` if the order needs it, `tests/core/solids-objects.test.ts`, a new
       `tests/card/tree-25d.spec.ts`.
-- [ ] S28.5 2.5D contact shadows (V24). One `g.shade`, as the assumption says: two stepped bands along both sides of every
+- [x] S28.5 2.5D contact shadows (V24). One `g.shade`, as the assumption says: two stepped bands along both sides of every
       drawn wall run, one patch under each furniture box, unlinked box and device body, in `--fp-shade` at
       `--fp-shade-alpha`; `pointer-events:none` by class rule; nothing at rise 0. Test: unit, one `g.shade` in the order of
       the assumption, a band pair per wall run and a patch per box (count over the demo), none at rise 0, junk walls draw
@@ -3349,7 +3349,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
       the group); the 2.5D render of 5000 furniture within the existing render bound. Shots: three themes, day and night.
       Files: `src/core/render.ts`, `src/core/solids.ts`, a new `tests/core/shade-25d.test.ts`, a new
       `tests/card/shade-25d.spec.ts`.
-- [ ] S28.6 2.5D framed openings. `wallSolids` draws jambs, head and (window) sill quads of `FRAME_WIDTH` on the face of
+- [x] S28.6 2.5D framed openings. `wallSolids` draws jambs, head and (window) sill quads of `FRAME_WIDTH` on the face of
       each framed opening, class `frame`, under the cutaway like the wall (a lowered wall lowers its frame); the open and
       alarm red stays as it is. Test: unit, iterate `DOOR_KINDS` plus `opening`: door, glass, window, slit and fullwindow
       framed (fullwindow with no sill), `open`, `opening` and `sealed` not; frame quads lie inside the opening's span
@@ -3358,7 +3358,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
 
 Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/view3d.ts`, `palette.ts`, a new
 `src/card/three/shade.ts`):
-- [ ] S28.7 3D tree crowns (V22). `scene-build` cuts a tree's trunk at `treeShape`'s trunk top (`treeShape` joins
+- [x] S28.7 3D tree crowns (V22). `scene-build` cuts a tree's trunk at `treeShape`'s trunk top (`treeShape` joins
       `SceneDeps`); the view draws one `InstancedMesh` of icosahedron crowns from the tree solids' `ref.size`, role
       `furniture-tree`, built with the scene, disposed with it, drawn for floors below too, never picked (a tap on a crown
       picks what is under it). Test: unit on the trunk height and on a pure `crownMatrices(solids)` (count, centre, scale;
@@ -3368,7 +3368,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       Files: `src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/view3d.ts`, a new
       `src/card/three/crowns.ts`, `tests/core/scene.test.ts`, a new `tests/card/three-crowns.test.ts`,
       `tests/card/card-3d-perf.spec.ts` (one case added).
-- [ ] S28.8 3D ground and contact shadows (V25, S15.6). The ground plane of the assumption, and one shadow mesh per drawn
+- [x] S28.8 3D ground and contact shadows (V25, S15.6). The ground plane of the assumption, and one shadow mesh per drawn
       floor from a pure `contactShadows(solids)` in `shade.ts`: wall-foot bands both sides, a soft patch under each
       furniture piece, unlinked box, device body and tree crown, vertex alpha falling to 0 at the edge, `--fp-shade` at
       `--fp-shade-alpha`, no depth write, a hair above the floor. Neither is picked; both are disposed on every build.
@@ -3379,7 +3379,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       night, floors below solid.
       Files: `src/card/three/shade.ts`, `src/card/three/view3d.ts`, `src/card/three/palette.ts`, a new
       `tests/card/three-shade.test.ts`, a new `tests/card/card-3d-shade.spec.ts`.
-- [ ] S28.9 3D lighting and theme (V25, S23.F5). Face tones as the assumption says, by material and role, not new lights;
+- [x] S28.9 3D lighting and theme (V25, S23.F5). Face tones as the assumption says, by material and role, not new lights;
       3D walls read `--fp-wall-side-share`; `--fp-paint-dim` parsed and applied to user colours and textures. Test: unit
       on the paint-dim parser (the two theme values, `none`, junk, a `url(` payload: none); Playwright, each of blueprint,
       light and ha-dark: probes on a wall top, a sun-side face, a shade-side face and an empty floor of the demo give the
@@ -3387,7 +3387,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       unchanged; night still darkens (the `NIGHT` probe below the day one).
       Files: `src/card/three/palette.ts`, `src/card/three/view3d.ts`, `tests/card/three-palette.test.ts`,
       `tests/card/card-3d-colors.spec.ts`.
-- [ ] S28.10 3D framed openings (V26). `scene-build` adds the frame solids of the assumption beside each leaf and pane;
+- [x] S28.10 3D framed openings (V26). `scene-build` adds the frame solids of the assumption beside each leaf and pane;
       the door leaf's rest role is quiet. Test: unit, iterate `DOOR_KINDS` plus `opening`: which kinds get frames and how
       many (2 jambs and a head, a sill for a raised window), every frame within the span widened by `FRAME_WIDTH`, its
       depth the wall's thickness plus `2 * FRAME_PROUD`, `ref.wall` and `ref.index` set, a lowered wall clips it to
@@ -3397,7 +3397,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       `tests/card/card-3d-doorway.spec.ts`.
 
 Lane labels (`src/card/three/overlay.ts`, a new `src/card/three/declutter.ts`):
-- [ ] S28.11 3D labels do not collide (V5). `declutter` and its use in `overlay.place`, as the assumption says. Test: unit,
+- [x] S28.11 3D labels do not collide (V5). `declutter` and its use in `overlay.place`, as the assumption says. Test: unit,
       two overlapping boxes keep the higher priority, equal priorities keep the larger room then the lower index, a chain
       of three, no box shown overlaps another, 1000 boxes in under 5 ms, NaN boxes skipped; Playwright: on the stress
       layout in 3D after the camera settles, no two shown label boxes intersect (fails with `declutter` removed), the demo's
@@ -3407,7 +3407,7 @@ Lane labels (`src/card/three/overlay.ts`, a new `src/card/three/declutter.ts`):
       `tests/card/card-3d-labels.spec.ts`.
 
 Lane studio (`src/editor/editor-app.ts`, `src/core/align.ts`):
-- [ ] S28.12 Align does not search on a nudge or an undo. `alignKey(floor)` in `align.ts` and the memo of the assumption.
+- [x] S28.12 Align does not search on a nudge or an undo. `alignKey(floor)` in `align.ts` and the memo of the assumption.
       Test: unit, `alignKey` equal for a floor and its copy with another offset, different for a moved outline point, an
       added external wall, a changed `owk`; never throws on junk. Playwright on the stress layout's largest floor, Align
       open: 10 nudges and 10 undos leave `alignSearches` unchanged; a moved wall then adds one search; the median nudge,
@@ -3415,13 +3415,13 @@ Lane studio (`src/editor/editor-app.ts`, `src/core/align.ts`):
       Files: `src/core/align.ts`, `src/editor/editor-app.ts`, `tests/core/align.test.ts`, `tests/editor/align-mode.spec.ts`.
 
 Wave 2, in order on `task/s28-polish` after every lane is merged:
-- [ ] S28.13 Exit and docs. `npm run shots -- --polish` on the integrated build; the coordinator opens every 4x shot and
+- [x] S28.13 Exit and docs. `npm run shots -- --polish` on the integrated build; the coordinator opens every 4x shot and
       crop in the three themes, day and night, and lists in the report what each shows and anything wrong (each defect
       goes back to its lane, test first). Docs: `docs/SPEC.md` (2.5D and 3D: shadows, crowns, frames, labels; the ghost at
       night), `docs/card.md` (2.5D and 3D sections), `docs/specs/real-3d.md` (contact shadows; sun shadows still a
       non-goal), `docs/specs/card-polish-and-light.md` item 23 done, CHANGELOG, DECISIONS (one entry per assumption that
       held, and each change from it).
-- [ ] S28.14 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests
+- [x] S28.14 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests
       `--repeat-each=10`; the size test and the 3D perf file read on their own; `npm run shots` and `--polish` looked at.
 
 Review (one Opus pass on the integrated build, the 4x shots open beside the diff) then fixes with their tests; exit test:

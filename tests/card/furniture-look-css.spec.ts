@@ -8,7 +8,9 @@ import { FURNITURE_SYMBOLS } from "../../src/core/schema";
 
 const MODES = ["light", "dark"] as const;
 const page_ = (body: string) => `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${THEMES.flatMap((t) => MODES.map((m) => `<g data-theme="${t}" data-mode="${m}" id="t-${t}-${m}">${body}</g>`)).join("")}</svg></body></html>`;
-const symbols = FURNITURE_SYMBOLS.map((s) => `<g class="furn" data-s="${s}" color="var(--fp-furniture)">${FURNITURE[s].svg}</g><g class="furn on" data-s="${s}" data-on="1" color="var(--fp-furniture)">${FURNITURE[s].svg}</g>`).join("");
+// A tree is drawn in its own colours (`.tree-crown`, `.tree-trunk`), not `.ff`, and does not light: its pair is in editor.spec.ts (S28.3).
+const SYMBOLS = FURNITURE_SYMBOLS.filter((s) => s !== "tree");
+const symbols = SYMBOLS.map((s) => `<g class="furn" data-s="${s}" color="var(--fp-furniture)">${FURNITURE[s].svg}</g><g class="furn on" data-s="${s}" data-on="1" color="var(--fp-furniture)">${FURNITURE[s].svg}</g>`).join("");
 const waves = `<g class="furn-waves"><circle class="wave" r="10"/><circle class="wave w2" r="10"/></g><rect id="probe" style="fill:var(--fp-active)"/><rect id="bg" style="fill:var(--fp-room-empty)"/>`;
 
 test("furniture CSS pair: every symbol is filled from the theme, and an on piece changes the pixel", async ({ page }) => {
@@ -21,7 +23,7 @@ test("furniture CSS pair: every symbol is filled from the theme, and an on piece
       return { off: fills("0"), on: fills("1"), bg: getComputedStyle(g.querySelector("#bg")!).fill, active: getComputedStyle(g.querySelector("#probe")!).fill };
     });
     const tag = `${t}/${m}`;
-    expect(r.off.length, tag).toBe(FURNITURE_SYMBOLS.length);
+    expect(r.off.length, tag).toBe(SYMBOLS.length);
     r.off.forEach((o, i) => {
       expect(o.ff.length, `${tag} ${o.s}: a filled shape`).toBeGreaterThan(0);
       for (const v of o.ff) { expect(v, `${tag} ${o.s}`).toMatch(/^(rgb|color)\(/); expect(v, `${tag} ${o.s}: not the plain room colour`).not.toBe(r.bg); }

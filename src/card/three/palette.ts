@@ -22,11 +22,14 @@ const ROOM: Record<string, string> = {
 };
 // A wall is the ink colour of its theme: near black in the light theme, where a solid slab of it under lighting reads as a
 // hole. The 2.5D side faces already soften it this way (--fp-wall-side, 55% over the background), so the 3D walls do too.
+// S28.9: the share is the theme's own --fp-wall-side-share (55%, 30% on HA dark), so the 3D walls match the 2.5D sides.
+const SHARE = "var(--fp-wall-side-share, 55%)";
+const side = (wall: string, extra: string) => `color-mix(in srgb, var(${wall}) ${extra}, var(--fp-bg))`;
 const WALL: Record<string, string> = {
-  wall: mix("--fp-wall", 55, "--fp-bg"), boundary: mix("--fp-wall", 55, "--fp-bg"), external: mix("--fp-wall-external", 60, "--fp-bg"), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)", parapet: mix("--fp-wall-external", 60, "--fp-bg"),
+  wall: side("--fp-wall", SHARE), boundary: side("--fp-wall", SHARE), external: side("--fp-wall-external", `calc(${SHARE} + 5%)`), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)", parapet: side("--fp-wall-external", `calc(${SHARE} + 5%)`),
 };
 const FURNITURE: Record<string, string> = {
-  tree: "var(--fp-dev-garden)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),
+  tree: "var(--fp-tree-edge)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),
   sink: mix("--fp-window", 25, "--fp-furniture"), toilet: mix("--fp-window", 25, "--fp-furniture"), shower: mix("--fp-window", 25, "--fp-furniture"), bathtub: mix("--fp-window", 25, "--fp-furniture"),
 };
 // A device with a body in the scene (radiator, speaker, TV) is drawn at rest here; the live tints are the LIVE roles below. Every other type is a point.
@@ -37,9 +40,11 @@ const DEVICE: Record<string, string> = {
 const TABLE = new Map<string, RoleStyle>();
 TABLE.set("slab", solid(mix("--fp-furniture", 45, "--fp-bg")));
 TABLE.set("panel", solid("var(--fp-sealed)"));
-TABLE.set("door-leaf", solid("var(--fp-door)"));
+TABLE.set("door-leaf", solid("color-mix(in srgb, var(--fp-door) 60%, var(--fp-wall-side))")); // S28.10: quiet at rest; red only through open-door
+TABLE.set("frame", solid("var(--fp-frame)"));
 TABLE.set("stair", solid(mix("--fp-tread", 70, "--fp-bg")));
 TABLE.set("ring", solid("var(--fp-ink)")); // the dashed outline of the picked room
+TABLE.set("tree-crown", solid("color-mix(in srgb, white var(--fp-crown-lift, 0%), var(--fp-tree))")); // S28.7: the crown, the 2D crown's green; a dark theme lifts it toward white (--fp-crown-lift) or it sinks into the ground at night. The trunk (furniture-tree) is the darker edge colour
 // A linked tv, speaker or computer piece: the tv's blue at rest (as `.furn[data-linked]` on the plan), the plan's on colour when on.
 TABLE.set("furniture-linked", solid(mix("--fp-dev-tv", 70, "--fp-furniture")));
 TABLE.set("piece-on", solid("var(--fp-active)"));
@@ -57,6 +62,8 @@ TABLE.set("motion", solid("var(--fp-dev-motion)"));
 TABLE.set("motion-radar", solid("var(--fp-dev-radar)"));
 TABLE.set("lamp", solid("var(--fp-dev-light)"));
 TABLE.set("backdrop", solid("var(--fp-bg)"));
+TABLE.set("ground", solid(mix("--fp-ink", 6, "--fp-bg"))); // S28.8: the plane under the house
+TABLE.set("shade", solid("var(--fp-shade)")); // S28.8: contact shadows; their strength is --fp-shade-alpha, read by the viewer
 for (const k of ROOM_KINDS) TABLE.set(`room-${k}`, solid(ROOM[k] ?? "var(--fp-room)"));
 for (const k of WALL_KINDS) TABLE.set(`wall-${k}`, solid(WALL[k] ?? "var(--fp-wall)"));
 for (const k of ["door", "glass", "window", "slit", "fullwindow", "sealed", "opening"]) TABLE.set(`glass-${k}`, { css: k === "window" || k === "slit" || k === "fullwindow" ? "var(--fp-window)" : "var(--fp-glass)", opacity: 0.35 });
@@ -69,3 +76,25 @@ const FALLBACK = solid(mix("--fp-furniture", 70, "--fp-bg"));
 export const isKnownRole = (role: unknown): boolean => typeof role === "string" && TABLE.has(role);
 /** The CSS colour and opacity of a role; an unknown one gets the furniture colour. */
 export const roleStyle = (role: unknown): RoleStyle => (typeof role === "string" ? TABLE.get(role) : undefined) ?? FALLBACK;
+
+// S28.9: a dark theme dims user paint (--fp-paint-dim, brightness and saturate) so a bright pick does not glare on a dark plan.
+// The token is CSS; it is parsed here, strictly: two numbers or nothing, so a hostile value cannot reach the colour maths.
+export interface PaintDim { brightness: number; saturate: number }
+const NUM = "(\\d*\\.?\\d+)";
+const DIM_RE = new RegExp(`^\\s*brightness\\(${NUM}\\)\\s+saturate\\(${NUM}\\)\\s*$`);
+export function parsePaintDim(css: unknown): PaintDim | null {
+  const m = typeof css === "string" ? DIM_RE.exec(css) : null;
+  if (!m) return null;
+  const brightness = Number(m[1]), saturate = Number(m[2]);
+  return Number.isFinite(brightness) && Number.isFinite(saturate) ? { brightness: Math.min(brightness, 4), saturate: Math.min(saturate, 4) } : null;
+}
+/** The CSS filter chain in sRGB 0..255: brightness multiplies, then the saturate matrix pulls toward the luma. */
+export function dimRgb(c: readonly number[], d: PaintDim): [number, number, number] {
+  const [r, g, b] = c.map((v) => v * d.brightness), s = d.saturate;
+  const clamp = (v: number) => Math.min(255, Math.max(0, v));
+  return [
+    clamp((0.213 + 0.787 * s) * r + (0.715 - 0.715 * s) * g + (0.072 - 0.072 * s) * b),
+    clamp((0.213 - 0.213 * s) * r + (0.715 + 0.285 * s) * g + (0.072 - 0.072 * s) * b),
+    clamp((0.213 - 0.213 * s) * r + (0.715 - 0.715 * s) * g + (0.072 + 0.928 * s) * b),
+  ];
+}

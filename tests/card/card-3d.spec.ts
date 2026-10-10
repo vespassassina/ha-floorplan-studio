@@ -279,6 +279,8 @@ test.describe("3D view: the Active list does not hide the model (S12.4)", () => 
     expect(l).toBeCloseTo((p.x + p.width - h.x) / h.width, 2); // the list's right edge, as a share of the view
     // a house centred in the free part: its pixels lie right of the list's edge, not under it
     await card(page).locator("css=.fp-active").evaluate((el: HTMLElement) => { el.style.visibility = "hidden"; }); // the list paints over the canvas: read the model alone
+    // S28.8: the ground plane reaches past the house on purpose (1.5x), so read the model without it and its shadows.
+    await page.evaluate(() => (window as unknown as { __fp3d: { shadeVisible(on: boolean): void } }).__fp3d.shadeVisible(false));
     const png = await canvas(page).screenshot();
     const edge = await page.evaluate(async (b64) => {
       const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode();

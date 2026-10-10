@@ -2,6 +2,139 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: 2.5D frame quads are drawn after every wall block (S28 Opus re-check)
+
+The frame quads were pushed into the wall's face list right after the opening, so the next wall block (which starts at the gap's far edge) painted over the far jamb and the far end of the head and sill bars: one jamb 16 px, the other a 5 px sliver. Frames now go in their own list, appended after the last block of the wall, so they paint over every block, also with two openings in one wall. A unit test checks draw order at a wall end and with two openings; the Playwright probe reads both jambs and the head bar's far end at asymmetric depths. Both failed first.
+
+## 2026-10-10: The Align key is memoised on the floor object (S28 Opus review)
+
+`alignPreview` runs on every render and built `alignKey` of both floors each time: a walk of every wall, for a string that only changes when the floor does. `alignKeyOf` puts a `WeakMap` in front, keyed on the floor object. This is safe because a floor is never edited in place: `EditorState.edit` clones, and the drag handlers clone `d.base` before changing it, so an edit is a new object and gets a new key. A test pins both sides (same object, no rebuild; changed copy, new key).
+
+## 2026-10-10: The declutter lets go of a lost pointer and re-measures after fonts (S28 Opus review)
+
+The set of held pointers (which freezes the label answer during a drag) was emptied only by `pointerup` and `pointercancel` on the window. A lost pointer capture or a tab hidden mid-drag could leave an id in it for good, and the labels would never settle. Both now empty it. Separately the size cache kept a 0 x 0 measured before layout, and kept widths measured in the fallback font: a 0 x 0 is no longer kept, and `document.fonts` `loadingdone` clears the cache and asks for a new decision.
+
+## 2026-10-10: Every room kind has a 3D label rank (S28 Opus review)
+
+`roomPriority` knew water and garden; every other kind fell through to the rank of an indoor room, so a pavement or a terrace name could push a bedroom name off the screen. Now a `Record<RoomKind, number>` and a test over `ROOM_KINDS`. Shipped ranks are kept (room 80, garden 70, water 60). New: structure 80 (a building part), zone 75 (a named area over rooms), terrace 70 (outdoor ground, with garden), pavement 65, fill 55 (decoration, still over a readout at 50). Outdoor kinds all rank below the indoor ones.
+
+## 2026-10-10: 2.5D frame trim lies outside the gap, as in 3D (S28 Opus review)
+
+2.5D drew the jambs inside the opening gap and the head and sill bars inside its height; 3D drew them outside. On a window narrower than two jamb widths the inside jambs met in the middle and ate the glass. 2.5D now copies 3D: jambs beside the gap from sill to head, a head bar above the head and a sill bar below the sill, each a jamb wider each side. The glass span is the opening's, whatever the frame. A test over an 8 cm window reads the glass quad and every frame point.
+
+## 2026-10-10: 2.5D shade bands start on the wall's centreline (S28 Opus review)
+
+The wall side face is drawn up from the centreline, so the foot the eye sees sits there. The bands started at the room face (5 or 10 cm out), leaving a strip of bare floor under the face, about 15 px at a steep tilt. The full band now runs from the line to face + 6 cm, the half band 6 cm more: same outer reach, no gap. The walls draw over the shade, so the part under the wall is hidden. A Playwright probe reads the pixel 2 cm off the line in a real render.
+
+## 2026-10-10: A sealed panel has no frame in any view (S28 Opus review)
+
+The 2.5D draw and SPEC.md said no frame for a sealed panel; the 3D builder had its own condition and framed it, and the 3D test kept a local table that agreed with the builder. Now `OPENING_FRAMED` (solids.ts) is the one table: 2.5D, 3D (through `SceneDeps`) and the test over every opening kind read it. A sealed panel is a fixed pane, not something you pass or trim. `docs/card.md` now says what SPEC.md says.
+
+## 2026-10-10: A 2.5D trunk is the crown's fill on a dark theme (S28 final, shots)
+
+In blueprint at night the trunk was `--fp-tree-edge`, pale grey, under a dark slate crown: inverted, like a lit stick. The edge has to stay pale (3:1 against the garden, it outlines the crown), so the trunk gets its own token `--fp-trunk`: the edge colour on a light theme, and on a dark one (`--fp-crown-lift` above 0) the crown's own painted fill, `--fp-tree` at 35 % over the garden. A first try, darker than the garden, vanished on the dark plane; the crown's fill reads there, so the trunk does. A test over every theme says the trunk is no lighter than the crown fill by more than 0.02 of relative luminance, and not under 1.1:1 against the garden. Width stays 12 cm (`TRUNK_SIDE`, one shape in every view): the shots' 60 cm test crowns look like lollipops, a 200 cm crown does not; thinning it in 2.5D alone would break "one shape".
+
+## 2026-10-10: 3D crowns take a lift on dark themes (S28 final, shots)
+
+At night the 3D crowns were dark grey on near-black ground: in the blueprint shot the crown measured (45, 50, 60) on (8, 12, 20), 1.5:1. The night light multiplies both by about 0.2 in linear light (measured from that shot), so the palette's own ratio is what counts. `--fp-crown-lift` (45 % on a dark theme, 0 % on a light one, beside `--fp-paint-dim`) mixes white into the `tree-crown` role. A test reads every theme, day and night, through the palette expression against the garden and the ground plane: 1.8:1 at night on a dark theme, 1.3:1 by day, and a dark crown under relative luminance 0.5. A mix toward `--fp-ink` was tried first and cannot reach 1.8 on solarized; the lift is a token, not a per-theme colour.
+
+## 2026-10-10: The 3D crown is a round blob, not a lens (S28 final, shots)
+
+The 4x shots showed 3D crowns as tall pointed lenses above the garden wall: the box was `w / 2` by half the 50 to 100 % range, and a 400 cm tree's range is 200 cm. Now the crown's half height is `min(range / 2, max(rx, ry))`, so it is never taller than it is wide, and it stands on `crownBottom` (the trunk enters it) instead of being centred on `crownMiddle`; a wide tree keeps its whole range. The ball is an icosahedron of detail 2 with a fixed 7 % lump per vertex, still one InstancedMesh. Supersedes the 3D half of "crown 50 to 100 %" in S28.7: the plan and 2.5D numbers are unchanged.
+
+## 2026-10-10: Sprint 28, what the build kept of its assumptions and what it changed (S28.13)
+
+One line per assumption of the plan. The lane entries above carry the detail.
+
+Held:
+- **Contact shadows, baked, not cast; no shadow map; sun shadows still a non-goal** (S28.5, S28.8). Day and night share them; `trim-three.mjs` is unchanged.
+- **2.5D shadows have no blur**; two stepped bands, 6 cm at full alpha and 6 cm at half, as one `g.shade` before the ghost, the veil and the walls, so the veil darkens them (S28.5). None at rise 0.
+- **Shade alpha** .16 light, .32 dark from `SHADE_ALPHA` (S28.1). The tests pin the order, not the value.
+- **A tree is a trunk under a crown in every view**: trunk to 60 %, crown 50 to 100 %, 12 cm trunk, radii `w / 2` and `h / 2`, shade patch (+4, +6) cm (S28.1, S28.3, S28.4, S28.7). The 2.5D crown sits at its middle (75 %).
+- **Frames** 5 cm wide, 2 cm proud, on door, glass, window, slit and fullwindow; none on `open`, `opening`, `sealed` in 3D, and in 2.5D (S28.6, S28.10). A tap on a 3D frame is a tap on its door; a lowered wall lowers it. The closed door leaf is quiet and a closed door stays shut.
+- **A ground plane** 1.5 times the box, `--fp-ink` 6 % into `--fp-bg`, at the lowest slab bottom, never picked (S28.8).
+- **3D walls read `--fp-wall-side-share`; `--fp-paint-dim` is parsed and applied** (S28.9). Face tones were already in order; a test pins the 6 % step.
+- **Labels: greedy pass by priority on a grid, 120 ms fade, no fade under reduced motion, element sizes measured once per text change** (S28.11).
+- **Align's memo ignores the offset; a drag holds its last answer** (S28.12).
+- **The ghost dims at night by moving before the night overlay**, with no night stroke of its own (S28.2).
+
+Changed:
+- **`--fp-frame` is `--fp-door` 40 % into `--fp-ink`**, not into the wall side (S28.1): the wall-side mix had the wall side's own luminance on midnight.
+- **`--fp-shade` is the ink pulled toward black**, not the ink itself (S28.5): the ink is lighter than a navy room. In 3D the shade multiplies the floor instead of blending (S28.8).
+- **The ghost's night contrast bound is .92 of the day's, not .8** (S28.2): a dark veil cannot shrink WCAG contrast further on light.
+- **A floor is not lighter than the wall sides on dark themes** (S28.9): the bare floor is the darkest surface there, by choice.
+- **The 3D trunk is `--fp-tree-edge` and the crown has a role of its own, `tree-crown`** (S28.7). The assumption named `furniture-tree` for the crown.
+- **The 2.5D trunk is 12 cm and strokes with `--fp-tree-edge`**, not the furniture colour (S28.4).
+- **Labels decide when the view has been still 160 ms with no pointer down, and on the first frame**, not "one frame after a move" (S28.11); a timer alone flipped labels under load.
+- **Align's memo is one `{ key, r }` for both floors, not the last 4 answers in a WeakMap** (S28.12). The key is the structure lines in stored coordinates plus `owk`, not a hash. An undo back to an earlier shape searches again, once.
+- **A piece with its bottom at 40 cm or more casts no 2.5D patch**, and a flat patio none (S28.5): the assumption did not say.
+- **Docs: `docs/card.md` said 3D has "no shadows" and "no floor below"**; both were out of date (S27 and S28) and now say what the card does.
+
+## 2026-10-10: Align's memo keys on the structure the search reads, not on floor objects (S28.12)
+
+- `alignKey(floor)` (`align.ts`) is the structure lines `alignFloor` reads, in stored coordinates, plus `owk`. The offset, title, devices and everything else are left out, so a nudge, an undo or a device drag leaves the key as it was and the preview keeps its answer. The memo is `{ key, r }` with the key of both floors. During a moving drag the memo is still kept as it is. Consequence: a device drag no longer searches when it ends (it used to, once); a moved outline point, an added external wall or a changed `owk` does, once. Chosen over a geometry hash of the whole floor, which would search on a moved light. `owk` is in the key although `structure` does not read it, as the plan says. `alignKey` is also exported from `src/core/index.ts` (not named in the task; the editor imports core through it).
+
+## 2026-10-10: 3D labels are decided by `declutter` once the view is still (S28.11)
+
+- `src/card/three/declutter.ts` is a pure greedy pass on a 64 px grid: priority, then larger area, then lower index; touching is not overlapping; a box with a non-finite number is dropped; a huge box goes in a short list so it cannot stall the grid. The overlay measures each text element once per text change (`getBoundingClientRect`, cached) and gives each piece a box: icon 32 px square, a line of text with 1 px of leading cut off top and bottom (so an icon, its value and its name, stacked, do not count as meeting). The loser gets `fp3-lose` (opacity 0, 120 ms; none under reduced motion, by a media rule) and stays in the DOM, so measuring and the next decision still work.
+- When: the first frame at once (nothing is on show before it); later, once no label has moved for 160 ms and no pointer is down on the view. The pointer rule is what makes a slow frame mid-drag safe: a pure timer of 80 ms flipped labels in 4 of 80 runs under load (frames of 70 ms and more on the stress house). A live update (text, a new or removed element, a device that moved) decides again at once when the view is still. A hidden loser's icon is not tappable (`hit` skips it).
+- Room priority needs the room's kind and area; `Anchors` gets an optional `roomInfo`, built in `view3d.ts` from the scene solids. Kind order: room-like kinds above garden above water.
+- Seen on the stress house: with icons first as the assumption says, most room names lose to icons at the room's centre (only "Front garden" survives on the ground floor). Left as decided; if it reads badly, the cheap change is room names above device values and names only, below icons still.
+## 2026-10-10: 2.5D doors and windows get a frame of their own, FRAME_PROUD off the wall face (S28.6)
+
+- `OPENING_FRAMED` in `solids.ts` lists, per opening kind, which parts are drawn: jambs and head for a door, plus a sill for a window. Each is a quad of `FRAME_WIDTH` (5 cm) set `FRAME_PROUD` (2 cm) toward the viewer, so it cannot z-fight the wall face.
+- Colour is `--fp-frame` through the `.frame` class; the class also takes `pointer-events:none`, so a click still reaches the opening (finding 18).
+- Test: a unit test on the quads, and `tests/card/frame-25d.spec.ts` (computed style and a pixel in the middle of the door's left jamb, 14 themes plus ha dark). It fails with the `.frame` rule removed (shown) and passes 10 times in a row.
+- Seen at 4x in light, blueprint and ha-dark, day and night: the frame reads as a thin brown, white or tan edge against the grey wall side. The crop sits at the card's edge; the glass and the frame are both legible.
+
+## 2026-10-10: 2.5D contact shadows are one `g.shade`; `--fp-shade` is the ink pulled toward black (S28.5)
+
+- `shadeMarkup(segs, solids, px)` in `solids.ts` builds the group; `renderFloor` keeps a slot after the stairs and fills it once the solids exist, so it sits before the ghost, the night veil and the walls. A `Solid` may carry `foot`, its standing footprint (a furniture box, an unlinked box, a radiator, a speaker, a TV); the patch is that footprint grown 6 cm (`growPoly`, mitred). A piece whose bottom is at 40 cm or more (a wall cabinet, a TV on a wall) touches no floor and gets none; a tree has its own patch (S28.4) and a flat patio none. Walls: per wall run, two bands per side from the wall's face (`wallFace`), 6 cm at full alpha (`.s1`) and 6 cm at half (`.s2`). Nothing at rise 0.
+- `wallSolids` takes the wall list as an optional fifth argument, so the render computes `collectWalls` once for the solids and the shade.
+- The wall-foot pixel probe failed on blueprint: `--fp-shade` was the theme's `--fp-on-light` (#2b2a27), which is lighter than a navy room, so the "shadow" lightened it. The generic token is now `color-mix(in srgb, var(--fp-on-light) 35%, black)`. This also darkens the tree patch of S28.3. `tests/card/polish-tokens.spec.ts` pinned shade equal to ink; it now pins "no lighter than the ink and near-black" (a file outside the task's list, changed on purpose).
+- Seen at 4x: light and ha-dark show the patch and the wall bands clearly; blueprint at night shows them faintly, as a black over navy cannot do more (the probe still reads at least 4 % darker).
+
+## 2026-10-10: the 2.5D tree stands; the trunk takes the crown's edge colour (S28.4)
+
+- `furnitureSolid` for a tree draws, inside the piece's group: the shade patch (`treeShadeSvg`, shared with 2D, so the (4, 6) cm offset lives once in `tree.ts`), a `line.trunk` from the foot to `lift(foot, trunkTop)`, and `TREE_CROWN` (the 2D symbol without its trunk dot) at `lift(centre, crownMiddle)`. The depth key is unchanged. At tilt 0 nothing lifts, so it is the 2D tree. A pole that is not a tree keeps the old symbol at full height.
+- `.trunk` is 12 cm wide (was 8) and strokes with `--fp-tree-edge`, not `--fp-furniture`. Seen at 4x: with the furniture token the trunk was a loud blue pole on blueprint and ha-dark; with the edge token it matches the crown's outline in every theme.
+- Painted pixels are read in `tests/card/tree-25d.spec.ts` (all 13 themes plus ha dark, at 4x): the crown centre is the fill at .35 over the page, the trunk halfway up is the stroke, the patch beside the foot is the shade.
+
+## 2026-10-10: the 2D tree's shade patch and trunk (S28.3)
+
+- `FURNITURE.tree.svg` is the crown (8 arcs on a circle of radius 40 in the 100 box, `.tree-crown`: `--fp-tree` at .35, a 1 px non-scaling `--fp-tree-edge`) and a trunk dot (`.tree-trunk`, radius 3 in the box, so 6 % of `w` across, which is 12 cm on the default 200 cm tree: `TRUNK_SIDE`). The dot scales with the box, so on a 120 x 300 tree it is an ellipse like the crown. The shade patch is a separate `ellipse.tree-shade` drawn before the piece's group, at (+4, +6) cm from the tree whatever `w`, `h` and `rot`, with the crown's own radii and turned by `rot` about its own centre. Soft here means one flat patch at `--fp-shade-alpha`; no gradient, in line with the 2.5D rule against filters. The render snapshot changes on purpose (the tree line only), and `furniture-look.test.ts` asks a tree for `.tree-crown` instead of the body fill class.
+- Seen at 4x: on blueprint the crown reads grey-blue over the navy garden (the green mixes into navy), on light and ha-dark green. The edge holds 3:1 in all. Left to the tokens of S28.1.
+
+## 2026-10-10: the ghost floor lies under the night veil; its night contrast is under .92 of the day's, not .8 (S28.2)
+
+- `g.ghost` is pushed before the night overlay, after the room fills and stairs. An unlit room's veil darkens it with the floor; a lit room has no veil. Measured from the real elements in their paint order (`tests/fixtures/ghost-contrast.ts`): blueprint .78 of the day contrast, light .90, and the old order gave more than the day's. The plan said under .8; the veil alone cannot reach that on light (WCAG contrast shrinks slowly under a dark veil), and a second night rule for the ghost would also dim it in lit rooms. So the bound is .92, with over 1.15:1 kept, and a lit room within 2 % of the day.
+## 2026-10-10: 3D frames are `opening` solids tagged `frame`, on every kind but the doorway and the plain opening (S28.10)
+
+A frame is 2 jambs and a head, plus a sill bar when the opening's sill is above 0, all outside the gap (so they widen the span by `FRAME_WIDTH`) and `thickness + 2 * FRAME_PROUD` deep. Framed: door, glass, window, slit, fullwindow, sealed. Bare: `open` (a doorway, only an alert band) and `opening`. They carry the opening's own ref plus `ref.wall`, so a tap reaches that door, and a lowered wall clips them to `CUT_WALL_HEIGHT` with the wall (`wallZ` already keys on `ref.wall`). A bar that would lie wholly above the wall is dropped, not squeezed. The frame is a static wall mesh, never recoloured by state. The door leaf's rest role is `--fp-door` 60 % into `--fp-wall-side`; `open-door` stays the alert colour. Supersedes nothing.
+
+## 2026-10-10: 3D walls and paint follow the 2D theme tokens; the floor order is per theme (S28.9)
+
+Face tones were already ordered (top, sun face, shade face) by the two lights, in every theme, with steps of 15 % or more. A test now pins 6 %. No new lights. What changed: the wall palette reads `--fp-wall-side-share` (55 %, 30 % on HA dark) instead of a fixed 55, and `--fp-paint-dim` is parsed strictly (`brightness(a) saturate(b)` or nothing) and applied to own-colour room and stair paint in sRGB, as the CSS filter does. Textures take the brightness through the material colour; saturate is not applied to a raster, which lives outside this task's files.
+
+The assumption "floor lighter than wall sides" holds on the light theme only. On dark themes the bare floor is the darkest surface (blueprint 31, HA dark 39 luma against 63 to 143 on the walls). The order there is top, sun, shade, floor. Judged right: a lit dark floor would fight the contact shadows (S28.8). Supersedes nothing.
+
+## 2026-10-10: 3D contact shadows multiply; the ground is a lit-free plane (S28.8)
+
+- `contactShadows(solids)` (`src/card/three/shade.ts`) is pure: a band round each wall prism (14 cm), a narrower one (8 cm) round furniture, unlinked boxes and device bodies, a soft ellipse under a tree's crown (offset +4, +6 cm, as 2D). Alpha is 1 at the footprint and 0 at the rim, per vertex. A flat piece (under 10 cm) and one floating more than 5 cm above its floor cast nothing. It sits 0.3 cm above the highest room fill that holds it, so a nested room is covered.
+- The first version alpha-blended `--fp-shade` (near black, `#2b2a27`). On blueprint that is lighter than the floor, so the "shadow" lit it: the 4 % test failed with the pixel 8 % brighter. Now the shade multiplies the floor by `1 - strength * alpha * (1 - shade)`, mixed in sRGB (where the multiply happens), unlit, so it darkens on every theme. Strength is `--fp-shade-alpha`, times 0.25 for a ghosted floor below.
+- The ground (`ground` role, `--fp-ink` 6 % into `--fp-bg`) is 1.5 times the box of everything drawn, at the lowest slab bottom, floors below included. Neither is a solid, so neither is picked. The shade is single-pass (`forceSinglePass`): a double-sided transparent material was two draw calls.
+- Seen in the shots: light shows clear soft feet; blueprint and HA dark show them faintly, as multiply on near black can. Not raised, S28.9 owns the face tones.
+
+## 2026-10-10: 3D tree crowns carry their z range in the solid, and have their own colour role (S28.7)
+
+- `scene-build` cuts a tree's trunk at `treeShape`'s trunk top and gives the solid `ref.crown = { z0, z1, rot }` (lift included). The viewer needs no tree rule of its own: `crownMatrices(solids)` reads the size and the crown range from the solid. Chosen over deriving the height from the trunk (a 0.6 constant copied into the chunk). `treeShape` reaches the chunk through `SceneDeps`, as the other helpers do. Scene bounds include the crown top so the camera frames it.
+- The crown is an icosahedron (detail 1, 80 flat faces) scaled so its box is exactly the tree's `w` x `h` x crown height, one `InstancedMesh`, never raycast. A floor below gets its own crown mesh (translucent in ghost mode), disposed with it.
+- Colour: new viewer-only role `tree-crown` = `--fp-tree` (the 2D crown colour); the trunk (`furniture-tree`) is now `--fp-tree-edge`. Before, both were `--fp-dev-garden`, which is grey on blueprint, so a blueprint tree was a grey stick under a grey ball: still grey there, but the trunk now parts from the crown on every theme. Seen at 4x in blueprint, light and ha-dark, day and night. HA dark at night is dim: a dark green crown on near black.
+
+## 2026-10-10: the door frame token mixes into the ink, not the wall side (S28.1)
+
+- The sprint 28 assumption said `--fp-frame` is a mix of `--fp-door` into the wall side. On midnight that mix has the wall side's own luminance (contrast 1.003:1), and a mix with the wall side cannot be relied on to stand off it in any theme. It is now `--fp-door` 40 % into `--fp-ink`, which is light on a dark theme and dark on a light one, so the frame leaves the wall side the same way the wall's own colour does. Measured over all 13 themes plus HA dark: at least 1.5:1. Same commit adds `--fp-tree` (garden green over the garden), `--fp-tree-edge` (garden green 55 % into ink, at least 3:1 on every garden), `--fp-shade` (`--fp-on-light`) and `--fp-shade-alpha` (.16 light, .32 dark, from `SHADE_ALPHA` in `ink.ts`). `treeShape` and `FRAME_WIDTH`/`FRAME_PROUD` land with them; nothing draws any of it yet.
+
 ## 2026-10-10: Align's fit is a robust point-to-line least squares (review 27 re-check, minor)
 
 - The refine step averaged the pulls of the samples that were off their line and left out those already on it, so samples on the free edges of a smaller floor, passing 5 to 15 cm from some other line of the lower floor, dragged the fit: a 500 x 300 floor 2 cm in a 900 x 700 one came out 0.6 cm off, 0.5 cm in gave 0.6 cm, and a floor in the corner of a wide one 3.2 cm off. Now every sample with a line in reach adds a row (the direction to its nearest point, the distance), those already on their line say "stay", and the move is the weighted least-squares answer. A row weighs 1 / (1 + (d / c)^2)^2, c the median distance of the rows that speak for the same axis (at least 2 cm), so a few strays among many exact hits count for nothing, while a lone far pull on an axis (the ends of a 3000 x 10 floor shifted 15 cm) still counts. Chosen over a fixed reach of a few cm, which drops that lone pull too. Result: the three offsets of the test are within 0.2 cm, and the earlier cases (thin floors shifted 3 to 25 cm, combs, twin walls, the house, stress layout) are unchanged. Left as it is: a stray that is the only evidence on an axis is believed.

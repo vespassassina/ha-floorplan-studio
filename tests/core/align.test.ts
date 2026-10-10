@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import stress from "../fixtures/stress-layout.json";
 import house from "../fixtures/align-house.json";
-import { alignFloor } from "../../src/core/align";
+import { alignFloor, alignKey, alignKeyOf } from "../../src/core/align";
 import { validate } from "../../src/core/schema";
 import type { Floor, Layout } from "../../src/core/schema";
 
@@ -196,5 +196,65 @@ describe("alignFloor (S27.4)", () => {
       expect(Math.abs(r.t[0] + o), `o ${o}`).toBeLessThan(0.5);
       expect(Math.abs(r.t[1] + o), `o ${o}`).toBeLessThan(0.5);
     }
+  });
+});
+
+describe("alignKey (S28.12)", () => {
+  const base = (): Floor => ({
+    ...blank(rect(0, 0, 800, 600)), owk: ["external", "external", "external", "external"],
+    walls: [{ a: [0, 0], b: [800, 0], kind: "external" } as any, { a: [400, 0], b: [400, 600], kind: "internal" } as any],
+  });
+
+  it("is equal for a floor and its copy with another offset, another title and a moved internal wall", () => {
+    const a = base(), b = clone(a);
+    b.offset = [137.4, -61.7]; b.title = "Other"; (b.walls[1] as any).a = [450, 0];
+    expect(alignKey(b)).toBe(alignKey(a));
+    expect(typeof alignKey(a)).toBe("string");
+  });
+
+  it("differs for a moved outline point, an added external wall and a changed owk", () => {
+    const a = base(), k = alignKey(a);
+    const moved = clone(a); moved.outline[2] = [800, 601];
+    const added = clone(a); added.walls.push({ a: [0, 600], b: [800, 600], kind: "external" } as any);
+    const kind = clone(a); kind.owk = ["external", "external", "window", "external"] as any;
+    const keys = [alignKey(moved), alignKey(added), alignKey(kind)];
+    for (const x of keys) expect(x).not.toBe(k);
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("follows the rooms only when there is no outline and no external wall (what the search reads)", () => {
+    const room = (x: number) => ({ ...blank(), rooms: [{ name: "R", kind: "living", pts: rect(x, 0, x + 300, 300) }] }) as unknown as Floor;
+    expect(alignKey(room(0))).not.toBe(alignKey(room(5)));
+  });
+
+  it("never throws on junk", () => {
+    for (const j of [null, undefined, 5, "x", [], {}, { outline: 5, walls: "w", rooms: 7, owk: { a: 1 } }, { outline: [[NaN, 1], null, "a"], walls: [null, { a: 3 }], rooms: [null] }, { walls: [{ kind: "external", a: [Infinity, 0], b: [1, 1] }] }]) {
+      expect(() => alignKey(j as any), JSON.stringify(j)).not.toThrow();
+      expect(typeof alignKey(j as any)).toBe("string");
+    }
+    const circ: any = { outline: [] }; circ.self = circ;
+    expect(() => alignKey(circ)).not.toThrow();
+  });
+});
+
+
+// S28 review: the editor asks for both keys on every render; a WeakMap on the floor object spares the string building.
+describe("alignKeyOf", () => {
+  const base = (): Floor => ({ ...blank(rect(0, 0, 800, 600)), owk: ["external", "external", "external", "external"], walls: [{ a: [0, 0], b: [800, 0], kind: "external" } as any] });
+  it("is alignKey for the same floor", () => { const f = base(); expect(alignKeyOf(f)).toBe(alignKey(f)); });
+  it("does not build the key again for an object it has seen", () => {
+    const f = base(), k = alignKeyOf(f);
+    f.outline[2] = [800, 777]; // a change in place: the cached answer stands, which proves the string was not rebuilt (floors are never edited in place; an edit makes a new object)
+    expect(alignKeyOf(f)).toBe(k);
+    expect(alignKey(f)).not.toBe(k);
+  });
+  it("an edit, which is a new floor object, changes the key", () => {
+    const a = base(), k = alignKeyOf(a), b = clone(a);
+    b.outline[2] = [800, 601];
+    expect(alignKeyOf(b)).not.toBe(k);
+    expect(alignKeyOf(a)).toBe(k);
+  });
+  it("junk that cannot be a WeakMap key still gives a string and never throws", () => {
+    for (const j of [null, undefined, 5, "x"]) expect(typeof alignKeyOf(j as any)).toBe("string");
   });
 });
