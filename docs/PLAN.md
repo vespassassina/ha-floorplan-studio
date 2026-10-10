@@ -3148,7 +3148,7 @@ Lane 3D (`scene-build.ts`, `src/card/three/`):
 Wave 2, two lanes in parallel after wave 1 is merged; tasks inside a lane run in order:
 
 Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.ts`, `guide.ts`):
-- [ ] S27.8 Writers. `EditorState.setOffset(key, pt)` and `alignToBelow(key)`: one undo step, none when the offset is
+- [x] S27.8 Writers. `EditorState.setOffset(key, pt)` and `alignToBelow(key)`: one undo step, none when the offset is
       unchanged, `[0,0]` deletes the key, refused under Lock plan with `planBlocked`; `addFloor` gives the new floor the
       lowest floor's offset. Test: every combination of (offset absent, zero, set) x (lock on, off) x (lowest, middle,
       unknown floor); every result passes `validate`; each no-op leaves no step.

@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: offset writers (S27.8)
+
+- `setOffset(key, pt)` rounds to whole cm, deletes the key at `[0, 0]`, and is a no-op (no step, no lock blame) when the value equals what is stored, an absent offset counting as `[0, 0]`. A stored `[0, 0]` set to `[0, 0]` stays as written: it is valid, and a step to tidy it would be noise. Junk or out-of-range input and unknown keys return false. Under Lock plan a real change is refused with `planBlocked`.
+- `alignToBelow(key)` is `alignFloor` plus the lower floor's offset, through `setOffset`; it returns false for the lowest floor, no match, or no change. The Align tab (S27.10) shows the score by calling `alignFloor` itself and applies with `setOffset`.
+- `addFloor` copies the lowest floor's offset along with its outline.
 ## 2026-10-10: furniture Lock works under Lock plan (S27.1)
 
 - `EditorState.plan()` drops a furniture piece's `locked` from the compare, so ticking Lock in the panel or the context menu is one undo step under Lock plan. Moving, resizing or turning a piece is still refused. Diego, 2026-10-10: "furniture Lock must work under Lock plan". It supersedes the "known edge" of 'Lock in every panel (S26.16)' and the furniture line of S26.3, which listed Lock with the geometry.
