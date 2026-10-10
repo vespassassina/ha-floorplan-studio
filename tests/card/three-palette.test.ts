@@ -10,7 +10,7 @@ import { dimRgb, isKnownRole, parsePaintDim, roleStyle } from "../../src/card/th
 describe("palette roles", () => {
   const roles = [
     "slab", "panel", "door-leaf", "stair", "unlinked", "ring", "tree-crown",
-    "open-door", "door-band", "door-cover", "body-heating", "screen-on", "driver-off", "driver-on", "motion", "motion-radar", "lamp", "backdrop", // S12.5: what the live state paints
+    "frame", "open-door", "door-band", "door-cover", "body-heating", "screen-on", "driver-off", "driver-on", "motion", "motion-radar", "lamp", "backdrop", // S12.5: what the live state paints
     ...ROOM_KINDS.filter((k) => k !== "zone" && k !== "structure").map((k) => `room-${k}`),
     ...WALL_KINDS.map((k) => `wall-${k}`),
     ...["door", "glass", "window", "slit", "fullwindow", "sealed", "opening"].map((k) => `glass-${k}`),
@@ -63,5 +63,13 @@ describe("S28.9 paint dim", () => {
 describe("S28.9 wall share", () => {
   it.each(["wall-wall", "wall-boundary", "wall-external", "wall-parapet"])("%s follows --fp-wall-side-share, as the 2.5D side faces do", (role) => {
     expect(roleStyle(role).css).toContain("--fp-wall-side-share");
+  });
+});
+
+describe("S28.10 quiet doors", () => {
+  it("a closed door's leaf is its colour mixed into the wall side; the open and alarm colour is a role of its own", () => {
+    expect(roleStyle("door-leaf").css).toMatch(/color-mix\(.*--fp-door.*--fp-wall-side/);
+    expect(roleStyle("open-door").css).toBe("var(--fp-open-door)");
+    expect(roleStyle("frame").css).toBe("var(--fp-frame)");
   });
 });

@@ -40,7 +40,8 @@ const DEVICE: Record<string, string> = {
 const TABLE = new Map<string, RoleStyle>();
 TABLE.set("slab", solid(mix("--fp-furniture", 45, "--fp-bg")));
 TABLE.set("panel", solid("var(--fp-sealed)"));
-TABLE.set("door-leaf", solid("var(--fp-door)"));
+TABLE.set("door-leaf", solid("color-mix(in srgb, var(--fp-door) 60%, var(--fp-wall-side))")); // S28.10: quiet at rest; red only through open-door
+TABLE.set("frame", solid("var(--fp-frame)"));
 TABLE.set("stair", solid(mix("--fp-tread", 70, "--fp-bg")));
 TABLE.set("ring", solid("var(--fp-ink)")); // the dashed outline of the picked room
 TABLE.set("tree-crown", solid("var(--fp-tree)")); // S28.7: the crown, the colour of the 2D crown; the trunk (furniture-tree) is its darker edge colour

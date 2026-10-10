@@ -5,7 +5,8 @@ import { deviceSolidTop, FURNITURE_SOLID, DEVICE_SOLID } from "../../src/core/so
 import { deviceZ, edgeHeight, floorHeight, furnitureBottom, furnitureHeight, radiatorSpan, unlinkedHeight, wallHeight, doorSpan, openingSpan } from "../../src/core/heights";
 import { stairSteps } from "../../src/core/geometry";
 import { treeShape } from "../../src/core/tree";
-import { DEVICE_TYPES, FURNITURE_SYMBOLS, ROOM_KINDS, type DeviceType, type Floor, type FurnitureSymbol, type Layout, type RoomKind } from "../../src/core/schema";
+import { FRAME_PROUD, FRAME_WIDTH } from "../../src/core/solids";
+import { DEVICE_TYPES, DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, type DeviceType, type Floor, type FurnitureSymbol, type Layout, type RoomKind } from "../../src/core/schema";
 
 // The 3D scene, in cm, z up. Every number is read from heights.ts or solids.ts, never copied (spec R3).
 const floor = (o: Partial<Floor> = {}): Floor => ({
@@ -109,7 +110,7 @@ describe("scene: which way a wall faces, for a viewer that lowers the near walls
   });
   it("an opening's glass and leaf name the wall they stand in, and that wall exists", () => {
     const sc = buildScene(floor({ doors: [{ id: "d", a: [100, 0], b: [200, 0], kind: "window", sensors: [] }, { id: "e", a: [300, 500], b: [390, 500], kind: "door", sensors: [] }] as never }));
-    const infill = sc.solids.filter((s) => s.kind === "opening");
+    const infill = sc.solids.filter((s) => s.kind === "opening" && s.tag !== "frame");
     expect(infill.length).toBe(2);
     for (const o of infill) expect(sc.solids.some((w) => w.kind === "wall" && `${w.ref.poly}:${w.ref.index}` === o.ref.wall)).toBe(true);
   });
@@ -612,5 +613,57 @@ describe("scene: a device's point stays under the wall top (3D fixes)", () => {
   it("the elevation lifts the capped height with the floor", () => {
     const s = buildScene(floor({ devices: [dv("camera", { z: 400 })] }), { elevation: 275 }).solids.find((x) => x.kind === "device")!;
     expect(s.shape).toMatchObject({ type: "point", z: 275 + 225 }); // capped at 250 - 25, then lifted
+  });
+});
+
+// S28.10: a door, glass door, window, slit, full window and sealed panel stand in a frame; an open doorway and a plain opening
+// are bare gaps. Frame solids are `opening` solids tagged "frame", with the opening's own ref, so a tap on one is a tap on that door.
+describe("scene: framed openings (S28.10)", () => {
+  const FRAMED: Record<string, boolean> = { door: true, glass: true, window: true, slit: true, fullwindow: true, sealed: true, open: false, opening: false };
+  const a = 100, b = 190, wall = 20; // an external north wall, 20 thick
+  const build = (kind: string, sill?: number) => {
+    const o = { id: "d", a: [a, 0], b: [b, 0], sensors: [], ...(sill !== undefined ? { sill } : {}) };
+    const f = kind === "opening" ? floor({ height: 400, openings: [{ ...o, height: 200 }] as never }) : floor({ height: 400, doors: [{ ...o, kind }] as never });
+    return buildScene(f).solids.filter((s) => s.kind === "opening" && s.tag === "frame");
+  };
+  it("the table names a decision for every kind", () => {
+    expect(Object.keys(FRAMED).sort()).toEqual([...DOOR_KINDS, "opening"].sort());
+  });
+  it.each([...DOOR_KINDS, "opening"])("%s: framed or bare as decided; a frame is 2 jambs and a head", (kind) => {
+    const frames = build(kind, 0);
+    if (!FRAMED[kind]) { expect(frames).toHaveLength(0); return; }
+    expect(frames).toHaveLength(3);
+    expect(frames.map((s) => s.id).sort()).toEqual([...new Set(frames.map((s) => s.id))].sort());
+    expect(frames.filter((s) => prism(s).z1 - prism(s).z0 > FRAME_WIDTH + 1)).toHaveLength(2); // the jambs stand tall, the head is a bar
+  });
+  it.each([...DOOR_KINDS, "opening"].filter((k) => FRAMED[k]))("%s: a sill bar exactly when heights.ts gives it a sill", (kind) => {
+    const raised = build(kind, 70), own = (kind === "opening" ? openingSpan({ sill: 70, height: 200 } as never) : doorSpan({ kind, sill: 70 } as never, 400)).sill;
+    expect(raised).toHaveLength(own > 0 ? 4 : 3);
+    expect(raised.some((s) => prism(s).z1 === own)).toBe(own > 0); // the sill bar's top is the opening's sill height
+    expect([...DOOR_KINDS, "opening"].some((k) => k !== "door" && k !== "glass" && k !== "sealed")).toBe(true);
+  });
+  it.each([...DOOR_KINDS, "opening"].filter((k) => FRAMED[k]))("%s: every frame lies in the span widened by FRAME_WIDTH, as deep as the wall plus both proud faces", (kind) => {
+    expect(build(kind, 70).length).toBeGreaterThan(0);
+    for (const s of build(kind, 70)) {
+      const [x0, x1] = span(xs(s)), [y0, y1] = span(ys(s));
+      expect(x0).toBeGreaterThanOrEqual(a - FRAME_WIDTH - 1e-6);
+      expect(x1).toBeLessThanOrEqual(b + FRAME_WIDTH + 1e-6);
+      expect(round(y1 - y0)).toBe(wall + 2 * FRAME_PROUD);
+      expect(s.ref.wall).toBe("o:0");
+      expect(s.ref.index).toBe(0);
+      expect(s.ref.id).toBe("d");
+    }
+  });
+  it("the frame of a door is the span of the door and nothing in the gap", () => {
+    for (const s of build("door", 0)) { const [x0, x1] = span(xs(s)); expect(x1 <= a || x0 >= b || (x0 >= a - FRAME_WIDTH && x1 <= b + FRAME_WIDTH)).toBe(true); }
+    const jambs = build("door", 0).filter((s) => prism(s).z1 - prism(s).z0 > FRAME_WIDTH + 1);
+    for (const j of jambs) { const [x0, x1] = span(xs(j)); expect(x1 <= a || x0 >= b).toBe(true); } // a jamb stands beside the gap, never in it
+  });
+  it("a frame never rises above the wall it stands in", () => {
+    const sc = buildScene(floor({ height: 240, doors: [{ id: "d", a: [a, 0], b: [b, 0], kind: "door", height: 235, sensors: [] }] as never }));
+    for (const s of sc.solids.filter((x) => x.tag === "frame")) expect(prism(s).z1).toBeLessThanOrEqual(240 + 1e-6);
+  });
+  it("junk spans make no frame and no throw", () => {
+    expect(() => buildScene(floor({ doors: [{ id: "d", a: [NaN, 0], b: [Infinity, 0], kind: "door", sensors: [] }, { id: "e", a: [100, 0], b: [100, 0], kind: "window", sensors: [] }] as never }))).not.toThrow();
   });
 });

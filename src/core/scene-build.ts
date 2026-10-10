@@ -19,7 +19,7 @@ type Solids = typeof import("./solids");
 type Schema = typeof import("./schema");
 export type SceneDeps = Pick<Heights, "deviceZ" | "doorSpan" | "edgeHeight" | "floorHeight" | "floorSlab" | "furnitureBottom" | "furnitureHeight" | "openingSpan" | "radiatorSpan" | "unlinkedHeight" | "wallHeight">
   & Pick<Render, "attachedTest" | "inside"> & Pick<typeof import("./stairs"), "resolveStairDirection">
-  & Pick<Solids, "DEVICE_SOLID" | "FURNITURE_SOLID" | "KERB_HIGH" | "KERB_OUT" | "OPENING_FILL" | "RADIATOR_DEEP" | "SPEAKER_HEIGHT" | "SPEAKER_SIDE" | "TV_HEIGHT" | "TV_THICK" | "TV_WIDTH" | "UNLINKED_BASE" | "WELL_DEPTH" | "pieceDevice" | "stairBlocks" | "turnAbout" | "tvPlacement" | "within">
+  & Pick<Solids, "DEVICE_SOLID" | "FURNITURE_SOLID" | "FRAME_PROUD" | "FRAME_WIDTH" | "KERB_HIGH" | "KERB_OUT" | "OPENING_FILL" | "RADIATOR_DEEP" | "SPEAKER_HEIGHT" | "SPEAKER_SIDE" | "TV_HEIGHT" | "TV_THICK" | "TV_WIDTH" | "UNLINKED_BASE" | "WELL_DEPTH" | "pieceDevice" | "stairBlocks" | "turnAbout" | "tvPlacement" | "within">
   & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape">;
 
 /** A vertical extrusion of a polygon from `z0` to `z1` (every box is one), or a single point (a device with no body of its own). */
@@ -70,7 +70,7 @@ const JOINT_TOLERANCE = 1;
 
 /** The scene builder, bound to the helpers of core it needs. The 3D chunk builds one per view; `core/scene.ts` binds the real ones for the tests. */
 export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) => Scene {
-  const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, KERB_OUT, OPENING_FILL, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape } = d;
+  const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape } = d;
   const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && fin(p[0]) && fin(p[1]);
   const ring = (p: unknown): Pt[] | null => (Array.isArray(p) && p.length >= 3 && p.every(isPt) ? (p as Pt[]) : null);
@@ -278,6 +278,17 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
           else if (s.kind !== "opening" && fill !== "void") part("door-leaf", "door-leaf", LEAF_THICKNESS);
           // A doorway has no leaf: its live state (open, vibrating, cover open) is a thin alert slab in the gap, shown only then (S14.5).
           else if (s.kind !== "opening") part("band", "door-band", PANE_THICKNESS);
+          // S28.10: a door, a window or a sealed panel stands in a frame: a jamb each side, a head, and a sill when it is raised. The
+          // trim lies outside the gap and stands FRAME_PROUD proud of both wall faces. A doorway or a plain opening is a bare gap.
+          if (s.kind !== "opening" && fill !== "void") {
+            const depth = thick + 2 * FRAME_PROUD, bar = (tag: string, u0: number, u1: number, z0: number, z1: number) => {
+              if (u1 > u0 && Math.min(z1, w.h) > Math.max(z0, 0)) add("opening", `opening:${s.index}:frame:${tag}`, "frame", { type: "prism", base: slab(w.a, w.b, u0, u1, depth), z0: Math.max(z0, 0), z1: Math.min(z1, w.h) }, oref, { role: "frame" });
+            };
+            bar("jamb0", t0 - FRAME_WIDTH, t0, sill, head);
+            bar("jamb1", t1, t1 + FRAME_WIDTH, sill, head);
+            bar("head", t0 - FRAME_WIDTH, t1 + FRAME_WIDTH, head, head + FRAME_WIDTH);
+            if (sill > 0) bar("sill", t0 - FRAME_WIDTH, t1 + FRAME_WIDTH, sill - FRAME_WIDTH, sill);
+          }
         }
         cursor = t1;
       }

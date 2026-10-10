@@ -3387,7 +3387,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       unchanged; night still darkens (the `NIGHT` probe below the day one).
       Files: `src/card/three/palette.ts`, `src/card/three/view3d.ts`, `tests/card/three-palette.test.ts`,
       `tests/card/card-3d-colors.spec.ts`.
-- [ ] S28.10 3D framed openings (V26). `scene-build` adds the frame solids of the assumption beside each leaf and pane;
+- [x] S28.10 3D framed openings (V26). `scene-build` adds the frame solids of the assumption beside each leaf and pane;
       the door leaf's rest role is quiet. Test: unit, iterate `DOOR_KINDS` plus `opening`: which kinds get frames and how
       many (2 jambs and a head, a sill for a raised window), every frame within the span widened by `FRAME_WIDTH`, its
       depth the wall's thickness plus `2 * FRAME_PROUD`, `ref.wall` and `ref.index` set, a lowered wall clips it to

@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: 3D frames are `opening` solids tagged `frame`, on every kind but the doorway and the plain opening (S28.10)
+
+A frame is 2 jambs and a head, plus a sill bar when the opening's sill is above 0, all outside the gap (so they widen the span by `FRAME_WIDTH`) and `thickness + 2 * FRAME_PROUD` deep. Framed: door, glass, window, slit, fullwindow, sealed. Bare: `open` (a doorway, only an alert band) and `opening`. They carry the opening's own ref plus `ref.wall`, so a tap reaches that door, and a lowered wall clips them to `CUT_WALL_HEIGHT` with the wall (`wallZ` already keys on `ref.wall`). A bar that would lie wholly above the wall is dropped, not squeezed. The frame is a static wall mesh, never recoloured by state. The door leaf's rest role is `--fp-door` 60 % into `--fp-wall-side`; `open-door` stays the alert colour. Supersedes nothing.
+
 ## 2026-10-10: 3D walls and paint follow the 2D theme tokens; the floor order is per theme (S28.9)
 
 Face tones were already ordered (top, sun face, shade face) by the two lights, in every theme, with steps of 15 % or more. A test now pins 6 %. No new lights. What changed: the wall palette reads `--fp-wall-side-share` (55 %, 30 % on HA dark) instead of a fixed 55, and `--fp-paint-dim` is parsed strictly (`brightness(a) saturate(b)` or nothing) and applied to own-colour room and stair paint in sRGB, as the CSS filter does. Textures take the brightness through the material colour; saturate is not applied to a raster, which lives outside this task's files.
