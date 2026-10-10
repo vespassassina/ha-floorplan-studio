@@ -56,16 +56,25 @@ export function createOverlay(container: HTMLElement) {
   const icons = new Map<number, Item & { svg: SVGSVGElement; g: SVGGElement; dv: HTMLElement | null; dn: HTMLElement | null }>(), rooms = new Map<number, Item & { name: HTMLElement; val: HTMLElement; kind: string; area: number }>();
   /** Measured size of an element (px), kept until its text changes: reading it is a layout, so it is done once, not per frame. */
   const sizes = new Map<Element, [number, number]>();
-  const sizeOf = (e: HTMLElement): [number, number] => { let s = sizes.get(e); if (!s) { const r = e.getBoundingClientRect(); sizes.set(e, (s = [r.width, r.height])); } return s; };
+  // A 0 x 0 answer means the element is not laid out yet (hidden card, no font), so it is not kept: it is measured again next time.
+  const sizeOf = (e: HTMLElement): [number, number] => { let s = sizes.get(e); if (!s) { const r = e.getBoundingClientRect(); s = [r.width, r.height]; if (r.width > 0 || r.height > 0) sizes.set(e, s); } return s; };
   // The declutter: `dirty` is set by anything that can change the answer, `lastMove` by a label that moved on the screen.
   let dirty = false, decided = false, lastMove = 0, timer: ReturnType<typeof setTimeout> | null = null, gone = false;
   // A pointer held down on the view is a drag (or a pinch) in progress: nothing is decided until it is up, however slow a frame is.
   const down = new Set<number>();
   const onDown = (e: PointerEvent) => { down.add(e.pointerId); };
   const onUp = (e: PointerEvent) => { if (down.delete(e.pointerId) && !down.size) { lastMove = performance.now(); if (dirty) arm(SETTLE_MS); } };
+  // A pointer can end without a pointerup reaching the window: its capture is lost, or the tab is hidden mid-drag. Either lets go of everything held.
+  const onLost = (e: Event) => onUp(e as PointerEvent);
+  const onHide = () => { if (document.hidden && down.size) { down.clear(); lastMove = performance.now(); if (dirty) arm(SETTLE_MS); } };
+  // A web font that arrives after the first decision changes every text width: measure again.
+  const onFonts = () => { sizes.clear(); dirty = true; arm(SETTLE_MS); };
   container.addEventListener("pointerdown", onDown, true);
+  container.addEventListener("lostpointercapture", onLost, true);
   window.addEventListener("pointerup", onUp, true);
   window.addEventListener("pointercancel", onUp, true);
+  document.addEventListener("visibilitychange", onHide);
+  document.fonts?.addEventListener?.("loadingdone", onFonts);
   const text = (cls: string, s: string) => { const e = document.createElement("span"); e.className = cls; e.textContent = s; return e; };
 
   /** Brings the elements in line with the live state: made, changed or removed in place. A change of nothing writes nothing. */
@@ -198,6 +207,6 @@ export function createOverlay(container: HTMLElement) {
     },
     /** Test and debug: which devices and rooms have an element, and whether it is on show. */
     state: () => ({ icons: [...icons].map(([i, it]) => ({ i, shown: it.shown, kept: !it.svg.classList.contains(LOSE) })), rooms: [...rooms].map(([r, it]) => ({ r, shown: it.shown, kept: !it.name.classList.contains(LOSE) })) }),
-    dispose() { gone = true; if (timer) clearTimeout(timer); timer = null; container.removeEventListener("pointerdown", onDown, true); window.removeEventListener("pointerup", onUp, true); window.removeEventListener("pointercancel", onUp, true); root.remove(); icons.clear(); rooms.clear(); sizes.clear(); },
+    dispose() { gone = true; if (timer) clearTimeout(timer); timer = null; container.removeEventListener("pointerdown", onDown, true); window.removeEventListener("pointerup", onUp, true); window.removeEventListener("pointercancel", onUp, true); container.removeEventListener("lostpointercapture", onLost, true); document.removeEventListener("visibilitychange", onHide); document.fonts?.removeEventListener?.("loadingdone", onFonts); root.remove(); icons.clear(); rooms.clear(); sizes.clear(); },
   };
 }

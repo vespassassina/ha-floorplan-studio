@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: The declutter lets go of a lost pointer and re-measures after fonts (S28 Opus review)
+
+The set of held pointers (which freezes the label answer during a drag) was emptied only by `pointerup` and `pointercancel` on the window. A lost pointer capture or a tab hidden mid-drag could leave an id in it for good, and the labels would never settle. Both now empty it. Separately the size cache kept a 0 x 0 measured before layout, and kept widths measured in the fallback font: a 0 x 0 is no longer kept, and `document.fonts` `loadingdone` clears the cache and asks for a new decision.
+
 ## 2026-10-10: Every room kind has a 3D label rank (S28 Opus review)
 
 `roomPriority` knew water and garden; every other kind fell through to the rank of an indoor room, so a pavement or a terrace name could push a bedroom name off the screen. Now a `Record<RoomKind, number>` and a test over `ROOM_KINDS`. Shipped ranks are kept (room 80, garden 70, water 60). New: structure 80 (a building part), zone 75 (a named area over rooms), terrace 70 (outdoor ground, with garden), pavement 65, fill 55 (decoration, still over a readout at 50). Outdoor kinds all rank below the indoor ones.
