@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: View > Floor below is `st.ghostFloor`, kept in localStorage (S27.11)
+
+- `EditorState.ghostFloor` with `setGhostFloor`, key `floorplan-studio:ghost-floor`, every access in try/catch, never an undo step: the same shape as Detail. `ghostOpts()` returns the ghost when the Align mode is open on this floor or the toggle is on, and nothing on the lowest floor. The item `#ghostFloor` is disabled there and its title says why.
+- Parity: `ghostFloor` is a `yes` row (the card's Floor below button, `view-parity.spec.ts`), with a second test that a 3D card has the Floors below select and no button. The View menu item is a plain chip, so a click closes the menu.
 ## 2026-10-10: the card's floor switch sets `data-switch` once per switch and clears it on `animationend` (S27.15)
 
 - `_selectFloor` asks `floorSwitch(keys, from, to, reduced)` and keeps the direction in `_switchDir`. `updated()` plays it after `_sync3d()`: remove `data-switch` from the plan svg, force a reflow, set it again, so two quick switches both animate. One `animationend` listener per svg (`_switchEnds`, a WeakSet) removes the attribute, so a stale value never replays on a later render.

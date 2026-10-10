@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: View, Floor below draws the floor under the shown one as faint lines, at its place in the house. Off by default, remembered in the browser, no undo step; disabled on the lowest floor (S27.11).
 - Card: switching floors in 2D and 2.5D slides the plan in, up or down with the stack (220 ms; a cut under reduced motion and in 3D). The new Floor below button and `ghost_floor` / `floors_below` keys are the S27.13 and S27.14 steps.
 - Studio: switching floor with a chip slides the plan in, up from above and down from below (220 ms); nothing moves under reduced motion (S27.12).
 - Studio: a Floors menu (Add floor, Align to floor below, Move up, Move down, Delete floor) replaces Add floor in Edit. Draw is folded into Add: Draw opening ends Openings, Wall holds a Draw submenu of the kinds, and Areas ends with Draw room, zone, water, outline and structure line. The Draw menu is gone. Align does nothing yet (S27.10).

@@ -261,6 +261,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#snap` Snap grid | no | an editing aid: a viewer places nothing |
 | `#mgrid` Measure grid | no | an editing aid, drawn by the editor over the plan, not by `renderFloor` |
 | `#lens` Lengths | no | an editing aid |
+| `#ghostFloor` Floor below | yes | the Floor below button in the view controls (2D and 2.5D), kept per viewer; config `ghost_floor`. In 3D the same choice is the Floors below select (off, ghost, solid); config `floors_below` |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
 | `#detailSub` Detail (Auto, Full, Minimal) | yes | the Detail button beside Layers in the Overview, same three choices; kept per viewer; config `detail`. The Studio starts on Full, the card on Auto. Not in 3D |

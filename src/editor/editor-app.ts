@@ -2672,10 +2672,12 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.setOffset(a.key, to)) this.changed("Floor offset set"); else this.refused();
   }
   resetAlignOffset() { const a = this.alignPreview(); if (a && (a.cur[0] !== 0 || a.cur[1] !== 0)) { if (this.st.setOffset(a.key, [0, 0])) this.changed("Floor offset reset"); else this.refused(); } }
-  /** The floor below as `renderFloor`'s ghost: shown while the Align mode is open. */
+  /** The floor below as `renderFloor`'s ghost: while the Align mode is open, or when View, Floor below is on (S27.11). */
   private ghostOpts(): { floor: Floor; shift: Pt } | undefined {
-    const key = this.alignKey, bk = key === null ? null : floorBelow(this.st.layout, key);
-    return this.asideMode === "align" && key !== null && bk !== null && key === this.st.floor ? { floor: this.st.layout.floors[bk], shift: floorShift(this.st.layout, bk, key) } : undefined;
+    const st = this.st, bk = floorBelow(st.layout, st.floor);
+    if (bk === null) return undefined;
+    const aligning = this.asideMode === "align" && this.alignKey === st.floor;
+    return aligning || st.ghostFloor ? { floor: st.layout.floors[bk], shift: floorShift(st.layout, bk, st.floor) } : undefined;
   }
   async startAddFloor() {
     this.addingFloor = true;

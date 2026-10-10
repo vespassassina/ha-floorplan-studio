@@ -3166,7 +3166,7 @@ Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.
       clears it; under Lock plan Apply is refused and offers Unlock; the mode survives a `hass` update.
       Files: `src/editor/inspector.ts`, `src/editor/editor-app.ts`, `src/editor/panels.ts`, a new
       `tests/editor/align-mode.spec.ts`.
-- [ ] S27.11 View > Floor below, after the card lane's S27.13 is merged into `task/s27-floors` (its parity row needs the
+- [x] S27.11 View > Floor below, after the card lane's S27.13 is merged into `task/s27-floors` (its parity row needs the
       card's button). The toggle passes `ghost` to `renderFloor`; kept per viewer in the browser, every storage access in
       try/catch; no undo step. A real click on the plan where only the ghost is drawn selects nothing. Test: the toggle
       draws `g.ghost` at the shift of an offset floor, survives reload; the click; the `ghostFloor` parity row.
