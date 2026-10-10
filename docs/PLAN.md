@@ -3415,13 +3415,13 @@ Lane studio (`src/editor/editor-app.ts`, `src/core/align.ts`):
       Files: `src/core/align.ts`, `src/editor/editor-app.ts`, `tests/core/align.test.ts`, `tests/editor/align-mode.spec.ts`.
 
 Wave 2, in order on `task/s28-polish` after every lane is merged:
-- [ ] S28.13 Exit and docs. `npm run shots -- --polish` on the integrated build; the coordinator opens every 4x shot and
+- [x] S28.13 Exit and docs. `npm run shots -- --polish` on the integrated build; the coordinator opens every 4x shot and
       crop in the three themes, day and night, and lists in the report what each shows and anything wrong (each defect
       goes back to its lane, test first). Docs: `docs/SPEC.md` (2.5D and 3D: shadows, crowns, frames, labels; the ghost at
       night), `docs/card.md` (2.5D and 3D sections), `docs/specs/real-3d.md` (contact shadows; sun shadows still a
       non-goal), `docs/specs/card-polish-and-light.md` item 23 done, CHANGELOG, DECISIONS (one entry per assumption that
       held, and each change from it).
-- [ ] S28.14 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests
+- [x] S28.14 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests
       `--repeat-each=10`; the size test and the 3D perf file read on their own; `npm run shots` and `--polish` looked at.
 
 Review (one Opus pass on the integrated build, the 4x shots open beside the diff) then fixes with their tests; exit test:
