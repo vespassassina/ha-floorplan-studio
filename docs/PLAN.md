@@ -3340,7 +3340,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
       the trunk's. Shots: 2.5D gardens, three themes.
       Files: `src/core/solids.ts`, `src/core/render.ts` if the order needs it, `tests/core/solids-objects.test.ts`, a new
       `tests/card/tree-25d.spec.ts`.
-- [ ] S28.5 2.5D contact shadows (V24). One `g.shade`, as the assumption says: two stepped bands along both sides of every
+- [x] S28.5 2.5D contact shadows (V24). One `g.shade`, as the assumption says: two stepped bands along both sides of every
       drawn wall run, one patch under each furniture box, unlinked box and device body, in `--fp-shade` at
       `--fp-shade-alpha`; `pointer-events:none` by class rule; nothing at rise 0. Test: unit, one `g.shade` in the order of
       the assumption, a band pair per wall run and a patch per box (count over the demo), none at rise 0, junk walls draw

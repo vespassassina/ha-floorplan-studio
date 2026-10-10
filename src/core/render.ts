@@ -20,7 +20,7 @@ import { attentionDevices, type AttentionSource } from "./attention";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
 import { devsHave, layerHides, type LayerId, type PlanSel } from "./layers";
 import type { DetailLevel } from "./detail";
-import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
+import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, collectWalls, shadeMarkup, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
 
@@ -286,7 +286,7 @@ ${THEME_EXTRAS}
    that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own.
    The side is 55% wall unless the theme sets --fp-wall-side-share (HA dark, whose wall is its light text colour). The share
    is its own variable, never a second --fp-wall-side, so this rule, later and as specific as THEME_EXTRAS, cannot beat it. */
-:host,.fp,[data-theme]{--fp-ghost:color-mix(in srgb,var(--fp-wall) 35%,var(--fp-bg));--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg));--fp-tree:color-mix(in srgb,var(--fp-dev-garden) 70%,var(--fp-garden));--fp-tree-edge:color-mix(in srgb,var(--fp-dev-garden) 55%,var(--fp-ink));--fp-frame:color-mix(in srgb,var(--fp-door) 40%,var(--fp-ink));--fp-shade:var(--fp-on-light)}
+:host,.fp,[data-theme]{--fp-ghost:color-mix(in srgb,var(--fp-wall) 35%,var(--fp-bg));--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg));--fp-tree:color-mix(in srgb,var(--fp-dev-garden) 70%,var(--fp-garden));--fp-tree-edge:color-mix(in srgb,var(--fp-dev-garden) 55%,var(--fp-ink));--fp-frame:color-mix(in srgb,var(--fp-door) 40%,var(--fp-ink));--fp-shade:color-mix(in srgb,var(--fp-on-light) 35%,black)}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
@@ -384,6 +384,7 @@ ${THEME_EXTRAS}
 .ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
 .bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
+.shade{fill:var(--fp-shade);fill-opacity:var(--fp-shade-alpha);pointer-events:none} .shade .s2{fill-opacity:calc(var(--fp-shade-alpha) / 2)}
 .trunk{stroke:var(--fp-tree-edge);stroke-width:12;stroke-linecap:round}
 .dsolid .bs,.dsolid .bt{stroke:color-mix(in srgb,var(--fp-body) 60%,var(--fp-on-light))}
 .dsolid .bt{fill:color-mix(in srgb,var(--fp-body) 70%,var(--fp-on-dark))} .dsolid .bs{fill:var(--fp-body)} .dsolid .bs.w{fill:color-mix(in srgb,var(--fp-body) 80%,var(--fp-on-light))}
@@ -1308,6 +1309,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   f.stairs.forEach((t, i) => out.push(stairsGroup(t, i, o.around)));
 
+  // S28.5: 2.5D contact shadows, one group after the fills and stairs and before the ghost, the night veil, walls and furniture, so the veil
+  // darkens them with the floor. Its content needs the solids, which are built further down, so the slot is kept and filled there.
+  const shadeSlot = x25 ? out.length : -1;
+  if (x25) out.push("");
+
   // S27.5 (moved by review 27, again by S28.2): the floor below, over the room fills and stairs, under the night overlay, walls,
   // names and devices. Drawn first it sat under the opaque fills and vanished where Align needs it; drawn after the night veil it kept
   // full contrast while the rooms dimmed. Now an unlit room's veil darkens it with the floor; a lit room and the bare board are as by day.
@@ -1421,7 +1427,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
   if (x25) {
-    solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state));
+    const segs = collectWalls(f, px, wallsModeOf(o.walls));
+    solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state, segs));
     f.furniture.forEach((m, i) => {
       if (layerHides(o.hiddenLayers, "furn", i, undefined, o.selection, o.keep)) return;
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
@@ -1435,6 +1442,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       if (s) solids.push(s);
     });
     for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
+    out[shadeSlot] = shadeMarkup(segs, solids, px);
     // What lies below the floor (a stairwell) goes first: nothing standing on the floor is ever drawn under it.
     out.push(...solids.filter((s) => s.under).sort((a, b) => a.key - b.key).map((s) => s.svg));
     out.push(...solids.filter((s) => !s.under).sort((a, b) => a.key - b.key).map((s) => s.svg));

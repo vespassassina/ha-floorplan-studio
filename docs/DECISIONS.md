@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: 2.5D contact shadows are one `g.shade`; `--fp-shade` is the ink pulled toward black (S28.5)
+
+- `shadeMarkup(segs, solids, px)` in `solids.ts` builds the group; `renderFloor` keeps a slot after the stairs and fills it once the solids exist, so it sits before the ghost, the night veil and the walls. A `Solid` may carry `foot`, its standing footprint (a furniture box, an unlinked box, a radiator, a speaker, a TV); the patch is that footprint grown 6 cm (`growPoly`, mitred). A piece whose bottom is at 40 cm or more (a wall cabinet, a TV on a wall) touches no floor and gets none; a tree has its own patch (S28.4) and a flat patio none. Walls: per wall run, two bands per side from the wall's face (`wallFace`), 6 cm at full alpha (`.s1`) and 6 cm at half (`.s2`). Nothing at rise 0.
+- `wallSolids` takes the wall list as an optional fifth argument, so the render computes `collectWalls` once for the solids and the shade.
+- The wall-foot pixel probe failed on blueprint: `--fp-shade` was the theme's `--fp-on-light` (#2b2a27), which is lighter than a navy room, so the "shadow" lightened it. The generic token is now `color-mix(in srgb, var(--fp-on-light) 35%, black)`. This also darkens the tree patch of S28.3. `tests/card/polish-tokens.spec.ts` pinned shade equal to ink; it now pins "no lighter than the ink and near-black" (a file outside the task's list, changed on purpose).
+- Seen at 4x: light and ha-dark show the patch and the wall bands clearly; blueprint at night shows them faintly, as a black over navy cannot do more (the probe still reads at least 4 % darker).
+
 ## 2026-10-10: the 2.5D tree stands; the trunk takes the crown's edge colour (S28.4)
 
 - `furnitureSolid` for a tree draws, inside the piece's group: the shade patch (`treeShadeSvg`, shared with 2D, so the (4, 6) cm offset lives once in `tree.ts`), a `line.trunk` from the foot to `lift(foot, trunkTop)`, and `TREE_CROWN` (the 2D symbol without its trunk dot) at `lift(centre, crownMiddle)`. The depth key is unchanged. At tilt 0 nothing lifts, so it is the 2D tree. A pole that is not a tree keeps the old symbol at full height.

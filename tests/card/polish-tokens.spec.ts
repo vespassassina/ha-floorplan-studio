@@ -39,7 +39,9 @@ test("S28.1 tokens: every theme resolves --fp-tree, --fp-tree-edge, --fp-frame, 
   CASES.forEach((c, i) => {
     const v = r[i], tag = `${c.t}/${c.mode}`;
     for (const k of ["tree", "edge", "frame", "shade"] as const) expect(() => rgb(v[k]), `${tag}: ${k}`).not.toThrow();
-    expect(v.shade, `${tag}: the shade is the theme's near-black`).toBe(v.onLight);
+    // S28.5: a shade lighter than a navy room lightens it (blueprint, found by the wall-foot probe), so the token is the theme's ink pulled toward black.
+    expect(lum(v.shade), `${tag}: the shade is no lighter than the theme's ink`).toBeLessThanOrEqual(lum(v.onLight));
+    expect(lum(v.shade), `${tag}: the shade is near-black`).toBeLessThan(0.02);
     const a = Number(v.alpha);
     expect(Number.isFinite(a) && a > 0 && a < 1, `${tag}: alpha ${v.alpha}`).toBe(true);
   });
