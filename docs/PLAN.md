@@ -3120,7 +3120,7 @@ Lane align (a new `src/core/align.ts`):
       Files: `src/core/align.ts`, `src/core/index.ts`, `tests/core/align.test.ts`, `tests/fixtures/align-house.json`.
 
 Lane render (`src/core/render.ts`):
-- [ ] S27.5 Ghost floor in `renderFloor`. `RenderOpts.ghost?: { floor: Floor; shift: Pt }` draws a `g.ghost` first,
+- [x] S27.5 Ghost floor in `renderFloor`. `RenderOpts.ghost?: { floor: Floor; shift: Pt }` draws a `g.ghost` first,
       under everything: lines only, as the assumption says, stroke `--fp-ghost`, `pointer-events:none` by class rule.
       Absent, the markup is byte for byte as before. Test: unit, the ghost has paths and no `text`, `use` or device
       group, a payload `"><script>` in its room names never appears, junk ghost input draws nothing; the render snapshot

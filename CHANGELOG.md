@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The plan can draw the floor below as faint lines under the current one (`RenderOpts.ghost`, token `--fp-ghost`); the Studio and the card switch it on in later steps.
+
 ## 0.24.0 - 2026-10-10
 
 - Studio: a disabled Undo or Redo is dimmed, and stays dimmed under the pointer.

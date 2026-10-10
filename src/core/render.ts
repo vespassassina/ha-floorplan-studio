@@ -3,7 +3,7 @@ import { dist, edgeKindsNear, stairSteps } from "./geometry";
 import { stairMarks } from "./stair-marks";
 import { playerOf } from "./attachments";
 import { resolveStairDirection, type FloorsAround } from "./stairs";
-import { DEVICE_TYPES, drawsEffect, fxScale, isSiren, MAX_TRACE_BYTES, MOTION_TYPES, TRACE_SRC } from "./schema";
+import { COORD_LIMIT, DEVICE_TYPES, drawsEffect, fxScale, isSiren, MAX_TRACE_BYTES, MOTION_TYPES, TRACE_SRC } from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
@@ -49,6 +49,8 @@ export interface RenderOpts {
    *  rejected. Omitted (the editor), nothing changes. */
   bounds?: { x: number; y: number; w: number; h: number };
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
+  /** S27.5: the floor below, drawn first and under everything as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point moved by `shift` (`floorShift`, cm). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
+  ghost?: { floor: Floor; shift: Pt };
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
   /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
@@ -281,7 +283,7 @@ ${THEME_EXTRAS}
    that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own.
    The side is 55% wall unless the theme sets --fp-wall-side-share (HA dark, whose wall is its light text colour). The share
    is its own variable, never a second --fp-wall-side, so this rule, later and as specific as THEME_EXTRAS, cannot beat it. */
-:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
+:host,.fp,[data-theme]{--fp-ghost:color-mix(in srgb,var(--fp-wall) 35%,var(--fp-bg));--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
@@ -326,6 +328,8 @@ ${THEME_EXTRAS}
    --fp-fade once it is off. Never an endless blink. A redraw restarts a CSS animation, so renderFloor puts the trip's age in
    --fp-pulse-age (and the class only while the pulses last) and the negative delay starts it that far in: a redraw in the
    middle of the pulses carries on, it does not replay them. Reduced motion: no pulse, the steady edge only. */
+/* S27.5: the floor below, as faint lines. A class rule, never a presentation attribute (finding 18): the editor's own .room{pointer-events:all} would outrank an attribute. */
+.ghost,.ghost *{pointer-events:none} .ghost .gl{fill:none;stroke:var(--fp-ghost);stroke-width:1.5;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .motion-perimeter.motion-pulse{animation:fp-motion-pulse ${MOTION_PULSE_S}s ease-in-out ${MOTION_PULSES};animation-delay:calc(var(--fp-pulse-age,0s) * -1)}
 @keyframes fp-motion-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.motion-perimeter.motion-pulse{animation:none}}
@@ -1152,6 +1156,28 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
 export const NAME_MIN_PX = 11;
 
 
+/** S27.5: the markup of the floor below, or "" when there is nothing valid to draw. Untrusted input: a ring or a wall that is not made of finite numbers is skipped, a shift that is not two finite numbers within `COORD_LIMIT` draws nothing, no string of the floor is read and nothing throws. */
+function ghostMarkup(g: RenderOpts["ghost"]): string {
+  const sh = g?.shift as unknown;
+  if (!Array.isArray(sh) || sh.length !== 2 || !sh.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)) return "";
+  const f = g?.floor as unknown as Record<string, unknown> | null | undefined;
+  if (typeof f !== "object" || f === null) return "";
+  const at = (p: unknown): string | null =>
+    Array.isArray(p) && typeof p[0] === "number" && typeof p[1] === "number" && Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0] + sh[0]) <= COORD_LIMIT && Math.abs(p[1] + sh[1]) <= COORD_LIMIT
+      ? `${num(p[0] + sh[0])} ${num(p[1] + sh[1])}` : null;
+  const ringD = (r: unknown): string | null => {
+    if (!Array.isArray(r) || r.length < 3 || r.length > 100_000) return null;
+    const q = r.map(at);
+    return q.every((s) => s !== null) ? `M${q.join("L")}Z` : null;
+  };
+  const list = (k: string): unknown[] => (Array.isArray(f[k]) ? (f[k] as unknown[]) : []);
+  const own = (x: unknown, k: string) => (typeof x === "object" && x !== null ? (x as Record<string, unknown>)[k] : undefined);
+  const d = [ringD(f.outline), ...list("rooms").map((r) => ringD(own(r, "pts"))), ...list("stairs").map((t) => ringD(own(t, "pts")))].filter((x): x is string => x !== null);
+  const wall = list("walls").map((w) => { const a = at(own(w, "a")), b = at(own(w, "b")); return a && b ? `M${a}L${b}` : null; }).filter((x): x is string => x !== null);
+  const all = [...d, ...(wall.length ? [wall.join("")] : [])];
+  return all.length ? `<g class="ghost">${all.map((x) => `<path class="gl" d="${x}"/>`).join("")}</g>` : "";
+}
+
 export function renderFloor(f: Floor, o: RenderOpts): string {
   // S23.2: a floor in screen space. k never lets a 12k name fall under 11 px, so a 32k disc never falls under 29 px.
   // One factor for text and discs keeps the plan's proportions; full CSS-px placement is sprint 25.
@@ -1188,6 +1214,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   };
   const showText = o.labels !== false; // false skips every <text> and leader below; placement still runs, so nothing else moves
   const solids: Solid[] = [];
+  const ghost = ghostMarkup(o.ghost); // S27.5: first of all, under the trace and everything else
+  if (ghost) out.push(ghost);
   // S7.11: the scan to trace over, first so everything draws on top of it. Checked again here: the layout is untrusted.
   const tr = f.trace;
   if (o.trace && tr?.on === true && typeof tr.src === "string" && tr.src.length <= MAX_TRACE_BYTES && TRACE_SRC.test(tr.src) && [tr.x, tr.y, tr.w, tr.rot, tr.alpha].every(Number.isFinite) && tr.w > 0)

@@ -8911,3 +8911,29 @@ for (const theme of ["light", "ha", "blueprint"] as const) {
     expect(onHover).toBe(1);
   });
 }
+
+// S27.5 CSS pair (finding 10, 18): the ghost's stroke and its pointer-events, as computed in the editor, whose own
+// `.room{pointer-events:all}` is the rule a presentation attribute would lose to. The markup is renderFloor's own
+// (tests/core/render-ghost.test.ts pins it); the editor passes no ghost until S27.11, so it is placed by hand, last, on top.
+test("S27.5 CSS pair: the ghost floor is drawn in --fp-ghost, thin, unfilled, and takes no click (editor)", async ({ page }) => {
+  await setTheme(page, "light");
+  const probe = () => page.evaluate(() => {
+    const svg = document.querySelector("floorplan-studio-editor")!.shadowRoot!.querySelector(".canvas > svg")! as SVGSVGElement;
+    svg.querySelector("g.ghost-probe")?.remove();
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", "ghost ghost-probe");
+    g.innerHTML = '<path class="gl" d="M0 0L1000 0L1000 1000L0 1000Z"/>';
+    svg.append(g);
+    const p = g.querySelector("path")!, cs = getComputedStyle(p);
+    const r = p.getBoundingClientRect(), hit = document.querySelector("floorplan-studio-editor")!.shadowRoot!.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return { stroke: cs.stroke, fill: cs.fill, width: cs.strokeWidth, events: cs.pointerEvents, ghostHit: !!hit && !!hit.closest("g.ghost") };
+  });
+  const light = await probe();
+  // Break it: drop `.ghost,.ghost *{pointer-events:none}` and events reads "visiblePainted"/"all"; drop --fp-ghost and stroke reads none.
+  expect(light).toMatchObject({ fill: "none", width: "1.5px", events: "none", ghostHit: false });
+  expect(light.stroke).not.toBe("none");
+  await setTheme(page, "midnight");
+  const dark = await probe();
+  expect(dark.stroke).not.toBe(light.stroke);
+  expect(dark.events).toBe("none");
+});

@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the ghost floor is one `g.ghost` of paths, first in the plan (S27.5)
+
+- `renderFloor` draws `RenderOpts.ghost` as one `<g class="ghost">` before everything else, even before the trace image: the outline, every room, stair and wall as `path.gl`, each point moved by the shift. No fill, text, title, device, `data-*` or `use`, so it cannot be hit-tested or select anything, and no string of the ghost floor is read, so a name cannot reach the markup. The look and `pointer-events:none` are class rules (finding 18); `--fp-ghost` is 35 % of `--fp-wall` into `--fp-bg` in the generic defaults, so every theme has it.
+- Junk draws nothing: a shift that is not two finite numbers within `COORD_LIMIT`, a ring or wall with a non-finite point (skipped alone), rings over 100 000 points. With no valid path no `g` is written. The ghost sits inside the plan turn, so it rotates with the plan.
+- Rooms and stairs are drawn as outlines only; a room's own fill covers the ghost inside the room. That is the "under everything" the plan asks for, and it shows in the shots: the ghost reads outside the current floor's footprint and through unfilled areas.
+
 ## 2026-10-09: a disabled Undo or Redo is dimmer than an enabled one (Opus re-check 5)
 
 - `.btn:disabled{opacity:.5}` and `.btn.light{opacity:.6}` have the same specificity and the second comes later, so a disabled Undo was .6 like an enabled one, and under the pointer `.btn.light:hover` took it to 1. Added `.btn.light:disabled{opacity:.35}` and put `:not(:disabled)` on the light hover and focus rule; the other hover rules in the editor (`.lockplan`, `.lrow`, `.ti`, `.opt`, `.door-hit-open`) are not on buttons that can be disabled. Computed-style pair in `editor.spec.ts` for light, ha and blueprint: disabled lower than enabled, and unchanged under the pointer. It supersedes (e) of 'small defects' for the `.light` buttons only.
