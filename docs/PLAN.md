@@ -3349,7 +3349,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
       the group); the 2.5D render of 5000 furniture within the existing render bound. Shots: three themes, day and night.
       Files: `src/core/render.ts`, `src/core/solids.ts`, a new `tests/core/shade-25d.test.ts`, a new
       `tests/card/shade-25d.spec.ts`.
-- [ ] S28.6 2.5D framed openings. `wallSolids` draws jambs, head and (window) sill quads of `FRAME_WIDTH` on the face of
+- [x] S28.6 2.5D framed openings. `wallSolids` draws jambs, head and (window) sill quads of `FRAME_WIDTH` on the face of
       each framed opening, class `frame`, under the cutaway like the wall (a lowered wall lowers its frame); the open and
       alarm red stays as it is. Test: unit, iterate `DOOR_KINDS` plus `opening`: door, glass, window, slit and fullwindow
       framed (fullwindow with no sill), `open`, `opening` and `sealed` not; frame quads lie inside the opening's span

@@ -235,6 +235,12 @@ export function collectWalls(f: Floor, px: Proj, mode: WallsMode = "cut"): WallS
  * entry per DoorKind, so a new kind fails the test that walks DOOR_KINDS until someone decides (finding 17).
  */
 export const OPENING_FILL: Record<DoorKind | "opening", "gap" | "void" | "glass" | "panel"> = { door: "gap", open: "void", opening: "gap", glass: "glass", window: "glass", slit: "glass", fullwindow: "glass", sealed: "panel" };
+/**
+ * S28.6: which openings wear a frame in 2.5D: two jambs, a head and, above the floor, a sill, each `FRAME_WIDTH` wide. A door, glass
+ * door and the three window kinds do; an open doorway, a plain opening and a sealed panel are holes or wall. One entry per kind, so a new
+ * `DoorKind` fails the test that walks the list until someone decides (finding 17).
+ */
+export const OPENING_FRAMED: Record<DoorKind | "opening", boolean> = { door: true, glass: true, window: true, slit: true, fullwindow: true, sealed: false, open: false, opening: false };
 /** S25.D1 (Diego, 2026-10-09): a door and a glass door fill their gap only while a sensor says closed; with none, or any other state, they are a hole. */
 export const SHUT_KINDS: readonly string[] = ["door", "glass"];
 const has = <T extends string>(table: Record<T, unknown>, k: unknown): k is T => typeof k === "string" && Object.prototype.hasOwnProperty.call(table, k);
@@ -306,6 +312,19 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
     const quad = (t0: number, t1: number, z0: number, z1: number, cls: string) =>
       z1 > z0 && t1 > t0 ? `<polygon class="${cls}" points="${pts([px.lift(at(t0), z0), px.lift(at(t1), z0), px.lift(at(t1), z1), px.lift(at(t0), z1)])}"/>` : "";
     const wall = `ws${kindClass(w.kind)}${tone}`;
+    // S28.6: a frame lies on the face the viewer sees, FRAME_PROUD toward him. A header the lowered wall has cut away has no head bar, and a
+    // sill at or above the wall top no sill bar, so a lowered wall lowers its frame. `sill` and `head` are clipped to the wall; `ownSill` and `ownHead` are not.
+    const proud: Pt = [toward[0] * FRAME_PROUD, toward[1] * FRAME_PROUD];
+    const fq = (t0: number, t1: number, z0: number, z1: number) => {
+      if (!(z1 > z0) || !(t1 > t0)) return "";
+      const c = (t: number, z: number) => px.lift([at(t)[0] + proud[0], at(t)[1] + proud[1]], z);
+      return `<polygon class="frame" points="${pts([c(t0, z0), c(t1, z0), c(t1, z1), c(t0, z1)])}"/>`;
+    };
+    const frameQuads = (t0: number, t1: number, sill: number, head: number, ownSill: number, ownHead: number, top: number): string[] => {
+      const fw = Math.min(FRAME_WIDTH, (t1 - t0) / 2), hasHead = ownHead <= top, hasSill = ownSill > 0 && ownSill < top;
+      const z0 = hasSill ? sill + FRAME_WIDTH : sill, z1 = hasHead ? head - FRAME_WIDTH : head;
+      return [fq(t0, t0 + fw, z0, z1), fq(t1 - fw, t1, z0, z1), hasHead ? fq(t0, t1, head - FRAME_WIDTH, head) : "", hasSill ? fq(t0, t1, sill, sill + FRAME_WIDTH) : ""];
+    };
     /** A block of wall from the floor to `z1`, with its darker foot. */
     const block = (t0: number, t1: number, z1: number) => quad(t0, t1, 0, z1, wall) + (solid ? quad(t0, t1, 0, Math.min(z1, FOOT_HEIGHT), "wfoot") : "");
     const here = spans.map((s) => ({ s, r: within(w, s) })).filter((x): x is { s: Span; r: [number, number] } => x.r !== null).sort((p, q) => p.r[0] - q.r[0]);
@@ -326,6 +345,7 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
       // A door: closed (its sensor says so) it is a painted leaf, open (or alarmed, or its cover open) a red frame round the gap; with no sensor it is a hole. A plain opening is only a gap.
       else if (s.kind !== "opening" && solid && (live || (fill !== "void" && (!shut || s.live.closed)))) faces.push(quad(t0, t1, sill, head, live ? `opn${live}${fill === "void" ? " band" : ""}` : "door-leaf"));
       faces.push(quad(t0, t1, head, hh, wall));
+      if (solid && has(OPENING_FRAMED, s.kind) && OPENING_FRAMED[s.kind]) faces.push(...frameQuads(t0, t1, sill, head, own.sill, own.head, hh));
       if (own.head < hh || own.sill >= hh) top(t0, t1); // a header, or a sill that reaches the top, closes the wall above the gap
       cursor = t1;
     }

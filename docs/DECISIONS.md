@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: 2.5D doors and windows get a frame of their own, FRAME_PROUD off the wall face (S28.6)
+
+- `OPENING_FRAMED` in `solids.ts` lists, per opening kind, which parts are drawn: jambs and head for a door, plus a sill for a window. Each is a quad of `FRAME_WIDTH` (5 cm) set `FRAME_PROUD` (2 cm) toward the viewer, so it cannot z-fight the wall face.
+- Colour is `--fp-frame` through the `.frame` class; the class also takes `pointer-events:none`, so a click still reaches the opening (finding 18).
+- Test: a unit test on the quads, and `tests/card/frame-25d.spec.ts` (computed style and a pixel in the middle of the door's left jamb, 14 themes plus ha dark). It fails with the `.frame` rule removed (shown) and passes 10 times in a row.
+- Seen at 4x in light, blueprint and ha-dark, day and night: the frame reads as a thin brown, white or tan edge against the grey wall side. The crop sits at the card's edge; the glass and the frame are both legible.
+
 ## 2026-10-10: 2.5D contact shadows are one `g.shade`; `--fp-shade` is the ink pulled toward black (S28.5)
 
 - `shadeMarkup(segs, solids, px)` in `solids.ts` builds the group; `renderFloor` keeps a slot after the stairs and fills it once the solids exist, so it sits before the ghost, the night veil and the walls. A `Solid` may carry `foot`, its standing footprint (a furniture box, an unlinked box, a radiator, a speaker, a TV); the patch is that footprint grown 6 cm (`growPoly`, mitred). A piece whose bottom is at 40 cm or more (a wall cabinet, a TV on a wall) touches no floor and gets none; a tree has its own patch (S28.4) and a flat patio none. Walls: per wall run, two bands per side from the wall's face (`wallFace`), 6 cm at full alpha (`.s1`) and 6 cm at half (`.s2`). Nothing at rise 0.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2.5D: doors and windows are framed (jambs, head, and a sill on windows) in the frame colour.
+
 - 2.5D has contact shadows: a soft stepped band along both sides of every wall and a patch under every piece of furniture, appliance and device body, so things sit on the floor instead of floating over it. Baked, no blur, none at tilt 0. The shade colour is now the theme's ink pulled toward black, so it darkens a navy room too.
 - A tree in 2.5D stands: a 12 cm trunk rises to 60 % of its height, the crown hangs at the middle of the crown (75 %) and the shade patch lies at its foot, in the card and the Studio.
 - A tree on the plan is a crown, not a grey disc: an 8-lobed green outline over the garden, a trunk dot and a soft shade patch, in the card and the Studio.

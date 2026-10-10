@@ -381,7 +381,7 @@ ${THEME_EXTRAS}
 .eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.nw.zn{display:none} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.parapet{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
 /* 2.5D solids take no clicks: a tap or a pick goes through to the floor-level shape under them, as in 2D. Furniture is the
    exception: its group is data-f, so a tap on the block reaches it as it reaches the flat symbol. */
-.ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
+.ws,.glass,.frame,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
 .bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
 .shade{fill:var(--fp-shade);fill-opacity:var(--fp-shade-alpha);pointer-events:none} .shade .s2{fill-opacity:calc(var(--fp-shade-alpha) / 2)}
@@ -401,6 +401,7 @@ ${THEME_EXTRAS}
 .ws.lit{fill:color-mix(in srgb,var(--fp-wall-side) 80%,var(--fp-on-dark))} .ws.dim{fill:color-mix(in srgb,var(--fp-wall-side) 78%,var(--fp-on-light))}
 .wfoot{fill:var(--fp-on-light);fill-opacity:.16;stroke:none} .wl{stroke:var(--fp-on-dark);stroke-opacity:.55;stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
+.frame{fill:var(--fp-frame);stroke:var(--fp-frame);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
 /* An opening that is open (a contact sensor on, a lock left unlocked) is red on the wall face as it is in 2D, an alarm the
    same; an open cover keeps its own orange. Unavailable and unknown are none of these. A closed door is a painted leaf. */
