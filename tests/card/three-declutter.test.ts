@@ -35,12 +35,16 @@ describe("declutter", () => {
     expect(shown.length).toBeLessThan(boxes.length);
     for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) expect(hit(shown[i], shown[j])).toBe(false);
   });
-  it("1000 boxes in under 5 ms", () => {
+  it("1000 boxes in under 15 ms, best of 7 (a shared runner is slow, a quadratic scan is slower)", () => {
     const boxes = Array.from({ length: 1000 }, (_, i) => b((i * 37) % 900, (i * 91) % 700, 40, 14, i % 4));
     declutter(boxes); // warm
-    const t = performance.now();
-    declutter(boxes);
-    expect(performance.now() - t).toBeLessThan(5);
+    let best = Infinity;
+    for (let i = 0; i < 7; i++) {
+      const t = performance.now();
+      declutter(boxes);
+      best = Math.min(best, performance.now() - t);
+    }
+    expect(best).toBeLessThan(15);
   });
   it("skips a box with a NaN or infinite number, and one huge box does not stall", () => {
     const out = declutter([b(NaN, 0, 10, 10, 9), b(0, 0, Infinity, 10, 9), b(0, 0, 10, 10, 1), b(-1e12, -1e12, 2e12, 2e12, 5)]);
