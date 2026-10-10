@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The floor below dims at night with the rooms it lies on, in the card and in the Studio's Preview night; in a lit room it stays as by day.
 - Themes carry the colours the 2.5D and 3D polish draws with: `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` and `--fp-shade-alpha`. `npm run shots -- --polish` renders the polish set at 4x.
 
 ## 0.25.0 - 2026-10-10

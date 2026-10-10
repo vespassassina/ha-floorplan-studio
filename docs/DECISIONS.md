@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the ghost floor lies under the night veil; its night contrast is under .92 of the day's, not .8 (S28.2)
+
+- `g.ghost` is pushed before the night overlay, after the room fills and stairs. An unlit room's veil darkens it with the floor; a lit room has no veil. Measured from the real elements in their paint order (`tests/fixtures/ghost-contrast.ts`): blueprint .78 of the day contrast, light .90, and the old order gave more than the day's. The plan said under .8; the veil alone cannot reach that on light (WCAG contrast shrinks slowly under a dark veil), and a second night rule for the ghost would also dim it in lit rooms. So the bound is .92, with over 1.15:1 kept, and a lit room within 2 % of the day.
+
 ## 2026-10-10: the door frame token mixes into the ink, not the wall side (S28.1)
 
 - The sprint 28 assumption said `--fp-frame` is a mix of `--fp-door` into the wall side. On midnight that mix has the wall side's own luminance (contrast 1.003:1), and a mix with the wall side cannot be relied on to stand off it in any theme. It is now `--fp-door` 40 % into `--fp-ink`, which is light on a dark theme and dark on a light one, so the frame leaves the wall side the same way the wall's own colour does. Measured over all 13 themes plus HA dark: at least 1.5:1. Same commit adds `--fp-tree` (garden green over the garden), `--fp-tree-edge` (garden green 55 % into ink, at least 3:1 on every garden), `--fp-shade` (`--fp-on-light`) and `--fp-shade-alpha` (.16 light, .32 dark, from `SHADE_ALPHA` in `ink.ts`). `treeShape` and `FRAME_WIDTH`/`FRAME_PROUD` land with them; nothing draws any of it yet.

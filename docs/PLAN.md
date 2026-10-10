@@ -3317,7 +3317,7 @@ Wave 0, in order on `task/s28-polish`, one coder (every lane reads what it lays 
 Wave 1, four lanes in parallel after S28.1, each in its own worktree; tasks inside a lane run in order:
 
 Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
-- [ ] S28.2 The ghost floor dims at night. `g.ghost` moves before the night overlay, as the assumption says. Test: unit,
+- [x] S28.2 The ghost floor dims at night. `g.ghost` moves before the night overlay, as the assumption says. Test: unit,
       the markup order (fills, stairs, ghost, night, auras, walls) with night on and off; Playwright in the card and the
       Studio (Preview night), blueprint and light: the contrast of a ghost line against its unlit room at night is under
       .8 times the day contrast and over 1.15:1, and in a lit room within 2 % of the day contrast. Both fail on the old

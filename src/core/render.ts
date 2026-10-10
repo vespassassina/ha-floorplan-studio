@@ -1300,6 +1300,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   f.stairs.forEach((t, i) => out.push(stairsGroup(t, i, o.around)));
 
+  // S27.5 (moved by review 27, again by S28.2): the floor below, over the room fills and stairs, under the night overlay, walls,
+  // names and devices. Drawn first it sat under the opaque fills and vanished where Align needs it; drawn after the night veil it kept
+  // full contrast while the rooms dimmed. Now an unlit room's veil darkens it with the floor; a lit room and the bare board are as by day.
+  // Still one draw path, for the editor and the card.
+  const ghost = ghostMarkup(o.ghost);
+  if (ghost) out.push(ghost);
+
   // S7.6: the night overlay, over every room fill and staircase, under walls, names and devices, so lines and icons stay
   // crisp. Zones and structures sit on a room and share its overlay; a fill with no name is not drawn, so it gets none.
   // No data-r: the overlay is never a pick target (class room-night carries pointer-events:none, CLAUDE.md finding 18).
@@ -1308,11 +1315,6 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       if (r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
       out.push(`<polygon data-night="${i}" class="room-night${glowRooms.has(i) ? " lit" : ""}" points="${pts(r.pts)}"/>`);
     });
-
-  // S27.5 (moved by review 27): the floor below, over the room fills, stairs and night overlay and under walls, names and devices.
-  // Drawn first it sat under the opaque fills and vanished where Align needs it. Still one draw path, for the editor and the card.
-  const ghost = ghostMarkup(o.ghost);
-  if (ghost) out.push(ghost);
 
   // S2.8: every lit lamp's aura, drawn as one flat pass before any device group. S8.13: and before walls, doors,
   // furniture and names, now that it reaches 150 cm and would tint them (an open door's red line most of all). One pass, not interleaved with the

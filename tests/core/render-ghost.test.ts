@@ -22,10 +22,18 @@ describe("S27.5 ghost floor", () => {
     const g = ghostPart(svg);
     expect(g).toContain("<path");
     const night = ghosted({ floor: ground, shift: [0, 0] }, { night: true });
-    expect(night.lastIndexOf('data-night="')).toBeLessThan(night.indexOf('<g class="ghost">'));
+    // S28.2: with night on the ghost lies under the veil, so it dims with the floor: fills, ghost, night, auras, walls.
+    const order = (m: string) => [m.lastIndexOf('data-r="'), m.indexOf('<g class="ghost">'), m.indexOf('data-night="'), m.indexOf('class="eh ')];
+    const o = order(night);
+    expect(o.every((n) => n >= 0), String(o)).toBe(true);
+    expect([...o].sort((a, b) => a - b)).toEqual(o);
+    expect(night.lastIndexOf('data-night="')).toBeGreaterThan(night.indexOf('<g class="ghost">'));
+    const day = order(svg);
+    expect(day[2]).toBe(-1);
+    expect([day[0], day[1], day[3]].sort((a, b) => a - b)).toEqual([day[0], day[1], day[3]]);
     const at = svg.indexOf('<g class="ghost">');
     // Opaque room fills would hide a ghost drawn under them, exactly where Align needs it.
-    for (const over of ['data-r="', 'class="stairs room"', 'data-night="']) expect(svg.lastIndexOf(over), over).toBeLessThan(at);
+    for (const over of ['data-r="', 'class="stairs room"']) expect(svg.lastIndexOf(over), over).toBeLessThan(at);
     for (const under of ['class="eh ', 'class="door ', "<text", "data-x="]) expect(svg.indexOf(under), under).toBeGreaterThan(at);
     expect(svg.match(/class="ghost"/g)).toHaveLength(1);
     for (const bad of ["<text", "<use", "<image", "data-x", "data-r", "data-e", "data-d", "<title", "<polygon"]) expect(g, bad).not.toContain(bad);
