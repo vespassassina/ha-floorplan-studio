@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.0 - 2026-10-10
 
 - Floors have an offset. A floor may carry `offset: [x, y]` (cm): where it sits in the house, so upper floors can sit apart from the one below. Absent is `[0, 0]`; validation reports a bad value and opening a file drops it. The stored points never change.
 - Studio: Floors menu with Add floor, Align to floor below, Move up, Move down and Delete floor. Add floor moved here from Edit, and a new floor takes the lowest floor's offset. The Draw menu is gone: Draw opening ends Openings, Wall holds a Draw submenu of the kinds, and Areas ends with Draw room, zone, water, outline and structure line.
