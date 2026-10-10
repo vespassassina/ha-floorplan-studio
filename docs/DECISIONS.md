@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the 2.5D tree stands; the trunk takes the crown's edge colour (S28.4)
+
+- `furnitureSolid` for a tree draws, inside the piece's group: the shade patch (`treeShadeSvg`, shared with 2D, so the (4, 6) cm offset lives once in `tree.ts`), a `line.trunk` from the foot to `lift(foot, trunkTop)`, and `TREE_CROWN` (the 2D symbol without its trunk dot) at `lift(centre, crownMiddle)`. The depth key is unchanged. At tilt 0 nothing lifts, so it is the 2D tree. A pole that is not a tree keeps the old symbol at full height.
+- `.trunk` is 12 cm wide (was 8) and strokes with `--fp-tree-edge`, not `--fp-furniture`. Seen at 4x: with the furniture token the trunk was a loud blue pole on blueprint and ha-dark; with the edge token it matches the crown's outline in every theme.
+- Painted pixels are read in `tests/card/tree-25d.spec.ts` (all 13 themes plus ha dark, at 4x): the crown centre is the fill at .35 over the page, the trunk halfway up is the stroke, the patch beside the foot is the shade.
+
 ## 2026-10-10: the 2D tree's shade patch and trunk (S28.3)
 
 - `FURNITURE.tree.svg` is the crown (8 arcs on a circle of radius 40 in the 100 box, `.tree-crown`: `--fp-tree` at .35, a 1 px non-scaling `--fp-tree-edge`) and a trunk dot (`.tree-trunk`, radius 3 in the box, so 6 % of `w` across, which is 12 cm on the default 200 cm tree: `TRUNK_SIDE`). The dot scales with the box, so on a 120 x 300 tree it is an ellipse like the crown. The shade patch is a separate `ellipse.tree-shade` drawn before the piece's group, at (+4, +6) cm from the tree whatever `w`, `h` and `rot`, with the crown's own radii and turned by `rot` about its own centre. Soft here means one flat patch at `--fp-shade-alpha`; no gradient, in line with the 2.5D rule against filters. The render snapshot changes on purpose (the tree line only), and `furniture-look.test.ts` asks a tree for `.tree-crown` instead of the body fill class.

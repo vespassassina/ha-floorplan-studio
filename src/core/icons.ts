@@ -76,7 +76,7 @@ const c = (x: number, y: number, rr: number) => `<circle cx="${x}" cy="${y}" r="
 // S28.3: a tree seen from above: a crown of 8 lobes (an arc between neighbouring points on a circle of radius 40, bulging outwards
 // to about 44) and the trunk dot. The colours are classes (`.tree-crown`, `.tree-trunk`), never attributes (finding 18); the crown's
 // edge is a 1 px non-scaling line, so the non-uniform scale of a 120 x 300 tree does not thin it.
-const crown = (() => {
+export const TREE_CROWN = (() => {
   const pt = (k: number) => { const a = (k * Math.PI) / 4; return `${+(50 + 40 * Math.cos(a)).toFixed(2)} ${+(50 + 40 * Math.sin(a)).toFixed(2)}`; };
   return `<path class="tree-crown" d="M${pt(0)}${[1, 2, 3, 4, 5, 6, 7, 8].map((k) => ` A17 17 0 0 1 ${pt(k % 8)}`).join("")}Z"/>`;
 })();
@@ -97,7 +97,7 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   // S18.13: seen from above, the user at the bottom: a desk, the monitor along its back edge, a keyboard in front of it and
   // the case standing beside. 120 x 60 cm is a real desk; a layout that stored its own w and h keeps them.
   computer: { w: 120, h: 60, svg: r(2, 2, 96, 96, 3, "desk") + r(24, 10, 44, 8, 2, "monitor") + `<path d="M46 18 V30" ${S}/>` + r(26, 54, 40, 18, 3, "keyboard") + `<path d="M32 63 H60" ${S} stroke-opacity=".5"/>` + r(76, 10, 16, 42, 3, "case") + c(84, 20, 2.5) },
-  tree: { w: 200, h: 200, svg: crown + '<circle class="tree-trunk" cx="50" cy="50" r="3"/>' },
+  tree: { w: 200, h: 200, svg: TREE_CROWN + '<circle class="tree-trunk" cx="50" cy="50" r="3"/>' },
   "patio-wood": { w: 300, h: 300, svg: r(2, 2, 96, 96, 0) + [20, 40, 60, 80].map((y) => `<path d="M2 ${y} H98" ${S} stroke-opacity=".5"/>`).join("") },
   "patio-concrete": { w: 300, h: 300, svg: r(2, 2, 96, 96, 0) + `<path d="M34 2 V98 M66 2 V98 M2 34 H98 M2 66 H98" ${S} stroke-opacity=".5"/>` },
   car: { w: 450, h: 180, svg: r(2, 12, 96, 76, 18) + r(58, 20, 24, 60, 6) + r(18, 20, 24, 60, 6) },

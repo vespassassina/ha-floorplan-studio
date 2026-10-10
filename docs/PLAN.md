@@ -3332,7 +3332,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
       crown edge against the garden it stands on at least 3:1. Shots: 2D gardens looked at in the three themes.
       Files: `src/core/icons.ts`, `src/core/render.ts`, `tests/core/render.test.ts` or a new `tests/core/tree-2d.test.ts`,
       a pair in `tests/editor/editor.spec.ts` and one in `tests/card/`.
-- [ ] S28.4 A 2.5D tree stands (V22). `furnitureSolid` for a pole draws the shade patch at the trunk foot, a 12 cm trunk
+- [x] S28.4 A 2.5D tree stands (V22). `furnitureSolid` for a pole draws the shade patch at the trunk foot, a 12 cm trunk
       up to `treeShape`'s trunk top, and the S28.3 crown at the crown's lifted height, in that order inside the piece's
       group; its depth key is unchanged. Test: unit, the order, the trunk's end point equals `lift(foot, trunkTop)`, the
       crown's translate equals `lift(centre, crown middle)`, rise 0 draws the 2D tree; Playwright at 4x on the shot

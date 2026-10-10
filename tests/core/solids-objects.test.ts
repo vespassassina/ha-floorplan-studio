@@ -44,7 +44,8 @@ describe("2.5D furniture", () => {
       } else if (SOLID[symbol] === "pole") {
         expect(tops(html), symbol).toEqual([]);
         expect(html, symbol).toContain('class="trunk"');
-        expect(html, symbol).toContain(`translate(${n(300 + h * K * R)} ${n(250 - h * R)}) rotate(0)`);
+        // S28.4: the crown is lifted to the middle of the crown, 75 % of the height; the trunk ends at 60 %
+        expect(html, symbol).toContain(`translate(${n(300 + h * 0.75 * K * R)} ${n(250 - h * 0.75 * R)}) rotate(0)`);
       } else {
         expect(tops(html), symbol).toEqual([]);
         expect(html, symbol).toContain("translate(300 250) rotate(0)");

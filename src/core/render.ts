@@ -8,10 +8,9 @@ import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTex
 import { rolesToTokens } from "./theme-roles";
 import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
 import { esc, num, pts, tag } from "./fmt";
-import { treeShape } from "./tree";
+import { treeShadeSvg } from "./tree";
 
 /** S28.3: where a tree's shade patch lies from the tree, cm in plan axes (the sun is fixed; the patch does not turn with the tree). */
-const TREE_SHADE: Pt = [4, 6];
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
@@ -385,7 +384,7 @@ ${THEME_EXTRAS}
 .ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
 .bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
-.trunk{stroke:var(--fp-furniture);stroke-width:8;stroke-linecap:round}
+.trunk{stroke:var(--fp-tree-edge);stroke-width:12;stroke-linecap:round}
 .dsolid .bs,.dsolid .bt{stroke:color-mix(in srgb,var(--fp-body) 60%,var(--fp-on-light))}
 .dsolid .bt{fill:color-mix(in srgb,var(--fp-body) 70%,var(--fp-on-dark))} .dsolid .bs{fill:var(--fp-body)} .dsolid .bs.w{fill:color-mix(in srgb,var(--fp-body) 80%,var(--fp-on-light))}
 .dsolid.radiator{--fp-body:color-mix(in srgb,var(--fp-idle) 55%,var(--fp-bg))} .dsolid.radiator.on{--fp-body:color-mix(in srgb,var(--fp-heater) 75%,var(--fp-bg))}
@@ -1649,8 +1648,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = pieceOn(o, m, plugs) ? " on" : "";
     // S28.3: a tree's soft shade patch, offset (+4, +6) cm in the plan whatever its size and turn, so outside the scaled group.
-    const tree = m.symbol === "tree" && Number.isFinite(m.x) && Number.isFinite(m.y) ? treeShape(m) : null;
-    if (tree) { const c = `${num(m.x + TREE_SHADE[0])} ${num(m.y + TREE_SHADE[1])}`; out.push(`<ellipse class="tree-shade" cx="${num(m.x + TREE_SHADE[0])}" cy="${num(m.y + TREE_SHADE[1])}" rx="${num(tree.rx)}" ry="${num(tree.ry)}" transform="rotate(${num(Number.isFinite(m.rot) ? m.rot : 0)} ${c})"/>`); }
+    const shade = treeShadeSvg(m);
+    if (shade) out.push(shade);
     out.push(`<g data-f="${i}" class="furn${on}"${furnitureLinked(m)} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
     if (o.locate?.t === "furn" && o.locate.i === i) out.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
     const waves = furnitureWaves(o, m);

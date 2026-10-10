@@ -3,6 +3,8 @@
 // numbers: they arrive in a `Proj`, so this file never imports render.ts.
 import { deviceZ, deviceZOr, doorSpan, edgeHeight, floorHeight, furnitureBottom, furnitureHeight, furnitureTop, openingSpan, radiatorSpan, unlinkedHeight, wallHeight } from "./heights";
 import { esc, num, pts, tag } from "./fmt";
+import { TREE_CROWN } from "./icons";
+import { treeShadeSvg, treeShape } from "./tree";
 import { edgeKindAt, nearestEdge, stairSteps } from "./geometry";
 import { doorStateOf, type DoorState } from "./door-state";
 import type { StateOverlay } from "./render";
@@ -404,11 +406,17 @@ export function pieceDevice(m: Furniture): Device | null {
 export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on: boolean, symbol: string, px: Proj, waves?: string | null): Solid | null {
   const z0 = furnitureBottom(m), h = furnitureTop(m), c: Pt = [m.x, m.y];
   const base = ([[-m.w / 2, -m.h / 2], [m.w / 2, -m.h / 2], [m.w / 2, m.h / 2], [-m.w / 2, m.h / 2]] as Pt[]).map((q) => turnAbout([m.x + q[0], m.y + q[1]], m.rot, c));
-  const top = px.lift(c, h);
+  // S28.4: a tree stands. Its shade patch lies at the foot, a 12 cm trunk rises to `trunkTop` and the crown (no trunk dot: the
+  // trunk is the line) is drawn at the crown's middle. Anything else keeps the symbol at the full height.
+  const tree = mode === "pole" && m.symbol === "tree" ? treeShape(m) : null;
+  const top = px.lift(c, tree ? tree.crownMiddle : h);
   let body: string;
   if (mode === "box") { const p = prism(base, h, px, z0); if (!p) return null; body = p; }
-  else body = `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(top[0])}" y2="${num(top[1])}"/>`;
-  const sym = `<g transform="translate(${num(top[0])} ${num(top[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${symbol}</g>`;
+  else {
+    const end = tree ? px.lift(c, tree.trunkTop) : top;
+    body = (tree ? treeShadeSvg(m) : "") + `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(end[0])}" y2="${num(end[1])}"/>`;
+  }
+  const sym = `<g transform="translate(${num(top[0])} ${num(top[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${tree ? TREE_CROWN : symbol}</g>`;
   // S18.9: a playing tv or speaker sends its waves from the lid, outside the scaled symbol group so they stay round.
   const w = waves ? waves.replace("%AT%", `${num(top[0])} ${num(top[1])}`) : "";
   return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}" color="var(--fp-furniture)"${furnitureLinked(m)}>${body}${sym}${w}</g>` };
