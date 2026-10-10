@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Align: a floor a few cm off is now laid flush (it stopped at 2 to 4.5 cm, or called 1.5 to 4.5 cm "already aligned"), and among equal fits the smaller move wins whatever order the corners come in.
 - Demo: a full-height window in the Kitchen east wall (floor to ceiling minus 40 cm) and four devices stacked on one spot in the Hall, so the shots show the window and the spiderfy fan (S27.C).
 - Docs and the Help guide cover floors: offset, Align, the ghost floor, floors below in 3D and the floor switch. An exit test aligns a floor in the Studio, saves, and checks the card lays it over the floor below, in 3D and as a ghost (S27.16).
 - Studio: View, Floor below draws the floor under the shown one as faint lines, at its place in the house. Off by default, remembered in the browser, no undo step; disabled on the lowest floor (S27.11).

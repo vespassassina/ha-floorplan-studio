@@ -60,6 +60,43 @@ describe("alignFloor (S27.4)", () => {
     expect(Math.abs(r2.t[0] - -100)).toBeLessThan(2);
   });
 
+  it("lays a floor that is only a few cm off, in x, y and diagonal (review 27, finding 1)", () => {
+    const l = clone(house) as unknown as Layout;
+    const up = l.floors.first;
+    for (const d of [1.5, 3, 4.5, 6, 9, 12]) {
+      for (const [dx, dy] of [[d, 0], [0, -d * 0.7], [d * 0.8, d * 0.6]]) {
+        // Stored, the first floor is 137.4 / -61.7 off the ground floor; start from laid on it, then d off.
+        const mv = (p: [number, number]): [number, number] => [p[0] - 137.4 + dx, p[1] + 61.7 + dy];
+        const moved: Floor = { ...up, outline: up.outline.map(mv), walls: up.walls.map((w) => ({ ...w, a: mv(w.a), b: mv(w.b) })), rooms: up.rooms.map((r) => ({ ...r, pts: r.pts.map(mv) })) };
+        const r = alignFloor(moved, l.floors.ground)!;
+        const ex = Math.abs(r.t[0] + dx), ey = Math.abs(r.t[1] + dy);
+        expect(Math.max(ex, ey), `off by ${dx},${dy}`).toBeLessThan(1);
+      }
+    }
+  });
+
+  it("lays a plain rectangle that is 8 cm off", () => {
+    const lower = blank(rect(0, 0, 800, 400));
+    for (const [dx, dy] of [[8, 0], [0, -8], [-5.6, 5.6], [1.5, 0], [3, 3]]) {
+      const r = alignFloor(blank(rect(dx, dy, 800 + dx, 400 + dy)), lower)!;
+      expect(Math.abs(r.t[0] + dx), `dx ${dx} dy ${dy}`).toBeLessThan(1);
+      expect(Math.abs(r.t[1] + dy), `dx ${dx} dy ${dy}`).toBeLessThan(1);
+    }
+  });
+
+  it("a tie goes to the smaller move whatever the corner order (review 27, finding 2)", () => {
+    const lower = blank(rect(0, 0, 1000, 1000));
+    const r = alignFloor(blank(rect(150, 820, 250, 920)), lower)!;
+    expect(Math.abs(r.t[0] - -150)).toBeLessThan(2);
+    expect(Math.abs(r.t[1] - 80)).toBeLessThan(2);
+    const r2 = alignFloor(blank(rect(700, 150, 800, 250)), lower)!;
+    expect(Math.abs(r2.t[0] - 200)).toBeLessThan(2);
+    expect(Math.abs(r2.t[1] - -150)).toBeLessThan(2);
+    const r3 = alignFloor(blank(rect(100, 100, 200, 200)), lower)!;
+    expect(Math.abs(r3.t[0] - -100)).toBeLessThan(2);
+    expect(Math.abs(r3.t[1] - -100)).toBeLessThan(2);
+  });
+
   it("a floor that matches nothing is weak, and says so", () => {
     const lower = blank(rect(0, 0, 800, 400));
     const upper = blank([[0, 0], [90, 130], [200, 0]]);
