@@ -23,7 +23,7 @@ const STATES = () => ({
   "climate.demo_living": st("heat"), "camera.demo_hall": st("idle"),
 });
 
-async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {}) {
+async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {}, foldOverview = true) {
   await page.setViewportSize({ width, height: 900 });
   await page.goto(URL_);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
@@ -38,6 +38,9 @@ async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {
     el.hass = { states, callService: (d: string, s: string, data: Record<string, unknown>) => { w.__calls.push(`${d}.${s} ${JSON.stringify(data)}`); } };
     return el.updateComplete;
   }, [{ layout: structuredClone(demo), floor: "ground", ...extra }, STATES()] as const);
+  // The overview floats over the plan and its height follows the font, so with a wider font it covers devices these tests tap.
+  // Fold it: the tests here are about the icons and the popup, not the overview.
+  if (foldOverview) await card(page).evaluate((el) => el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse[aria-expanded=true]")?.click()); // a narrow card starts folded
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
@@ -180,7 +183,7 @@ test.describe("2D popup: closing and placement", () => {
   });
 
   test("an Active-list row opens the same popup and operates nothing", async ({ page }) => {
-    await boot(page);
+    await boot(page, 1100, {}, false); // this one uses the overview list
     const row = card(page).locator("css=.fp-active-row", { hasText: "Living light" });
     await row.click();
     await expect(pop(page)).toHaveAttribute("aria-label", "Living light");

@@ -464,6 +464,7 @@ test.describe("S7.4 zoom and pan", () => {
   test("Ctrl+wheel zooms in about the pointer; a plain wheel leaves the plan alone so the dashboard can scroll", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
+    await page.locator("floorplan-studio-card").locator("css=.fp-active-collapse[aria-expanded=true]").click(); // the floating overview would take the wheel at this point with a wider font
     const fit = await viewBox(page);
     const b = await svgBox(page);
     const px = b.x + b.width * 0.3, py = b.y + b.height * 0.6; // off-centre, so a zoom about the centre would fail

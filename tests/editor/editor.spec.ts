@@ -147,7 +147,7 @@ async function setGrid(page: Page, g: number) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize({ width: Number(process.env.PW_VW ?? 1280), height: 800 });
   await page.goto("/standalone.html");
   await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
@@ -325,7 +325,6 @@ test("Undo brings back what Reset erased", async ({ page }) => {
   page.once("dialog", (d) => d.accept());
   await menu(page, "File");
   await page.locator("#reset").click();
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await layoutOf(page)).toEqual(before);
 });
@@ -363,7 +362,6 @@ test("break it: Reset cancelled keeps the plan and Load demo stays off", async (
 
 test("undo reverts the last drag", async ({ page }) => {
   await drag(page, 'circle[data-h="r0:1"]', 0, 50);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).rooms[0].pts[1]).toEqual([500, 0]);
 });
@@ -748,7 +746,6 @@ test("a stairs corner can be dragged, renamed in the panel, deleted with the but
   await page.locator("#sdel").click();
   await expect(stairsCount(page)).toHaveCount(1);
   expect((await groundOf(page)).stairs.map((s) => s.id)).toEqual(["stairs-ground-1"]);
-  await menu(page, "File");
   await page.locator("#undo").click();
   await expect(stairsCount(page)).toHaveCount(2);
   const back = (await groundOf(page)).stairs;
@@ -762,9 +759,7 @@ test("Delete removes selected stairs; nothing selected is a no-op with no undo s
   await page.mouse.click(...Object.values(await screenOf(page, 300, 900)) as [number, number]);
   await page.keyboard.press("Delete");
   expect(await layoutOf(page)).toEqual(demo);
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled();
-  await menu(page, "File"); // closes it again
   // select the demo stairs by a real click, delete with the key
   const c = await screenOf(page, 740, 500);
   await page.mouse.click(c.x, c.y);
@@ -819,14 +814,12 @@ test("the living light shows its relay; clearing it frees the relay, undo restor
   expect(await bound(page, 0)).toBeUndefined();
   expect("bound" in (await groundOf(page)).devices[0]).toBe(false);
   expect(await unplacedCount(page)).toBe(2);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await bound(page, 0)).toBe(RELAY);
   expect(await unplacedCount(page)).toBe(2);
   // choosing the same value again records no step
   await selectDev(page, 0);
   await pickEntity(page, "#vbound", RELAY);
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled();
 });
 
@@ -985,7 +978,6 @@ test("Add, Zone places a 200 x 200 cm zone on the grid, centred on the spawn poi
     expect(await edges.nth(i).evaluate((el) => getComputedStyle(el).strokeDasharray)).not.toBe("none");
   }
   expect(await page.locator(`svg polygon[data-r="${n}"]`).evaluate((el) => getComputedStyle(el).fill)).toBe("none");
-  await menu(page, "File");
   await page.locator("#undo").click();
   await expect(roomPolys(page)).toHaveCount(before.rooms.length);
   await savedValid(page);
@@ -1016,7 +1008,6 @@ test("the room panel kind select lists zone and water; picking zone clears every
   const z = (await groundOf(page)).rooms[0];
   expect(z.kind).toBe("zone");
   expect(z.wk).toEqual(["boundary", "boundary", "boundary", "boundary"]);
-  await menu(page, "File");
   await page.locator("#undo").click();
   const back = (await groundOf(page)).rooms[0];
   expect(back.kind).toBe("room");
@@ -1252,7 +1243,6 @@ test("Add floor then Esc adds nothing and leaves no undo step; Enter on an empty
   await expect(page.locator("#newFloor")).toBeVisible(); // still asking
   await page.keyboard.press("Escape");
   expect(await floorKeys(page)).toEqual(["ground", "first", "test"]);
-  await menu(page, "File");
   await expect(undoBtn(page)).toBeDisabled();
 });
 
@@ -2130,7 +2120,6 @@ test("the length field sets the length and keeps the midpoint and the direction"
   expect(mid(o)).toEqual(mid(before));
   expect(o.a[0]).toBe(before.a[0]);
   expect(Math.sign(o.b[1] - o.a[1])).toBe(Math.sign(before.b[1] - before.a[1]));
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(len((await gaps(page))[0])).toBe(120); // one step
   await expect(page.locator("#undo")).toBeEnabled();
@@ -2144,7 +2133,6 @@ test("the length field ignores an unchanged value and rubbish", async ({ page })
   await page.locator("#ol").fill("");
   await page.locator("#ol").press("Enter");
   expect(await gaps(page)).toEqual(o);
-  await menu(page, "File");
   await page.locator("#undo").click(); // undoes the add itself: the unchanged 120 and the empty field left no step of their own
   expect(await gaps(page)).toEqual([]);
 });
@@ -2664,7 +2652,6 @@ test("S1.52: Delete on a perimeter edge stops drawing it, and one undo brings it
   expect(g.owk?.[0]).toBe("none");
   await expect(page.locator('svg line.e.none[data-e="o:0"]')).toHaveCount(1); // a guide only in the editor, not a drawn line
   await expect(page.locator("#edel")).toHaveCount(0);
-  await menu(page, "File");
   await page.locator("#undo").click();
   const u = await groundOf(page);
   expect(u.owk?.[0]).toBe("external");
@@ -2686,7 +2673,6 @@ test("Opus review: Delete on the unmodified demo clears the room edge AND the ou
   await expect(page.locator('svg line.e:not(.none)[data-e="o:0"]')).toHaveCount(0);
   await expect(page.locator('svg line.e.none[data-e="r0:0"]')).toHaveCount(1); // a faint guide only, as usual
   await expect(page.locator('svg line.e.none[data-e="o:0"]')).toHaveCount(1);
-  await menu(page, "File");
   await page.locator("#undo").click(); // one undo step restores both kinds together
   const u = await groundOf(page);
   expect(u.rooms[0].wk[0]).toBe("external");
@@ -3224,7 +3210,6 @@ test("a door's angle field turns it about its midpoint: at 90 the ends swap axis
   const box = await page.locator(`svg line[data-d="${(await groundOf(page)).doors.length - 1}"]:not(.door-hit)`).boundingBox();
   if (d1.a[0] === d1.b[0]) expect(box!.height).toBeGreaterThan(box!.width * 2);
   else expect(box!.width).toBeGreaterThan(box!.height * 2);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).doors.at(-1)).toEqual(d0);
   await savedValid(page);
@@ -3267,7 +3252,6 @@ test("a device rotation is stored, drawn on the group and undone; the glyph stay
   await page.locator("#vrotreset").click();
   expect("rot" in (await groundOf(page)).devices[0]).toBe(false); // the key is deleted at 0
   await page.locator("#vrotreset").click(); // already 0: no step
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(((await groundOf(page)).devices[0] as { rot?: number }).rot).toBe(90);
   await savedValid(page);
@@ -3305,7 +3289,6 @@ test("a room that shares corners cannot be rotated until it is unsnapped; unsnap
   const d = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   expect(Math.abs(d(turned.rooms[0].pts[0], turned.rooms[0].pts[1]) - 500)).toBeLessThanOrEqual(1);
   expect(Math.abs(d(turned.rooms[0].pts[1], turned.rooms[0].pts[2]) - 400)).toBeLessThanOrEqual(1);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).rooms[0].pts).toEqual(free.rooms[0].pts); // one step back
   await savedValid(page);
@@ -3461,7 +3444,6 @@ test("Add, Stairs puts the same stairs on every floor; Delete removes them from 
   await expect(page.locator("#sn")).toBeVisible();
   await expect(page.locator("#sdel").locator("xpath=following::p[contains(@class,'hint')][1]")).toContainText("Added to every floor; deleted from one only");
   // one undo step for all floors
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeEnabled();
   await menu(page, "File");
   // on the first floor by a real click on the stairs' body, then delete: the ground floor keeps its own
@@ -3483,8 +3465,8 @@ test("Add, Stairs puts the same stairs on every floor; Delete removes them from 
   expect(after.floors.first.stairs).toHaveLength(0);
   expect(after.floors.ground.stairs).toHaveLength(2);
   // Undo the delete, then Undo the add: every floor is back to what it was
-  await menu(page, "File"); await page.locator("#undo").click();
-  await menu(page, "File"); await page.locator("#undo").click();
+  await page.locator("#undo").click();
+  await page.locator("#undo").click();
   const back = await layoutOf(page);
   expect(back.floors.ground.stairs).toEqual(before.floors.ground.stairs);
   expect(back.floors.first.stairs).toEqual([]);
@@ -3669,13 +3651,11 @@ test("S1.33: Edit has Rotate the plan; right steps +45, left steps -45, wrapping
   await page.locator("#rotl").click();
   await expect(page.locator("#rotv")).toContainText("315°");
   expect(await rotOf(page)).toBe(315);
-  await menu(page, "File");
+  await menu(page, "Edit"); // close it: the open Edit box covers Undo when the toolbar wraps
   await page.locator("#undo").click();
   expect(await rotOf(page)).toBe(0);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await rotOf(page)).toBe(45);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await rotOf(page)).toBe(0);
   await expect(page.locator("#undo")).toBeDisabled(); // exactly three steps
@@ -3960,7 +3940,6 @@ test("S1.35: the Belgian stone swatch sets the fill, one undo step; the default 
   expect(await computed()).toBe("rgb(77, 78, 80)");
   expect((await groundOf(page)).rooms[0].color).toBe("#4d4e50");
   await expect(page.locator("#rcol")).toHaveValue("#4d4e50"); // the free input follows
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await computed()).toBe(plain);
   await page.mouse.click(at.x, at.y); // an undo leaves the room selected or not; select it
@@ -4053,11 +4032,9 @@ test("S1.36: changing the light colour reaches every light icon, camera colour c
   await setColourInput(page, "camera", "#0000ff");
   expect(await camFill(page)).toBe("rgb(0, 0, 255)");
   expect(await camFill(page)).not.toBe(cam0);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await camFill(page)).toBe(cam0);
   expect((await layoutOf(page)).colors).toEqual({ light: "#123456" });
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await layoutOf(page)).colors).toBeUndefined();
   expect(await varOn(page, lights, "--fp-dev-light")).toBe("#ff8a1f"); // blueprint's --fp-dev-light collapses to the single accent
@@ -4071,7 +4048,6 @@ test("S1.36: a row's reset and Reset all remove colours, each one undo step", as
   expect((await layoutOf(page)).colors).toEqual({ tv: "#654321" });
   await page.locator(`${EDITOR} #devcolsx`).click();
   expect((await layoutOf(page)).colors).toBeUndefined();
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await layoutOf(page)).colors).toEqual({ tv: "#654321" });
 });
@@ -4130,9 +4106,8 @@ for (const [floor, deg] of [["ground", 0], ["first", 0], ["ground", 45]] as cons
     expect(now.bad).toEqual([]);
     expect(now.n).toBeGreaterThan(3);
     expect(JSON.stringify(await layoutOf(page))).toBe(before); // a view change writes nothing
-    await menu(page, "File");
     if (!deg) await expect(page.locator("#undo")).toBeDisabled();
-    else { await page.locator("#undo").click(); expect(await rotOf(page)).toBe(0); await menu(page, "File"); await expect(page.locator("#undo")).toBeDisabled(); } // the one step is the rotation
+    else { await page.locator("#undo").click(); expect(await rotOf(page)).toBe(0); await expect(page.locator("#undo")).toBeDisabled(); } // the one step is the rotation
   });
 }
 
@@ -4201,7 +4176,6 @@ test("S1.38: picking an area writes its id and its name, one undo restores both"
   let r = (await groundOf(page)).rooms[0];
   expect(r).toMatchObject({ area: "study", name: "Study" });
   await expect(page.locator("#rn")).toHaveCount(0);
-  await menu(page, "File");
   await page.locator("#undo").click();
   r = (await groundOf(page)).rooms[0];
   expect(r).toMatchObject({ area: "living", name: "Living" });
@@ -4445,7 +4419,6 @@ test("S1.43: one press is one undo step; 360 wraps", async ({ page }) => {
   for (let i = 0; i < 4; i++) await page.locator("#srot90").click();
   expect((await groundOf(page)).stairs[1].rot).toBe(0);
   await page.locator("#srot90").click();
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).stairs[1].rot).toBe(0);
 });
@@ -4534,7 +4507,6 @@ test("S1.47: Delete on a shared edge stops drawing it on both rooms, and one und
   expect(await twins(page)).toBe(before - 2);
   await expect(page.locator('svg line.e.none[data-e="r0:1"]')).toHaveCount(1);
   await expect(page.locator("#edel")).toHaveCount(0);
-  await menu(page, "File");
   await page.locator("#undo").click();
   const u = await groundOf(page);
   expect(u.rooms[0].wk[1]).toBe("wall");
@@ -4578,7 +4550,6 @@ test("S1.47: Delete on the edge Hall shares in halves leaves no line drawn; one 
   expect(onSeam.length).toBe(3); // Living's, Kitchen's and Hall's edge
   expect(onSeam.map((e) => e.k)).toEqual(onSeam.map(() => "none"));
   expect(await twins(page)).toBe(lines - 3);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await groundOf(page)).toEqual(before);
   await expect(page.locator("#undo")).toBeDisabled();
@@ -4611,7 +4582,7 @@ for (const [wall, kind, label] of [["wall", "room", "Room"], ["external", "room"
     await expect(page.locator("#rn")).toHaveValue(`New ${kind}`);
     await expect(page.locator("[data-draw]")).toHaveCount(0);
     expect(validate(await layoutOf(page)).ok).toBe(true);
-    await menu(page, "File"); // the name field has focus, so Ctrl+Z would undo typing
+    // The name field has focus, so Ctrl+Z would undo typing: click the toolbar button.
     await page.locator("#undo").click();
     expect(await groundOf(page)).toEqual(before); // the walls are only drawn on commit, so one undo removes the room and leaves no walls
     await expect(page.locator("#undo")).toBeDisabled();
@@ -4623,9 +4594,7 @@ test("walls closed on the first point: one undo leaves nothing behind, redo brin
   await startDraw(page, "drawWall-wall");
   await clicksCm(page, ...LOOP, LOOP[0]);
   const after = await groundOf(page);
-  await menu(page, "File");
   await page.locator("#undo").click();
-  await menu(page, "File");
   await page.locator("#redo").click();
   expect(await groundOf(page)).toEqual(after);
 });
@@ -5352,7 +5321,6 @@ test("S1.50 break it: an empty floor draws a grid around the origin with no erro
   await menu(page, "View");
   await page.locator("#mgrid").click();
   await menu(page, "View");
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled(); // the toggle is a viewer preference, not an undo step
 });
 
@@ -5407,7 +5375,6 @@ test("S1.51: dragging the se handle grows the sofa while nw stays put; the panel
   const nwBefore: [number, number] = [SOFA.x - SOFA.w / 2, SOFA.y - SOFA.h / 2];
   const nwAfter: [number, number] = [m.x - m.w / 2, m.y - m.h / 2];
   expect(Math.hypot(nwAfter[0] - nwBefore[0], nwAfter[1] - nwBefore[1])).toBeLessThan(1);
-  await menu(page, "File");
   await page.locator("#undo").click();
   const undone = (await groundOf(page)).furniture[0];
   expect(undone).toEqual({ id: "furniture-ground-1", symbol: "sofa", x: SOFA.x, y: SOFA.y, rot: 0, w: SOFA.w, h: SOFA.h });
@@ -5438,7 +5405,6 @@ test("S1.51: a corner drag that ends where it started adds no undo step", async 
   await page.mouse.click(c.x, c.y);
   // Alt disables the grid, like every other handle, so a true no-op drag lands on the exact same corner.
   await dragCm(page, [SOFA.x + SOFA.w / 2, SOFA.y + SOFA.h / 2], [SOFA.x + SOFA.w / 2, SOFA.y + SOFA.h / 2], ["Alt"]);
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled();
 });
 
@@ -8452,7 +8418,6 @@ test("S10.1: a keyboard-only pick (type, arrow down, Enter) commits the value in
   await page.keyboard.press("Enter");
   await expect.poll(() => comboValue(page, "#ve")).toBe("light.garage");
   expect((await groundOf(page)).devices[i].entity).toBe("light.garage");
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeEnabled();
   await page.locator("#undo").click();
   expect((await groundOf(page)).devices[i].entity).toBe(""); // one undo step, back to unbound
@@ -8467,7 +8432,6 @@ test("S10.1: Escape closes the list and restores the previous label without pick
   await page.keyboard.press("Escape");
   expect(await comboValue(page, "#vbound")).toBe(before); // untouched
   await expect(page.locator("#vbound li[role='option']")).toHaveCount(0); // list closed, no pick fired
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled();
 });
 
@@ -8514,7 +8478,6 @@ test("S10.1: picking the value that is already set adds no undo step", async ({ 
   await pickEntity(page, "#ve", "light.garage", "garage");
   await pickEntity(page, "#ve", "light.garage", "garage"); // the same value again
   expect((await groundOf(page)).devices[i].entity).toBe("light.garage");
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).devices[i].entity).toBe(""); // one undo reaches the start: the re-pick made no step
 });
@@ -8537,7 +8500,7 @@ const heightsOf = async (page: Page) => {
     g[list].forEach((o: any, i: number) => { for (const k of HEIGHT_KEYS) if (o[k] !== undefined) out.push(`${list}[${i}].${k}=${o[k]}`); });
   return out;
 };
-const undoOnce = async (page: Page) => { await menu(page, "File"); await page.locator("#undo").click(); };
+const undoOnce = async (page: Page) => { await page.locator("#undo").click(); };
 
 /** Each case: how to select the item, its field id, and the placeholder (the default the resolver gives). */
 const HEIGHT_CASES: { name: string; open: (p: Page) => Promise<void>; id: string; ph: string; at: string }[] = [
@@ -8692,10 +8655,8 @@ test("the plug panel offers only power sensors, one pick is one undo step, the s
   await pickEntity(page, "#vpower", "sensor.tv_power");
   expect((await groundOf(page)).devices[i].power).toBe("sensor.tv_power");
   await pickEntity(page, "#vpower", "sensor.tv_power"); // unchanged: no step
-  await menu(page, "File");
   await page.locator("#undo").click(); // exactly one step back
   expect("power" in (await groundOf(page)).devices[i]).toBe(false);
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled();
   await selectDev(page, i);
   await pickEntity(page, "#vpower", "sensor.other_power");

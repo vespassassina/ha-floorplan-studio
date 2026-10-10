@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Test-only: 66 end-to-end tests no longer fail on GitHub CI. They opened the File menu before clicking Undo, which is in the toolbar; on the runner's wider font Undo wraps under File and the open menu covered it. The overview-over-the-plan tests fold the overview first. No product change.
+
 ## 0.26.0 - 2026-10-10
 
 - 2.5D door and window trim is drawn over the wall on both sides of the gap; the far jamb was half hidden by the wall after it.
