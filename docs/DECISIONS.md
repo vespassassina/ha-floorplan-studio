@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the 2D tree's shade patch and trunk (S28.3)
+
+- `FURNITURE.tree.svg` is the crown (8 arcs on a circle of radius 40 in the 100 box, `.tree-crown`: `--fp-tree` at .35, a 1 px non-scaling `--fp-tree-edge`) and a trunk dot (`.tree-trunk`, radius 3 in the box, so 6 % of `w` across, which is 12 cm on the default 200 cm tree: `TRUNK_SIDE`). The dot scales with the box, so on a 120 x 300 tree it is an ellipse like the crown. The shade patch is a separate `ellipse.tree-shade` drawn before the piece's group, at (+4, +6) cm from the tree whatever `w`, `h` and `rot`, with the crown's own radii and turned by `rot` about its own centre. Soft here means one flat patch at `--fp-shade-alpha`; no gradient, in line with the 2.5D rule against filters. The render snapshot changes on purpose (the tree line only), and `furniture-look.test.ts` asks a tree for `.tree-crown` instead of the body fill class.
+- Seen at 4x: on blueprint the crown reads grey-blue over the navy garden (the green mixes into navy), on light and ha-dark green. The edge holds 3:1 in all. Left to the tokens of S28.1.
+
 ## 2026-10-10: the ghost floor lies under the night veil; its night contrast is under .92 of the day's, not .8 (S28.2)
 
 - `g.ghost` is pushed before the night overlay, after the room fills and stairs. An unlit room's veil darkens it with the floor; a lit room has no veil. Measured from the real elements in their paint order (`tests/fixtures/ghost-contrast.ts`): blueprint .78 of the day contrast, light .90, and the old order gave more than the day's. The plan said under .8; the veil alone cannot reach that on light (WCAG contrast shrinks slowly under a dark veil), and a second night rule for the ghost would also dim it in lit rooms. So the bound is .92, with over 1.15:1 kept, and a lit room within 2 % of the day.

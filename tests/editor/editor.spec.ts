@@ -8938,3 +8938,33 @@ test("S27.5 CSS pair: the ghost floor is drawn in --fp-ghost, thin, unfilled, an
   expect(dark.stroke).not.toBe(light.stroke);
   expect(dark.events).toBe("none");
 });
+
+// S28.3: a 2D tree is a crown, a trunk dot and a shade patch. The pair on the real Studio element: the colours come from the theme's
+// tokens (they differ between themes), the patch takes no click, and a real click on the crown selects the tree.
+test("Opus review CSS pair: a tree is a crown with an edge, a trunk dot and a shade patch that takes no click (S28.3)", async ({ page }) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.furniture.push({ id: "s283-tree", symbol: "tree", x: 868, y: 408, rot: 20, w: 50, h: 70 });
+    el.layout = l;
+  }, EDITOR);
+  const tree = page.locator("svg g.furn").last();
+  const read = () => tree.evaluate((g) => {
+    const svg = (g as unknown as SVGElement).ownerSVGElement!, s = (sel: string) => getComputedStyle(sel === ".tree-shade" ? svg.querySelector(sel)! : g.querySelector(sel)!);
+    return { fill: s(".tree-crown").fill, op: s(".tree-crown").fillOpacity, edge: s(".tree-crown").stroke, w: s(".tree-crown").strokeWidth, trunk: s(".tree-trunk").fill, shade: s(".tree-shade").fill, events: s(".tree-shade").pointerEvents, shadeOp: s(".tree-shade").fillOpacity };
+  });
+  const seen: Record<string, Awaited<ReturnType<typeof read>>> = {};
+  for (const t of ["blueprint", "light", "midnight", "ha"] as const) {
+    await setTheme(page, t);
+    const v = (seen[t] = await read());
+    expect(v, t).toMatchObject({ op: "0.35", w: "1px", events: "none" });
+    expect(v.edge, t).toBe(v.trunk);
+    expect(v.edge, t).not.toBe(v.fill);
+    expect(+v.shadeOp, t).toBeGreaterThan(0.1);
+  }
+  expect(seen.light.shadeOp, "a dark plan needs a stronger shade").not.toBe(seen.midnight.shadeOp);
+  expect(seen.light.edge).not.toBe(seen.midnight.edge);
+  // a real click on the crown selects the tree (the shade patch under it is not what is hit)
+  const b = await tree.locator(".tree-crown").boundingBox();
+  await page.mouse.click(b!.x + b!.width / 2 + 3, b!.y + b!.height / 2 + 3);
+  expect(await page.evaluate((tag) => { const s = (document.querySelector(tag) as any).st.sel; return s && s.t; }, EDITOR)).toBe("furn");
+});

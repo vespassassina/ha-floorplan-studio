@@ -8,6 +8,10 @@ import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTex
 import { rolesToTokens } from "./theme-roles";
 import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
 import { esc, num, pts, tag } from "./fmt";
+import { treeShape } from "./tree";
+
+/** S28.3: where a tree's shade patch lies from the tree, cm in plan axes (the sun is fixed; the patch does not turn with the tree). */
+const TREE_SHADE: Pt = [4, 6];
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
@@ -357,6 +361,11 @@ ${THEME_EXTRAS}
    when on) thinned into --fp-room-empty (the plain room, what most furniture stands on; --fp-room is dark in the dark themes and made dark blobs), so every theme and dark mode keep their hue and the stroke stays the edge.
    .ff is on bodies only; lines in a symbol (a bed's pillow line) keep fill:none. */
 .furn .ff{fill:color-mix(in srgb,currentColor 45%,var(--fp-room-empty))}
+/* S28.3: a tree is a crown (--fp-tree at .35, a 1 px --fp-tree-edge line), a trunk dot and a soft shade patch under it (--fp-shade at
+   --fp-shade-alpha). Classes carry every colour; the patch takes no click. */
+.tree-crown{fill:var(--fp-tree);fill-opacity:.35;stroke:var(--fp-tree-edge);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.tree-trunk{fill:var(--fp-tree-edge);stroke:none}
+.tree-shade{fill:var(--fp-shade);fill-opacity:var(--fp-shade-alpha);pointer-events:none}
 /* S18.9: the two waves of a playing tv or speaker piece. They sit beside the scaled symbol group (a non-uniform scale would
    squash the circles), take --fp-dev from the on colour, and reuse .wave for shape, motion and reduced motion. */
 .furn-waves{--fp-dev:var(--fp-active)}
@@ -1639,6 +1648,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = pieceOn(o, m, plugs) ? " on" : "";
+    // S28.3: a tree's soft shade patch, offset (+4, +6) cm in the plan whatever its size and turn, so outside the scaled group.
+    const tree = m.symbol === "tree" && Number.isFinite(m.x) && Number.isFinite(m.y) ? treeShape(m) : null;
+    if (tree) { const c = `${num(m.x + TREE_SHADE[0])} ${num(m.y + TREE_SHADE[1])}`; out.push(`<ellipse class="tree-shade" cx="${num(m.x + TREE_SHADE[0])}" cy="${num(m.y + TREE_SHADE[1])}" rx="${num(tree.rx)}" ry="${num(tree.ry)}" transform="rotate(${num(Number.isFinite(m.rot) ? m.rot : 0)} ${c})"/>`); }
     out.push(`<g data-f="${i}" class="furn${on}"${furnitureLinked(m)} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
     if (o.locate?.t === "furn" && o.locate.i === i) out.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
     const waves = furnitureWaves(o, m);

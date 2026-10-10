@@ -3324,7 +3324,7 @@ Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
       order. The review-27 paint-order pairs in `ghost-floor.spec.ts` and `card-ghost.spec.ts` follow the new order.
       Files: `src/core/render.ts`, `tests/core/render-ghost.test.ts`, `tests/editor/ghost-floor.spec.ts`,
       `tests/card/card-ghost.spec.ts`.
-- [ ] S28.3 A 2D tree is a crown (V21). The `tree` symbol becomes the crown, trunk dot and shade patch of the assumption,
+- [x] S28.3 A 2D tree is a crown (V21). The `tree` symbol becomes the crown, trunk dot and shade patch of the assumption,
       through `treeShape`; the patch offset stays (+4, +6) cm whatever `w`, `h` and `rot` are (drawn outside the scaled
       group). Classes, not attributes, carry the colours. Test: unit, the crown path has 8 lobes, the patch is offset by
       exactly (4, 6) cm for a 120 x 300 tree at `rot` 30, a payload name is escaped; computed-style pairs for the crown

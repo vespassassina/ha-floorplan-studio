@@ -15,10 +15,11 @@ const waves = (html: string) => (html.match(/class="wave( w2)?"/g) ?? []).length
 
 describe("S18.8 furniture is filled", () => {
   // Finding 17: a new symbol fails here until someone gives it a fill (class "ff") or lists it as outline-only on purpose.
+  // S28.3: a tree is filled by its own class, `.tree-crown` (--fp-tree at .35), not the furniture body fill.
   const OUTLINE_ONLY: string[] = [];
   it.each(FURNITURE_SYMBOLS)("%s has a filled shape", (s) => {
     if (OUTLINE_ONLY.includes(s)) return;
-    expect(FURNITURE[s].svg, s).toContain('class="ff"');
+    expect(FURNITURE[s].svg, s).toContain(s === "tree" ? 'class="tree-crown"' : 'class="ff"');
   });
   it("no symbol paints a fixed colour; colour is only currentColor and the stylesheet", () => {
     for (const s of FURNITURE_SYMBOLS) expect(FURNITURE[s].svg, s).not.toMatch(/#[0-9a-f]{3,6}|rgb\(/i);
