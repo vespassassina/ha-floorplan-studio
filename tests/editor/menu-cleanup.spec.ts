@@ -4,7 +4,7 @@ import { pickUnlinked } from "./menu-helpers";
 
 // S26.17 (Studio review U5, U7, U8): the menus. Real clicks at 1024x768, on the real elements (finding 3).
 
-const MENUS = ["mAdd", "mDraw", "mOpt", "mEdit", "mFile"];
+const MENUS = ["mAdd", "mFloors", "mOpt", "mEdit", "mFile"];
 const FURN_LABELS: Record<string, string> = { "patio-wood": "Patio, wood", "patio-concrete": "Patio, concrete" };
 
 test.beforeEach(async ({ page }) => {
@@ -43,7 +43,7 @@ test("a menu box is taller than the room below it only by scrolling: it never ru
   expect(scrolls).toBe(true);
 });
 
-for (const id of ["mAdd", "mDraw", "mOpt"]) {
+for (const id of ["mAdd", "mOpt"]) {
   test(`${id}: opening a submenu closes its siblings`, async ({ page }) => {
     await page.locator(`#${id} > summary`).click();
     const subs = page.locator(`#${id} > .box > details.sub`);

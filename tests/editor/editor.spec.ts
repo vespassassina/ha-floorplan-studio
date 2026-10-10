@@ -1209,9 +1209,9 @@ async function addBareFloor(page: Page, title: string) {
   }, [EDITOR, title.toLowerCase()]);
   await expect(page.locator("svg g[data-s]")).toHaveCount(0);
 }
-/** S8.1: Add floor is an item of the Edit menu; the title input still appears after the floor chips. */
+/** S8.1, S27.9: Add floor is an item of the Floors menu; the title input still appears after the floor chips. */
 async function clickAddFloor(page: Page) {
-  await menu(page, "Edit");
+  await menu(page, "Floors");
   const c = await centre(page, "#addFloor");
   await page.mouse.click(c.x, c.y);
 }
@@ -1402,11 +1402,11 @@ test("a floor added, renamed, moved and deleted is four undo steps, one per acti
 // ---- S1.11 draw mode ----
 const DRAW_STATUS = "Click to add points, double-click or Enter to finish, Esc to cancel";
 
-/** Draw, then one Draw item, through the real menu — opening its submenu first (S4.26: Draw is grouped like Add). */
+/** Add, then one Draw item, through the real menu — opening its submenus first (S27.9: Draw is folded into Add; the walls sit in Wall, Draw). */
 async function startDraw(page: Page, id: string) {
-  await menu(page, "Draw");
-  const sub = page.locator(`#mDraw details.sub:has(#${id})`);
-  await sub.locator("summary").click();
+  await menu(page, "Add");
+  const chain = await page.locator(`#${id}`).evaluate((e) => { const out: string[] = []; for (let d = e.closest("details.sub"); d; d = d.parentElement?.closest("details.sub") ?? null) out.unshift(d.id); return out; });
+  for (const sub of chain) await page.locator(`#${sub} > summary`).click();
   await page.locator(`#${id}`).click(); // scrolls the menu to the item; the menu is taller than a short window
 }
 /** Real clicks at plan points (cm). */
@@ -1761,8 +1761,8 @@ test("draw items keep the single-shape Add items: Zone still adds a square in on
 const search = (page: Page) => page.locator("#addDevSearch");
 const shown = (page: Page) => page.locator("#addDevPanel button[data-add]:visible");
 
-test("the toolbar order is Add, Draw, View, Edit, File; Device… is a button of Add, right after Areas", async ({ page }) => {
-  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "View", "Edit", "File"]); // S8.1: an Edit menu; S24.6: Filter gone, Layers is a tab
+test("the toolbar order is Add, Floors, View, Edit, File; Device… is a button of Add, right after Areas", async ({ page }) => {
+  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Floors", "View", "Edit", "File"]); // S8.1: an Edit menu; S24.6: Filter gone, Layers is a tab
   await expect(page.locator("#mAdd select")).toHaveCount(0); // S26.17: Furniture and Unlinked device are submenus of buttons, no select
   await menu(page, "Add");
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
@@ -1860,7 +1860,7 @@ test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-
 // carries a box that can run off the left edge once the box is wider than the space to that button's left — found
 // at 380 (View -96..128px) and even 600 (Filter -10..214px). Every menu, every width the toolbar actually uses.
 test("S8.10 follow-up (Opus review): every menu's dropdown box stays inside the viewport at every toolbar width", async ({ page }) => {
-  const menus = ["mAdd", "mDraw", "mOpt", "mEdit", "mFile"]; // S24.6: no Filter menu
+  const menus = ["mAdd", "mFloors", "mOpt", "mEdit", "mFile"]; // S24.6: no Filter menu
   for (const width of [380, 600, 769, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     for (const id of menus) {
@@ -2932,20 +2932,18 @@ test("Diego, 2026-09-28: a device whose catalog room is not on the floor lands a
 // ---- S1.21 Draw is its own menu ----
 const DRAW_IDS = ["drawRoom", "drawZone", "drawWater", "drawOutline", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawWall-parapet", "drawOpening", "drawExtra"];
 // S4.26: grouped like Add — Openings, Wall, Areas — so DOM order differs from DRAW_IDS' logical grouping.
-const DRAW_IDS_DOM = ["drawOpening", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawWall-parapet", "drawRoom", "drawZone", "drawWater", "drawOutline", "drawExtra"];
 
-test("the Add menu holds no Draw item and no Water; the Draw menu holds all twelve", async ({ page }) => {
-  for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
-  await expect(page.locator("#mAdd .grp, #mAdd .sep").filter({ hasText: /Draw/ })).toHaveCount(0);
+test("S27.9: Add holds all twelve Draw buttons in its submenus, no Water or Wall item of the old kind, and there is no Draw menu", async ({ page }) => {
+  for (const id of ["addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
+  await expect(page.locator("#mDraw")).toHaveCount(0);
   // S26.17: the furniture and unlinked-type buttons live in their own submenus and are counted in menu-cleanup.spec.ts
   const ids = await page.locator('#mAdd button:not([id^="addFurn-"]):not([id^="addUnlDev-"])').evaluateAll((b) => b.map((x) => x.id));
-  expect(ids).toEqual(["addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addWall-parapet", "addStr", "addZone", "addStairs", "addDevBtn"]);
+  expect(ids).toEqual(["addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "drawOpening", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addWall-parapet", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawWall-parapet", "addStr", "addZone", "addStairs", "drawRoom", "drawZone", "drawWater", "drawOutline", "drawExtra", "addDevBtn"]);
+  expect(new Set(ids.filter((i) => i.startsWith("draw")))).toEqual(new Set(DRAW_IDS));
   await expect(page.locator("#mAdd details.sub#addFurn")).toHaveCount(1); // S26.17: a submenu of buttons, no select
-  expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS_DOM);
-  expect(new Set(DRAW_IDS_DOM)).toEqual(new Set(DRAW_IDS));
   // and they are really there to click: open, visible, inside the window
-  await menu(page, "Draw");
-  await page.locator(`#mDraw details.sub > summary:text-is("Areas")`).click();
+  await menu(page, "Add");
+  await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
   const box = await page.locator("#drawRoom").boundingBox();
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -2959,9 +2957,9 @@ test("S4.11: Add's items sit under three submenus by group, Furniture stays flat
   const subOf = (id: string) => page.locator(`#mAdd details.sub:has(#${id})`);
   await menu(page, "Add");
   // grouped correctly
-  for (const id of ["addDoor", "addOpenDoor", "addWin", "addSlit", "addGap"]) await expect(subOf(id).locator("summary")).toHaveText("Openings");
-  for (const k of WALL_KINDS) await expect(subOf(`addWall-${k}`).locator("summary")).toHaveText("Wall");
-  for (const id of ["addStr", "addZone", "addStairs"]) await expect(subOf(id).locator("summary")).toHaveText("Areas");
+  for (const id of ["addDoor", "addOpenDoor", "addWin", "addSlit", "addGap"]) await expect(subOf(id).locator("> summary")).toHaveText("Openings");
+  for (const k of WALL_KINDS) await expect(subOf(`addWall-${k}`).locator("> summary")).toHaveText("Wall");
+  for (const id of ["addStr", "addZone", "addStairs"]) await expect(subOf(id).locator("> summary")).toHaveText("Areas");
   // S26.17: Furniture is a submenu of its own, a direct child of the box
   await expect(page.locator("#mAdd > .box > details.sub#addFurn")).toHaveCount(1);
   await menu(page, "Add"); // close
@@ -2990,10 +2988,11 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   await menu(page, "Add");
   await page.locator(`#mAdd details.sub > summary:text-is("Openings")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
+  await page.locator(`#mAdd details.sub > summary:text-is("Draw")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
   const order = await page.locator("#mAdd .box *:is(summary, button, select)").evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim() || ""));
   // S26.17: Furniture and Unlinked device are submenus of buttons now; only one submenu is open at a time, all are in the DOM.
-  const head = ["Openings", "addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addWall-parapet", "Areas", "addStr", "addZone", "addStairs", "addDevBtn", "Furniture"];
+  const head = ["Openings", "addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "drawOpening", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addWall-parapet", "Draw", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawWall-parapet", "Areas", "addStr", "addZone", "addStairs", "drawRoom", "drawZone", "drawWater", "drawOutline", "drawExtra", "addDevBtn", "Furniture"];
   expect(order.slice(0, head.length)).toEqual(head);
   const furnEnd = order.indexOf("Unlinked device");
   expect(order.slice(head.length, furnEnd)).toEqual(FURNITURE_SYMBOLS.map((y) => `addFurn-${y}`));
@@ -3073,15 +3072,15 @@ test("a locked opening's dragged end pivots on an arc of fixed radius", async ({
   expect(o2.a).not.toEqual(o.a);
 });
 
-test("opening Draw closes Add, and a Draw item starts drawing with the Draw menu closed", async ({ page }) => {
+test("opening Floors closes Add, and a Draw item starts drawing with the Add menu closed", async ({ page }) => {
   await menu(page, "Add");
   await expect(page.locator("#mAdd")).toHaveJSProperty("open", true);
-  await menu(page, "Draw");
+  await menu(page, "Floors");
   await expect(page.locator("#mAdd")).toHaveJSProperty("open", false);
-  await expect(page.locator("#mDraw")).toHaveJSProperty("open", true);
-  await page.locator(`#mDraw details.sub:has(#drawWall-fence) summary`).click();
-  await page.locator("#drawWall-fence").click();
-  await expect(page.locator("#mDraw")).toHaveJSProperty("open", false);
+  await expect(page.locator("#mFloors")).toHaveJSProperty("open", true);
+  await startDraw(page, "drawWall-fence");
+  await expect(page.locator("#mFloors")).toHaveJSProperty("open", false);
+  await expect(page.locator("#mAdd")).toHaveJSProperty("open", false);
   expect(await svgCursor(page)).toBe("crosshair");
   await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
 });
@@ -8099,7 +8098,7 @@ test("Opus review finding 2: deleting the light while Create automation is still
 
 // ---- S8.1: the toolbar rework — Names in View, an Edit menu after View ------------------------------------------------
 
-test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assistant, Group, Link lights to switches, Rotate, Device colours and Trace image, in that order", async ({ page }) => {
+test("S8.1: Names sits in View with the theme; Edit holds Home Assistant, Group, Link lights to switches, Rotate, Device colours and Trace image, in that order", async ({ page }) => {
   await expect(page.locator(".bar > #names")).toHaveCount(0);
   await menu(page, "View");
   await expect(page.locator("#mOpt #labelsSub")).toBeVisible(); // S26.17: Names sits in the Labels submenu
@@ -8111,7 +8110,7 @@ test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assist
   await expect(page.locator("svg text.lbl")).not.toHaveCount(0);
   const items = (p: Page) => p.locator("#mEdit > .box > *").evaluateAll((els) => els.map((e) => e.id || e.className));
   await menu(page, "Edit");
-  expect(await items(page)).toEqual(["addFloor", "rotrow", "devcols", "traceBtn"]);
+  expect(await items(page)).toEqual(["rotrow", "devcols", "traceBtn"]);
   await menu(page, "Edit");
   await withHaMenu(page, { list: LABELLED });
   await menu(page, "Edit");
@@ -8119,7 +8118,7 @@ test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assist
   // after Group — it acts on every light on the floor at once, not a chosen group, so nesting it under Group read
   // as if it were scoped to one. This is the deliberate reason the pinned order below now includes "linkLights"
   // between "mGroup" and "rotrow"; a future order change needs the same deliberate update, not a loosened assertion.
-  expect(await items(page)).toEqual(["addFloor", "mHA", "mGroup", "linkLights", "rotrow", "devcols", "traceBtn"]);
+  expect(await items(page)).toEqual(["mHA", "mGroup", "linkLights", "rotrow", "devcols", "traceBtn"]);
 });
 
 // ---- S8.9 follow-up: hints are rewritten short, not clipped ----------------------

@@ -3153,7 +3153,7 @@ Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.
       lowest floor's offset. Test: every combination of (offset absent, zero, set) x (lock on, off) x (lowest, middle,
       unknown floor); every result passes `validate`; each no-op leaves no step.
       Files: `src/editor/state.ts`, a new `tests/editor/floor-offset-state.test.ts`.
-- [ ] S27.9 Floors menu, and Draw folded into Add, as the assumption says. Test: real clicks at 1024x768: the Floors
+- [x] S27.9 Floors menu, and Draw folded into Add, as the assumption says. Test: real clicks at 1024x768: the Floors
       menu holds its five items in order and its box is inside the viewport; Align is disabled on the lowest floor with
       its reason; no `#mDraw`; every former Draw id opens from Add and starts drawing; `guide-controls.spec.ts` and the
       one-word sweep follow.

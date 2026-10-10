@@ -2601,6 +2601,15 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.deleteFloor(key)) { this.floorDone(`Deleted floor ${title}`); this.focus({ preventScroll: true }); }
     else this.refused();
   }
+  /** S27.9: the Floors menu acts on the current floor. */
+  moveCurrentFloor(delta: number) { this.moveFloor(this.st.floor, delta); }
+  /** Floors, Delete floor…: the floor panel asks first, as its own Delete floor button does. */
+  askDeleteFloor() {
+    if (Object.keys(this.st.layout.floors).length < 2) return;
+    this.stopDraw(); this.st.sel = null; this.asideMode = "selection"; this.st.confirmDelete = true; this.requestUpdate();
+  }
+  /** S27.9: placeholder until the Align tab (S27.10). */
+  openAlign() { this.status = "Align is coming"; this.requestUpdate(); }
   async startAddFloor() {
     this.addingFloor = true;
     await this.updateComplete;

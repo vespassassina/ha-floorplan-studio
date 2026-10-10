@@ -50,7 +50,7 @@ test("the sanity check sees a bad word: a title with Fix fails the sweep", async
 
 test("no menu says Fix, locked or editable", async ({ page }) => {
   await sweep(page, "closed, plan locked");
-  for (const id of ["mAdd", "mDraw", "mOpt", "mEdit", "mFile"]) {
+  for (const id of ["mAdd", "mFloors", "mOpt", "mEdit", "mFile"]) {
     await page.locator(`#${id} > summary`).click();
     const n = await page.locator(`#${id} > .box > details.sub > summary`).count();
     for (let k = 0; k < n; k++) await page.locator(`#${id} > .box > details.sub > summary`).nth(k).click();

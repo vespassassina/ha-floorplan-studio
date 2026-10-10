@@ -4,7 +4,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Escape and hands focus back to its own button. The key is handled on the editor host (finding 6).
 
 const EDITOR = "floorplan-studio-editor";
-const MENUS = ["mAdd", "mDraw", "mOpt", "mEdit", "mFile"];
+const MENUS = ["mAdd", "mFloors", "mOpt", "mEdit", "mFile"];
 const focusedId = (page: Page) => page.evaluate((tag) => {
   const a = (document.querySelector(tag) as any).shadowRoot.activeElement as HTMLElement | null;
   return a?.tagName === "SUMMARY" ? (a.parentElement as HTMLElement).id : a?.id ?? a?.tagName ?? null;
@@ -72,8 +72,8 @@ test("Escape on an open menu does only that: a selection and an open Device colo
 
 test("Escape on a menu opened mid-drawing closes the menu and keeps the drawing; the next Escape cancels it", async ({ page }) => {
   await page.locator("#fixPlan").uncheck();
-  await clickBox(page, "#mDraw > summary");
-  await clickBox(page, "#mDraw details.sub:has(#drawOutline) > summary");
+  await clickBox(page, "#mAdd > summary");
+  await clickBox(page, "#mAdd details.sub:has(#drawOutline) > summary");
   await clickBox(page, "#drawOutline");
   await expect(page.locator(`${EDITOR} svg.drawing`)).toHaveCount(1);
   const svg = (await page.locator(`${EDITOR} svg.drawing`).boundingBox())!;

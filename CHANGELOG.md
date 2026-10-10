@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: a Floors menu (Add floor, Align to floor below, Move up, Move down, Delete floor) replaces Add floor in Edit. Draw is folded into Add: Draw opening ends Openings, Wall holds a Draw submenu of the kinds, and Areas ends with Draw room, zone, water, outline and structure line. The Draw menu is gone. Align does nothing yet (S27.10).
 - Studio: `setOffset` and `alignToBelow` write a floor's offset, one undo step, refused under Lock plan; a new floor takes the lowest floor's offset (S27.8). No control yet.
 - Studio: a furniture piece's Lock can be ticked and unticked while the plan is locked, from the panel and from the context menu; moving, resizing and turning it are still refused.
 - Schema: a floor may carry `offset: [x, y]` (cm), where it sits in the house. Absent is `[0, 0]`; a bad value is reported by validation and dropped when a file is opened. Nothing draws it yet.

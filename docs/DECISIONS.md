@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: Floors menu, and Draw folded into Add (S27.9)
+
+- Toolbar: Add, Floors, View, Edit, File. Floors holds `addFloor` (id kept), `alignFloor`, `mFloorUp`, `mFloorDown`, `mFloorDel`; the last three are new ids because the floor panel already owns `fup`, `fdown`, `fdel` and an id must be unique in the shadow root. Move up and Move down act on the current floor and disable at the ends; Delete floor... selects nothing and raises the panel's own confirm, so one confirm path. Align is disabled on the lowest floor and its title says why. It supersedes the Draw menu of S1.21 and Add floor in Edit of S8.1.
+- Draw items kept every id. Wall gets a nested `details.sub#drawWallSub` labelled Draw (an id that existed before), Openings ends with `drawOpening`, Areas ends with the five area draws. Nested submenus work with the existing sibling rule because it only looks at direct children.
+- Guide steps now say [Add], [Wall], [Draw] and [Floors]. `openAlign` is a stub that says so, until S27.10.
 ## 2026-10-10: offset writers (S27.8)
 
 - `setOffset(key, pt)` rounds to whole cm, deletes the key at `[0, 0]`, and is a no-op (no step, no lock blame) when the value equals what is stored, an absent offset counting as `[0, 0]`. A stored `[0, 0]` set to `[0, 0]` stays as written: it is valid, and a step to tidy it would be noise. Junk or out-of-range input and unknown keys return false. Under Lock plan a real change is refused with `planBlocked`.
