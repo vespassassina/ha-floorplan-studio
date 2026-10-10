@@ -29,14 +29,17 @@ const card = (page: Page) => page.locator("floorplan-studio-card");
 const tab = (page: Page, title: string) => card(page).locator("css=.fp-floors button", { hasText: title });
 const shown = (page: Page, title: string) => expect(tab(page, title)).toHaveAttribute("aria-pressed", "true");
 
-interface Rec { type: string; name: string; dir: string | null; t: number }
+interface Rec { type: string; name: string; dir: string | null; t: number; elapsed: number; dur: number | null }
 /** Records the plan root's animation events and, for every floor tab click, the first frame after it. Call after the plan is on screen. */
 const record = (page: Page) => card(page).evaluate((el) => {
   const w = window as unknown as { __rec: Rec[]; __frames: { t: number; text: string }[] };
   w.__rec = []; w.__frames = [];
   const root = el.shadowRoot!, svg = root.querySelector("svg.fp-zoomable") as SVGSVGElement;
   for (const type of ["animationstart", "animationend", "animationcancel"]) svg.addEventListener(type, (e) => {
-    if (e.target === svg) w.__rec.push({ type, name: (e as AnimationEvent).animationName, dir: svg.getAttribute("data-switch"), t: performance.now() });
+    if (e.target !== svg) return;
+    // The animation's own numbers, not the wall clock: `elapsedTime` is set by the browser at the end, `duration` is what the rule asked for.
+    const a = svg.getAnimations().find((x) => (x as CSSAnimation).animationName === (e as AnimationEvent).animationName);
+    w.__rec.push({ type, name: (e as AnimationEvent).animationName, dir: svg.getAttribute("data-switch"), t: performance.now(), elapsed: (e as AnimationEvent).elapsedTime, dur: a ? Number(a.effect!.getTiming().duration) : null });
   });
   for (const b of root.querySelectorAll(".fp-floors button")) b.addEventListener("click", () => {
     // Lit renders in a microtask after the click: the first frame after the click must already hold the new floor.
@@ -49,7 +52,7 @@ const running = (page: Page) => card(page).evaluate((el) => el.shadowRoot!.query
 
 for (const view of ["2d", "2.5d"]) {
   test.describe(`S27.15 the card's floor switch, ${view}`, () => {
-    test("default motion: a click on a tab runs the animation on the plan root the way it travels, and it is over within 400 ms", async ({ page }) => {
+    test("default motion: a click on a tab runs the animation on the plan root the way it travels, and it ends after its own 220 ms", async ({ page }) => {
       await page.emulateMedia({ reducedMotion: "no-preference" });
       await boot(page, { view });
       await record(page);
@@ -58,8 +61,9 @@ for (const view of ["2d", "2.5d"]) {
       await expect.poll(async () => (await rec(page)).some((r) => r.type === "animationend"), { timeout: 3000 }).toBe(true);
       let r = await rec(page);
       expect(r.map((x) => [x.type, x.name, x.dir])).toEqual([["animationstart", "fp-floor-in-up", "up"], ["animationend", "fp-floor-in-up", "up"]]);
-      expect(r[1].t - r[0].t).toBeLessThan(400);
-      expect(r[1].t - r[0].t).toBeGreaterThanOrEqual(200); // 220 ms: it really ran, it was not cut short
+      // Deterministic: no real-time bound. The rule asked for 220 ms and the browser reports it ran its whole 0.22 s.
+      expect(r[0].dur).toBe(220);
+      expect(r[1].elapsed).toBeCloseTo(0.22, 5);
       expect(await running(page)).toBe(0);
       expect(await card(page).locator("css=svg.fp-zoomable").getAttribute("data-switch")).toBeNull(); // nothing is left behind
 

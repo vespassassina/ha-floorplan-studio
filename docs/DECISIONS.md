@@ -2,6 +2,9 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the floor-switch test reads the animation, not the clock (review 27, finding 9)
+
+- `card-floor-switch.spec.ts` asserted the slide ended within 400 ms of real time, which depends on the machine. It now reads the animation's own duration (`getTiming().duration` is 220) and the `elapsedTime` the browser reports at `animationend` (0.22 s). A rule changed to 300 ms fails it; the old bound would have passed it on a fast machine.
 ## 2026-10-10: Apply says why it wrote nothing (review 27, finding 8)
 
 - `applyAlign` said "Already aligned" whenever `setOffset` failed without a lock, which hid an offset beyond `COORD_LIMIT`. It now says "Already aligned" only when the move is zero, and otherwise that the offset would be beyond the limit, with what to do. The lock case is unchanged.
