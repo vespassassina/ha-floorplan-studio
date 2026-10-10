@@ -22,8 +22,11 @@ const ROOM: Record<string, string> = {
 };
 // A wall is the ink colour of its theme: near black in the light theme, where a solid slab of it under lighting reads as a
 // hole. The 2.5D side faces already soften it this way (--fp-wall-side, 55% over the background), so the 3D walls do too.
+// S28.9: the share is the theme's own --fp-wall-side-share (55%, 30% on HA dark), so the 3D walls match the 2.5D sides.
+const SHARE = "var(--fp-wall-side-share, 55%)";
+const side = (wall: string, extra: string) => `color-mix(in srgb, var(${wall}) ${extra}, var(--fp-bg))`;
 const WALL: Record<string, string> = {
-  wall: mix("--fp-wall", 55, "--fp-bg"), boundary: mix("--fp-wall", 55, "--fp-bg"), external: mix("--fp-wall-external", 60, "--fp-bg"), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)", parapet: mix("--fp-wall-external", 60, "--fp-bg"),
+  wall: side("--fp-wall", SHARE), boundary: side("--fp-wall", SHARE), external: side("--fp-wall-external", `calc(${SHARE} + 5%)`), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)", parapet: side("--fp-wall-external", `calc(${SHARE} + 5%)`),
 };
 const FURNITURE: Record<string, string> = {
   tree: "var(--fp-tree-edge)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),
@@ -72,3 +75,25 @@ const FALLBACK = solid(mix("--fp-furniture", 70, "--fp-bg"));
 export const isKnownRole = (role: unknown): boolean => typeof role === "string" && TABLE.has(role);
 /** The CSS colour and opacity of a role; an unknown one gets the furniture colour. */
 export const roleStyle = (role: unknown): RoleStyle => (typeof role === "string" ? TABLE.get(role) : undefined) ?? FALLBACK;
+
+// S28.9: a dark theme dims user paint (--fp-paint-dim, brightness and saturate) so a bright pick does not glare on a dark plan.
+// The token is CSS; it is parsed here, strictly: two numbers or nothing, so a hostile value cannot reach the colour maths.
+export interface PaintDim { brightness: number; saturate: number }
+const NUM = "(\\d*\\.?\\d+)";
+const DIM_RE = new RegExp(`^\\s*brightness\\(${NUM}\\)\\s+saturate\\(${NUM}\\)\\s*$`);
+export function parsePaintDim(css: unknown): PaintDim | null {
+  const m = typeof css === "string" ? DIM_RE.exec(css) : null;
+  if (!m) return null;
+  const brightness = Number(m[1]), saturate = Number(m[2]);
+  return Number.isFinite(brightness) && Number.isFinite(saturate) ? { brightness: Math.min(brightness, 4), saturate: Math.min(saturate, 4) } : null;
+}
+/** The CSS filter chain in sRGB 0..255: brightness multiplies, then the saturate matrix pulls toward the luma. */
+export function dimRgb(c: readonly number[], d: PaintDim): [number, number, number] {
+  const [r, g, b] = c.map((v) => v * d.brightness), s = d.saturate;
+  const clamp = (v: number) => Math.min(255, Math.max(0, v));
+  return [
+    clamp((0.213 + 0.787 * s) * r + (0.715 - 0.715 * s) * g + (0.072 - 0.072 * s) * b),
+    clamp((0.213 - 0.213 * s) * r + (0.715 + 0.285 * s) * g + (0.072 - 0.072 * s) * b),
+    clamp((0.213 - 0.213 * s) * r + (0.715 - 0.715 * s) * g + (0.072 + 0.928 * s) * b),
+  ];
+}

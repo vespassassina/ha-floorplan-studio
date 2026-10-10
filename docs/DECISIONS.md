@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: 3D walls and paint follow the 2D theme tokens; the floor order is per theme (S28.9)
+
+Face tones were already ordered (top, sun face, shade face) by the two lights, in every theme, with steps of 15 % or more. A test now pins 6 %. No new lights. What changed: the wall palette reads `--fp-wall-side-share` (55 %, 30 % on HA dark) instead of a fixed 55, and `--fp-paint-dim` is parsed strictly (`brightness(a) saturate(b)` or nothing) and applied to own-colour room and stair paint in sRGB, as the CSS filter does. Textures take the brightness through the material colour; saturate is not applied to a raster, which lives outside this task's files.
+
+The assumption "floor lighter than wall sides" holds on the light theme only. On dark themes the bare floor is the darkest surface (blueprint 31, HA dark 39 luma against 63 to 143 on the walls). The order there is top, sun, shade, floor. Judged right: a lit dark floor would fight the contact shadows (S28.8). Supersedes nothing.
+
 ## 2026-10-10: 3D contact shadows multiply; the ground is a lit-free plane (S28.8)
 
 - `contactShadows(solids)` (`src/card/three/shade.ts`) is pure: a band round each wall prism (14 cm), a narrower one (8 cm) round furniture, unlinked boxes and device bodies, a soft ellipse under a tree's crown (offset +4, +6 cm, as 2D). Alpha is 1 at the footprint and 0 at the rim, per vertex. A flat piece (under 10 cm) and one floating more than 5 cm above its floor cast nothing. It sits 0.3 cm above the highest room fill that holds it, so a nested room is covered.

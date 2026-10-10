@@ -5,6 +5,7 @@
 - Themes carry the colours the 2.5D and 3D polish draws with: `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` and `--fp-shade-alpha`. `npm run shots -- --polish` renders the polish set at 4x.
 - A tree in 3D has a crown: a faceted ball on a 12 cm trunk that ends at 60 % of the tree's height, one draw call for all trees, also on floors drawn below. A tap on a crown reaches what is under it.
 - 3D has a ground plane under the house and soft contact shadows: a band along each wall foot, a patch under furniture, boxes and device bodies, and a soft ellipse under each tree. One extra draw call each, never picked, on every floor drawn.
+- 3D walls take the theme's own side share (`--fp-wall-side-share`, as the 2.5D sides do), and a room or stair with its own paint is dimmed on a dark theme (`--fp-paint-dim`), as in 2D. Tops, sun faces and shade faces step apart by 6 % or more in every theme
 
 ## 0.25.0 - 2026-10-10
 

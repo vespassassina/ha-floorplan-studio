@@ -13,7 +13,7 @@ import { prismTriangles, type Triangles } from "./mesh";
 import { lowerWalls, wallBodies, wallZ, type WallBody, type Walls } from "./cut";
 import { Orbit } from "./orbit";
 import { MARKER_R, Picker, type Pick } from "./pick";
-import { roleStyle } from "./palette";
+import { dimRgb, parsePaintDim, roleStyle, type PaintDim } from "./palette";
 import { MAX_POOLS, outwardSign, pickLights, roomLifts, roomOfPoint, WALL_REACH, type Poly, type Rgb, type RoomShape } from "./light";
 import { createPools, createRings } from "./fx";
 import { createGlow, type GlowSide, type GlowSpec } from "./glow";
@@ -358,12 +358,19 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
 
   // ---- the meshes: one per colour, all the solids of that colour merged, so thousands of pieces are a handful of draw calls.
   const palette = new Map<string, { colour: Color; opacity: number }>();
+  // S28.9: the theme's --fp-paint-dim (a dark theme dims user paint, as the 2D plan does); read once per palette.
+  let paintDim: PaintDim | null | undefined;
+  const dimOf = () => (paintDim === undefined ? (paintDim = parsePaintDim(getComputedStyle(probe).getPropertyValue("--fp-paint-dim"))) : paintDim);
+  const dimTile = (css: string) => { const c = new Color(css), d = dimOf(); if (d) c.multiplyScalar(Math.min(1, d.brightness)); return c; }; // a linear scale is close enough for a stand-in colour
+  const dimGrey = () => { const d = dimOf(), v = d ? Math.round(255 * Math.min(1, d.brightness)) : 255; return (v << 16) | (v << 8) | v; };
   const paintOf = (role: string, color: string | undefined) => {
     const key = `${role}|${color ?? ""}`;
     let p = palette.get(key);
     if (!p) {
       const s = roleStyle(role), own = color !== undefined ? resolveColour(probe, color) : null, c = own ?? resolveColour(probe, s.css) ?? 0x888888;
-      p = { colour: new Color(`#${hex(c)}`), opacity: s.opacity };
+      const d = own !== null ? dimOf() : null;
+      const rgb = d ? dimRgb([(c >> 16) & 255, (c >> 8) & 255, c & 255], d).map(Math.round) : null;
+      p = { colour: new Color(rgb ? `#${hex((rgb[0] << 16) | (rgb[1] << 8) | rgb[2])}` : `#${hex(c)}`), opacity: s.opacity };
       palette.set(key, p);
     }
     return p;
@@ -400,7 +407,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       if (!tile) { prismTriangles(s.shape.base, z[0], z[1], flat.tris); continue; }
       const all: Triangles = { position: [], normal: [] };
       prismTriangles(s.shape.base, z[0], z[1], all);
-      const top = group(`tex|${textureKey(tile)}|${tile.rot}`, new Color(tile.preview), 1, tile);
+      const top = group(`tex|${textureKey(tile)}|${tile.rot}`, dimTile(tile.preview), 1, tile);
       for (let t = 0; t < all.position.length; t += 9) {
         const to = all.normal[t + 1] > 0.5 ? top : flat; // the cap that faces up wears the texture
         to.tris.position.push(...all.position.slice(t, t + 9));
@@ -433,7 +440,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       const map = rasters.texture(t.tile, renderer);
       if (!map) continue;
       t.mat.map = map;
-      t.mat.color.set(0xffffff);
+      t.mat.color.set(dimGrey()); // white, or the dark theme's brightness: the map is the colour (saturate is not applied to a raster)
       t.mat.needsUpdate = true;
     }
   }
@@ -844,6 +851,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       if (key === themeKey) return;
       themeKey = key;
       palette.clear();
+      paintDim = undefined;
       build();
       buildBelow();
       want();

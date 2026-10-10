@@ -3379,7 +3379,7 @@ Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/vi
       night, floors below solid.
       Files: `src/card/three/shade.ts`, `src/card/three/view3d.ts`, `src/card/three/palette.ts`, a new
       `tests/card/three-shade.test.ts`, a new `tests/card/card-3d-shade.spec.ts`.
-- [ ] S28.9 3D lighting and theme (V25, S23.F5). Face tones as the assumption says, by material and role, not new lights;
+- [x] S28.9 3D lighting and theme (V25, S23.F5). Face tones as the assumption says, by material and role, not new lights;
       3D walls read `--fp-wall-side-share`; `--fp-paint-dim` parsed and applied to user colours and textures. Test: unit
       on the paint-dim parser (the two theme values, `none`, junk, a `url(` payload: none); Playwright, each of blueprint,
       light and ha-dark: probes on a wall top, a sun-side face, a shade-side face and an empty floor of the demo give the
