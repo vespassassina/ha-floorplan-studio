@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorShift, floorBelow, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorShift, floorBelow, floorsBelow, floorElevation, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -21,7 +21,7 @@ import "./search-box";
 import type { View3D } from "./three/view3d";
 import type { Pick as Pick3D } from "./three/pick";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
-import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
+import { BELOW_LABELS, BELOW_MODES, belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
@@ -119,6 +119,8 @@ export interface FloorplanStudioCardConfig {
   detail?: DetailMode;
   /** `true` draws the floor below as faint lines under the shown floor, at its place in the house (the floors' `offset`s); anything but `true` is off (default). The Floor below button in the view controls changes it for one viewer, and the card remembers the pick. The lowest floor has none. */
   ghost_floor?: boolean;
+  /** How the 3D view draws the floors under the shown one (docs/card.md): `"off"` (default), `"ghost"` translucent, `"solid"` in their own colours. Anything else is `"off"`. A Floors below select next to Walls in 3D changes it for one viewer, and the card remembers the pick. */
+  floors_below?: BelowMode;
 }
 
 /** The Floor below button's icon: Material Design Icons "layers-outline", 24x24 (inlined, no runtime import: CLAUDE.md finding 9). */
@@ -466,6 +468,8 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedDetail: DetailMode | null = null;
   /** S27.13: the Floor below button's pick; `null` leaves the card's YAML `ghost_floor` in charge. */
   private _pickedGhost: boolean | null = null;
+  /** S27.14: the Floors below select's pick (3D); `null` leaves the card's YAML `floors_below` in charge. */
+  private _pickedBelow: BelowMode | null = null;
   /** Whether the Detail choices are unfolded. Not remembered, like `_layersOpen`. */
   private _detailOpen = false;
   private _hiddenLayers: LayerId[] = [];
@@ -499,6 +503,8 @@ export class FloorplanStudioCard extends LitElement {
   private _view3d: View3D | null = null;
   private _view3dFloor: unknown = null;
   private _view3dAround = "";  // JSON of `FloorsAround`, to compare
+  /** S27.14: what the view was last given as floors below (mode, the floor objects, their elevations and shifts), to compare. */
+  private _view3dBelow: { mode: BelowMode; floors: unknown[]; nums: string } | null = null;
   private _fallback3d: string | null = null;
   /** The fallback came from a lost graphics context: the card tries 3D once more when it is attached or shown again. */
   private _retry3d = false;
@@ -628,6 +634,7 @@ export class FloorplanStudioCard extends LitElement {
     // A stored pick must not outlive a config that now says something else (S25 review): detail and kiosk decide the default.
     if (c.detail !== undefined) seed.push(["detail", c.detail]);
     if (c.ghost_floor !== undefined) seed.push(["ghost_floor", c.ghost_floor]);
+    if (c.floors_below !== undefined) seed.push(["floors_below", c.floors_below]);
     if (c.kiosk !== undefined) seed.push(["kiosk", c.kiosk]);
     return `fp-view:${tag(JSON.stringify(seed))}`;
   }
@@ -636,7 +643,7 @@ export class FloorplanStudioCard extends LitElement {
    * config's look. Storage is untrusted: `parseStoredView` drops each bad field, and a throwing `localStorage`
    * (private mode, blocked) is nothing stored. */
   private _loadViewState(): void {
-    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedRot = this._pickedDetail = this._pickedGhost = null;
+    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedRot = this._pickedDetail = this._pickedGhost = this._pickedBelow = null;
     this._pendingView = null;
     this._shownFloor = null;
     this._floorViews = new Map();
@@ -658,6 +665,7 @@ export class FloorplanStudioCard extends LitElement {
     if (s.names !== undefined) this._pickedNames = s.names;
     if (s.detail !== undefined) this._pickedDetail = s.detail;
     if (s.ghost !== undefined) this._pickedGhost = s.ghost;
+    if (s.below !== undefined) this._pickedBelow = s.below;
     if (s.floor !== undefined) this._shownFloor = s.floor; // an unknown id is ignored by _floorKey
     this._hiddenLayers = s.layers ?? [];
     for (const [k, fv] of s.floors ?? []) this._floorViews.set(k, fv); // the live fields follow once the first render knows the floor
@@ -707,6 +715,7 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedNames !== null) o.names = this._pickedNames;
     if (this._pickedDetail !== null) o.detail = this._pickedDetail;
     if (this._pickedGhost !== null) o.ghost = this._pickedGhost;
+    if (this._pickedBelow !== null) o.below = this._pickedBelow;
     if (this._shownFloor !== null) o.floor = this._shownFloor;
     if (this._hiddenLayers.length) o.layers = this._hiddenLayers;
     this._stashFloor();
@@ -1541,6 +1550,7 @@ export class FloorplanStudioCard extends LitElement {
     this._view3d = null;
     this._view3dFloor = null;
     this._view3dKey = null;
+    this._view3dBelow = null;
   }
 
   /** Brings the 3D view in line with what the card shows, after every render: loads the module on the first need, makes the
@@ -1570,12 +1580,13 @@ export class FloorplanStudioCard extends LitElement {
         return;
       }
       this._view3dFloor = null;
+      this._view3dBelow = null;
     }
     // A theme change (or Home Assistant's dark mode) re-reads the colours; a new floor, or one the layout reload replaced, rebuilds the scene.
     this._view3d.setTheme(`${this._theme()}|${this._haDark()}`);
     this._view3d.setWalls(this._walls());
     const around = floorsAroundKey(this._layout!, this._floorKey()!), aroundKey = JSON.stringify(around);
-    // Only the selected floor is drawn (3D fixes): the dimmed stack of lower floors drifted out of line, so it is gone.
+    // The selected floor is the one the camera frames. The floors below are the view's own meshes (S27.7), given after `setFloor`.
     if (f !== this._view3dFloor || aroundKey !== this._view3dAround) {
       this._view3dFloor = f;
       this._view3dAround = aroundKey;
@@ -1588,11 +1599,28 @@ export class FloorplanStudioCard extends LitElement {
         if (cam) this._view3d.setCamera(cam);
       }
     }
+    this._sync3dBelow();
     // The live state, decided by the plan's own rules (core/live.ts); the view changes its parts in place, and does nothing when it is the same as the last.
     const now = Date.now();
     this._view3d.setLive(f, { scale: 1, state: this._stateForRender(), now, fade: this._config.fade, plugWatts: plugThreshold(this._config.plug_watts), plugHeat: this._plugHeat(), powerLinks: this._powerLinks(), roomGlow: this._config.room_glow, night: this._night(), labels: this._labels(), showNames: this._names(), around: floorsAroundKey(this._layout!, this._floorKey()!) }, now);
     this._view3d.setRing(this._picked());
     this._apply3dInset();
+  }
+
+  /** S27.14: gives the view the floors below the shown one: each lower floor at its elevation relative to this one (negative) and its
+   * `floorShift`. Only when something changed (the view rebuilds its meshes on every call), and always after `setFloor`. */
+  private _sync3dBelow(): void {
+    const layout = this._layout, key = this._floorKey(), view = this._view3d;
+    if (!layout || !key || !view) return;
+    const mode = this._below();
+    const keys = mode === "off" ? [] : floorsBelow(layout, key), here = floorElevation(layout, key);
+    const entries = keys.map((k) => ({ floor: layout.floors[k], elevation: floorElevation(layout, k) - here, shift: floorShift(layout, k, key) }));
+    const nums = JSON.stringify(entries.map((e) => [e.elevation, e.shift]));
+    const last = this._view3dBelow;
+    if (last && last.mode === mode && last.nums === nums && last.floors.length === entries.length && entries.every((e, i) => e.floor === last.floors[i])) return;
+    if (!last && mode === "off") { this._view3dBelow = { mode, floors: [], nums }; return; } // nothing was ever given: nothing to take away
+    this._view3dBelow = { mode, floors: entries.map((e) => e.floor), nums };
+    view.setBelow(entries, mode);
   }
 
   /** What the 3D view has under a pointer event, read once per event: the gesture code and the room tap both ask. */
@@ -3071,6 +3099,24 @@ export class FloorplanStudioCard extends LitElement {
     return html`<select aria-label="Walls" title="Walls" @change=${onChange}>${WALLS_MODES.map((m) => html`<option value=${m} ?selected=${m === current}>${WALLS_LABELS[m]}</option>`)}</select>`;
   }
 
+  /** S27.14: the floors below in 3D: this viewer's pick, else `config.floors_below`, else off. Junk is off. */
+  private _below(): BelowMode {
+    return this._pickedBelow ?? belowModeOf(this._config.floors_below);
+  }
+
+  /** Next to Walls, 3D only. A pick is remembered at once; `_sync3d` gives the view its floors on the render that follows. */
+  private _belowSelect() {
+    const current = this._below();
+    const onChange = (e: Event) => {
+      const v = (e.target as HTMLSelectElement).value;
+      if (!(BELOW_MODES as readonly string[]).includes(v)) return;
+      this._pickedBelow = v as BelowMode;
+      this._saveViewNow();
+      this.requestUpdate();
+    };
+    return html`<select aria-label="Floors below" title="Floors below" @change=${onChange}>${BELOW_MODES.map((m) => html`<option value=${m} ?selected=${m === current}>${BELOW_LABELS[m]}</option>`)}</select>`;
+  }
+
   /** The slider is for 2.5D only: in 2D there is no lift to tilt. Dragging redraws the plan only, like the View select. */
   private _tiltSlider() {
     const onInput = (e: Event) => {
@@ -3087,7 +3133,7 @@ export class FloorplanStudioCard extends LitElement {
     const labels = this._labels();
     const names = this._names();
     const in3d = current === "3d" && this._shows3d(); // Walls is the 2.5D select's value; the model has no tilt slider
-    return html`${this._viewSelect(current)}${in3d ? this._wallsSelect() : current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
+    return html`${this._viewSelect(current)}${in3d ? html`${this._wallsSelect()}${this._belowSelect()}` : current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
       <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
       <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => { this._pickedNames = !names; this._saveViewNow(); this.requestUpdate(); }}>Aa</button>${in3d ? null : this._ghostButton()}`;
   }
@@ -3120,14 +3166,14 @@ export class FloorplanStudioCard extends LitElement {
   /** Whether anything about the view differs from what the config alone would show: a pick, a zoom, a turn. */
   private _modified(): boolean {
     return this._turn !== null || this._view !== null || this._pendingView !== null || this._camMoved
-      || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedNames, this._pickedRot, this._pickedDetail, this._pickedGhost].some((v) => v !== null);
+      || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedNames, this._pickedRot, this._pickedDetail, this._pickedGhost, this._pickedBelow].some((v) => v !== null);
   }
 
   /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
     this._fallback3d = null;
-    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedDetail = this._pickedGhost = null;
+    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedDetail = this._pickedGhost = this._pickedBelow = null;
     this._pendingView = null;
     this._view = null;
     this._forgetCamera();

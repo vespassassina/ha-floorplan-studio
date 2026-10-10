@@ -10,6 +10,7 @@
 - The plan can draw the floor below as faint lines under the current one (`RenderOpts.ghost`, token `--fp-ghost`); the Studio and the card switch it on in later steps.
 - 3D: the view can draw the floors below the current one, translucent (ghost) or in their own colours (solid), at their own height and offset. Never picked, not framed. The card switch for it follows.
 - Card: `ghost_floor: true` and a Floor below button in the view controls draw the floor under the shown one as faint lines, at its place in the house. The viewer's button wins over the YAML and is remembered; the lowest floor has none. The config form has the checkbox.
+- Card: `floors_below: off|ghost|solid` and a Floors below select beside Walls draw the floors under the shown one in 3D, at their own height and offset. The viewer's pick wins over the YAML and is remembered; each floor keeps its own camera. The config form has the select.
 
 ## 0.24.0 - 2026-10-10
 

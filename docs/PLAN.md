@@ -3184,7 +3184,7 @@ Lane card (`floorplan-studio-card.ts`, `config-editor.ts`, `view-state.ts`):
       ghost-only spot opens nothing.
       Files: `src/card/floorplan-studio-card.ts`, `src/card/config-editor.ts`, `src/card/view-state.ts`, a new
       `tests/card/card-ghost.spec.ts`, `tests/card/card-view-memory.test.ts`.
-- [ ] S27.14 Card 3D floors below. `floors_below` in YAML and the select beside Walls, kept per viewer, the config editor
+- [x] S27.14 Card 3D floors below. `floors_below` in YAML and the select beside Walls, kept per viewer, the config editor
       offers it; the card calls `setBelow` with `floorsBelow`, `floorElevation` differences and `floorShift`. Test: the
       select's three values change the drawn z range as S27.7 does; YAML default; junk is `off`; a stored choice wins;
       the camera of each floor survives a switch (S14.4).

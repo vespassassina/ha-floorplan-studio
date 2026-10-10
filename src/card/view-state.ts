@@ -3,6 +3,16 @@
 import { DETAIL_MODES, WALLS_MODES, clampTilt, parseLayers, type DetailMode, type LayerId } from "../core";
 import { MAX_ZOOM, MIN_ZOOM, type Pt, type View } from "./viewport";
 
+/** S27.14: how the 3D view draws the floors below the shown one. A list of decisions, one per member: `off` draws none (the
+ * default), `ghost` draws them translucent, `solid` in their own colours. */
+export const BELOW_MODES = ["off", "ghost", "solid"] as const;
+export type BelowMode = (typeof BELOW_MODES)[number];
+export const BELOW_LABELS: Record<BelowMode, string> = { off: "No floors below", ghost: "Ghost floors below", solid: "Solid floors below" };
+/** A mode from config or storage, untrusted: one of `BELOW_MODES` exactly, anything else is `off`. */
+export function belowModeOf(v: unknown): BelowMode {
+  return typeof v === "string" && (BELOW_MODES as readonly string[]).includes(v) ? (v as BelowMode) : "off";
+}
+
 /** A user turn is a multiple of this many degrees. */
 export const ROTATION_STEP = 45;
 
@@ -75,6 +85,8 @@ export interface StoredView {
   detail?: DetailMode;
   /** The Floor below button (S27.13): the floor under this one drawn as faint lines. It wins over the card's YAML `ghost_floor`. */
   ghost?: boolean;
+  /** The Floors below choice in 3D (S27.14), one of `BELOW_MODES`; it wins over the card's YAML `floors_below`. */
+  below?: BelowMode;
 }
 
 /** Further than this from the origin is not a plan in cm; the bound keeps later arithmetic finite. */
@@ -143,5 +155,6 @@ export function parseStoredView(raw: unknown, isView: (v: unknown) => boolean, t
   if (layers.length) out.layers = layers;
   if (typeof r.detail === "string" && (DETAIL_MODES as readonly string[]).includes(r.detail)) out.detail = r.detail as DetailMode;
   if (typeof r.ghost === "boolean") out.ghost = r.ghost;
+  if (typeof r.below === "string" && (BELOW_MODES as readonly string[]).includes(r.below)) out.below = r.below as BelowMode;
   return out;
 }

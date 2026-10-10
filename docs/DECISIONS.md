@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the card's 3D floors below are `floors_below` plus a select, given after `setFloor` (S27.14)
+
+- `floors_below: off|ghost|solid` (default `off`; anything else, a wrong case included, is `off`) and a Floors below select beside Walls in 3D. The viewer's pick is kept in the view memory (`below`; a value that is not a mode is dropped) and wins over the YAML; Reset view clears it. `floors_below` joins the storage seed like `detail`. The modes are `BELOW_MODES` in `view-state.ts`, with their labels, so the select, the config form and the parser read one list.
+- `_sync3dBelow` runs after `setFloor` in every `_sync3d` and calls `setBelow` with `{ floor, elevation, shift }` per lower floor, nearest first: `elevation` is `floorElevation(lower) - floorElevation(shown)` (negative), `shift` is `floorShift`. The view rebuilds its meshes on every call, so the card calls only when the mode, the floor objects, an elevation or a shift changed; a view that never had floors below is never told `off`. A new view starts from nothing, so a rebuilt view gets its floors again.
+- Tested at the pixel end through the test hook (`below()`, `floors()`): the lowest drawn point is -320 on the stress layout in solid and ghost (ground's slab bottom), the shift moves the lower floor by exactly `ground.offset - first.offset`, and the camera each floor was left with comes back with floors below on (S14.4). The camera still frames the shown floor only.
+
 ## 2026-10-10: the card's ghost floor is `ghost_floor` plus a Floor below button (S27.13)
 
 - `ghost_floor: true` in YAML (only `true`; junk is off) and a Floor below button in the view controls, 2D and 2.5D. The pick is the viewer's, kept in the view memory (`ghost`, a boolean; anything else in storage is dropped) and wins over the YAML; Reset view clears it. `ghost_floor` joins the storage seed like `detail`, so editing it starts a clean memory.

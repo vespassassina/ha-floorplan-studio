@@ -3,7 +3,7 @@ import { DEFAULT_TILT, DETAIL_LABELS, DETAIL_MODES, parseDetailMode, THEMES, WAL
 import type { DetailMode, Layout, Theme, WallsMode } from "../core";
 import type { FloorplanStudioCardConfig, Hass } from "./floorplan-studio-card";
 import { defineElement } from "./define";
-import { ROTATION_STEP, normaliseRotation } from "./view-state";
+import { BELOW_LABELS, BELOW_MODES, ROTATION_STEP, belowModeOf, normaliseRotation } from "./view-state";
 
 /** The form edits the card's own config type; every key it shows is one the card reads (S7.5 kiosk, S7.6 night and sun). */
 export type EditorConfig = FloorplanStudioCardConfig;
@@ -195,6 +195,10 @@ export class FloorplanStudioCardEditor extends LitElement {
 
   private _onGhost(e: Event): void {
     this._set("ghost_floor", (e.target as HTMLInputElement).checked, false);
+  }
+
+  private _onBelow(e: Event): void {
+    this._set("floors_below", belowModeOf((e.target as HTMLSelectElement).value), "off");
   }
 
   private _night(): "auto" | "on" | "off" {
@@ -543,6 +547,13 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="ghost_floor">Floor below (2D, 2.5D)</label>
         <input id="ghost_floor" type="checkbox" title="Draw the floor under the shown one as faint lines" .checked=${this._config.ghost_floor === true} @change=${this._onGhost} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="floors_below">Floors below (3D)</label>
+        <select id="floors_below" title="Draw the floors under the shown one in the 3D view" @change=${this._onBelow}>
+          ${BELOW_MODES.map((m) => html`<option value=${m} ?selected=${belowModeOf(this._config.floors_below) === m}>${BELOW_LABELS[m]}</option>`)}
+        </select>
       </div>
 
       <div class="row">
