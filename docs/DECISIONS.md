@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: furniture Lock works under Lock plan (S27.1)
+
+- `EditorState.plan()` drops a furniture piece's `locked` from the compare, so ticking Lock in the panel or the context menu is one undo step under Lock plan. Moving, resizing or turning a piece is still refused. Diego, 2026-10-10: "furniture Lock must work under Lock plan". It supersedes the "known edge" of 'Lock in every panel (S26.16)' and the furniture line of S26.3, which listed Lock with the geometry.
+
 ## 2026-10-09: a disabled Undo or Redo is dimmer than an enabled one (Opus re-check 5)
 
 - `.btn:disabled{opacity:.5}` and `.btn.light{opacity:.6}` have the same specificity and the second comes later, so a disabled Undo was .6 like an enabled one, and under the pointer `.btn.light:hover` took it to 1. Added `.btn.light:disabled{opacity:.35}` and put `:not(:disabled)` on the light hover and focus rule; the other hover rules in the editor (`.lockplan`, `.lrow`, `.ti`, `.opt`, `.door-hit-open`) are not on buttons that can be disabled. Computed-style pair in `editor.spec.ts` for light, ha and blueprint: disabled lower than enabled, and unchanged under the pointer. It supersedes (e) of 'small defects' for the `.light` buttons only.

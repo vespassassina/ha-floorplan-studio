@@ -271,7 +271,7 @@ export class EditorState {
    * What a plan lock holds still: the floor's geometry (S26.3, supersedes the 2026-10-06 rule). Points, walls, openings,
    * kinds, heights, stairs, furniture. Left out, so they stay editable: devices and objects, every name and title, colours
    * and textures, the HA area and floor id, and every entity link (a room's sensors, scenes and entity, a door's sensors,
-   * locks and cover, a piece of furniture's entity). Scenes stay out as before (2026-10-07).
+   * locks and cover, a piece of furniture's entity and its Lock, S27.1). Scenes stay out as before (2026-10-07).
    */
   private static plan(f: Floor): string {
     const drop = <T extends object>(o: T, keys: string[]): object => { const c: Record<string, unknown> = { ...(o as Record<string, unknown>) }; for (const k of keys) delete c[k]; return c; };
@@ -282,7 +282,7 @@ export class EditorState {
       stairs: f.stairs.map((t) => drop(t, paint)),
       doors: f.doors.map((d) => drop(d, ["name", "sensors", "vibration", "locks", "cover"])),
       extras: f.extras.map((x) => drop(x, ["name"])),
-      furniture: f.furniture.map((m) => drop(m, ["name", "entity"])),
+      furniture: f.furniture.map((m) => drop(m, ["name", "entity", "locked"])),
     });
   }
 

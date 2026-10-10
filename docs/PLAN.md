@@ -3089,7 +3089,7 @@ Assumptions (defaults taken; Diego can overrule any):
 Wave 1, five lanes in parallel, each in its own worktree; tasks inside a lane run in order:
 
 Lane lock (`src/editor/state.ts` `plan()` only):
-- [ ] S27.1 Furniture Lock works under Lock plan. `EditorState.plan()` drops a furniture piece's `locked` from the
+- [x] S27.1 Furniture Lock works under Lock plan. `EditorState.plan()` drops a furniture piece's `locked` from the
       compare, so ticking or unticking Lock on a piece under Lock plan is one undo step; moving, resizing or turning the
       piece is still refused. Supersedes the "known edge" of the S26.16 entry and the furniture line of S26.3 (DECISIONS,
       newest first). Test: unit, under Lock plan, `locked` on and off is allowed and one step each, `x`, `w`, `rot` are

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Studio: a furniture piece's Lock can be ticked and unticked while the plan is locked, from the panel and from the context menu; moving, resizing and turning it are still refused.
+
 ## 0.24.0 - 2026-10-10
 
 - Studio: a disabled Undo or Redo is dimmed, and stays dimmed under the pointer.
