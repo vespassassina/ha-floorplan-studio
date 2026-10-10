@@ -330,6 +330,11 @@ ${THEME_EXTRAS}
    middle of the pulses carries on, it does not replay them. Reduced motion: no pulse, the steady edge only. */
 /* S27.5: the floor below, as faint lines. A class rule, never a presentation attribute (finding 18): the editor's own .room{pointer-events:all} would outrank an attribute. */
 .ghost,.ghost *{pointer-events:none} .ghost .gl{fill:none;stroke:var(--fp-ghost);stroke-width:1.5;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+/* S27.6: the plan of a floor just switched to comes in from 16 px away, the way the floor travels (up: from above), over 220 ms. The host sets data-switch on the plan root from floorSwitch(); nothing of the old floor is kept. Reduced motion: no animation, the floor is simply there. */
+@keyframes fp-floor-in-up{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:none}}
+@keyframes fp-floor-in-down{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+[data-switch="up"]{animation:fp-floor-in-up 220ms ease-out} [data-switch="down"]{animation:fp-floor-in-down 220ms ease-out}
+@media (prefers-reduced-motion:reduce){[data-switch]{animation:none}}
 .motion-perimeter.motion-pulse{animation:fp-motion-pulse ${MOTION_PULSE_S}s ease-in-out ${MOTION_PULSES};animation-delay:calc(var(--fp-pulse-age,0s) * -1)}
 @keyframes fp-motion-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.motion-perimeter.motion-pulse{animation:none}}
@@ -1155,6 +1160,17 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
 /** S23.2 (V1): the smallest a room name may render, in CSS px, on a card that knows its size. */
 export const NAME_MIN_PX = 11;
 
+
+/**
+ * S27.6: which way the plan comes in when the viewer changes floor. `keys` is the floors in stacking order, lowest first
+ * (the order `floorElevation` stacks); a higher new floor is "up". Null: no animation, for the same floor, a key not in
+ * the list, junk, or `reduced` (prefers-reduced-motion), so a caller sets `data-switch` only when this returns a result.
+ */
+export function floorSwitch(keys: readonly string[], from: string, to: string, reduced: boolean): { dir: "up" | "down" } | null {
+  if (reduced === true || !Array.isArray(keys) || typeof from !== "string" || typeof to !== "string") return null;
+  const a = keys.indexOf(from), b = keys.indexOf(to);
+  return a < 0 || b < 0 || a === b ? null : { dir: b > a ? "up" : "down" };
+}
 
 /** S27.5: the markup of the floor below, or "" when there is nothing valid to draw. Untrusted input: a ring or a wall that is not made of finite numbers is skipped, a shift that is not two finite numbers within `COORD_LIMIT` draws nothing, no string of the floor is read and nothing throws. */
 function ghostMarkup(g: RenderOpts["ghost"]): string {

@@ -3127,7 +3127,7 @@ Lane render (`src/core/render.ts`):
       unchanged without it; computed-style pairs for the stroke and `pointer-events` (card and editor stylesheets);
       `npm run shots` looked at with a ghost on, every theme.
       Files: `src/core/render.ts`, a new `tests/core/render-ghost.test.ts`, a pair in `tests/editor/editor.spec.ts`.
-- [ ] S27.6 Switch motion in core, chained after S27.5. `floorSwitch(keys, from, to, reduced)` returns
+- [x] S27.6 Switch motion in core, chained after S27.5. `floorSwitch(keys, from, to, reduced)` returns
       `{ dir: "up" | "down" }` or null (same floor, unknown key, reduced). Keyframes `fp-floor-in-up` and
       `fp-floor-in-down` (220 ms) in `FLOORPLAN_CSS`, keyed on `data-switch` on the plan root, with no animation under
       `prefers-reduced-motion: reduce`. Test: unit on the helper; a computed-style pair, `animation-name` set without
