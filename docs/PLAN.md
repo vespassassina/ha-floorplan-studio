@@ -3197,7 +3197,7 @@ Lane card (`floorplan-studio-card.ts`, `config-editor.ts`, `view-state.ts`):
       Files: `src/card/floorplan-studio-card.ts`, a new `tests/card/card-floor-switch.spec.ts`.
 
 Wave 3, in order on `task/s27-floors`:
-- [ ] S27.16 Exit test and docs. `floors-exit.spec.ts`: load `align-house.json` in the Studio, Floors, Align to floor
+- [x] S27.16 Exit test and docs. `floors-exit.spec.ts`: load `align-house.json` in the Studio, Floors, Align to floor
       below, Apply: the offset is within 2 cm; Save; the card with `floors_below: solid` shows the first floor over the
       ground with their outer corners within 2 cm in the test hook's bounds; the card's ghost lines up the same way.
       Both motion paths are the S27.12 and S27.15 tests. Docs: `docs/SPEC.md` (offset, Align, ghost, floors below,

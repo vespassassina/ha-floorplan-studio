@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Docs and the Help guide cover floors: offset, Align, the ghost floor, floors below in 3D and the floor switch. An exit test aligns a floor in the Studio, saves, and checks the card lays it over the floor below, in 3D and as a ghost (S27.16).
 - Studio: View, Floor below draws the floor under the shown one as faint lines, at its place in the house. Off by default, remembered in the browser, no undo step; disabled on the lowest floor (S27.11).
 - Card: switching floors in 2D and 2.5D slides the plan in, up or down with the stack (220 ms; a cut under reduced motion and in 3D). The new Floor below button and `ghost_floor` / `floors_below` keys are the S27.13 and S27.14 steps.
 - Studio: switching floor with a chip slides the plan in, up from above and down from below (220 ms); nothing moves under reduced motion (S27.12).

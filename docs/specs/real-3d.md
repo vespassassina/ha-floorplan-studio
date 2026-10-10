@@ -57,6 +57,10 @@ does not work well.
 - I. Floors: only the selected floor is drawn, solid. Floors below and above
   are hidden. (A dimmed stack of the floors below was built in 0.14.0 and
   removed in the 3D fixes: on a real layout the floors drifted out of line.)
+  Superseded in 0.25.0 (S27): `floors_below: off | ghost | solid` draws the
+  floors below, `off` by default, which is this criterion. It can come back
+  because a floor now carries an `offset` and Align finds it, so the stack
+  lines up; floors above stay hidden. Decision in DECISIONS, 2026-10-10.
 - J. Performance: 60 fps on a mid laptop, 30 on a wall tablet. Render on
   demand (on change, drag, state update), not in a constant loop. Reduced
   motion: no camera easing.

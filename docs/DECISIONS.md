@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: the exit test measures the floor against itself (S27.16)
+
+- `tests/editor/floors-exit.spec.ts` aligns `align-house.json` in the Studio with real clicks, takes the layout from the `save-request` event, and gives it to two cards. In 3D the ground floor's solid meshes are compared with the first floor drawn through the same `setBelow` with no shift, because walls have thickness and the mesh box is wider than the outline; in 2D the ghost's bounding box is compared with the first floor's outline. Both within 2 cm. A second test shows the unaligned card is over 100 cm out, so the check can fail.
+- `docs/specs/real-3d.md` criterion I is superseded: floors below are drawn, `off` by default. The 0.14.0 stack drifted because floors had no offset; Align now finds it. Floors above stay hidden.
 ## 2026-10-10: View > Floor below is `st.ghostFloor`, kept in localStorage (S27.11)
 
 - `EditorState.ghostFloor` with `setGhostFloor`, key `floorplan-studio:ghost-floor`, every access in try/catch, never an undo step: the same shape as Detail. `ghostOpts()` returns the ghost when the Align mode is open on this floor or the toggle is on, and nothing on the lowest floor. The item `#ghostFloor` is disabled there and its title says why.
