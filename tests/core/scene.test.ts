@@ -5,7 +5,7 @@ import { deviceSolidTop, FURNITURE_SOLID, DEVICE_SOLID } from "../../src/core/so
 import { deviceZ, edgeHeight, floorHeight, furnitureBottom, furnitureHeight, radiatorSpan, unlinkedHeight, wallHeight, doorSpan, openingSpan } from "../../src/core/heights";
 import { stairSteps } from "../../src/core/geometry";
 import { treeShape } from "../../src/core/tree";
-import { FRAME_PROUD, FRAME_WIDTH } from "../../src/core/solids";
+import { FRAME_PROUD, FRAME_WIDTH, OPENING_FRAMED } from "../../src/core/solids";
 import { DEVICE_TYPES, DOOR_KINDS, FURNITURE_SYMBOLS, ROOM_KINDS, type DeviceType, type Floor, type FurnitureSymbol, type Layout, type RoomKind } from "../../src/core/schema";
 
 // The 3D scene, in cm, z up. Every number is read from heights.ts or solids.ts, never copied (spec R3).
@@ -616,10 +616,10 @@ describe("scene: a device's point stays under the wall top (3D fixes)", () => {
   });
 });
 
-// S28.10: a door, glass door, window, slit, full window and sealed panel stand in a frame; an open doorway and a plain opening
+// S28.10: a door, glass door, window, slit and full window stand in a frame; an open doorway, a sealed panel and a plain opening
 // are bare gaps. Frame solids are `opening` solids tagged "frame", with the opening's own ref, so a tap on one is a tap on that door.
 describe("scene: framed openings (S28.10)", () => {
-  const FRAMED: Record<string, boolean> = { door: true, glass: true, window: true, slit: true, fullwindow: true, sealed: true, open: false, opening: false };
+  const FRAMED: Record<string, boolean> = OPENING_FRAMED; // the real table (solids.ts); S28 review: a sealed panel has no frame in any view
   const a = 100, b = 190, wall = 20; // an external north wall, 20 thick
   const build = (kind: string, sill?: number) => {
     const o = { id: "d", a: [a, 0], b: [b, 0], sensors: [], ...(sill !== undefined ? { sill } : {}) };
@@ -640,7 +640,7 @@ describe("scene: framed openings (S28.10)", () => {
     const raised = build(kind, 70), own = (kind === "opening" ? openingSpan({ sill: 70, height: 200 } as never) : doorSpan({ kind, sill: 70 } as never, 400)).sill;
     expect(raised).toHaveLength(own > 0 ? 4 : 3);
     expect(raised.some((s) => prism(s).z1 === own)).toBe(own > 0); // the sill bar's top is the opening's sill height
-    expect([...DOOR_KINDS, "opening"].some((k) => k !== "door" && k !== "glass" && k !== "sealed")).toBe(true);
+    expect([...DOOR_KINDS, "opening"].some((k) => k !== "door" && k !== "glass")).toBe(true);
   });
   it.each([...DOOR_KINDS, "opening"].filter((k) => FRAMED[k]))("%s: every frame lies in the span widened by FRAME_WIDTH, as deep as the wall plus both proud faces", (kind) => {
     expect(build(kind, 70).length).toBeGreaterThan(0);

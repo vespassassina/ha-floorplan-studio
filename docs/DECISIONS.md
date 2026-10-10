@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-10: A sealed panel has no frame in any view (S28 Opus review)
+
+The 2.5D draw and SPEC.md said no frame for a sealed panel; the 3D builder had its own condition and framed it, and the 3D test kept a local table that agreed with the builder. Now `OPENING_FRAMED` (solids.ts) is the one table: 2.5D, 3D (through `SceneDeps`) and the test over every opening kind read it. A sealed panel is a fixed pane, not something you pass or trim. `docs/card.md` now says what SPEC.md says.
+
 ## 2026-10-10: A 2.5D trunk is the crown's fill on a dark theme (S28 final, shots)
 
 In blueprint at night the trunk was `--fp-tree-edge`, pale grey, under a dark slate crown: inverted, like a lit stick. The edge has to stay pale (3:1 against the garden, it outlines the crown), so the trunk gets its own token `--fp-trunk`: the edge colour on a light theme, and on a dark one (`--fp-crown-lift` above 0) the crown's own painted fill, `--fp-tree` at 35 % over the garden. A first try, darker than the garden, vanished on the dark plane; the crown's fill reads there, so the trunk does. A test over every theme says the trunk is no lighter than the crown fill by more than 0.02 of relative luminance, and not under 1.1:1 against the garden. Width stays 12 cm (`TRUNK_SIDE`, one shape in every view): the shots' 60 cm test crowns look like lollipops, a 200 cm crown does not; thinning it in 2.5D alone would break "one shape".
