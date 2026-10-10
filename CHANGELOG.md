@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2.5D door and window trim stands beside the gap, as in 3D, so a narrow window keeps its glass.
 - 2.5D wall shadows reach the wall foot; a strip of bare floor showed under the wall face.
 - A sealed panel has no frame in 3D either, as in 2.5D and the spec.
 - 2.5D has contact shadows: a soft stepped band along both sides of every wall and a patch under every piece of furniture, appliance and device body, so things sit on the floor instead of floating over it. Baked, no blur, none at tilt 0.

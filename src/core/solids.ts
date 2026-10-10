@@ -320,10 +320,15 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
       const c = (t: number, z: number) => px.lift([at(t)[0] + proud[0], at(t)[1] + proud[1]], z);
       return `<polygon class="frame" points="${pts([c(t0, z0), c(t1, z0), c(t1, z1), c(t0, z1)])}"/>`;
     };
+    // As in 3D, the trim lies outside the gap: a jamb each side from the sill to the head, a head bar above the head and a sill bar below the
+    // sill, both a jamb wider each side. The glass keeps the whole span, so a narrow window keeps its pane. `top` is the drawn wall height.
     const frameQuads = (t0: number, t1: number, sill: number, head: number, ownSill: number, ownHead: number, top: number): string[] => {
-      const fw = Math.min(FRAME_WIDTH, (t1 - t0) / 2), hasHead = ownHead <= top, hasSill = ownSill > 0 && ownSill < top;
-      const z0 = hasSill ? sill + FRAME_WIDTH : sill, z1 = hasHead ? head - FRAME_WIDTH : head;
-      return [fq(t0, t0 + fw, z0, z1), fq(t1 - fw, t1, z0, z1), hasHead ? fq(t0, t1, head - FRAME_WIDTH, head) : "", hasSill ? fq(t0, t1, sill, sill + FRAME_WIDTH) : ""];
+      const hasHead = ownHead <= top, hasSill = ownSill > 0 && ownSill < top;
+      return [
+        fq(t0 - FRAME_WIDTH, t0, sill, head), fq(t1, t1 + FRAME_WIDTH, sill, head),
+        hasHead ? fq(t0 - FRAME_WIDTH, t1 + FRAME_WIDTH, head, Math.min(head + FRAME_WIDTH, top)) : "",
+        hasSill ? fq(t0 - FRAME_WIDTH, t1 + FRAME_WIDTH, Math.max(sill - FRAME_WIDTH, 0), sill) : "",
+      ];
     };
     /** A block of wall from the floor to `z1`, with its darker foot. */
     const block = (t0: number, t1: number, z1: number) => quad(t0, t1, 0, z1, wall) + (solid ? quad(t0, t1, 0, Math.min(z1, FOOT_HEIGHT), "wfoot") : "");

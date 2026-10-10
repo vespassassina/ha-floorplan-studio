@@ -43,9 +43,9 @@ test.describe("the jamb on real pixels", () => {
       await page.setContent(`<!DOCTYPE html><html><body style="margin:0"><style>${FLOORPLAN_CSS}</style>${svgOf(c, "c0")}</body></html>`);
       const token = await page.evaluate(() => { const svg = document.getElementById("c0")!, probe = document.createElement("i"); probe.style.color = "var(--fp-frame)"; svg.firstElementChild!.appendChild(probe); return getComputedStyle(probe).color; });
       const shot = (await page.screenshot({ clip: { x: 0, y: 0, width: VB[2], height: VB[3] } })).toString("base64");
-      // The door's left jamb: x 100..105, z 0..205, FRAME_PROUD (2 cm) south of the wall line. Its middle, 100 cm up, is plan (102.5, 2) lifted by 100.
+      // The door's left jamb lies outside the gap: x 95..100, z 0..210, FRAME_PROUD (2 cm) south of the wall line. Its middle, 100 cm up, is plan (97.5, 2) lifted by 100.
       const rise = 0.55, skew = 0.3;
-      const at = [102.5 + 100 * skew * rise - VB[0], 2 - 100 * rise - VB[1]];
+      const at = [97.5 + 100 * skew * rise - VB[0], 2 - 100 * rise - VB[1]];
       const [px] = await page.evaluate(async ([b64, pts]) => {
         const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
         const cv = document.createElement("canvas"); cv.width = bmp.width; cv.height = bmp.height;

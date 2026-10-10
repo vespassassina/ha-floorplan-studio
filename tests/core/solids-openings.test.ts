@@ -114,24 +114,24 @@ describe("S28.6 framed openings", () => {
   });
 
   it("a door: two jambs up to the head bar, a head bar, and no sill", () => {
-    expect(frames(deep(withDoor({}))).sort()).toEqual([Q(100, 100 + FW, 0, 210 - FW), Q(200 - FW, 200, 0, 210 - FW), Q(100, 200, 210 - FW, 210)].sort());
+    expect(frames(deep(withDoor({}))).sort()).toEqual([Q(100 - FW, 100, 0, 210), Q(200, 200 + FW, 0, 210), Q(100 - FW, 200 + FW, 210, 210 + FW)].sort());
   });
 
   it("a window with a sill: jambs between sill and head bars, plus a sill bar", () => {
     expect(frames(deep(withDoor({ kind: "window" }))).sort()).toEqual([
-      Q(100, 100 + FW, 90 + FW, 210 - FW), Q(200 - FW, 200, 90 + FW, 210 - FW), Q(100, 200, 210 - FW, 210), Q(100, 200, 90, 90 + FW),
+      Q(100 - FW, 100, 90, 210), Q(200, 200 + FW, 90, 210), Q(100 - FW, 200 + FW, 210, 210 + FW), Q(100 - FW, 200 + FW, 90 - FW, 90),
     ].sort());
   });
 
   it("a full window reaches the floor and has no sill bar", () => {
     const q = frames(deep(withDoor({ kind: "fullwindow" })));
     expect(q).toHaveLength(3);
-    expect(q).toContain(Q(100, 100 + FW, 0, 210 - FW));
+    expect(q).toContain(Q(100 - FW, 100, 0, 210));
   });
 
   it("an own sill and height move the bars", () => {
     expect(frames(deep(withDoor({ kind: "window", sill: 40, height: 60 }))).sort()).toEqual([
-      Q(100, 100 + FW, 40 + FW, 100 - FW), Q(200 - FW, 200, 40 + FW, 100 - FW), Q(100, 200, 100 - FW, 100), Q(100, 200, 40, 40 + FW),
+      Q(100 - FW, 100, 40, 100), Q(200, 200 + FW, 40, 100), Q(100 - FW, 200 + FW, 100, 100 + FW), Q(100 - FW, 200 + FW, 40 - FW, 40),
     ].sort());
   });
 
@@ -147,13 +147,24 @@ describe("S28.6 framed openings", () => {
     }
   });
 
+  it("the trim lies outside the gap: a narrow window keeps its whole glass, and no frame point falls inside the span (S28 review, as 3D)", () => {
+    const narrow = withDoor({ kind: "window", b: [100 + 2 * FW - 2, 0] }); // 8 cm wide: less than two jamb widths, so inside jambs would eat the glass
+    const gl = glass(deep(narrow));
+    expect(gl).toHaveLength(1);
+    expect(gl[0].split("|")[1]).toBe(box(100, 100 + 2 * FW - 2, 90, 210));
+    for (const q of frames(deep(narrow))) for (const p of q.split(" ")) {
+      const [px, py] = p.split(",").map(Number), z = (FRAME_PROUD - py) / R, x = px - z * K * R;
+      expect(x <= 100 + 0.01 || x >= 100 + 2 * FW - 2 - 0.01, `${p} inside the span`).toBe(true);
+    }
+  });
+
   it("a lowered wall lowers its frame: no head bar under the cutaway, and nothing above the wall top", () => {
     const html = renderFloor(withDoor({}), { scale: 1, view: "2.5d", walls: "low" });
     const top = Math.min(...faces(html).filter((q) => q.startsWith(`${P(0, 0, 0)} `)).flatMap((q) => q.split(" ").map((p) => +p.split(",")[1])));
     const fr = frames(html);
     expect(fr.length).toBeGreaterThan(0);
     for (const q of fr) for (const p of q.split(" ")) expect(+p.split(",")[1] + FRAME_PROUD, q).toBeGreaterThanOrEqual(top - 0.01);
-    expect(fr).not.toContain(Q(100, 200, 210 - FW, 210));
+    expect(fr).not.toContain(Q(100 - FW, 200 + FW, 210, 210 + FW));
   });
 
   it("an open door keeps its red band and still has its frame", () => {
