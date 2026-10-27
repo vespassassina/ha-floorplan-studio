@@ -4692,10 +4692,11 @@ S38.2 at integration); **perf** S38.5; **areas** S38.9.
       kept in between. The S37.6 straddle test (380/420 boxes) still sees one switch per resize; a new one at 400 sees
       none in either direction. Built with dots at a plan of 380 and under (a 380 px box makes a 380 px plan, and the
       straddle test needs it to read dots).
-- [ ] S38.8 Nit: the `<title>` type names in `src/core/render.ts` are translated in the card. `renderFloor` takes an
+- [x] S38.8 (2026-10-28) Nit: the `<title>` type names in `src/core/render.ts` are translated in the card. `renderFloor` takes an
       optional `tr` function; the card passes `t`, the Studio passes nothing and stays English. The raw-English lint
       covers `render.ts`. Test: a German card's device `<title>` reads the German type name; a payload `"><script>` in a
-      name is still escaped (finding 2).
+      name is still escaped (finding 2). Only the type name is translated; the rest of a title is a name from the layout,
+      a number and a unit. English (the card in English, and the Studio) keeps the type id, so no title text changed.
 - [x] S38.9 (2026-10-27) Nit: two HA areas with the same name. `layoutFromAreas` names the second room "Office 2", the third
       "Office 3", so `catalog.room` values differ. Unit test with three areas named "Office" and one blank.
 - [ ] S38.10 Integrate on `task/s38-sun`, full suite, shots, Opus review, release 0.37.0 after Diego's yes.

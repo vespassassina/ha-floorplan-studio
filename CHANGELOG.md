@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card: the hover title of a device names its type in the card's language ("Licht: Küche"). In English, and in the Studio, it reads as before.
 - Card: the switch between device icons and dots has a dead band. Icons from a plan 420 px wide, dots at 380 and under, the last level in between, so a plan resting near the bound stops flipping.
 - Card: the 3D view takes the sun's `azimuth` and `elevation` from `sun.sun` (or the entity named in `sun:`) and the plan's `north`, and lights the house from there; a hass update that moves only the sun moves the light. With no usable sun the light is the old fixed one.
 - Card: an error line ("The plan could not be used", "Could not load the plan") follows a change of Home Assistant language without a reload.

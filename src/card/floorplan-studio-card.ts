@@ -17,7 +17,7 @@ import { strategyElement } from "./strategy";
 import { CARD_VERSION } from "./version";
 import { INSTALL_HINT, NOTHING_SAVED, PLAN_UNUSABLE, STALE_PAGE, NO_ANSWER, loadErrorText, loadShared, pageIsStale, type Conn, type StoredError } from "./load";
 import { mark, t, tn } from "../core/i18n";
-import { useLanguage } from "./i18n";
+import { currentLanguage, useLanguage } from "./i18n";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { PAN_STEP, isSearchChord, planKeyFor, type ViewKey } from "./view-keys";
 import { firstFocus, nextInDirection, type FocusDir } from "./plan-focus";
@@ -3629,6 +3629,8 @@ export class FloorplanStudioCard extends LitElement {
     const live3d = this._shows3d();
     const body = live3d ? "" : renderFloor(f, {
       scale: this._scale(fit),
+      tr: currentLanguage() ? t : undefined, // S38.8: English keeps the type id in a title, as before; another language names the type
+
       px: qpx(this._px) || undefined, // S23.2: the 11 px floor for names and discs (quantised: see `qpx`)
       zoom: box.w > 0 ? fit.w / box.w : undefined, // S25.4: labels keep their on-screen size at any zoom
       bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - qstrip(this._strip, fit.w)) } : undefined, // S23 review S3: names stay off the control stack
