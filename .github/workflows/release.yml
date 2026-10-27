@@ -31,6 +31,9 @@ jobs:
           # The card's languages are lazy chunks too (src/card/i18n.ts LANGUAGES): exactly nine, or a language is missing or stale.
           n=$(ls custom_components/floorplan_studio/www/floorplan-studio-lang-*.js 2>/dev/null | wc -l)
           [ "$n" -eq 9 ] || { echo "expected nine www/floorplan-studio-lang-<code>-<hash>.js, found $n: the build did not produce them, or a stale one is left"; exit 1; }
+          # The Edit-card form is a file of its own beside the card (S38.0, getConfigElement()): exactly one, or Edit card fails to open.
+          n=$(ls custom_components/floorplan_studio/www/floorplan-studio-form-*.js 2>/dev/null | wc -l)
+          [ "$n" -eq 1 ] || { echo "expected one www/floorplan-studio-form-<hash>.js, found $n: the build did not produce it, or a stale one is left"; exit 1; }
           cd custom_components/floorplan_studio && zip -r ../../floorplan_studio.zip . -x "__pycache__/*" "*.pyc"
       - name: Release, with the CHANGELOG entry as its notes
         # No section for the version (or an empty one): fall back to generated notes rather than fail the release.

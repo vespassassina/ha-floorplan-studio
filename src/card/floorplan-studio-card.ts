@@ -12,10 +12,6 @@ import { fanCaps, lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
 import { TOUCH_CSS } from "./touch-css";
 import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
-// S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
-// one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
-// second built file (PLAN block interface).
-import "./config-editor";
 import { defineElement } from "./define";
 import { strategyElement } from "./strategy";
 import { CARD_VERSION } from "./version";
@@ -36,6 +32,11 @@ import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
 import { BELOW_LABELS, BELOW_MODES, HEAT_LABELS, belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
 
 const NO_LAYOUT = INSTALL_HINT;
+
+declare const __FP_FORM_FILE__: string | undefined;
+/** S38.0: the built form's file beside the card, `./floorplan-studio-form-<hash>.js`, compiled in by vite.config.ts. Empty in the dev server and in
+ * vitest, where the form is imported from source. */
+const FORM_FILE: string = typeof __FP_FORM_FILE__ === "string" ? __FP_FORM_FILE__ : "";
 
 /** What the card needs of `hass`. Home Assistant's real object has far more; this is only what the card reads. */
 export interface HassEntity { state: string; attributes: Record<string, unknown>; last_changed: string }
@@ -1197,8 +1198,12 @@ export class FloorplanStudioCard extends LitElement {
     return { type: "custom:floorplan-studio-card" };
   }
 
-  /** S7.7: the Edit-card dialog's own form instead of raw YAML. */
-  static getConfigElement(): HTMLElement {
+  /** S7.7: the Edit-card dialog's own form instead of raw YAML.
+   * S38.0: the form is a chunk beside the card (floorplan-studio-form-<hash>.js), fetched here on first use; it registers
+   * `floorplan-studio-card-editor` as it loads. Home Assistant awaits this call (frontend `hui-card-element-editor.ts` returns it from an async method,
+   * `hui-element-editor.ts` does `await this.getConfigElement()`), so a viewer who never edits the card never downloads the form. */
+  static async getConfigElement(): Promise<HTMLElement> {
+    await (FORM_FILE ? import(/* @vite-ignore */ FORM_FILE) : import("./config-editor"));
     return document.createElement("floorplan-studio-card-editor");
   }
 
