@@ -10,7 +10,7 @@ const num = (x: unknown, lo: number, hi: number): x is number => typeof x === "n
  * Null for a sun at or under the horizon and for anything that is not a number in range (azimuth and north in [0, 360), elevation in [-90, 90]).
  */
 export function sunDir(azimuth: unknown, elevation: unknown, north: unknown): [number, number, number] | null {
-  if (!num(azimuth, 0, 359.999999999) || !num(north, 0, 359.999999999) || !num(elevation, -90, 90) || !(elevation > 0)) return null;
+  if (!num(azimuth, 0, 360) || azimuth === 360 || !num(north, 0, 360) || north === 360 || !num(elevation, -90, 90) || !(elevation > 0)) return null;
   const bearing = (azimuth + north) * RAD, el = elevation * RAD, flat = Math.cos(el);
   return [Math.sin(bearing) * flat, -Math.cos(bearing) * flat, Math.sin(el)];
 }

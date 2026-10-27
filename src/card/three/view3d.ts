@@ -4,7 +4,7 @@
 // are the card's `--fp-*` theme tokens, read from the card itself once per theme change. No network. S13: a room's or tread's top face wears its floor texture (tex.ts), and a lit lamp lights the walls of its room (glow.ts).
 // S12.5: `setLive` brings the live state in (core/live.ts, plain JSON): lit rooms and lamp pools, doors, bodies, balls, the
 // motion edge, and the HTML overlay. Every part changes in place; the scene is built again only for a new floor or theme.
-import { CylinderGeometry, DirectionalLight, type Material, BufferAttribute, BufferGeometry, Color, HemisphereLight, InstancedMesh, LineDashedMaterial, LineLoop, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, PerspectiveCamera, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer, DoubleSide, LessEqualDepth, MultiplyBlending, PlaneGeometry } from "three";
+import { CylinderGeometry, DirectionalLight, type Material, BufferAttribute, BufferGeometry, Color, HemisphereLight, InstancedMesh, LineDashedMaterial, LineLoop, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, PerspectiveCamera, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer, DoubleSide, LessEqualDepth, MultiplyBlending, PlaneGeometry, SRGBColorSpace } from "three";
 // Types only: this module imports nothing from the card at run time, so the bundler keeps it a chunk of its own (see palette.ts).
 import { CUT_WALL_HEIGHT, ICON_MARGIN, makeBuildScene, type Scene as Plan3D, type Solid, type SceneDeps } from "../../core/scene-build";
 import { makeLiveOf, type Live3D, type LiveDeps } from "../../core/live-build";
@@ -24,6 +24,7 @@ import { crownMesh } from "./crowns";
 import { contactShadows, groundBox } from "./shade";
 import { debugOnce } from "../../core/debug-once";
 import { pulseAt } from "./ring";
+import { sunDir, sunLook } from "./sun";
 
 export interface View3DOptions {
   /** The core helpers the scene and the live state are built from, passed in by the card, which already carries them for the 2D plan, so the chunk holds no second copy (core/three-deps.ts). */
@@ -160,7 +161,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   const hemi = new HemisphereLight(0xffffff, 0x8a8a8a, DAY.hemi);
   scene.add(hemi);
   const sun = new DirectionalLight(0xffffff, DAY.sun);
-  sun.position.set(-0.5, 1, 0.8); // from the south-west, above: the south and west faces catch it, the others stay in half tone
+  const FIXED_SUN: [number, number, number] = [-0.5, 1, 0.8]; // from the south-west, above: the south and west faces catch it, the others stay in half tone
+  sun.position.set(...FIXED_SUN);
+  /** Test build only (`__fp3d.sun`): a sun given to the view directly, standing in for `setLive`'s `sun` until the card hands it. `undefined` is "use the live state's". */
+  let forcedSun: unknown;
   scene.add(sun);
 
   let framed = false;
@@ -787,11 +791,24 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     const n = resolveColour(probe, css ?? roleStyle("lamp").css);
     return n === null ? [1, 0.85, 0.6] : [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
   };
+  /**
+   * S38.3: by day with a sun above the horizon the light comes from the sun's direction on the plan (plan x, y, z go to three's x, z, y),
+   * weaker and warmer when low; at night, with no sun or with junk it is today's fixed light, to the bit.
+   */
+  function applySun(L: Live3D, mode: typeof DAY) {
+    const s = (__FP3D_TEST__ && forcedSun !== undefined ? forcedSun : L.sun) as { azimuth?: unknown; elevation?: unknown; north?: unknown } | null | undefined;
+    const dir = L.night || typeof s !== "object" || s === null ? null : sunDir(s.azimuth, s.elevation, s.north ?? 0);
+    if (!dir) { sun.position.set(...FIXED_SUN); sun.color.setRGB(1, 1, 1, SRGBColorSpace); sun.intensity = mode.sun; return; }
+    const look = sunLook(s!.elevation as number);
+    sun.position.set(dir[0], dir[2], dir[1]);
+    sun.color.setRGB(...look.rgb, SRGBColorSpace); // sRGB: `setRGB` takes the linear working space unless told, and #ffd9a0 would read back as #ffeed0
+    sun.intensity = mode.sun * look.k;
+  }
   /** Everything the live state changes, brought in line with `liveNow`. Touches only what differs; never builds the scene. */
   function applyLive() {
     const L = liveNow ?? EMPTY, mode = L.night ? NIGHT : DAY;
     hemi.intensity = mode.hemi;
-    sun.intensity = mode.sun;
+    applySun(L, mode);
     const lit = L.lights.map((l) => ({ room: l.room, at: l.at, rgb: rgbOf(l.rgb), level: l.level, device: l.device, scale: l.scale ?? 1 }));
     lifts = roomLifts(lit, mode.boost);
     const key = JSON.stringify([...lifts]);
@@ -1107,6 +1124,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         return project(cx, cy, sol.shape.z1);
       },
       pick: (cx: number, cy: number) => api.pick(cx, cy),
+      /** S38.3: gives the view a sun as `setLive` will (`{ azimuth, elevation, north? }`, anything else is junk and means no sun); `null` hands it back to the live state. Draws a frame. */
+      sun(s: unknown) { forcedSun = s === null ? undefined : s ?? {}; applyLive(); want(); },
+      /** S38.3: the directional light as three has it (position is its direction in three's frame), the colour as sRGB hex, and the hemisphere light's strength. */
+      light: () => ({ x: sun.position.x, y: sun.position.y, z: sun.position.z, intensity: sun.intensity, colour: hexOf(sun.color), hemi: hemi.intensity }),
       /** S32.1: the camera as the card would store it ({ az, polar, zoom, dx, dz }; zoom is a multiple of the fit). */
       camera: () => api.camera(),
       setBelow: (floors: unknown, mode: string) => api.setBelow(floors, mode),

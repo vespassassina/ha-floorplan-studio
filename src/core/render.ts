@@ -73,6 +73,8 @@ export interface RenderOpts {
   trace?: boolean;
   /** S7.6: after sunset. Every room gets a `room-night` overlay, `lit` when a light inside it is on; the root carries class `night`. */
   night?: boolean;
+  /** S38.3: the sun's `azimuth` and `elevation` (degrees, from the `sun` entity) and the layout's `north`, for the 3D view only; the 2D plan never reads it. Omitted or junk: today's fixed light. */
+  sun?: { azimuth: number; elevation: number; north?: number } | null;
   /** "2d" (default, also when omitted) is the flat plan, byte for byte as ever; "2.5d" adds depth (see OBLIQUE). */
   view?: PlanView;
   /** `false` draws no text at all: room, zone, extra and device names, sensor values and the leader lines. Icons, tap targets and state stay. Default `true`; absent output is byte for byte as before. */
