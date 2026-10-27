@@ -41,6 +41,24 @@ describe("layoutFromAreas (S37.2)", () => {
     expect(f.outline).toEqual([[0, 0], [400, 0], [400, 400], [0, 400]]);
   });
 
+  it("S38.9: areas with the same name get distinct room names and catalog rooms, a real 'Office 2' keeps its name, a blank name falls back to the id, a payload stays plain text", () => {
+    const areas = [
+      { id: "o1", name: "Office" }, { id: "o2", name: "Office" }, { id: "o3", name: "office" }, { id: "o4", name: "Office" },
+      { id: "real", name: "Office 2" }, { id: "blank", name: "" }, { id: "x", name: '"><script>' },
+    ];
+    const l = layoutFromAreas(ha(areas, areas.map((a, i) => ent(`light.l${i}`, a.id))))!;
+    const f = valid(l).floors.ground;
+    const names = f.rooms.map((r) => r.name);
+    expect(new Set(names.map((n) => n.toLowerCase())).size).toBe(7); // room names are matched case-insensitively elsewhere (render.ts)
+    expect(f.rooms.find((r) => r.area === "real")!.name).toBe("Office 2"); // the real one is never renamed
+    expect(f.rooms.find((r) => r.area === "blank")!.name).toBe("blank");
+    expect(f.rooms.find((r) => r.area === "x")!.name).toBe('"><script>'); // escaping happens at render
+    expect(f.rooms.filter((r) => /^office \d$/i.test(r.name) && r.area !== "real").map((r) => r.name).sort()).toEqual(["Office 3", "Office 4", "Office 5"]);
+    const rooms = l.catalog.map((c) => c.room);
+    expect(new Set(rooms).size).toBe(7); // one device per room: catalog.room tells the rooms apart
+    for (const r of f.rooms) expect(l.catalog.find((c) => c.room === r.name)?.entity, r.name).toBeTruthy();
+  });
+
   it("13 areas: the grid wraps, no two rooms overlap, valid", () => {
     const areas = Array.from({ length: 13 }, (_, i) => ({ id: `a${i}`, name: `Area ${String(i).padStart(2, "0")}` }));
     const l = layoutFromAreas(ha(areas, areas.map((a, i) => ent(`light.l${i}`, a.id))))!;
