@@ -126,13 +126,36 @@ test.describe("3D sun patches (S38.4)", () => {
     expect((await patches(page)).builds, "1.1 degrees in elevation: one build").toBe(before + 2);
   });
 
-  test("a light theme caps the patch as it caps a wall glow", async ({ page }) => {
+  test("light theme: the patch lifts the pale floor without clipping to white, and is not flat", async ({ page }) => {
+    // Same window and sun as the first test; the patch centre (180, 450) and two points along it, (180, 420) and (180, 475).
+    const pts: [number, number][] = [[180, 450], [180, 420], [180, 475]];
+    const read = async () => {
+      const out: number[][] = [];
+      for (const [x, y] of pts) {
+        const p = await hook(page, (h, a) => h.project(a[0], a[1], 1.6), [x, y]) as { x: number; y: number };
+        const { data } = await readCanvasRect(page, { x: Math.round(p.x - 1), y: Math.round(p.y - 1), width: 2, height: 2 });
+        out.push(meanRgb(data).map(Math.round));
+      }
+      return out;
+    };
+    await boot(page, [SOUTH], { theme: "light" }); await sunned(page, SUN);
+    const lit = await read();
+    await boot(page, [SOUTH], { theme: "light", asDoors: true }); await sunned(page, SUN);
+    const plain = await read();
+    const tag = `lit ${JSON.stringify(lit)} plain ${JSON.stringify(plain)}`;
+    for (const c of lit[0]) { expect(c, tag).toBeLessThan(255); expect(c, tag).toBeLessThanOrEqual(250); }
+    const L = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    expect(L(lit[0]), tag).toBeGreaterThan(L(plain[0]) * 1.06);
+    expect(Math.abs(L(lit[1]) - L(lit[2])), `not flat: ${tag}`).toBeGreaterThanOrEqual(3);
+  });
+
+  test("a light theme caps the patch's opacity, a dark one is uncapped", async ({ page }) => {
     await boot(page, [SOUTH], { theme: "light" }); await sunned(page, { azimuth: 180, elevation: 70, north: 0 });
     const light = (await patches(page)).shown[0];
     await boot(page, [SOUTH], { theme: "blueprint" }); await sunned(page, { azimuth: 180, elevation: 70, north: 0 });
     const dark = (await patches(page)).shown[0];
     expect(dark.strength, "sin 70 times the gain, uncapped").toBeGreaterThan(0.4);
-    expect(light.strength).toBeCloseTo(0.35, 6);
+    expect(light.strength, "sin 70 times 1.4 is past the cap, which is an alpha").toBeCloseTo(0.8, 6);
   });
 
   test("a low sun throws a warm patch", async ({ page }) => {
