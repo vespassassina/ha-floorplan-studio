@@ -15,7 +15,7 @@ import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind
 import { defineElement } from "./define";
 import { strategyElement } from "./strategy";
 import { CARD_VERSION } from "./version";
-import { INSTALL_HINT, NOTHING_SAVED, STALE_PAGE, loadErrorText, loadShared, pageIsStale, type Conn } from "./load";
+import { INSTALL_HINT, NOTHING_SAVED, PLAN_UNUSABLE, STALE_PAGE, NO_ANSWER, loadErrorText, loadShared, pageIsStale, type Conn, type StoredError } from "./load";
 import { mark, t, tn } from "../core/i18n";
 import { useLanguage } from "./i18n";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
@@ -31,7 +31,7 @@ import type { View3D } from "./three/view3d";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
 import { BELOW_LABELS, BELOW_MODES, HEAT_LABELS, belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
 
-const NO_LAYOUT = INSTALL_HINT;
+const NO_LAYOUT: StoredError = { key: INSTALL_HINT };
 
 declare const __FP_FORM_FILE__: string | undefined;
 /** S38.0: the built form's file beside the card, `./floorplan-studio-form-<hash>.js`, compiled in by vite.config.ts. Empty in the dev server and in
@@ -574,7 +574,7 @@ export class FloorplanStudioCard extends LitElement {
   _config: FloorplanStudioCardConfig = {};
   private _hass?: Hass;
   _layout: Layout | null = null;
-  private _error: string | null = null;
+  private _error: StoredError | null = null;
   private _urlRequested = false;
   private _wsRequested = false;
   /** Failed websocket loads since the last success or reconnect: one retry on the next `hass`, then wait for the connection's `ready`. */
@@ -1455,9 +1455,9 @@ export class FloorplanStudioCard extends LitElement {
       this._error = null;
     } catch (e) {
       const why = e instanceof Error ? e.message : "";
-      this._error = why ? t("The plan could not be used: {why}", { why }) : NO_LAYOUT;
+      this._error = why ? { key: PLAN_UNUSABLE, vars: { why } } : NO_LAYOUT;
       // A plan this build rejects may be one a newer Studio wrote: a cached card after an update. Say so.
-      if (why && this._hass?.connection) void pageIsStale(this._hass.connection).then((stale) => { if (stale && !this._layout) { this._error = STALE_PAGE; this.requestUpdate(); } });
+      if (why && this._hass?.connection) void pageIsStale(this._hass.connection).then((stale) => { if (stale && !this._layout) { this._error = { key: STALE_PAGE }; this.requestUpdate(); } });
     }
     this._syncTimer();
     this.requestUpdate();
@@ -1496,7 +1496,7 @@ export class FloorplanStudioCard extends LitElement {
     loadShared(conn).then((r) => {
       this._wsFails = 0;
       if (r?.layout == null) {
-        if (!reload) { this._error = NOTHING_SAVED; this.requestUpdate(); }
+        if (!reload) { this._error = { key: NOTHING_SAVED }; this.requestUpdate(); }
         return;
       }
       this._applyLayout(structuredClone(r.layout));
@@ -3574,9 +3574,15 @@ export class FloorplanStudioCard extends LitElement {
     return s === "below_horizon" || s === "on";
   }
 
+  /** S38.6: the stored error in the language of now. */
+  private _errorText(): string {
+    const vars = this._error?.vars && Object.fromEntries(Object.entries(this._error.vars).map(([k, v]) => [k, v ?? t(NO_ANSWER)]));
+    return t(this._error?.key ?? NO_LAYOUT.key, vars);
+  }
+
   protected render() {
     const f = this._floor();
-    if (!f) return html`<p class="msg">${t(this._error ?? NO_LAYOUT)}${this._error === NOTHING_SAVED && this._hass?.user?.is_admin !== false ? html` <a class="fp-studio-link" href="/floorplan-studio" @click=${this._openStudio}>${t("Open Floorplan Studio")}</a>` : nothing}</p>`;
+    if (!f) return html`<p class="msg">${this._errorText()}${this._error?.key === NOTHING_SAVED && this._hass?.user?.is_admin !== false ? html` <a class="fp-studio-link" href="/floorplan-studio" @click=${this._openStudio}>${t("Open Floorplan Studio")}</a>` : nothing}</p>`;
     this._syncFloorMemory();
     const rotate = this._rotate();
     const view = this._planView();

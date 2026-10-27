@@ -4685,7 +4685,7 @@ S38.2 at integration); **perf** S38.5; **areas** S38.9.
       all on 36.4 / 35.1, all off 25.8 / 24.0. Stress ground (182 devices): one 17.1 / 18.3, all on 21.1 / 21.1, all off
       19.3 / 19.0. Time is a ceiling at about 5x (400: 100 / 200 / 130; stress: 90 / 110 / 100). S25.6 is pinned by the
       root untouched, the same device node, and a write ceiling (2461 nodes -> 2710; stress 421 -> 465). See DECISIONS.
-- [ ] S38.6 Nit: a stored error is translated when it is drawn. The card stores the key and its values
+- [x] S38.6 (2026-10-27) Nit: a stored error is translated when it is drawn. The card stores the key and its values
       (`{ key, vars }`), not the text. Test: an error set in English, then `hass.language` to `de`, shows German without
       a new error.
 - [ ] S38.7 Nit: hysteresis on the icons-or-dots bound. Icons from a plan 420 px wide, dots under 380, the last level

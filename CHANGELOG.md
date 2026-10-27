@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card: an error line ("The plan could not be used", "Could not load the plan") follows a change of Home Assistant language without a reload.
 - Card: the Edit-card form loads only when you open Edit card, as a file of its own beside the card (`floorplan-studio-form-<hash>.js`). The card file is 5.3 KB smaller gzipped. Nothing changes in how the form works. Update the integration as well as the card: the card needs the new file in `www/`.
 
 ## 0.36.0 - 2026-10-25
