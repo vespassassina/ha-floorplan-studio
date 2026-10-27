@@ -3563,15 +3563,27 @@ export class FloorplanStudioCard extends LitElement {
     this._closeOffDialog();
   }
 
+  private _sunId(): string {
+    return typeof this._config.sun === "string" && this._config.sun ? this._config.sun : "sun.sun";
+  }
+
   /** S7.6: whether the plan is drawn at night. `on`/`off` force it; anything else is `auto`: the sun entity (config
    * `sun`, default `sun.sun`) is `below_horizon`, or `on` for a binary sensor. Missing or `unavailable` is day. */
   _night(): boolean {
     const mode = this._config.night;
     if (mode === "on") return true;
     if (mode === "off") return false;
-    const id = typeof this._config.sun === "string" && this._config.sun ? this._config.sun : "sun.sun";
-    const s = this._hass?.states?.[id]?.state;
+    const s = this._hass?.states?.[this._sunId()]?.state;
     return s === "below_horizon" || s === "on";
+  }
+
+  /** S38.2: the sun entity's own `azimuth` and `elevation` (Home Assistant sends floats), with the plan's `north`, for the 3D view,
+   * which works out the direction and ignores a sun below the horizon or at night. Anything else is no sun. */
+  _sun(): { azimuth: number; elevation: number; north: number } | null {
+    const a = this._hass?.states?.[this._sunId()]?.attributes;
+    const azimuth = a?.azimuth, elevation = a?.elevation;
+    return typeof azimuth === "number" && Number.isFinite(azimuth) && typeof elevation === "number" && Number.isFinite(elevation)
+      ? { azimuth, elevation, north: this._layout?.north ?? 0 } : null;
   }
 
   /** S38.6: the stored error in the language of now. */
