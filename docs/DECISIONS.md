@@ -2,6 +2,22 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-28: S38.4, sun patches
+
+- **Outdoor kinds are not rooms.** Garden, terrace, pavement, water, zone and fill take no patch and do not count as
+  "inside" when an edge is tested for the outside; a window onto the garden is an outer window.
+- **Core knows the openings.** `scene-build.ts` gives `Scene.apertures` and a `WallSeg.outline` flag, so the chunk finds
+  outer openings without reading the layout. Pure geometry, unit tested in core.
+- **First exit clips.** A patch is clipped along each ray at the first point it leaves the room, so an L-shaped room's
+  patch stops at the inner corner rather than crossing the notch.
+- **Lowered walls keep their patches.** The patch is the sun through the opening as built; lowering walls for the view
+  does not move the sun.
+- **Strength.** Dark themes add light: gain 0.45 x `strength`, thinning to 40 % at the far edge, feathered over 25 %
+  across and 20 % along. Light themes mix instead: normal blending toward a warm tint (about 245/240/228 on screen) at
+  alpha `min(1.4 x strength x feather, 0.8)`, so a pale floor never clips to white. Supersedes spec item 7's "a light
+  theme caps it as `LIGHT_GLOW_CAP` caps a wall glow": the additive cap of 0.35 on a floor at about 0.85 clipped the
+  kitchen in the demo to flat white. The light-theme patch is subtle by design (centre about 7 % over the floor).
+
 ## 2026-10-27: S38.0, the card form is a file of its own
 
 - **A bundle, not a Rollup chunk.** A dynamic import of `config-editor.ts` made Rollup hoist the card's shared code

@@ -47,7 +47,12 @@ export interface SolidRef { poly?: string; index?: number; room?: number; id?: s
 /** `textureRot` and `textureScale` are the layout's own values, untrusted: the reader normalises them (core/textures.ts). */
 export interface Paint { role: string; color?: string; texture?: string; textureRot?: number; textureScale?: number }
 export interface Solid { id: string; kind: SolidKind; tag: string; shape: Shape; ref: SolidRef; paint: Paint }
-export interface Scene { solids: Solid[]; bounds: { min: [number, number, number]; max: [number, number, number] } }
+/**
+ * S38.4: an opening as the sun sees it, once per opening: its two ends on the wall's line, its sill and head above the floor (not lifted), the wall's thickness,
+ * the wall's outward normals (`faces`) and whether the wall has the outside on one side (an outline edge or an `external` wall). A doorway (`open`) leaves no solid, so this is where it is found.
+ */
+export interface Aperture { kind: string; a: [number, number]; b: [number, number]; sill: number; head: number; thick: number; faces: [number, number][]; outer: boolean }
+export interface Scene { solids: Solid[]; bounds: { min: [number, number, number]; max: [number, number, number] }; apertures: Aperture[] }
 export interface SceneOpts {
   /** cm: lifts everything. The floor's own `floorElevation`. Default 0. */
   elevation?: number;
@@ -98,7 +103,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     return [[p[0] + nx, p[1] + ny], [q[0] + nx, q[1] + ny], [q[0] - nx, q[1] - ny], [p[0] - nx, p[1] - ny]];
   }
 
-  interface WallSeg { a: Pt; b: Pt; h: number; kind: string; poly: string; index: number; external: boolean; faces: Pt[] }
+  interface WallSeg { a: Pt; b: Pt; h: number; kind: string; poly: string; index: number; external: boolean; faces: Pt[]; outline: boolean }
 
   /** Every edge and free wall that has a height and a length, once each. The rule of `collectWalls` in solids.ts, without the cutaway. */
   function collectWalls(f: Floor): WallSeg[] {
@@ -119,7 +124,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
         if (!(h > 0) || !(Math.hypot(b[0] - a[0], b[1] - a[1]) > 0)) return;
         const kind = oneOf(WALL_KINDS, k) ? k : P.room ? "wall" : "external";
         const len = Math.hypot(b[0] - a[0], b[1] - a[1]), faces: Pt[] = sign === 0 ? [] : [[nz((sign * (b[1] - a[1])) / len), nz((sign * -(b[0] - a[0])) / len)]];
-        out.push({ a, b, h, kind, poly: P.id, index: i, external: kind === "external", faces });
+        out.push({ a, b, h, kind, poly: P.id, index: i, external: kind === "external", faces, outline: P.id === "o" });
       });
     }
     list(f.walls).forEach((w, i) => {
@@ -127,7 +132,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       const h = wallHeight(f, w as never);
       if (!(h > 0) || !(Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]) > 0)) return;
       const len = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), n: Pt = [nz((w.b[1] - w.a[1]) / len), nz(-(w.b[0] - w.a[0]) / len)];
-      out.push({ a: w.a, b: w.b, h, kind: oneOf(WALL_KINDS, w.kind) ? w.kind : "wall", poly: "w", index: i, external: w.kind === "external", faces: [n, [nz(-n[0]), nz(-n[1])]] });
+      out.push({ a: w.a, b: w.b, h, kind: oneOf(WALL_KINDS, w.kind) ? w.kind : "wall", poly: "w", index: i, external: w.kind === "external", faces: [n, [nz(-n[0]), nz(-n[1])]], outline: false });
     });
     // The same edge twice (a room's wall on the outline, two rooms side by side) is one wall: the taller wins, and the external kind.
     const seen = new Map<string, WallSeg>();
@@ -135,6 +140,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       const k = [w.a, w.b].map((p) => `${Math.round(p[0])},${Math.round(p[1])}`).sort().join("|"), o = seen.get(k);
       if (!o) { seen.set(k, { ...w, faces: [...w.faces] }); continue; }
       o.faces.push(...w.faces);
+      o.outline ||= w.outline;
       if (w.h > o.h) { o.h = w.h; o.kind = w.kind; o.poly = w.poly; o.index = w.index; }
       if (w.kind === "external") o.kind = "external";
     }
@@ -281,7 +287,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     }));
 
     // Walls, each cut by the openings that lie in it: a block under the sill, a header over the head, nothing between.
-    const spans = spansOf(f), placed = new Set<number>();
+    const spans = spansOf(f), placed = new Set<number>(), apertures: Aperture[] = [];
     piece(() => { const all = collectWalls(f);
       // Wall ends on a grid one tolerance wide: a corner is found by looking at nine cells, not at every wall (near linear, S12 review).
       const ends = new Map<string, number[]>(), cell = (q: Pt) => `${Math.floor(q[0] / JOINT_TOLERANCE)},${Math.floor(q[1] / JOINT_TOLERANCE)}`;
@@ -330,6 +336,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
         // The opening's own infill, once per opening even when two coincident walls both carry it.
         if (!placed.has(s.index + (s.kind === "opening" ? 1e6 : 0))) {
           placed.add(s.index + (s.kind === "opening" ? 1e6 : 0));
+          if (s.kind !== "opening") { const at = (t: number): Pt => put([w.a[0] + ((w.b[0] - w.a[0]) * t) / len, w.a[1] + ((w.b[1] - w.a[1]) * t) / len]); apertures.push({ kind: s.kind, a: at(t0), b: at(t1), sill, head, thick, faces: w.faces.map(aim), outer: w.outline || w.kind === "external" }); }
           const fill = has(OPENING_FILL, s.kind) ? OPENING_FILL[s.kind] : "gap", oref: SolidRef = { index: s.index, id: s.id, entity: s.entities[0], entities: s.entities, wall: `${w.poly}:${w.index}` };
           const part = (tag: string, role: string, t: number) => add("opening", `opening:${s.index}:${tag}`, tag, { type: "prism", base: slab(w.a, w.b, t0, t1, t), z0: sill, z1: head }, oref, { role });
           if (fill === "glass") part("glass", `glass-${s.kind}`, PANE_THICKNESS);
@@ -434,7 +441,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       else if (s.shape.type === "loft") for (const p of [...s.shape.base, ...s.shape.top]) { grow(p[0], p[1], s.shape.z0); grow(p[0], p[1], s.shape.z1); }
       else grow(s.shape.at[0], s.shape.at[1], s.shape.z);
     }
-    return solids.length ? { solids, bounds: { min: lo, max: hi } } : { solids, bounds: { min: [0, 0, 0], max: [0, 0, 0] } };
+    return solids.length ? { solids, bounds: { min: lo, max: hi }, apertures } : { solids, bounds: { min: [0, 0, 0], max: [0, 0, 0] }, apertures };
   }
   return buildScene;
 }

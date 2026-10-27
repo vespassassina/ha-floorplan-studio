@@ -4671,7 +4671,7 @@ S38.2 at integration); **perf** S38.5; **areas** S38.9.
       `sun.sun`) go into `setLive`, or nothing. Day only, as `_night()` decides. Spec criterion 2.
 - [x] S38.3 (2026-10-27) The 3D sun light follows `sunDir`: direction, strength by elevation, warmth under 15°; no sun is today's
       light, pixel for pixel. Spec criteria 3 to 7.
-- [ ] S38.4 Sun patches through windows that face the sun, clipped to the room, at most 24, built only when the floor,
+- [x] S38.4 (2026-10-27) Sun patches through windows that face the sun, clipped to the room, at most 24, built only when the floor,
       the theme or the sun moves. Spec criteria 8 to 13. Shots looked at in three themes, the patches at 4x.
 - [x] S38.5 Performance budget (review item 18). In `tests/card/plan-incremental.spec.ts`, the 400-device case and the
       stress house (`tests/fixtures/stress-layout.json`, 3 floors, 437 devices) on its largest floor: one sensor update,
