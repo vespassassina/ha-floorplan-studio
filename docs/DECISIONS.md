@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-27: S38.1 and S38.3, the 3D sun light
+
+- **`north` travels with the sun.** The 3D view cannot read the layout, so the live sun is `{ azimuth, elevation, north? }`
+  (default 0). The card passes `layout.north` beside the two raw attributes (S38.2). Supersedes "the card passes the two
+  raw numbers" in `docs/specs/sun-s38.md` criterion 9 by one field.
+- **A low sun lights a wall more than a roof.** At 10° elevation a flat top reads darker than the sunlit face (blueprint
+  85 against 96); at 50° the top is lighter (109 against 94). The SPEC rule asks that tops, sun faces and shade faces
+  step apart by 6 %; they do, at about 13 %, so the order may flip and the test asserts the step, not the order, below
+  30°. Real light does the same; no change to the hemisphere light for it.
+
 ## 2026-10-27: S38.9, duplicate area names
 
 `layoutFromAreas` keeps the first room's name and numbers the next ones with the same name ("Office 2", "Office 3"), so `catalog.room`, which is the room's name, tells rooms apart. Case-insensitive, as `render.ts` matches room names; a real area named "Office 2" keeps its name and a generated one takes the next free number.
