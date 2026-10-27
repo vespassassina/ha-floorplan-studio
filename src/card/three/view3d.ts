@@ -25,6 +25,8 @@ import { contactShadows, groundBox } from "./shade";
 import { debugOnce } from "../../core/debug-once";
 import { pulseAt } from "./ring";
 import { sunDir, sunLook } from "./sun";
+import { createSunPatches } from "./patches";
+import { MAX_SUN_PATCHES, sunPatches } from "./sunpatch";
 
 export interface View3DOptions {
   /** The core helpers the scene and the live state are built from, passed in by the card, which already carries them for the 2D plan, so the chunk holds no second copy (core/three-deps.ts). */
@@ -180,13 +182,15 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   // ---- the live state (S12.5). `liveNow` is what core/live.ts last said; every part below is changed in place from it.
   let liveNow: Live3D | null = null, liveSig = "", builds = 0, pulsing = false, pulseStart = 0, liftKey = "";
   let lifts = new Map<number, Rgb>(), roomShapes: RoomShape[] = [];
-  const roomSolid = new Map<number, { base: Poly; z: number }>();
+  const roomSolid = new Map<number, { base: Poly; z: number; kind: string }>();
   let parts: { index: number; tag: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; shut?: boolean }[] = [];
   /** A linked tv, speaker or computer piece: a mesh of its own (so its colour can follow the state), at rest in the linked colour, on in the plan's on colour. */
   let pieceBodies: PieceBody[] = [];
   let devBodies: { index: number; type: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; lit: Mesh[]; on: boolean }[] = [];
   let ballIdx: number[] = [], ballRest: Color[] = [], anchors: Anchors = { devices: new Map(), rooms: new Map() };
-  const overlay = createOverlay(container), pools = createPools(scene), rings = createRings(scene), glow = createGlow(scene);
+  const overlay = createOverlay(container), pools = createPools(scene), rings = createRings(scene), glow = createGlow(scene), suns = createSunPatches(scene);
+  /** S38.4: the sun the patches were last built for, and what else they depend on; `sunBuilds` counts the builds (a test hook). */
+  let patchSun = "", sunBuilds = 0, patchAz = 0, patchEl = 0;
   // ---- floor textures (S13): the meshes that wear one, and the rasters (made once, kept for the view). A mesh shows the texture's flat colour until its raster is ready.
   let texMeshes: { mesh: Mesh; mat: MeshLambertMaterial; tile: TextureTile }[] = [];
   const rasters = createRasters(() => { if (disposed) return; applyTextures(); want(); }, (e) => debugOnce("3D view: a floor texture could not be drawn; its flat colour stays", e));
@@ -795,20 +799,35 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
    * S38.3: by day with a sun above the horizon the light comes from the sun's direction on the plan (plan x, y, z go to three's x, z, y),
    * weaker and warmer when low; at night, with no sun or with junk it is today's fixed light, to the bit.
    */
-  function applySun(L: Live3D, mode: typeof DAY) {
+  function applySun(L: Live3D, mode: typeof DAY): { dir: [number, number, number]; az: number; el: number; north: number; rgb: Rgb } | null {
     const s = (__FP3D_TEST__ && forcedSun !== undefined ? forcedSun : L.sun) as { azimuth?: unknown; elevation?: unknown; north?: unknown } | null | undefined;
     const dir = L.night || typeof s !== "object" || s === null ? null : sunDir(s.azimuth, s.elevation, s.north ?? 0);
-    if (!dir) { sun.position.set(...FIXED_SUN); sun.color.setRGB(1, 1, 1, SRGBColorSpace); sun.intensity = mode.sun; return; }
+    if (!dir) { sun.position.set(...FIXED_SUN); sun.color.setRGB(1, 1, 1, SRGBColorSpace); sun.intensity = mode.sun; return null; }
     const look = sunLook(s!.elevation as number);
     sun.position.set(dir[0], dir[2], dir[1]);
     sun.color.setRGB(...look.rgb, SRGBColorSpace); // sRGB: `setRGB` takes the linear working space unless told, and #ffd9a0 would read back as #ffeed0
     sun.intensity = mode.sun * look.k;
+    return { dir, az: s!.azimuth as number, el: s!.elevation as number, north: (s!.north ?? 0) as number, rgb: look.rgb };
+  }
+  /**
+   * S38.4: the sun's patches on the floor. Built when the floor or the theme was (`builds`), or the sun moved 1 degree or more in azimuth or
+   * elevation since the last build; a state update that leaves the sun alone builds none. At most MAX_SUN_PATCHES, the largest first; none
+   * with no sun. The current floor only: the floors below keep the fixed light and get no patches.
+   */
+  function applyPatches(s: ReturnType<typeof applySun>, light: boolean) {
+    if (!s || !plan) { if (patchSun) suns.set([]); patchSun = ""; container.dataset.sunPatches = "0/0"; return; }
+    const key = `${builds}|${light}|${s.north}`, gap = Math.abs(s.az - patchAz) % 360;
+    if (key === patchSun && Math.min(gap, 360 - gap) < 1 && Math.abs(s.el - patchEl) < 1) return;
+    patchSun = key; patchAz = s.az; patchEl = s.el; sunBuilds++;
+    const all = sunPatches(plan.apertures ?? [], roomShapes.map((r) => ({ ...r, kind: roomSolid.get(r.index)?.kind })), s.dir), shown = all.slice(0, MAX_SUN_PATCHES);
+    suns.set(shown.flatMap((patch) => { const r = roomSolid.get(patch.room); return r ? [{ patch, z: r.z, rgb: s.rgb, light }] : []; }));
+    container.dataset.sunPatches = `${suns.visible()}/${all.length}`;
   }
   /** Everything the live state changes, brought in line with `liveNow`. Touches only what differs; never builds the scene. */
   function applyLive() {
     const L = liveNow ?? EMPTY, mode = L.night ? NIGHT : DAY;
     hemi.intensity = mode.hemi;
-    applySun(L, mode);
+    const sunNow = applySun(L, mode);
     const lit = L.lights.map((l) => ({ room: l.room, at: l.at, rgb: rgbOf(l.rgb), level: l.level, device: l.device, scale: l.scale ?? 1 }));
     lifts = roomLifts(lit, mode.boost);
     const key = JSON.stringify([...lifts]);
@@ -822,6 +841,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     const light = getComputedStyle(probe).getPropertyValue("--fp-glow-blend").trim() === "multiply";
     glowSpecs = pickLights(here, centre, MAX_POOLS).map((l) => { const r = roomSolid.get(l.room)!; return { at: l.at, lampZ: deviceZ.get(l.device) ?? r.z + 200, base: r.base, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale, light }; });
     glow.set(glowSpecs, wallSides, sidesVersion, roomShapes);
+    applyPatches(sunNow, light);
     overlay.set(L, anchors);
     applyBalls();
     applyBodies();
@@ -923,7 +943,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     for (const s of plan.solids) {
       if (s.kind === "room" && s.tag !== "fill" && s.shape.type === "prism" && typeof s.ref.room === "number") {
         const base = s.shape.base, area = Math.abs(base.reduce((a, q, i) => { const n = base[(i + 1) % base.length]; return a + q[0] * n[1] - n[0] * q[1]; }, 0)) / 2;
-        roomSolid.set(s.ref.room, { base, z: s.shape.z1 });
+        roomSolid.set(s.ref.room, { base, z: s.shape.z1, kind: s.tag });
         roomShapes.push({ index: s.ref.room, base, top: s.shape.z1, area });
       }
     }
@@ -1071,13 +1091,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       freeKeepers();
       pools.dispose();
       glow.dispose();
+      suns.dispose();
       rasters.dispose();
       overlay.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       canvas.remove();
       probe.remove();
-      for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "frame", "ring", "pools"]) delete container.dataset[k];
+      for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "frame", "ring", "pools", "sunPatches"]) delete container.dataset[k];
       if (__FP3D_TEST__ && testHook) { const at = hooks.indexOf(testHook); if (at >= 0) hooks.splice(at, 1); publishHook(); }
       live--;
     },
@@ -1126,6 +1147,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       pick: (cx: number, cy: number) => api.pick(cx, cy),
       /** S38.3: gives the view a sun as `setLive` will (`{ azimuth, elevation, north? }`, anything else is junk and means no sun); `null` hands it back to the live state. Draws a frame. */
       sun(s: unknown) { forcedSun = s === null ? undefined : s ?? {}; applyLive(); want(); },
+      /** S38.4: the sun's patches: how many times they were built, and the ones shown (room, outline in the plan, colour, peak strength). */
+      patches: () => ({ builds: sunBuilds, shown: suns.info() }),
       /** S38.3: the directional light as three has it (position is its direction in three's frame), the colour as sRGB hex, and the hemisphere light's strength. */
       light: () => ({ x: sun.position.x, y: sun.position.y, z: sun.position.z, intensity: sun.intensity, colour: hexOf(sun.color), hemi: hemi.intensity }),
       /** S32.1: the camera as the card would store it ({ az, polar, zoom, dx, dz }; zoom is a multiple of the fit). */
