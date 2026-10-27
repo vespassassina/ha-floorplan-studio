@@ -88,7 +88,7 @@ export function sync3d(h: FloorplanStudioCard, d: Deps3D): void {
   syncBelow(h, d, view, g);
   // The live state, decided by the plan's own rules (core/live.ts); the view changes its parts in place, and does nothing when it is the same as the last.
   const now = Date.now();
-  view.setLive(f, { scale: 1, state: h._stateForRender(), formatState: h._format, now, fade: h._config.fade, plugWatts: d.plugThreshold(h._config.plug_watts), plugHeat: h._plugHeat(), powerLinks: h._powerLinks(), roomGlow: h._config.room_glow, night: h._night(), labels: h._labels(), showNames: h._names(), camThumb: h._camOpts(), around }, now);
+  view.setLive(f, { scale: 1, state: h._stateForRender(), formatState: h._format, now, fade: h._config.fade, plugWatts: d.plugThreshold(h._config.plug_watts), plugHeat: h._plugHeat(), powerLinks: h._powerLinks(), roomGlow: h._config.room_glow, night: h._night(), sun: h._sun(), labels: h._labels(), showNames: h._names(), camThumb: h._camOpts(), around }, now);
   view.setRing(h._picked());
   apply3dFrame(h);
 }
