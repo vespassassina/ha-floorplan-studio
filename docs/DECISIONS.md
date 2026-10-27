@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-27: S38.9, duplicate area names
+
+`layoutFromAreas` keeps the first room's name and numbers the next ones with the same name ("Office 2", "Office 3"), so `catalog.room`, which is the room's name, tells rooms apart. Case-insensitive, as `render.ts` matches room names; a real area named "Office 2" keeps its name and a generated one takes the next free number.
+
 ## 2026-10-27: Sprint 38 plan, the sun, a performance budget, the S37 nits
 
 Diego's answers, 2026-10-27. Spec `docs/specs/sun-s38.md`; plan `docs/PLAN.md`, Sprint 38.

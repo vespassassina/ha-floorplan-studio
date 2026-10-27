@@ -4690,7 +4690,7 @@ S38.2 at integration); **perf** S38.5; **areas** S38.9.
       optional `tr` function; the card passes `t`, the Studio passes nothing and stays English. The raw-English lint
       covers `render.ts`. Test: a German card's device `<title>` reads the German type name; a payload `"><script>` in a
       name is still escaped (finding 2).
-- [ ] S38.9 Nit: two HA areas with the same name. `layoutFromAreas` names the second room "Office 2", the third
+- [x] S38.9 (2026-10-27) Nit: two HA areas with the same name. `layoutFromAreas` names the second room "Office 2", the third
       "Office 3", so `catalog.room` values differ. Unit test with three areas named "Office" and one blank.
 - [ ] S38.10 Integrate on `task/s38-sun`, full suite, shots, Opus review, release 0.37.0 after Diego's yes.
 
