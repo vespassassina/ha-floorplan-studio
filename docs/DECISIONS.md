@@ -2,6 +2,26 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-27: Sprint 38 plan, the sun, a performance budget, the S37 nits
+
+Diego's answers, 2026-10-27. Spec `docs/specs/sun-s38.md`; plan `docs/PLAN.md`, Sprint 38.
+
+- **The sun is direction, warmth and patches, in 3D only.** The light comes from the `sun` entity's azimuth plus the
+  layout's `north`, at its elevation, warmer under 15°, and shines through windows that face it as soft patches on the
+  floor. The 2D wedge (S15.3d) stays later. Supersedes the S15.3 plan of 2026-10-06 for this sprint: `sunDir` lives in
+  the 3D chunk, not in core, because the card is 155 gzip bytes under its cap.
+- **No new config key.** The sun follows the `sun` entity `night: auto` already reads. With no usable azimuth and
+  elevation, or at night, the light is today's fixed daylight. Fits review item 17 (freeze the surface).
+- **The Studio has no live 3D view, so the sun is card-only.** A stated exception to the parity rule.
+- **Room before features.** The card form moves to a lazy chunk (S38.0) before any card-side task. Chosen over raising
+  the cap: HA loads the form only when someone edits the card, so no viewer should pay for it.
+- **The performance budget is on the 2D state update**, the stress house and the 400-device case, median of 5, each
+  budget set between the incremental and the full render so the test fails without S25.6. 3D is a hand check on
+  Diego's tablet once per release, the number in the CHANGELOG: 3D timings under CI's software renderer are too noisy.
+- **The four S37 nits are fixed as proposed**: errors translated when drawn; a 380/420 px band on the icons bound;
+  `renderFloor` takes an optional translator for `<title>` names (the Studio stays English); duplicate area names get
+  a number.
+
 ## 2026-10-25: S37 review fixes
 
 Corrections from the Opus review of Sprint 37. Supersedes the S37.5 line "may be retried on the next `hass` update".

@@ -561,12 +561,14 @@ the same commit as this paragraph:
 A light's `bound` switch and `motion` link, and a person's `room` sensor, are
 deliberately never listed — see docs/DECISIONS.md.
 
-Sun direction (S15.3, planned 0.17.0): the card reads `azimuth` and `elevation` from the
-`sun` entity. Sunlight is one parallel direction: in 3D the scene's sun light comes from
-bearing `azimuth + north` (see Layout schema, `north`) at that elevation, so a window on the
-south wall lights the floor when the sun is in the south. Without those attributes, or with
-the sun below the horizon, the light is the fixed daylight of today. The 2D plan shows the
-same as a soft wedge through windows and openings.
+Sun direction (S15.3, planned 0.17.0; built in Sprint 38, `docs/specs/sun-s38.md`): the card
+reads `azimuth` and `elevation` from the `sun` entity. Sunlight is one parallel direction: in
+3D the scene's sun light comes from bearing `azimuth + north` (see Layout schema, `north`) at
+that elevation, warmer when the sun is low, and a window that faces the sun casts a soft patch
+of light on the floor of its room. Without those attributes, with the sun below the horizon,
+or at night, the light is the fixed daylight of today. The Studio has no live 3D view and
+draws no sun. Later, not in Sprint 38: the 2D plan shows the same as a soft wedge through
+windows and openings.
 
 Rooms tint when any light in them is on (`room_glow: true`). Night (S7.6):
 `night: auto` darkens the plan while the `sun` entity (default `sun.sun`) is
