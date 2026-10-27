@@ -1,4 +1,4 @@
-import { DEVICE_ICONS, FURNITURE } from "./icons";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE } from "./icons";
 import { dist, edgeKindsNear, stairSteps } from "./geometry";
 import { stairMarks } from "./stair-marks";
 import { playerOf } from "./attachments";
@@ -28,12 +28,20 @@ import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
+/** S38.8: the type in a device's `<title>`: its id, or, when the host translates, the label's translation (`DEVICE_TYPE_LABELS`, whose
+ *  texts are catalogue keys). A type that is not one of ours, from a layout we did not write, stays as it is. Escaped by the caller. */
+function typeName(type: unknown, tr?: (en: string) => string): string {
+  const id = String(type);
+  return tr && Object.hasOwn(DEVICE_TYPE_LABELS, id) ? tr(DEVICE_TYPE_LABELS[id as DeviceType]) : id;
+}
 export interface RenderOpts {
   /** G9: the host's text for a sensor reading (display precision and unit). Omitted, or returning nothing, the plan prints the raw state and its unit. A non-number still reads "–". */
   formatState?: (entity: string) => string | undefined;
   /** S11.3: the room the card has picked (its left panel shows it); drawn with an outline, class `picked`. The editor draws its own selection in an overlay and never passes this. */
   selectedRoom?: number;
   scale: number; selection?: PlanSel | null; showNames?: boolean;
+  /** S38.8: the host's translator for the type names in a device's `<title>` (`t` in the card). Omitted (the Studio), the title keeps the type id, in English. */
+  tr?: (en: string) => string;
   /** S24.6: the families not drawn (`layers.ts`): their devices, unlinked appliances and, for "furniture", every piece.
    *  What `selection` or `keep` names is drawn anyway. Omitted or empty, everything is drawn, byte for byte as before. */
   hiddenLayers?: readonly LayerId[];
@@ -1888,7 +1896,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const bound = d.type === "light" && d.bound ? d.bound : "";
     const bname = bound ? o.state?.[bound]?.attributes.friendly_name : undefined;
     const w = d.type === "plug" ? plugWatts(d, o) : null;
-    const title = `${esc(d.type)}: ${esc(label)}${w === null ? "" : `, ${num(Math.round(w * 10) / 10)} W`}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
+    const title = `${esc(typeName(d.type, o.tr))}: ${esc(label)}${w === null ? "" : `, ${num(Math.round(w * 10) / 10)} W`}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
     // The group turns by `rot` about the icon's centre; the icon turns back so the glyph stays upright (only what else is drawn in the group turns).
     const rot = !person && typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
     // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) does not.
@@ -1991,7 +1999,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // placed object like furniture: `rot` turns the glyph itself, and it turns again with the plan when the
     // plan is rotated (no counter-rotation) — found by looking at the render (npm run shots), not by the unit
     // test alone: a copy of the device's "icon stays upright" logic left `rot` with no visible effect at all.
-    out.push(`<g data-u="${i}" class="dev unl${playing ? ` on dev-${u.type}` : ""}${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(String(u.type))}: ${esc(label)}</title>${icon}</g>`);
+    out.push(`<g data-u="${i}" class="dev unl${playing ? ` on dev-${u.type}` : ""}${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(typeName(u.type, o.tr))}: ${esc(label)}</title>${icon}</g>`);
     if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * kt)}">${esc(label)}</text>`);
   });
 

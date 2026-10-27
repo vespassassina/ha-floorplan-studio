@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { layerWord, carStatus, carText, ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, ICONS_MIN_PLAN_PX, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorPlace, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, roomHeat, HEAT_KINDS, CAM_POS, CAM_SIZES, ThumbFeed, camThumbOf, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { layerWord, carStatus, carText, ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, iconsHold, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorPlace, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, roomHeat, HEAT_KINDS, CAM_POS, CAM_SIZES, ThumbFeed, camThumbOf, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { CamPos, CamSize, CamThumb, HeatKind, LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout, SavedView } from "../core";
@@ -17,7 +17,7 @@ import { strategyElement } from "./strategy";
 import { CARD_VERSION } from "./version";
 import { INSTALL_HINT, NOTHING_SAVED, PLAN_UNUSABLE, STALE_PAGE, NO_ANSWER, loadErrorText, loadShared, pageIsStale, type Conn, type StoredError } from "./load";
 import { mark, t, tn } from "../core/i18n";
-import { useLanguage } from "./i18n";
+import { currentLanguage, useLanguage } from "./i18n";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { PAN_STEP, isSearchChord, planKeyFor, type ViewKey } from "./view-keys";
 import { firstFocus, nextInDirection, type FocusDir } from "./plan-focus";
@@ -3629,6 +3629,8 @@ export class FloorplanStudioCard extends LitElement {
     const live3d = this._shows3d();
     const body = live3d ? "" : renderFloor(f, {
       scale: this._scale(fit),
+      tr: currentLanguage() ? t : undefined, // S38.8: English keeps the type id in a title, as before; another language names the type
+
       px: qpx(this._px) || undefined, // S23.2: the 11 px floor for names and discs (quantised: see `qpx`)
       zoom: box.w > 0 ? fit.w / box.w : undefined, // S25.4: labels keep their on-screen size at any zoom
       bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - qstrip(this._strip, fit.w)) } : undefined, // S23 review S3: names stay off the control stack
@@ -3653,7 +3655,7 @@ export class FloorplanStudioCard extends LitElement {
       selectedRoom: this._picked() ?? undefined,
       hiddenLayers: this._hiddenLayers,
       attention: this._attention() ? { floor: this._floorKey()!, result: this._attention()! } : undefined, // the Overview's own result, with the registry
-      detail: detailFor(fit, box, this._detailMode(), this._planPx(fit)), // S25.2: the level for this zoom and mode; S37.6: auto draws icons at fit on a plan 400 px wide or more
+      detail: detailFor(fit, box, this._detailMode(), this._iconsOn ? Infinity : 0), // S25.2: the level for this zoom and mode; S37.6/S38.7: auto draws icons at fit from a plan 420 px wide, dots under 380, the last level between
       ghost: this._ghost(), // S27.13: the floor below, as faint lines at its place in the house
       spider: this._spiderSpots(f, fit, box, rotate), // S25.5: a fanned stack, or nothing
       keep: this._keptHere(),
@@ -3792,7 +3794,8 @@ export class FloorplanStudioCard extends LitElement {
     const k = (p: number) => Math.max(base, p ? NAME_MIN_PX / (12 * p) : 0);
     const was = k(qpx(this._px)), old = this._px;
     this._px = px;
-    if (this._iconsAt(old, fit) !== this._iconsAt(px, fit)) this.requestUpdate(); // S37.6: the plan crossed 400 px wide: icons or dots
+    const icons = iconsHold(this._planPx(fit, px), this._iconsOn);
+    if (icons !== this._iconsOn) { this._iconsOn = icons; this.requestUpdate(); } // S37.6/S38.7: the plan crossed 420 up or 380 down: icons or dots
     // S23 review S3: the stack of buttons at the right covers a strip of the plan; names keep out of it. The svg keeps
     // its aspect (meet, centred), so the fit box starts (r.width - fit.w * px) / 2 in. A stack laid out as a row is
     // above the plan's top, not beside it: no strip. 4 px of air before the buttons.
@@ -3811,7 +3814,8 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S37.6: the floor's rendered width at fit for a measured `px`, or Infinity while nothing is laid out (the level then reads "cannot tell": icons). */
   private _planPx(fit: { w: number }, px = this._px): number { return px > 0 ? px * fit.w : Infinity; }
-  private _iconsAt(px: number, fit: { w: number }): boolean { return this._planPx(fit, px) >= ICONS_MIN_PLAN_PX; }
+  /** S38.7: icons (true) or dots at fit; the last level is kept while the plan is between 380 and 420 px wide. Unmeasured: icons. */
+  private _iconsOn = true;
 
   /** S9.2: the `scale` passed to `renderFloor`. Icons, names, values and radar dots are drawn at `24 * (1/scale)`
    * units, so shrinking `scale` grows them on screen. `auto` keeps a plan of 1000 cm or less exactly as before

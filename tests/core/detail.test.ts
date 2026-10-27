@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DETAIL_MID_FROM, DETAIL_NEAR_FROM, ICONS_MIN_PLAN_PX, detailFor, detailLevel, parseDetailMode } from "../../src/core/detail";
+import { DETAIL_MID_FROM, DETAIL_NEAR_FROM, ICONS_MIN_PLAN_PX, iconsHold, detailFor, detailLevel, parseDetailMode } from "../../src/core/detail";
 
 describe("detailLevel (S25.1)", () => {
   it("has three bands with their edges at 1.6 and 3.2", () => {
@@ -79,5 +79,21 @@ describe("detailFor: icons at the default size, dots only on a small plan (S37.6
   it("an explicit mode wins over the width", () => {
     expect(detailFor(fit, whole, "minimal", 1280)).toBe("far");
     expect(detailFor(fit, whole, "full", 300)).toBe("near");
+  });
+});
+
+describe("iconsHold (S38.7)", () => {
+  it("icons from 420, dots at 380 and under, the last level in between, both ways", () => {
+    expect(iconsHold(420, false)).toBe(true);
+    expect(iconsHold(419.9, false)).toBe(false);
+    expect(iconsHold(419.9, true)).toBe(true);
+    expect(iconsHold(380.1, false)).toBe(false);
+    expect(iconsHold(380.1, true)).toBe(true);
+    expect(iconsHold(380, true)).toBe(false);
+    expect(iconsHold(379.9, true)).toBe(false);
+  });
+  it("an unmeasured plan reads icons", () => {
+    expect(iconsHold(Infinity, false)).toBe(true);
+    expect(iconsHold(NaN, false)).toBe(true);
   });
 });

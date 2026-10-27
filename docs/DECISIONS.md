@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-28: S38.7 and S38.8, two card nits
+
+- **Dots at 380 and under, not under 380.** A 380 px box gives a plan exactly 380 wide; with "under 380" it sat in the
+  dead band and the S37.6 straddle test saw no switch. The band is strictly between 380 and 420. Supersedes the plan
+  entry's "dots under 380" and S37.6's single bound of 400 (`ICONS_MIN_PLAN_PX` stays for `detailFor`'s own callers).
+  An unmeasured card shows icons, as before.
+- **English keeps the type id in a title.** The card passes its translator only when a language other than English is
+  active, so an English title still reads "plug: TV plug" and no existing pin changed; German reads "Licht: Küche". The
+  Studio passes none. Only the type is translated; the rest of a title is the layout's own name, a number and a unit.
+
 ## 2026-10-28: S38.4, sun patches
 
 - **Outdoor kinds are not rooms.** Garden, terrace, pavement, water, zone and fill take no patch and do not count as
