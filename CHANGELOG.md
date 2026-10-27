@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card: the Edit-card form loads only when you open Edit card, as a file of its own beside the card (`floorplan-studio-form-<hash>.js`). The card file is 5.3 KB smaller gzipped. Nothing changes in how the form works. Update the integration as well as the card: the card needs the new file in `www/`.
+
 ## 0.36.0 - 2026-10-25
 
 A first plan from your Home Assistant areas, and a card in your language. With no saved plan, the Studio offers the demo home, your areas or a blank plan. The card now speaks nine more languages, shows device icons at its default size, and wall tablets signed in as a normal user follow a saved plan. Update the integration as well as the card.

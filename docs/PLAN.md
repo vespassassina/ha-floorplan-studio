@@ -4660,7 +4660,7 @@ Lanes, each in its own worktree and `PW_PORT`: **room** S38.0, then **card** S38
 in order, since all touch the card file); **sun** S38.1, S38.3, S38.4 (starts at once, the chunk only; S38.3 joins
 S38.2 at integration); **perf** S38.5; **areas** S38.9.
 
-- [ ] S38.0 Room in the card. The card form (`src/card/config-editor.ts`, imported statically today) becomes a lazy
+- [x] S38.0 Room in the card (2026-10-27: card 124,495 -> 119,214 gzip -9, 5,281 B of room under the 124,650 cap; the form is `floorplan-studio-form-<hash>.js`, 24,828 gz, a bundle of its own beside the card; `tests/card/size-budget.spec.ts` caps it at 26,000; the release zip checks for exactly one). The card form (`src/card/config-editor.ts`, imported statically today) becomes a lazy
       chunk, loaded by `static async getConfigElement()`. HA awaits that call; copy the shape from the HA frontend
       source and say where in the test (finding 21). The release zip check counts the new chunk as it counts the 3D
       one. No behaviour change: `tests/card/config-editor.spec.ts` and the full suite are the test, plus one new test
