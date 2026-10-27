@@ -1,7 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { loadCard } from "./form-harness";
 
 // S7.7: the card config form. Same file:// injection trick as tests/card/card.spec.ts — a plain <script src>
 // fails under file:// (Chromium refuses a cross-origin module fetch between two file:// URLs), so the built
@@ -10,22 +9,18 @@ import { pathToFileURL } from "node:url";
 // config already builds (vite.config.ts: the card's entry is src/card/floorplan-studio-card.ts) — no second file.
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 
-const URL_ = pathToFileURL(resolve("tests/card/config-editor-harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 
 /** Loads the harness fresh, injects the built module, and waits for both custom elements to upgrade. */
 async function open(page: Page) {
-  await page.goto(URL_);
-  await page.addScriptTag({ content: CARD_JS, type: "module" });
-  await page.evaluate(() => Promise.all([customElements.whenDefined("floorplan-studio-card"), customElements.whenDefined("floorplan-studio-card-editor")]));
+  await loadCard(page);
 }
 
 /** Calls FloorplanStudioCard.getConfigElement(), appends the result to the body, calls setConfig, and returns
  * a handle to it. Collects every config-changed event fired after this point into window.__events. */
 async function mount(page: Page, config: Record<string, unknown> = {}) {
-  await page.evaluate((config) => {
-    const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): HTMLElement };
-    const el = Ctor.getConfigElement();
+  await page.evaluate(async (config) => {
+    const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): Promise<HTMLElement> };
+    const el = await Ctor.getConfigElement();
     (window as unknown as { __events: unknown[] }).__events = [];
     el.addEventListener("config-changed", (e) => {
       (window as unknown as { __events: unknown[] }).__events.push((e as CustomEvent).detail);

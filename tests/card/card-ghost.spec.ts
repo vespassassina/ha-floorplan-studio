@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { readGhostIn } from "../fixtures/ghost-contrast";
 import { floorPlace, renderFloor } from "../../src/core";
 import { isDisabled, pick, stateOf } from "./menu-helper";
+import { loadCard } from "./form-harness";
 
 // S27.13: the card's ghost floor. `ghost_floor` in YAML and the Floor below item of the header menu (S31.6: it was a button). Real page.mouse clicks on the real top element
 // (finding 3). The first floor sits 200 cm east of the ground floor (offset), so the ground floor's ghost is drawn 200 cm to the
@@ -13,7 +14,6 @@ const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const layout = structuredClone(demo);
 layout.floors.first.offset = [200, 0];
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const EDITOR_URL = pathToFileURL(resolve("tests/card/config-editor-harness.html")).href;
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 
 async function boot(page: Page, config: Record<string, unknown> = {}, width = 1280) {
@@ -104,13 +104,11 @@ test.describe("S27.13 the card's ghost floor", () => {
   });
 
   test("the config form offers ghost_floor: off by default and dropped from the payload, junk reads off", async ({ page }) => {
-    await page.goto(EDITOR_URL);
-    await page.addScriptTag({ content: CARD_JS, type: "module" });
-    await page.evaluate(() => Promise.all([customElements.whenDefined("floorplan-studio-card"), customElements.whenDefined("floorplan-studio-card-editor")]));
-    const mount = (config: Record<string, unknown>) => page.evaluate((config) => {
+    await loadCard(page);
+    const mount = (config: Record<string, unknown>) => page.evaluate(async (config) => {
       document.getElementById("editor")?.remove();
-      const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): HTMLElement };
-      const el = Ctor.getConfigElement();
+      const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): Promise<HTMLElement> };
+      const el = await Ctor.getConfigElement();
       (window as any).__events = [];
       el.addEventListener("config-changed", (e) => (window as any).__events.push((e as CustomEvent).detail));
       el.id = "editor";
