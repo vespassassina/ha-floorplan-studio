@@ -4673,13 +4673,18 @@ S38.2 at integration); **perf** S38.5; **areas** S38.9.
       light, pixel for pixel. Spec criteria 3 to 7.
 - [ ] S38.4 Sun patches through windows that face the sun, clipped to the room, at most 24, built only when the floor,
       the theme or the sun moves. Spec criteria 8 to 13. Shots looked at in three themes, the patches at 4x.
-- [ ] S38.5 Performance budget (review item 18). In `tests/card/plan-incremental.spec.ts`, the 400-device case and the
+- [x] S38.5 Performance budget (review item 18). In `tests/card/plan-incremental.spec.ts`, the 400-device case and the
       stress house (`tests/fixtures/stress-layout.json`, 3 floors, 437 devices) on its largest floor: one sensor update,
       all lights on, all off, each the median of 5 runs, under a fixed budget in ms. Today, on Diego's Mac: one change
       23.2 ms, all on 40.4 ms, all off 27.8 ms (2026-10-27). The coder measures a forced full render too, and sets each
       budget between the two, with CI headroom, so the test fails with S25.6's incremental path reverted (revert it once
       and show the failure). If CI cannot tell the two apart, stop and report. `docs/WORKFLOW.md`, Release: the release
       report asks Diego for one 3D number from his tablet (time to first frame), and it goes in the CHANGELOG.
+      Done 2026-10-27, changed from the plan: the incremental and the full render cost the same (renderFloor's markup
+      dominates), so time cannot pin S25.6. ms, median of 5, Diego's Mac, incremental / full. 400 devices: one 19.0 / 23.4,
+      all on 36.4 / 35.1, all off 25.8 / 24.0. Stress ground (182 devices): one 17.1 / 18.3, all on 21.1 / 21.1, all off
+      19.3 / 19.0. Time is a ceiling at about 5x (400: 100 / 200 / 130; stress: 90 / 110 / 100). S25.6 is pinned by the
+      root untouched, the same device node, and a write ceiling (2461 nodes -> 2710; stress 421 -> 465). See DECISIONS.
 - [ ] S38.6 Nit: a stored error is translated when it is drawn. The card stores the key and its values
       (`{ key, vars }`), not the text. Test: an error set in English, then `hass.language` to `de`, shows German without
       a new error.
