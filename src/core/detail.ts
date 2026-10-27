@@ -13,6 +13,17 @@ export const DETAIL_NEAR_FROM = 3.2;
 /** S37.6: in `auto`, a plan at least this many screen px wide (the whole floor at fit, not the card or the window) draws device icons at fit; under it, dots. */
 export const ICONS_MIN_PLAN_PX = 400;
 
+/** S38.7: hysteresis on that bound. Icons from a plan this wide, dots at `ICONS_OFF_PLAN_PX` and under, the last level strictly between (a 380 px box makes a 380 px plan, and must read dots),
+ *  so a plan resting at the bound (a scrollbar, a sheet, 1 px of layout) does not flip with every resize. */
+export const ICONS_ON_PLAN_PX = 420;
+export const ICONS_OFF_PLAN_PX = 380;
+
+/** Whether icons are drawn at fit for a plan `planPx` wide, given whether they were (`was`). Not measured: icons. */
+export function iconsHold(planPx: number, was: boolean): boolean {
+  if (!Number.isFinite(planPx)) return true;
+  return planPx >= ICONS_ON_PLAN_PX ? true : planPx <= ICONS_OFF_PLAN_PX ? false : was;
+}
+
 /** The three modes, in the order a menu lists them. */
 export const DETAIL_MODES: readonly DetailMode[] = ["auto", "full", "minimal"];
 /** What each mode is called on a button (S25.7, S25.8). */

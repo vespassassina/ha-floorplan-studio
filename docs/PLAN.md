@@ -4688,9 +4688,10 @@ S38.2 at integration); **perf** S38.5; **areas** S38.9.
 - [x] S38.6 (2026-10-27) Nit: a stored error is translated when it is drawn. The card stores the key and its values
       (`{ key, vars }`), not the text. Test: an error set in English, then `hass.language` to `de`, shows German without
       a new error.
-- [ ] S38.7 Nit: hysteresis on the icons-or-dots bound. Icons from a plan 420 px wide, dots under 380, the last level
+- [x] S38.7 (2026-10-28) Nit: hysteresis on the icons-or-dots bound. Icons from a plan 420 px wide, dots under 380, the last level
       kept in between. The S37.6 straddle test (380/420 boxes) still sees one switch per resize; a new one at 400 sees
-      none in either direction.
+      none in either direction. Built with dots at a plan of 380 and under (a 380 px box makes a 380 px plan, and the
+      straddle test needs it to read dots).
 - [ ] S38.8 Nit: the `<title>` type names in `src/core/render.ts` are translated in the card. `renderFloor` takes an
       optional `tr` function; the card passes `t`, the Studio passes nothing and stays English. The raw-English lint
       covers `render.ts`. Test: a German card's device `<title>` reads the German type name; a payload `"><script>` in a
