@@ -737,9 +737,9 @@ try {
     await ctx.close();
   }
   // S29.13: the Align panel on the hand-align house's first floor, after a real click on Align stairs (so the stair report and the status line show
-  // numbers), at 1280 and 720 px wide (S37.3: under 700 the Studio shows a message, not the editor), in a light, a dark (blueprint) and the HA dark theme. The whole page is shot, so a wrapped toolbar and a panel
+  // numbers), at 1280 and 768 px wide (S37.3: under 700 the Studio shows a message, not the editor; the page pads it 24 px a side), in a light, a dark (blueprint) and the HA dark theme. The whole page is shot, so a wrapped toolbar and a panel
   // below the fold both show. The theme names are the Studio's.
-  for (const width of [1280, 720]) for (const [theme, scheme, label] of [["light", "light", "light"], ["blueprint", "light", "blueprint"], ["ha", "dark", "ha-dark"]]) {
+  for (const width of [1280, 768]) for (const [theme, scheme, label] of [["light", "light", "light"], ["blueprint", "light", "blueprint"], ["ha", "dark", "ha-dark"]]) {
     const name = `editor-handalign-panel-${label}-${width}px`;
     const ctx = await browser.newContext({ viewport: { width, height: 800 }, colorScheme: scheme, reducedMotion: "reduce" });
     const page = await ctx.newPage();
@@ -762,8 +762,8 @@ try {
     await ctx.close();
   }
   // S30.10: the Align panel on the hand-align house's ground floor from no pose: the turn line and the other-turn line showing ("preview"),
-  // then after a real click on Apply ("applied": Already aligned, Apply disabled). 1280 and 720 px, blueprint, light and ha-dark.
-  for (const state of ["preview", "applied"]) for (const width of [1280, 720]) for (const [theme, scheme, label] of [["blueprint", "light", "blueprint"], ["light", "light", "light"], ["ha", "dark", "ha-dark"]]) {
+  // then after a real click on Apply ("applied": Already aligned, Apply disabled). 1280 and 768 px, blueprint, light and ha-dark.
+  for (const state of ["preview", "applied"]) for (const width of [1280, 768]) for (const [theme, scheme, label] of [["blueprint", "light", "blueprint"], ["light", "light", "light"], ["ha", "dark", "ha-dark"]]) {
     const name = `editor-align-turn-${state}-${label}-${width}px`;
     const ctx = await browser.newContext({ viewport: { width, height: 800 }, colorScheme: scheme, reducedMotion: "reduce" });
     const page = await ctx.newPage();
