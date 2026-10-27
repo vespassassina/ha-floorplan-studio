@@ -6,6 +6,23 @@ Newest first. A change supersedes; nothing is edited.
 
 `layoutFromAreas` keeps the first room's name and numbers the next ones with the same name ("Office 2", "Office 3"), so `catalog.room`, which is the room's name, tells rooms apart. Case-insensitive, as `render.ts` matches room names; a real area named "Office 2" keeps its name and a generated one takes the next free number.
 
+## 2026-10-27: S38.5, the performance budget
+
+Supersedes the line in the Sprint 38 plan entry below: "each budget set between the incremental and the full render so
+the test fails without S25.6".
+
+- **The two cost the same.** Median of 5, ms, Diego's Mac, incremental / full (the plan replaced, `innerHTML`). 400
+  devices: one 19.0 / 23.4, all on 36.4 / 35.1, all off 25.8 / 24.0. Stress ground (182 devices): one 17.1 / 18.3, all
+  on 21.1 / 21.1, all off 19.3 / 19.0. Forcing layout in the timed span changed nothing. `renderFloor` building the
+  markup dominates; the DOM patch is a small part. No time budget can tell the two apart.
+- **Time is a ceiling against a `renderFloor` slowdown.** About 5x today's incremental number, for CI at 2 to 3x slower:
+  400 devices 100 / 200 / 130 ms, stress ground 90 / 110 / 100 ms (one change / all on / all off). Raise one only with
+  new numbers here.
+- **S25.6 is pinned by structure, not time.** After all on: the plan's root `<svg>` is not written, and (stress) a
+  device node is the same node; plus a write ceiling just above today's count (400 devices 2461 -> 2710, stress
+  ground 421 -> 465). A replaced plan shows as one record on the root, so the root and node checks are what fail
+  when S25.6 is removed; the ceiling guards a patch that writes too much.
+
 ## 2026-10-27: Sprint 38 plan, the sun, a performance budget, the S37 nits
 
 Diego's answers, 2026-10-27. Spec `docs/specs/sun-s38.md`; plan `docs/PLAN.md`, Sprint 38.
