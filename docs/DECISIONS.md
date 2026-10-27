@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-27: S38.0, the card form is a file of its own
+
+- **A bundle, not a Rollup chunk.** A dynamic import of `config-editor.ts` made Rollup hoist the card's shared code
+  (lit, core) into a third file named like the 3D chunk. The form is now its own Vite build (mode `form`, built before
+  the card), `floorplan-studio-form-<hash>.js`, whose name the card compiles in. `getConfigElement()` is async; HA
+  awaits it (`hui-element-editor.ts`, cited in `tests/card/card.test.ts`).
+- **The cost moves to the editor.** The form carries its own lit and validator: 24,828 gz, loaded only when someone
+  opens Edit card. The card file went from 124,495 to 119,214 gz, 5,435 under the cap. The form has a limit of its
+  own, 26,000 gz. The release requires exactly one form file, as it does one 3D chunk.
+
 ## 2026-10-27: S38.1 and S38.3, the 3D sun light
 
 - **`north` travels with the sun.** The 3D view cannot read the layout, so the live sun is `{ azimuth, elevation, north? }`
