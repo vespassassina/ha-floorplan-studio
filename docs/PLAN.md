@@ -4665,11 +4665,11 @@ S38.2 at integration); **perf** S38.5; **areas** S38.9.
       source and say where in the test (finding 21). The release zip check counts the new chunk as it counts the 3D
       one. No behaviour change: `tests/card/config-editor.spec.ts` and the full suite are the test, plus one new test
       that the card file no longer holds the form's element name. Report gz before and after.
-- [ ] S38.1 `sunDir(azimuth, elevation, north)` in `src/card/three/sun.ts` (S15.3b, moved from core to the chunk so the
+- [x] S38.1 (2026-10-27) `sunDir(azimuth, elevation, north)` in `src/card/three/sun.ts` (S15.3b, moved from core to the chunk so the
       card does not carry it). Spec criterion 1.
 - [ ] S38.2 The card hands the sun to 3D: `azimuth` and `elevation` of the `sun` entity (config `sun`, default
       `sun.sun`) go into `setLive`, or nothing. Day only, as `_night()` decides. Spec criterion 2.
-- [ ] S38.3 The 3D sun light follows `sunDir`: direction, strength by elevation, warmth under 15°; no sun is today's
+- [x] S38.3 (2026-10-27) The 3D sun light follows `sunDir`: direction, strength by elevation, warmth under 15°; no sun is today's
       light, pixel for pixel. Spec criteria 3 to 7.
 - [ ] S38.4 Sun patches through windows that face the sun, clipped to the room, at most 24, built only when the floor,
       the theme or the sun moves. Spec criteria 8 to 13. Shots looked at in three themes, the patches at 4x.
