@@ -2,6 +2,24 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-28: Sprint 39 card, what the spec left open
+
+Choices made building S39.2 to S39.4 (`src/card/card-replay.ts`). Each is the simplest reading of `docs/specs/replay-s39.md`.
+
+- **Replay is offered only with a `hass.connection`** (and a layout, and not in kiosk). Without a connection there is nothing to ask, and
+  the menu tests that have none stay as they were.
+- **The plan is drawn again for a minute only when the minute can change the picture:** a motion fade still running, or the sheet shown
+  (its ages). Otherwise only the bar's time is painted, by `lit.render` into its own place. This narrows "one draw per minute" (item 11) to
+  "no more than one per frame, and only when something visible changed". A minute of play does not redraw an unchanged plan.
+- **Time is the browser's zone.** `locale.time_format` "12" or "24" is honoured; otherwise the language decides.
+- **Only the shown floor is fetched.** Floors drawn below it (3D) and ghost floors have no history and are drawn as they are live.
+- **The bar is not chrome for `fitHeight`:** the plan letterboxes in the room left when it opens.
+- **A hidden tab pauses play:** a frame step is capped at 500 ms, so the replay does not jump when the tab returns.
+- **Entities with no history are absent** from the replayed states, as the spec says; the info button shows how many.
+- **Replayed states carry `entity_id` and `last_updated`,** which Home Assistant's formatters read.
+- **The 60 s run is not timed in real time.** Playwright's fake clock costs 17 s of real time for 60 s of an empty `requestAnimationFrame` loop,
+  so "24 h in 60 s" is tested as clock time (value after 30 s, stop at the end) and the draw count is bounded instead.
+
 ## 2026-10-28: Sprint 39 plan, history replay and plan D
 
 Diego's answers, each the proposed default. Spec: `docs/specs/replay-s39.md`.

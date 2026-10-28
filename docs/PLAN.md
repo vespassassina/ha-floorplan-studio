@@ -4723,12 +4723,12 @@ chunk only, starts at once); **card** S39.2, S39.3, S39.4 after S39.0 lands (one
 - [x] S39.1 (2026-10-28) The replay chunk: `src/card/replay/history.ts` with `parseHistory(reply, asked)` and `stateAt(index, t)`,
       built as `floorplan-studio-replay-<hash>.js` (the Vite chunk naming rule today calls every non-language chunk
       `3d`; give the replay its own name). Spec criteria 1, 2. Pure, unit tests only.
-- [ ] S39.2 The bar and the fetch: "Replay" in the ⋯ menu, the bar (slider, time, play/pause, Live), the
+- [x] S39.2 (2026-10-28) The bar and the fetch: "Replay" in the ⋯ menu, the bar (slider, time, play/pause, Live), the
       `history/history_during_period` call per floor, busy and error states. Spec items 1 to 4, 10; criteria 3, 10 to
       13.
-- [ ] S39.3 One draw path for the past: `_stateForRender()`, motion fade, `_night()`, `_sun()` and the 3D `now` read
+- [x] S39.3 (2026-10-28) One draw path for the past: `_stateForRender()`, motion fade, `_night()`, `_sun()` and the 3D `now` read
       the replayed moment; `hass` updates held; taps off. Spec items 6 to 9; criteria 4 to 9.
-- [ ] S39.4 Words and pictures: the new strings in all ten catalogues, the raw-English lint over the new files, the
+- [x] S39.4 (2026-10-28) Words and pictures: the new strings in all ten catalogues, the raw-English lint over the new files, the
       release zip check for the replay chunk, the shots of criterion 15 looked at. Criteria 14, 15.
 - [ ] S39.5 Integrate on `task/s39-replay`, full suite, shots, Opus review, release 0.38.0 after Diego's yes. The tablet's
       3D first frame in the CHANGELOG.

@@ -625,6 +625,54 @@ try {
     shots.push(s.name);
     await ctx.close();
   }
+  // S39: the history replay. The demo home at a morning moment (kitchen lamp on, sun up) and a night one (lamp off, sun down), blueprint and
+  // light, and the bar alone at 1280 and 380 wide. The connection is made in the page and answers history/history_during_period with rows in
+  // Home Assistant's compressed shape ({ s, a?, lu } in float seconds). The slider is moved by its keys, as a person would.
+  const replayShots = [];
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const [when, ups] of [["morning", 21], ["night", 15]]) replayShots.push({ name: `card-replay-${when}-${t.id}`, t, ups, width: 1100 });
+  for (const width of [1280, 380]) replayShots.push({ name: `card-replay-bar-${width}`, t: THEMES.find((x) => x.id === "light"), ups: 21, width, bar: true });
+  for (const s of replayShots) {
+    const ctx = await browser.newContext({ viewport: { width: s.width, height: 800 }, colorScheme: s.t.dark ? "dark" : "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    page.on("pageerror", (e) => errors.push(`${s.name}: ${e}`));
+    page.on("console", (m) => { if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`); });
+    await page.clock.setFixedTime(new Date(2026, 9, 28, 12, 0, 0));
+    await page.route("**/*", (route) => {
+      const url = new URL(route.request().url());
+      if (url.origin !== ORIGIN) return route.abort();
+      if (url.pathname === "/") return route.fulfill({ contentType: "text/html", body: `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=shots"></script><body style="margin:0;padding:12px;background:${s.t.page};${s.t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>` });
+      const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
+      if (!m || !existsSync(resolve(DIST, m[1]))) return route.fulfill({ status: 404, body: "not found" });
+      return route.fulfill({ contentType: "text/javascript", body: readFileSync(resolve(DIST, m[1])) });
+    });
+    await page.goto(`${ORIGIN}/`);
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await page.evaluate(([config, hass]) => {
+      const el = document.getElementById("c");
+      const at = (h, m = 0) => (new Date(2026, 9, 28, h, m, 0).getTime()) / 1000;
+      const rows = {
+        "light.demo_kitchen": [{ s: "off", a: { friendly_name: "Kitchen" }, lu: at(0) - 7200 }, { s: "on", a: { friendly_name: "Kitchen", rgb_color: [255, 170, 60] }, lu: at(8) }, { s: "off", a: { friendly_name: "Kitchen" }, lu: at(10) }],
+        "sun.sun": [{ s: "below_horizon", a: { azimuth: 10, elevation: -30 }, lu: at(0) - 7200 }, { s: "above_horizon", a: { azimuth: 90, elevation: 30 }, lu: at(7) }, { s: "below_horizon", a: { azimuth: 300, elevation: -5 }, lu: at(10, 30) }],
+      };
+      hass.locale = { language: "en", time_format: "24" };
+      hass.connection = { sendMessagePromise: (m) => Promise.resolve(Object.fromEntries((m.entity_ids ?? []).filter((id) => rows[id]).map((id) => [id, rows[id]]))) };
+      el.setConfig(config); el.hass = hass;
+      return el.updateComplete;
+    }, [{ layout, floor: "ground", theme: s.t.theme, active_list: false }, hassFor("on", s.t.dark)]);
+    await page.locator("floorplan-studio-card svg polygon[data-r]").first().waitFor();
+    await page.locator("floorplan-studio-card fp-menu button").first().click();
+    await page.locator("floorplan-studio-card [data-value='replay']").click();
+    const range = page.locator("floorplan-studio-card input.fp-rp-range");
+    await page.waitForFunction(() => !document.getElementById("c").shadowRoot.querySelector("input.fp-rp-range")?.disabled);
+    await range.focus();
+    await page.keyboard.press("Home");
+    for (let i = 0; i < s.ups; i++) await page.keyboard.press("PageUp");
+    await page.mouse.move(0, 0);
+    if (s.bar) await page.locator("floorplan-studio-card .fp-replay").screenshot({ path: `${OUT}/${s.name}.png` });
+    else await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
+    shots.push(s.name);
+    await ctx.close();
+  }
   for (const theme of ["blueprint", "light", "ha"]) {
     const name = `editor-${theme}`;
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
