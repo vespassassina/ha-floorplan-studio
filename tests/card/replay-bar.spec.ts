@@ -432,6 +432,21 @@ test.describe("Opus review S4: the floors that are not on show keep their alerts
   });
 });
 
+test.describe("Opus review S5: the timeout reason is translated", () => {
+  test("a history that never answers says why in German after 20 s", async ({ page }) => {
+    await boot(page, { language: "de", clock: "install" });
+    await page.evaluate(() => {
+      const el = document.getElementById("card") as unknown as { hass: { connection: { sendMessagePromise: (m: unknown) => Promise<unknown> } } };
+      el.hass.connection.sendMessagePromise = () => new Promise(() => undefined); // the socket is open and silent
+    });
+    await card(page).locator("css=fp-menu button").first().click();
+    await card(page).locator("css=[data-value='replay']").click();
+    await expect(bar(page)).toHaveAttribute("aria-busy", "true"); // waiting, not an error yet
+    await page.clock.runFor(20001);
+    await expect(msg(page)).toHaveText("Der Verlauf konnte nicht geladen werden: keine Antwort in 20 s");
+  });
+});
+
 test.describe("S39.2 play and keys", () => {
   test("criterion 10: play from the end restarts at the start, 60 s of play cover 24 h, few draws, one draw per minute, and it stops at the end", async ({ page }) => {
     await boot(page, { clock: "install" });

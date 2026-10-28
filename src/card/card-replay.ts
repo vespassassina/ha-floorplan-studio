@@ -226,8 +226,9 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
     fh.status = "ready";
   } catch (e) {
     fh.status = "error";
-    const m = (e as { message?: unknown } | null)?.message;
-    fh.why = typeof m === "string" && m ? m : t(NO_ANSWER);
+    const m = (e as { message?: unknown; code?: unknown } | null)?.message;
+    // Our own timeout carries the English key; the reasons Home Assistant gives are its own words.
+    fh.why = (e as { code?: unknown } | null)?.code === "timeout" ? t(TIMED_OUT) : typeof m === "string" && m ? m : t(NO_ANSWER);
   }
   if (c._replay === r) c.requestUpdate();
 }
