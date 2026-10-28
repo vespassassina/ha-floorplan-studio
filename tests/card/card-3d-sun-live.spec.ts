@@ -27,10 +27,11 @@ async function still(page: Page) {
 }
 const FIXED = { x: -0.5, y: 1, z: 0.8, intensity: 1.9, colour: "#ffffff", hemi: 1.6 };
 
-async function boot(page: Page, states: Record<string, unknown>, o: { north?: number; config?: Record<string, unknown> } = {}) {
+async function boot(page: Page, states: Record<string, unknown>, o: { north?: number; rotation?: number; config?: Record<string, unknown> } = {}) {
   const layout = structuredClone(demo); const g = layout.floors.ground;
   Object.assign(g, { furniture: [], devices: [], unlinked: [], doors: [], openings: [] });
   layout.north = o.north ?? 0;
+  if (o.rotation !== undefined) g.rotation = o.rotation;
   await serve(page); await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto(`${ORIGIN}/harness.html`);
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
@@ -58,6 +59,36 @@ async function faces(page: Page) {
   const north = await rgbAt(page, await pr(page, 200, -5, 125));
   return { south, north };
 }
+
+/** The outer face the camera looks at head on, by the `look` angle and a point on the face (house 800 x 600 cm, walls 10 cm thick), in stored coordinates. */
+const FACE = { south: [0, 200, 605], north: [Math.PI, 200, -5], east: [Math.PI / 2, 805, 300], west: [-Math.PI / 2, -5, 300] } as const;
+async function faceLevel(page: Page, f: keyof typeof FACE) {
+  const [az, x, y] = FACE[f];
+  await hook(page, (h, a) => h.look(a, 0.45), az); await still(page);
+  return L(await rgbAt(page, await pr(page, x, y, 125)));
+}
+
+test.describe("a floor turned in the house (review of Sprint 38, item 1)", () => {
+  // A floor's stored point sits in the house at R(rotation) . p + offset, so a floor turned 90 degrees clockwise has the house's south
+  // at its stored east. The 3D view draws the floor in its stored frame, so the sun's bearing there is azimuth + north - rotation.
+  test("rotation 90, north 0, sun 180 / 40 (north - rotation is -90): the face that looks south in the house, the stored east, is the lit one", async ({ page }) => {
+    await boot(page, { "sun.sun": sunState(180, 40) }, { north: 0, rotation: 90 });
+    const east = await faceLevel(page, "east"), west = await faceLevel(page, "west");
+    expect(east, `east ${east} over west ${west}`).toBeGreaterThan(west * 1.06);
+  });
+
+  test("rotation -90, north 0, sun 180 / 40: the house's south is the stored west", async ({ page }) => {
+    await boot(page, { "sun.sun": sunState(180, 40) }, { north: 0, rotation: -90 });
+    const west = await faceLevel(page, "west"), east = await faceLevel(page, "east");
+    expect(west, `west ${west} over east ${east}`).toBeGreaterThan(east * 1.06);
+  });
+
+  test("north 90 and rotation 90 cancel: the stored south is lit by a sun at 180", async ({ page }) => {
+    await boot(page, { "sun.sun": sunState(180, 40) }, { north: 90, rotation: 90 });
+    const south = await faceLevel(page, "south"), north = await faceLevel(page, "north");
+    expect(south, `south ${south} over north ${north}`).toBeGreaterThan(north * 1.06);
+  });
+});
 
 test.describe("the card hands sun.sun to the 3D view (S38.2)", () => {
   test("sun.sun at 180 / 40, north 0: the south face is brighter than the north one; with layout.north 180 it is the other way", async ({ page }) => {
