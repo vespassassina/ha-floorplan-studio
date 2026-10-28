@@ -37,6 +37,7 @@ declare const __FP_FORM_FILE__: string | undefined;
 /** S38.0: the built form's file beside the card, `./floorplan-studio-form-<hash>.js`, compiled in by vite.config.ts. Empty in the dev server and in
  * vitest, where the form is imported from source. */
 const FORM_FILE: string = typeof __FP_FORM_FILE__ === "string" ? __FP_FORM_FILE__ : "";
+let formFails = 0;
 
 /** What the card needs of `hass`. Home Assistant's real object has far more; this is only what the card reads. */
 export interface HassEntity { state: string; attributes: Record<string, unknown>; last_changed: string }
@@ -1203,8 +1204,17 @@ export class FloorplanStudioCard extends LitElement {
    * `floorplan-studio-card-editor` as it loads. Home Assistant awaits this call (frontend `hui-card-element-editor.ts` returns it from an async method,
    * `hui-element-editor.ts` does `await this.getConfigElement()`), so a viewer who never edits the card never downloads the form. */
   static async getConfigElement(): Promise<HTMLElement> {
-    await (FORM_FILE ? import(/* @vite-ignore */ FORM_FILE) : import("./config-editor"));
-    return document.createElement("floorplan-studio-card-editor");
+    // A browser remembers a failed `import()` of one URL (as for the 3D chunk above), so each call after a failure asks under a new
+    // query (the count of failures so far; a success is cached under its own URL, so it is never imported twice). A failure does not
+    // reject: Home Assistant would show a broken dialog until the page is reloaded; it gets the words instead.
+    // The URL is built from `import.meta.url`, not a template over the compiled-in name (Vite would bundle every file the template could
+    // match), and the import is not inside a `try` (Rollup then keeps the dead `./config-editor` branch and the card splits in two).
+    const fails = formFails;
+    const url = fails > 0 ? `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${FORM_FILE.slice(2)}?r=${fails}` : FORM_FILE;
+    return (FORM_FILE ? import(/* @vite-ignore */ url) : import("./config-editor")).then(
+      () => document.createElement("floorplan-studio-card-editor"),
+      () => { formFails++; return Object.assign(document.createElement("p"), { textContent: t(STALE_PAGE), setConfig: () => undefined }); },
+    );
   }
 
   connectedCallback(): void {
