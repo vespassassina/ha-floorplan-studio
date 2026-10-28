@@ -245,7 +245,9 @@ test.describe("S39.3 one draw path for the past", () => {
     await update(page, { "sun.sun": st("below_horizon") });
     await range(page).focus();
     await page.keyboard.press("End");
-    await expect(night()).toHaveCount(0); // live: night
+    await expect(night()).toHaveCount(1); // S39 polish: the end of the slider is the live plan, and live is night now
+    await page.keyboard.press("ArrowLeft");
+    await expect(night()).toHaveCount(0); // 11:55 as the recorder had it: day
     await card(page).locator("css=button.fp-rp-live").click();
     await expect(night()).toHaveCount(1); // Live shows the newest
   });
@@ -662,5 +664,42 @@ test.describe("S39.3 in 3D", () => {
     expect(afternoon.x, `west in the afternoon: x ${afternoon.x}`).toBeLessThan(-0.2);
     expect(morning.y, "above the horizon").toBeGreaterThan(0);
     expect(night, "03:00 is night: the night light, no sun").toMatchObject({ x: fixed.x, y: fixed.y, z: fixed.z, intensity: 0.35 });
+  });
+});
+
+test.describe("S39 polish: Replay on top, and the end of the slider is the live plan", () => {
+  test("Replay is the first item of a long menu: inside the menu's visible box without scrolling, and a real click opens the bar", async ({ page }) => {
+    // Diego's menu, 2026-10-28: the Overview on (Detail, Layers, Heat map) and a floor with a camera (thumbnail, size, position). Replay was last, below the fold.
+    await boot(page, { config: { floor: "ground", active_list: true } });
+    await openMenu(page);
+    await expect(menuItem(page, "cam:on")).toHaveCount(1); // the camera sections are there, so the menu is as long as his
+    await expect(menuItem(page, "reset")).toHaveCount(1);
+    const item = await menuItem(page, "replay").boundingBox(), box = await menuPanel(page).boundingBox();
+    expect(item && box).toBeTruthy();
+    expect(item!.y, "not above the menu's top").toBeGreaterThanOrEqual(box!.y);
+    expect(item!.y + item!.height, "not below the menu's bottom").toBeLessThanOrEqual(box!.y + box!.height);
+    expect(await menuPanel(page).evaluate((m) => m.scrollTop), "nothing scrolled").toBe(0);
+    await menuItem(page, "replay").click();
+    await expect(bar(page)).toBeVisible();
+  });
+
+  // Rows copied from a real history/history_during_period reply of Home Assistant, 2026-10-28, for light.laundry (a Hue group): the recorder
+  // kept no rgb_color, hs_color, color_mode or brightness, only these attributes (finding 21).
+  const HUE = { dynamics: "none", entity_id: ["light.laundry_1"], friendly_name: "Laundry", hue_scenes: ["Relax"], hue_type: "room", is_hue_group: true, lights: ["Laundry 1"] };
+  const PURPLE = "rgb(89, 0, 255)", DEFAULT_ON = "rgb(224, 168, 0)"; // --fp-on of the light theme
+  const lampFill = (page: Page) => g(page, lampIdx).evaluate((el) => getComputedStyle(el.querySelector(".halo")!).fill);
+
+  test("the first frame is the live plan: purple at the end of the slider, the default lamp colour one step back, purple again on End", async ({ page }) => {
+    const live = { "light.demo_kitchen": st("on", { rgb_color: [89, 0, 255], brightness: 200 }) };
+    const rows: Rows = { "light.demo_kitchen": [{ s: "off", a: HUE, lu: secs(12, 0, -1) - 7200 }, { s: "on", lu: secs(8, 0) }] };
+    await boot(page, { live, rows });
+    expect(await lampFill(page)).toBe(PURPLE);
+    await openBar(page);
+    expect(await lampFill(page), "at now the replay is the live plan").toBe(PURPLE);
+    await range(page).focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect.poll(() => lampFill(page), "the past borrows no colour from today").toBe(DEFAULT_ON);
+    await page.keyboard.press("End");
+    await expect.poll(() => lampFill(page)).toBe(PURPLE);
   });
 });

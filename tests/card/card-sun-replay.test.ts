@@ -22,7 +22,8 @@ async function mount(opts: { replay?: { sun: HassEntity; at: number }; config?: 
   if (opts.replay) {
     // The replay as the card holds it once the history is there: the states last drawn for the floor on show, at `drawnT`.
     const floor = {} as never;
-    el._replay = { end: opts.replay.at, t: opts.replay.at, drawnT: opts.replay.at, floors: new Map([[el._floorKey()!, floor]]), drawn: { floor, states: { "sun.sun": opts.replay.sun } } } as unknown as ReplayState;
+    // The bar ends a day after the moment shown: at the end itself the plan is live (S39 polish), and these tests are about the past.
+    el._replay = { end: opts.replay.at + 86400000, t: opts.replay.at, drawnT: opts.replay.at, floors: new Map([[el._floorKey()!, floor]]), drawn: { floor, states: { "sun.sun": opts.replay.sun } } } as unknown as ReplayState;
   }
   return el;
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import demo from "../../demo/layout.json";
 import { DEVICE_TYPES, FURNITURE_SYMBOLS, type DeviceType, type FurnitureSymbol, type Layout } from "../../src/core/schema";
-import { keyMinute, replayEntities, replayTime, sameStates, withTimeout, DAY_MINUTES } from "../../src/card/card-replay";
+import { keyMinute, replayEntities, replayStates, replayTime, sameStates, withTimeout, DAY_MINUTES } from "../../src/card/card-replay";
 
 const L = demo as unknown as Layout;
 
@@ -129,4 +129,18 @@ describe("replayEntities: every member of an enumeration is a decision (CLAUDE.m
     expect(got).not.toContain("sensor.front_rssi");
     expect(got).not.toContain("sensor.elsewhere_battery");
   });
+});
+
+describe("replayStates: the end of the slider is live (S39 polish)", () => {
+  // A card with a replay whose floor history is ready and whose last drawn frame is `past`; only the fields replayStates reads.
+  const past = { "light.x": { state: "on", attributes: {} } } as never;
+  const fh = { status: "ready", missing: 0 };
+  const card = (drawnT: number) => ({
+    _floorKey: () => "ground",
+    _hass: { states: { "light.x": { state: "on", attributes: { rgb_color: [89, 0, 255] } } } },
+    _replay: { end: 1000, t: drawnT, drawnT, floors: new Map([["ground", fh]]), drawn: { floor: fh, states: past } },
+  }) as never;
+  it("before the end it returns the states last drawn from the recorder", () => expect(replayStates(card(999))).toBe(past));
+  it("at the end it returns nothing, so every reader falls back to the live states and the real clock", () => expect(replayStates(card(1000))).toBeUndefined());
+  it("no replay is live too", () => expect(replayStates({ _replay: null } as never)).toBeUndefined());
 });

@@ -63,6 +63,8 @@ export function menuSections(c: FloorplanStudioCard): MenuSection[] {
   const out: MenuSection[] = [];
   const view = c._viewPick(), live3d = view === "3d" && c._shows3d(), f = c._floor();
   const radio = (label: string, value: string, checked: boolean): MenuItem => ({ kind: "radio", label, value, checked });
+  // First: the menu is long, and Replay pushed last sat below the fold where nobody found it.
+  if (canReplay(c) && !c._replay) out.push({ items: [{ kind: "action", label: t("Replay"), value: "replay" }] });
   if (c._viewSwitchOn()) {
     out.push({ label: t("View"), items: VIEW_OPTIONS.map((o) => radio(o.label, `view:${o.value}`, o.value === view)) });
     if (view === "2.5d") {
@@ -105,7 +107,6 @@ export function menuSections(c: FloorplanStudioCard): MenuSection[] {
     acts.push({ kind: "action", label: t("Reset view"), value: "reset", disabled: !c._modified() });
     out.push({ items: acts });
   }
-  if (canReplay(c) && !c._replay) out.push({ items: [{ kind: "action", label: t("Replay"), value: "replay" }] });
   return out;
 }
 
