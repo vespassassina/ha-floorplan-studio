@@ -1,4 +1,4 @@
-import { type ActiveDevice, activeDevices, ALL_OFF_TITLE, allOffTitle, attention, type Attention, type AttentionItem, type AttentionKind, type CategoryId, customCalls, customScene, DEVICE_ICONS, deviceCentre, type DeviceType, filterToRoom, floorSummary, formatAge, formatChanged, groupByCategory, type LayerId, layerOfType, layerWord, layoutEntries, pieceDevice, plugThreshold, presetCalls, type RoomDeviceRow, roomHeat, roomScenes, type RoomSensorRow, roomSummary, type RoomSummary, sceneNeedsConfirm, type SearchEntry, stateText, type ThingRef } from "../core";
+import { type ActiveDevice, activeDevices, ALL_OFF_TITLE, allOffTitle, attention, type Attention, type AttentionItem, type AttentionKind, type CategoryId, customCalls, customScene, DEVICE_ICONS, deviceCentre, type DeviceType, filterToRoom, floorSummary, formatAge, formatChanged, groupByCategory, type LayerId, layerOfType, layerWord, layoutEntries, pieceDevice, plugThreshold, presetCalls, type RoomDeviceRow, roomHeat, roomScenes, type RoomSensorRow, type RoomSummary, roomSummary, sceneNeedsConfirm, type SearchEntry, stateText, type ThingRef } from "../core";
 import { colorVarFor } from "../core/active";
 import { t, tn } from "../core/i18n";
 import { fireEvent } from "./actions";
@@ -11,6 +11,7 @@ import { html, nothing } from "lit";
 import { floorOffButton, openVacuumDialog } from "./card-dialogs";
 import { callService, closePopup, deviceSubject, openPopup, openSubject, popupMarkup, runOp, subjectOf, subjectOp, subjectText, thingSel } from "./card-popup";
 import { back, popupInSheet, sheetTo, toggleActiveCollapsed } from "./card-sheet";
+import { scheduleSave } from "./card-view-state";
 import type { FloorplanStudioCard, PickMemo } from "./floorplan-studio-card";
 
 /** The words the side panel says for a room and for a floor (S20.2): the same panel, one subject. */
@@ -99,7 +100,7 @@ export function locate(c: FloorplanStudioCard, ref: { floor: string } & ThingRef
     if (p && Number.isFinite(p[0]) && Number.isFinite(p[1]) && !c._shows3d()) {
       const now = c._pendingView?.zoom ?? c._anchorOfView()?.zoom ?? 1;
       c._pendingView = { focus: p, zoom: c._zoomMode() === false ? now : Math.max(now, LOCATE_ZOOM) };
-      c._scheduleSave();
+      scheduleSave(c);
     }
     startPulse(c, { floor: ref.floor, what: ref.what, index: ref.index });
   }

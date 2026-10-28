@@ -6,6 +6,7 @@ import type { Pt } from "./viewport";
 import { html, nothing } from "lit";
 import { attentionOf, openSearch, pickFloor, pickedFloorKey } from "./card-overview";
 import { popupInSheet } from "./card-sheet";
+import { saveViewNow } from "./card-view-state";
 import type { FloorplanStudioCard, CardView } from "./floorplan-studio-card";
 
 /** The View dropdown's options, one list for the markup and for reading the choice back (a value that is not here
@@ -137,7 +138,7 @@ export function applySavedView(c: FloorplanStudioCard, id: string): void {
     c._pickedRot = to === normaliseRotation(c._config.rotation) ? null : to;
   } else c._startTurn(from + shortestDelta(from, to), anchor); // its settle writes the turn
   c._appliedView = v.id; // after _selectFloor, which lets go of a view of another floor
-  c._saveViewNow();
+  saveViewNow(c);
   c.requestUpdate();
 }
 
@@ -177,7 +178,7 @@ export function onMenuPick(c: FloorplanStudioCard, ev: Event): void {
   const d = (ev as CustomEvent<MenuItem & { alt?: boolean }>).detail, v = d?.value;
   if (typeof v !== "string") return;
   const i = v.indexOf(":"), kind = i < 0 ? v : v.slice(0, i), arg = i < 0 ? "" : v.slice(i + 1);
-  const done = () => { c._saveViewNow(); c.requestUpdate(); };
+  const done = () => { saveViewNow(c); c.requestUpdate(); };
   switch (kind) {
     case "view":
       if (isView(arg)) { c._pickedView = arg; c._fallback3d = null; done(); } // a new pick tries 3D again

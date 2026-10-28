@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { DETAIL_MODES, iconsHold, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, NAME_MIN_PX, FLOORPLAN_CSS, THEMES, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { DETAIL_MODES, iconsHold, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, NAME_MIN_PX, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { CamThumb, HeatKind, LayerId, OffRow, SearchEntry } from "../core";
 import type { Attention, ThingRef, PowerCandidate, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -26,13 +26,14 @@ import "./search-box";
 import "./more-menu";
 import type { View3D } from "./three/view3d";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
-import { belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
+import { belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta, viewAround, type FloorView } from "./view-state";
 export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from here
 import { chooserDialogTemplate, coverDialogTemplate, dialogOpen, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
 import { activePanel, attentionOf, floorTitle, keptHere, openSearch, pickRoom, picked, placePulse, restorePick, tapRoom } from "./card-overview";
 import { bindHover, bindSpider, closePopup, foldSpider, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
 import { applyWidthDefault, back, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
+import { loadActiveState, loadViewState, saveViewNow, scheduleSave } from "./card-view-state";
 
 const NO_LAYOUT: StoredError = { key: INSTALL_HINT };
 
@@ -164,9 +165,6 @@ export type CardView = PlanView | "3d";
 
 /** A 45 degree turn takes this long; a longer one (Reset from 135 away) takes proportionally more, up to twice. */
 const TURN_MS = 350;
-/** Pan and zoom write to storage once they have been still this long. Short on purpose: a tablet that is put to
- * sleep or a tab that is discarded may never fire pagehide, so the write must not wait long for it. */
-const SAVE_DEBOUNCE_MS = 150;
 
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -530,7 +528,7 @@ export class FloorplanStudioCard extends LitElement {
   /** S2.6: which floor `floor: "all"` currently shows. Only read/written through `_floorKey`/`_selectFloor`, which
    * fall back to the layout's first floor when this is unset, stale (the layout changed) or names a floor that
    * no longer exists. */
-  private _shownFloor: string | null = null;
+  _shownFloor: string | null = null;
   /** S2.7: the door whose cover confirm dialog is open, or `null` for none. Only `_openCoverDialog` sets it, and
    * only when it is already `null` — a second tap while the dialog is open (CLAUDE.md-style "Break it") must not
    * replace it with a different door or stack a second dialog. */
@@ -632,7 +630,7 @@ export class FloorplanStudioCard extends LitElement {
    * in memory too, so a floor remembers even when storage is blocked. `_memFloor` is the floor the live view state
    * (`_view`, `_pickedRot`, the camera) belongs to; `null` until the first render knows the floor. */
   _floorViews = new Map<string, FloorView>();
-  private _memFloor: string | null = null;
+  _memFloor: string | null = null;
   /** The floor key the 3D view's scene was built for, and whether the person moved its camera on that floor. */
   _view3dKey: string | null = null;
   _camMoved = false;
@@ -641,7 +639,7 @@ export class FloorplanStudioCard extends LitElement {
   _focusHold = false;
   _focusTimer: ReturnType<typeof setTimeout> | null = null;
   /** The debounce timer for pan and zoom saves; non-null means there is something unsaved. */
-  private _saveTimer: ReturnType<typeof setTimeout> | null = null;
+  _saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
   _fit: View | null = null;
   private _unbindZoom: (() => void) | null = null;
@@ -713,7 +711,7 @@ export class FloorplanStudioCard extends LitElement {
    * them after a reload. Unlike `floor`/`floors` (always in the seed, `?? null`), these two are appended only when
    * actually set: putting them in unconditionally, even as `null`, would change the JSON string — and so the
    * hash — for every card that has neither key, wiping the stored position everyone already has. */
-  private _storageSeed(): unknown[] {
+  _storageSeed(): unknown[] {
     const source = this._config.layout_url ?? (this._config.layout ? "inline" : "ws");
     const seed: unknown[] = [source, this._config.floor ?? null, this._config.floors ?? null];
     if (this._config.center !== undefined) seed.push(this._config.center);
@@ -721,69 +719,11 @@ export class FloorplanStudioCard extends LitElement {
     return seed;
   }
 
-  private _activeStorageKey(): string {
+  _activeStorageKey(): string {
     return `fp-active-panel:${tag(JSON.stringify(this._storageSeed()))}`;
   }
 
-  /** The view memory's own key, apart from the Active list's (they change at different moments and a bad entry in
-   * one must not cost the other). Same seed, so two cards tell apart the way the panels do, plus the config keys
-   * that make a card a different view of the same floor: a 2D card and a 2.5D card of one floor, or two turned
-   * differently, must not share a memory. Like `center` above they join the seed only when set. A side effect worth
-   * knowing: editing one of them in the card's YAML starts a card with a clean memory. */
-  private _viewStorageKey(): string {
-    const seed = this._storageSeed();
-    const c = this._config;
-    if (c.view !== undefined) seed.push(["view", c.view]);
-    if (c.rotation !== undefined) seed.push(["rotation", c.rotation]);
-    if (c.theme !== undefined) seed.push(["theme", c.theme]);
-    if (c.tilt !== undefined) seed.push(["tilt", c.tilt]);
-    if (c.walls !== undefined) seed.push(["walls", c.walls]);
-    if (c.labels !== undefined) seed.push(["labels", c.labels]);
-    if (c.names !== undefined) seed.push(["names", c.names]);
-    // A stored pick must not outlive a config that now says something else (S25 review): detail and kiosk decide the default.
-    if (c.detail !== undefined) seed.push(["detail", c.detail]);
-    if (c.ghost_floor !== undefined) seed.push(["ghost_floor", c.ghost_floor]);
-    if (c.floors_below !== undefined) seed.push(["floors_below", c.floors_below]);
-    if (c.heat_map !== undefined) seed.push(["heat_map", c.heat_map]);
-    for (const k of ["camera_thumb", "camera_thumb_size", "camera_thumb_pos"] as const) if (c[k] !== undefined) seed.push([k, c[k]]);
-    if (c.kiosk !== undefined) seed.push(["kiosk", c.kiosk]);
-    return `fp-view:${tag(JSON.stringify(seed))}`;
-  }
 
-  /** Reads this card's remembered view into the picked fields, before the first render so there is no flash of the
-   * config's look. Storage is untrusted: `parseStoredView` drops each bad field, and a throwing `localStorage`
-   * (private mode, blocked) is nothing stored. */
-  private _loadViewState(): void {
-    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedRot = this._pickedDetail = this._pickedGhost = this._pickedBelow = this._pickedHeat = this._pickedCam = null;
-    this._pendingView = null;
-    this._appliedView = null;
-    this._shownFloor = null;
-    this._floorViews = new Map();
-    this._memFloor = null;
-    this._camMoved = false;
-    this._kept = null;
-    let s: StoredView = {};
-    try {
-      const raw = globalThis.localStorage?.getItem(this._viewStorageKey());
-      if (raw) s = parseStoredView(raw, isView, THEMES);
-    } catch {
-      /* storage blocked: the card starts from its config */
-    }
-    if (s.view !== undefined) this._pickedView = s.view as CardView;
-    if (s.tilt !== undefined) this._pickedTilt = s.tilt;
-    if (s.walls !== undefined) this._pickedWalls = wallsModeOf(s.walls);
-    if (s.theme !== undefined) this._pickedTheme = s.theme as Theme;
-    if (s.labels !== undefined) this._pickedLabels = s.labels;
-    if (s.names !== undefined) this._pickedNames = s.names;
-    if (s.detail !== undefined) this._pickedDetail = s.detail;
-    if (s.ghost !== undefined) this._pickedGhost = s.ghost;
-    if (s.below !== undefined) this._pickedBelow = s.below;
-    if (s.heat !== undefined) this._pickedHeat = s.heat;
-    if (s.cam !== undefined) this._pickedCam = s.cam;
-    if (s.floor !== undefined) this._shownFloor = s.floor; // an unknown id is ignored by _floorKey
-    this._hiddenLayers = s.layers ?? [];
-    for (const [k, fv] of s.floors ?? []) this._floorViews.set(k, fv); // the live fields follow once the first render knows the floor
-  }
 
   /** Makes the live view state (zoom box, turn) the shown floor's own, when the shown floor is not the one it belongs
    * to: on the first render, and on a floor switch. A floor with nothing remembered starts at the config's look. */
@@ -797,63 +737,13 @@ export class FloorplanStudioCard extends LitElement {
     this._memFloor = key;
   }
 
-  /** The live view state of the shown floor, written into `_floorViews` (an empty one removes the entry). The 3D camera
-   * is read from the view only when the person has moved it on this floor; otherwise what was stored stays. */
-  private _stashFloor(): void {
-    const key = this._floorKey();
-    if (!key || key !== this._memFloor) return;
-    const fv: FloorView = {};
-    if (this._pickedRot !== null) fv.rotation = this._pickedRot;
-    const anchor = this._pendingView ?? this._anchorOfView();
-    if (anchor) { fv.zoom = anchor.zoom; fv.focus = anchor.focus; }
-    const cam = this._camMoved && this._view3d && this._view3dKey === key ? this._view3d.camera() : this._floorViews.get(key)?.cam;
-    if (cam) fv.cam = cam;
-    if (Object.keys(fv).length) this._floorViews.set(key, fv);
-    else this._floorViews.delete(key);
-  }
 
-  /** Writes what the person has chosen: only the picked fields, and the zoom and focus while zoomed. Nothing to
-   * say removes the entry. A turn in flight writes nothing; its end does. Never throws. */
-  _saveViewNow(): void {
-    if (this._saveTimer !== null) {
-      globalThis.clearTimeout(this._saveTimer);
-      this._saveTimer = null;
-    }
-    if (this._turn) return;
-    const o: Record<string, unknown> = {};
-    if (this._pickedView !== null) o.view = this._pickedView;
-    if (this._pickedTilt !== null) o.tilt = this._pickedTilt;
-    if (this._pickedWalls !== null) o.walls = this._pickedWalls;
-    if (this._pickedTheme !== null) o.theme = this._pickedTheme;
-    if (this._pickedLabels !== null) o.labels = this._pickedLabels;
-    if (this._pickedNames !== null) o.names = this._pickedNames;
-    if (this._pickedDetail !== null) o.detail = this._pickedDetail;
-    if (this._pickedGhost !== null) o.ghost = this._pickedGhost;
-    if (this._pickedBelow !== null) o.below = this._pickedBelow;
-    if (this._pickedHeat !== null) o.heat = this._pickedHeat;
-    if (this._pickedCam !== null) o.cam = this._pickedCam;
-    if (this._shownFloor !== null) o.floor = this._shownFloor;
-    if (this._hiddenLayers.length) o.layers = this._hiddenLayers;
-    this._stashFloor();
-    if (this._floorViews.size) o.floors = [...this._floorViews];
-    try {
-      const key = this._viewStorageKey();
-      if (Object.keys(o).length) globalThis.localStorage?.setItem(key, JSON.stringify({ v: 1, ...o }));
-      else globalThis.localStorage?.removeItem(key);
-    } catch {
-      /* private browsing or storage blocked: the view just does not persist */
-    }
-  }
 
-  /** Pan and zoom come in bursts: write once they have been still for a moment. */
-  _scheduleSave(): void {
-    if (this._saveTimer !== null) globalThis.clearTimeout(this._saveTimer);
-    this._saveTimer = globalThis.setTimeout(() => this._saveViewNow(), SAVE_DEBOUNCE_MS);
-  }
+  _scheduleSave(): void { return scheduleSave(this); } // card-view-state.ts
 
   /** A pending debounced save goes out now (the card is leaving, or the page is). */
   private _flushSave = (): void => {
-    if (this._saveTimer !== null) this._saveViewNow();
+    if (this._saveTimer !== null) saveViewNow(this);
   };
 
   private _onVisibility = (): void => {
@@ -1080,22 +970,6 @@ export class FloorplanStudioCard extends LitElement {
     return clamp(viewAround(centre, anchor.zoom, fit), fit);
   }
 
-  private _loadActiveState(): void {
-    this._activeCollapsed = false;
-    this._activeUserChose = false;
-    this._overviewAll = false;
-    try {
-      const raw = globalThis.localStorage?.getItem(this._activeStorageKey());
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { collapsed?: unknown; chosen?: unknown; all?: unknown };
-      this._overviewAll = parsed.all === true;
-      // An entry from before `chosen` existed that says collapsed was a hand fold (nothing else wrote it as true);
-      // one that says open only recorded a drag (gone in S31.5), so the width still decides.
-      if (parsed.chosen === true || parsed.collapsed === true) { this._activeUserChose = true; this._activeCollapsed = parsed.collapsed === true; }
-    } catch {
-      /* malformed or unavailable storage: the sheet just opens at its default, unfolded */
-    }
-  }
 
   _catStorageKey(): string {
     return `fp-active-cats:${tag(JSON.stringify(this._storageSeed()))}`;
@@ -1215,7 +1089,7 @@ export class FloorplanStudioCard extends LitElement {
     this._warnHeat();
     this._closePopup();
     this._focusDev = null;
-    this._hideTip();
+    hideTip(this);
     if (!sameSource) {
       this._layout = null;
       this._error = null;
@@ -1230,8 +1104,8 @@ export class FloorplanStudioCard extends LitElement {
     this._panTarget = null;
     this._view = null;
     this._fallback3d = null;
-    this._loadViewState();
-    this._loadActiveState();
+    loadViewState(this);
+    loadActiveState(this);
     this._loadFoldedCats();
     this._loadLayout();
     this.requestUpdate();
@@ -1344,7 +1218,7 @@ export class FloorplanStudioCard extends LitElement {
     globalThis.document?.removeEventListener("pointerdown", this._onOutsideDown, true);
     globalThis.removeEventListener?.("scroll", this._hideTip, true);
     this._popup = null;
-    this._hideTip();
+    hideTip(this);
     this.removeEventListener("pointerenter", this._onPointerEnter);
     this.removeEventListener("pointermove", this._onPointerEnter);
     this.removeEventListener("pointerleave", this._onPointerLeave);
@@ -1388,7 +1262,7 @@ export class FloorplanStudioCard extends LitElement {
       this._layout = v.layout;
       this._spider = null; // its indices belonged to the layout just replaced
       this._closePopup(); // its subject belonged to the layout just replaced
-      this._hideTip();
+      hideTip(this);
       this._error = null;
     } catch (e) {
       const why = e instanceof Error ? e.message : "";
@@ -1541,7 +1415,7 @@ export class FloorplanStudioCard extends LitElement {
     this._view = t.anchor && fit ? this._boxFromAnchor(t.anchor, fit) : null;
     const home = this._home();
     if (this._view && fit && home && sameView(this._view, home, fit)) this._view = null;
-    this._saveViewNow();
+    saveViewNow(this);
     if (render) this.requestUpdate();
   }
 
@@ -1633,7 +1507,7 @@ export class FloorplanStudioCard extends LitElement {
     this._closePopup(); // its subject is on the floor just left
     this._focusDev = null; // and so is the device the keys stood on
     this._settleTurn(false); // a turn in flight ends where it was going, under the floor it began on
-    this._saveViewNow(); // the floor just left keeps its zoom, turn and camera (S14.4)
+    saveViewNow(this); // the floor just left keeps its zoom, turn and camera (S14.4)
     this._shownFloor = key;
     this._kept = null; // a kept thing is kept on its floor only, and only until the person looks elsewhere
     this._pickedRoom = null; // a room of the floor just left means nothing on this one
@@ -1871,7 +1745,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   _dispose3d(): void {
-    if (this._view3d && this._camMoved) this._saveViewNow(); // the camera is read from the view: before it goes
+    if (this._view3d && this._camMoved) saveViewNow(this); // the camera is read from the view: before it goes
     this._view3d?.dispose();
     this._view3d = null;
     this._view3dKey = null;
@@ -2138,7 +2012,7 @@ export class FloorplanStudioCard extends LitElement {
   _setLayers(next: LayerId[]): void {
     this._hiddenLayers = next;
     this._kept = null;
-    this._saveViewNow();
+    saveViewNow(this);
     this.requestUpdate();
   }
 
@@ -2258,7 +2132,7 @@ export class FloorplanStudioCard extends LitElement {
     const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" tabindex="0" role="group" aria-label=${t("Floor plan, {floor}", { floor: floorTitle(this, this._floorKey() ?? "") })} @focus=${this._onStageFocus} @blur=${this._onStageBlur} @pointerdown=${this._dropFocus} ${planPatch(body)}></svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${t(this._fallback3d)}</p>` : null;
     measureFrame(this);
-    const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label=${t("Reset camera")} title=${t("Reset camera")} @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
+    const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label=${t("Reset camera")} title=${t("Reset camera")} @click=${() => { this._forgetCamera(); saveViewNow(this); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
     const stackEl = stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit) : null;
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? optionsMenu(this) : null;
@@ -2331,7 +2205,7 @@ export class FloorplanStudioCard extends LitElement {
     this._startTurn(from + shortestDelta(from, normaliseRotation(this._config.rotation)), null);
     if (!this._turn) {
       this._pickedRot = null;
-      this._saveViewNow();
+      saveViewNow(this);
     }
     this.requestUpdate();
   }
