@@ -117,6 +117,13 @@ test("resizing across the bound settles: one switch per crossing, no flicker, no
 
 // S38.7: hysteresis. Icons from a plan 420 px wide, dots under 380, the last level in between. At 400 px nothing switches,
 // whichever side the card came from. Asymmetric on purpose (finding 4): the two directions must read different levels.
+/** The detail level read on each of `n` animation frames: "nothing switches" is proved by every frame agreeing, not by a pause. */
+const levelsOver = (page: Page, n: number) => page.evaluate((n) => new Promise<(string | null)[]>((done) => {
+  const el = document.getElementById("card") as any, seen: (string | null)[] = [];
+  const tick = () => { seen.push(el.shadowRoot.querySelector("svg g[data-detail]")?.getAttribute("data-detail") ?? null); if (seen.length < n) requestAnimationFrame(tick); else done(seen); };
+  tick();
+}), n);
+
 test("a plan 400 px wide keeps its last level: coming from icons stays icons, coming from dots stays dots", async ({ page }) => {
   await open(page, {}, 600);
   await settle(page, "mid");
@@ -124,13 +131,13 @@ test("a plan 400 px wide keeps its last level: coming from icons stays icons, co
   const inBand = await planWidth(page);
   expect(inBand, "the plan is inside the band").toBeGreaterThan(385);
   expect(inBand).toBeLessThan(415);
-  await page.waitForTimeout(300);
+  expect(new Set(await levelsOver(page, 30)), "30 frames from icons").toEqual(new Set(["mid"]));
   expect(await level(page), "from icons").toBe("mid");
   expect((await drawn(page)).icons).toBeGreaterThanOrEqual(10);
   await width(page, 360);
   await settle(page, "far");
   await width(page, 400);
-  await page.waitForTimeout(300);
+  expect(new Set(await levelsOver(page, 30)), "30 frames from dots").toEqual(new Set(["far"]));
   expect(await level(page), "from dots").toBe("far");
   expect((await drawn(page)).icons).toBe(0);
   await width(page, 420);

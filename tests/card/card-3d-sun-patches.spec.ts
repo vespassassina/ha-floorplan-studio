@@ -2,8 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { demo, serve, ORIGIN, drawn } from "./helpers-3d";
 import { readCanvasRect, meanRgb } from "../helpers/pixels";
 
-// S38.4 (docs/specs/sun-s38.md, criteria 8 to 12): the sun's patches on the floor behind the windows. The card does not hand the sun to the
-// view yet (S38.2), so the tests feed it through the test-build hook `__fp3d.sun()`.
+// S38.4 (docs/specs/sun-s38.md, criteria 8 to 12): the sun's patches on the floor behind the windows. The card hands the sun to the view since S38.2
+// (card-3d-sun-live.spec.ts drives it through hass); these tests feed the view directly through the test-build hook `__fp3d.sun()`.
 // The house is the demo's ground floor emptied of furniture and devices: 800 x 600 cm; room 0 is x 0..500, y 0..400, room 1 x 500..800, y 0..400,
 // room 2 x 0..800, y 400..600. The outline and the outer edges are `external`; the edges at y = 400 and x = 500 are plain walls.
 // A pixel is read with and without the windows (the same house, the same sun, the windows turned into doors, which cast none), so the floor's own

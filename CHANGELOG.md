@@ -7,8 +7,10 @@ The 3D view follows the sun. By day the light comes from where `sun.sun` puts th
 - Card: the hover title of a device names its type in the card's language ("Licht: Küche"). In English, and in the Studio, it reads as before.
 - Card: the switch between device icons and dots has a dead band. Icons from a plan 420 px wide, dots at 380 and under, the last level in between, so a plan resting near the bound stops flipping.
 - Card: the 3D view takes the sun's `azimuth` and `elevation` from `sun.sun` (or the entity named in `sun:`) and the plan's `north`, and lights the house from there; a hass update that moves only the sun moves the light. With no usable sun the light is the old fixed one.
+- Card: on a floor you turned with Hand align (`rotation`), the 3D sun now shines from the right side of the house. It used to ignore the floor's turn.
 - Card: an error line ("The plan could not be used", "Could not load the plan") follows a change of Home Assistant language without a reload.
 - Card: the Edit-card form loads only when you open Edit card, as a file of its own beside the card (`floorplan-studio-form-<hash>.js`). The card file is 5.3 KB smaller gzipped. Nothing changes in how the form works. Update the integration as well as the card: the card needs the new file in `www/`.
+- Card: if the Edit-card form fails to load once (a network blip), Edit card works again on the next try instead of staying broken until you reload the page; if it keeps failing, the dialog says to reload the page.
 
 ## 0.36.0 - 2026-10-25
 

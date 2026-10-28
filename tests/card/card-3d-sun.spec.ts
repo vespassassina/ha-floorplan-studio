@@ -2,8 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { demo, serve, ORIGIN, drawn } from "./helpers-3d";
 import { readCanvasRect, meanRgb } from "../helpers/pixels";
 
-// S38.3 (docs/specs/sun-s38.md, criteria 3 to 7): the 3D sun light. The card does not hand the sun to the view yet (S38.2), so the
-// tests feed it through the test-build hook `__fp3d.sun()`, which stands where `setLive`'s `sun` field will arrive.
+// S38.3 (docs/specs/sun-s38.md, criteria 3 to 7): the 3D sun light. The card hands the sun to the view since S38.2 (card-3d-sun-live.spec.ts
+// drives it through hass); these tests feed the view directly through the test-build hook `__fp3d.sun()`, which stands where `setLive`'s `sun` field arrives.
 // Probe: the demo's ground floor emptied of furniture, devices and openings, walls full, the camera at 0.45 rad polar. The house is
 // 800 x 600 cm; its walls are 10 cm thick on the outline, so the south outer face is at y = 605 and the north outer face at y = -5.
 // A south face is seen from the south (az 0), a north face from the north (az PI): a Lambert face is lit the same from any camera.
