@@ -268,7 +268,6 @@ let focusedCard: FloorplanStudioCard | null = null;
  */
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 
-
 // S36.4: the underscore members that are not `private` are the ones the 3D glue in `three/host.ts` (the lazy chunk) reads.
 export class FloorplanStudioCard extends LitElement {
   static styles = [unsafeCSS(FLOORPLAN_CSS), css`
@@ -708,8 +707,6 @@ export class FloorplanStudioCard extends LitElement {
     return `fp-active-panel:${tag(JSON.stringify(this._storageSeed()))}`;
   }
 
-
-
   /** Makes the live view state (zoom box, turn) the shown floor's own, when the shown floor is not the one it belongs
    * to: on the first render, and on a floor switch. A floor with nothing remembered starts at the config's look. */
   private _syncFloorMemory(): void {
@@ -721,8 +718,6 @@ export class FloorplanStudioCard extends LitElement {
     this._view = null;
     this._memFloor = key;
   }
-
-
 
   _scheduleSave(): void { return scheduleSave(this); } // card-view-state.ts
 
@@ -864,7 +859,6 @@ export class FloorplanStudioCard extends LitElement {
     return this._viewSwitchOn() || this._rotateOn();
   }
 
-
   /** The zoomed view as what survives a turn and a reload: its zoom against fit and its centre in plan cm, which is
    * the layout's own coordinates before any rotation. `null` at home. */
   _anchorOfView(): { focus: Pt; zoom: number } | null {
@@ -883,7 +877,6 @@ export class FloorplanStudioCard extends LitElement {
     return clamp(viewAround(centre, anchor.zoom, fit), fit);
   }
 
-
   _catStorageKey(): string {
     return `fp-active-cats:${tag(JSON.stringify(this._storageSeed()))}`;
   }
@@ -898,8 +891,6 @@ export class FloorplanStudioCard extends LitElement {
       /* malformed or unavailable storage: every group opens */
     }
   }
-
-
 
   _saveActiveState(): void {
     try {
@@ -1684,15 +1675,11 @@ export class FloorplanStudioCard extends LitElement {
     this._focusHold = false;
   }
 
-
   _openCoverDialog(door: Door): void { return openCoverDialog(this, door); } // card-dialogs.ts
-
 
   _openVacuumDialog(d: Device): void { return openVacuumDialog(this, d); } // card-dialogs.ts
 
-
   _openChooserDialog(title: string, entities: string[], line?: () => string): void { return openChooserDialog(this, title, entities, line); } // card-dialogs.ts
-
 
   // ---- S14.2: the tap popup and the hover tooltip ------------------------------------------------------------------------------------
 
@@ -1700,13 +1687,7 @@ export class FloorplanStudioCard extends LitElement {
 
   _targetOf(kind: "x" | "d" | "u" | "f", i: number): TapTarget | null { return targetOf(this, kind, i); } // card-popup.ts
 
-
-
-
-
-
   _pulseRaf = 0;
-
 
   /** S34.4 (F1): reads `favourites` once per config, and warns once per card when the list had junk in it. Never throws. */
   private _favWarned = false;
@@ -1776,59 +1757,19 @@ export class FloorplanStudioCard extends LitElement {
 
   _tapOpts() { return tapOpts(this); } // card-popup.ts
 
-
   _openPopup(t: TapTarget, at: { x: number; y: number }, from: Element | null): void { return openPopup(this, t, at, from); } // card-popup.ts
-
-
 
   _closePopup(): void { return closePopup(this); } // card-popup.ts
 
   // ---- S25.5: spiderfy ----------------------------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   _showTip(t: TapTarget, x: number, y: number, el: Element | null): void { return showTip(this, t, x, y, el); } // card-popup.ts
-
-
 
   _hideTip = (): void => hideTip(this); // card-popup.ts
 
-
-
-
-
-
-
-
   _onDialogKeydown = (e: KeyboardEvent): void => onDialogKeydown(this, e); // card-dialogs.ts
 
-
-
-
-
-
   _onMenuPick = (ev: Event): void => onMenuPick(this, ev); // card-menu.ts
-
-
-
-
-
-
-
 
   /** S9.5: hidden under `kiosk` (a wall tablet shows only the plan) and under `active_list: false`. Untrusted
    *  config: anything other than the literal `false` counts as the default, shown. */
@@ -1836,13 +1777,11 @@ export class FloorplanStudioCard extends LitElement {
     return this._config.active_list !== false && !this._kiosk();
   }
 
-
   /** After each render and resize: the 3D camera frames the house in what the side panel leaves. (The floating panel and its
    * dock are gone: the side sheet is a grid cell and the bottom sheet sits below the house.) */
   private _positionActivePanel(): void {
     lib3d?.apply3dFrame(this);
   }
-
 
   /** The sheet column's width in px, as `_measureFrame` last set it: what the stage is short of the card's width. */
   _sheetPx = 0;
@@ -1851,34 +1790,11 @@ export class FloorplanStudioCard extends LitElement {
 
   private _fitHeight = (): void => fitHeight(this); // card-sheet.ts
 
-
-
-
   _picked(): number | null { return picked(this); } // card-overview.ts
 
   _pickRoom(i: number | null): void { return pickRoom(this, i); } // card-overview.ts
 
-
   _restorePick(before: PickMemo): void { return restorePick(this, before); } // card-overview.ts
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   // ---- S31.8: the bottom sheet's handle ---------------------------------------------------------------------------------------------
 
@@ -1896,15 +1812,6 @@ export class FloorplanStudioCard extends LitElement {
 
   _stopsNow(): Stops | null { return stopsNow(this); } // card-sheet.ts
 
-
-
-
-
-  // ---- S24.8 (F1): search -------------------------------------------------------------------------------------------------------
-
-
-
-
   // ---- S25.8: detail mode ---------------------------------------------------------------------------------------------------------
 
   /** The mode on show: this viewer's pick, else the card's YAML `detail`, else the default. Config is untrusted, so junk
@@ -1919,23 +1826,12 @@ export class FloorplanStudioCard extends LitElement {
     return canChange ? "auto" : "full";
   }
 
-  // ---- S24.8: layer note ---------------------------------------------------------------------------------------------------------
-
-
   _setLayers(next: LayerId[]): void {
     this._hiddenLayers = next;
     this._kept = null;
     saveViewNow(this);
     this.requestUpdate();
   }
-
-
-  // ---- S24.8 (C2): Turn off on this floor… --------------------------------------------------------------------------------------
-
-
-
-
-
 
   private _sunId(): string {
     return typeof this._config.sun === "string" && this._config.sun ? this._config.sun : "sun.sun";
@@ -2105,7 +2001,6 @@ export class FloorplanStudioCard extends LitElement {
       || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedNames, this._pickedRot, this._pickedDetail, this._pickedGhost, this._pickedBelow, this._pickedHeat, this._pickedCam].some((v) => v !== null);
   }
 
-
   /** The 3D camera goes back to its first view and the shown floor forgets it (Reset view, Reset camera). The floor's
    * zoom and turn are not touched here: `_stashFloor` rewrites them from the live state. */
   _forgetCamera(): void {
@@ -2215,11 +2110,7 @@ export class FloorplanStudioCard extends LitElement {
 
   _fitView(): void { return fitView(this); } // card-zoom.ts
 
-
   _bindZoom(svg: SVGSVGElement): () => void { return bindZoom(this, svg); } // card-zoom.ts
-
-
-
 
 }
 
