@@ -4715,7 +4715,7 @@ stay in the card. Every lane reports `gzip -9` of the card and the chunks before
 Lanes, each in its own worktree and `PW_PORT`: **split** S39.0 first, alone on the card file; **replay** S39.1 (the
 chunk only, starts at once); **card** S39.2, S39.3, S39.4 after S39.0 lands (one coder, in order); then S39.5.
 
-- [ ] S39.0 Split the card file (review item 15). `src/card/floorplan-studio-card.ts` is 275 KB of source. Move whole
+- [x] S39.0 Split the card file (2026-10-28: element source 275,489 -> 142,657 B, seven modules `card-menu`, `card-sheet`, `card-overview`, `card-dialogs`, `card-popup`, `card-view-state`, `card-zoom`; card gzip -9 119,612 -> 119,638, +26 B, cap 124,650; vitest 5517 passed; the 3D host glue and the sun and night logic stay on the element). (review item 15). `src/card/floorplan-studio-card.ts` is 275 KB of source. Move whole
       concerns out into modules beside it (the 3D host glue, the sheet and popup wiring, the header and menu, the floor
       row, the measuring and level logic), each a plain function or a small helper class over the element; the element
       keeps its state and lifecycle. No behaviour change, no new public name, and the card's gzip bytes do not grow by
