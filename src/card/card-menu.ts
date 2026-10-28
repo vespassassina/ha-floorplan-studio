@@ -4,6 +4,7 @@ import type { MenuItem, MenuSection } from "./more-menu";
 import { BELOW_LABELS, BELOW_MODES, type BelowMode, HEAT_LABELS, normaliseRotation, ROTATION_STEP, shortestDelta } from "./view-state";
 import type { Pt } from "./viewport";
 import { html, nothing } from "lit";
+import { popupInSheet } from "./card-sheet";
 import type { FloorplanStudioCard, CardView } from "./floorplan-studio-card";
 
 /** The View dropdown's options, one list for the markup and for reading the choice back (a value that is not here
@@ -164,7 +165,7 @@ export function floorChips(c: FloorplanStudioCard) {
  *  room tap does nothing there. Kiosk has no pills, so it never gets here. */
 export function tapFloorChip(c: FloorplanStudioCard, key: string): void {
   // S31.8: with the Device level open, a floor tab goes to the Floor level, one level up, even when it names the floor already picked.
-  const letGo = c._pickedFloorKey() === key && !(c._popup && c._popupInSheet());
+  const letGo = c._pickedFloorKey() === key && !(c._popup && popupInSheet(c));
   c._selectFloor(key);
   c._pickFloor(letGo || !c._activeListVisible() ? null : key);
 }

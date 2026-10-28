@@ -21,7 +21,7 @@ import { currentLanguage, useLanguage } from "./i18n";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { PAN_STEP, isSearchChord, planKeyFor, type ViewKey } from "./view-keys";
 import { firstFocus, nextInDirection, type FocusDir } from "./plan-focus";
-import { HEADER_H, PEEK_H, cardHeight, frameMode, nextOnHandleTap, sheetStops, sideOpenByDefault, sideWidth, snapSheet, type FrameMode, type SheetStop, type Stops } from "./frame";
+import { type FrameMode, type SheetStop, type Stops } from "./frame";
 // S24.8: registers <fp-search>, the search box the Studio uses too.
 import "./search-box";
 // S31.6: <fp-menu>, the header's ⋯: everything about how the plan looks.
@@ -29,8 +29,9 @@ import "./more-menu";
 import type { View3D } from "./three/view3d";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
 import { belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
-import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
 export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from here
+import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
+import { applyWidthDefault, back, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, popupInSheet, sheetTo, stopsNow, toggleActiveCollapsed, visibleBox } from "./card-sheet";
 
 const NO_LAYOUT: StoredError = { key: INSTALL_HINT };
 
@@ -169,8 +170,6 @@ const SAVE_DEBOUNCE_MS = 150;
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
-/** Below this card width the Active list starts folded: it would cover the plan. */
-const ACTIVE_FOLD_BELOW_PX = 480;
 /** Two taps closer than this in time and space are a double-tap. */
 export const DOUBLE_TAP_MS = 350;
 export const DOUBLE_TAP_PX = 24;
@@ -661,7 +660,7 @@ export class FloorplanStudioCard extends LitElement {
   /** A turn in flight: `from` and `to` are user angles in degrees, unwrapped (`to` may be 360, or -45) so the
    * interpolation never takes the long way; `anchor` is the plan point and zoom to hold at the centre, or `null`
    * when the card is at home and home itself follows the angle. */
-  private _turn: { from: number; to: number; t0: number; dur: number; anchor: { focus: Pt; zoom: number } | null; raf: number } | null = null;
+  _turn: { from: number; to: number; t0: number; dur: number; anchor: { focus: Pt; zoom: number } | null; raf: number } | null = null;
   /** The user angle drawn this frame while `_turn` runs. */
   private _turnAngle = 0;
   /** A stored zoom and focus (plan cm) waiting for the first render, the first moment the fit box is known. */
@@ -681,13 +680,13 @@ export class FloorplanStudioCard extends LitElement {
   /** The debounce timer for pan and zoom saves; non-null means there is something unsaved. */
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
-  private _fit: View | null = null;
+  _fit: View | null = null;
   private _unbindZoom: (() => void) | null = null;
   private _unbindCam: (() => void) | null = null;
   /** S9.5: the Overview's fold, per card, in browser storage (try/catch: private browsing or blocked storage just means
    * the sheet forgets between reloads). S31.5: the panel is no longer dragged, so the stored `x` and `y` of older builds
    * are ignored and not written back; the fold is kept. */
-  private _activeCollapsed = false;
+  _activeCollapsed = false;
   /** S14.6: the category groups the viewer folded, as `list:category` ids (`a:` Active list, `r:` Room panel). Per card, in browser storage. */
   private _foldedCats = new Set<string>();
   /** S34.4: the card's cleaned `favourites` (read once per `setConfig`), and the entities as a set for Search. */
@@ -701,15 +700,15 @@ export class FloorplanStudioCard extends LitElement {
   /** S31.8: the bottom sheet's stop. Not remembered: a cold card is at peek, and `setConfig` puts it back. */
   _sheetStop: SheetStop = "peek";
   /** S31.8: a drag in flight. `h` is the sheet's height now, `trail` the last heights with their times (for the fling). */
-  private _sheetDrag: { id: number; y0: number; h0: number; h: number; moved: boolean; stops: Stops; trail: { t: number; h: number }[] } | null = null;
+  _sheetDrag: { id: number; y0: number; h0: number; h: number; moved: boolean; stops: Stops; trail: { t: number; h: number }[] } | null = null;
   /** S31.8: a drag just ended on the handle; the click the browser sends after it is not a tap. */
-  private _dragEnded = false;
+  _dragEnded = false;
   /** S31.8: the selector of what the sheet just opened for; the next `updated()` pans it above the sheet. */
-  private _panTarget: string | null = null;
+  _panTarget: string | null = null;
   /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
    * own width decides: folded under `ACTIVE_FOLD_BELOW_PX`, open from there up, followed on every resize (0.12.17;
    * it was a one-off check at 500px that a stored drag position switched off). After, the choice is theirs. */
-  private _activeUserChose = false;
+  _activeUserChose = false;
   private _activeResizeObserver: ResizeObserver | null = null;
   /** S11.3: the room the person tapped, by floor key and room id (not index, so a reloaded layout keeps it), or null.
    *  Card chrome state, not a layout field: nothing here is saved, and a `hass` update leaves it alone. */
@@ -937,13 +936,13 @@ export class FloorplanStudioCard extends LitElement {
     const onStage = this._focusDev !== null && ev.composedPath()[0] === this._stageSvg();
     if (ev.key === "Escape" && onStage) { this._dropFocus(); ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._frame === "bottom" && this._activeListVisible() && (this._pickedRoom || this._pickedFloor || this._sheetStop !== "peek")) {
-      this._back(); // S31.8: one level up, and from the Overview down to peek
+      back(this); // S31.8: one level up, and from the Overview down to peek
       ev.preventDefault();
       return;
     }
     if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
       // Escape is Back: one level up in a side sheet too (room to floor to Overview). With no sheet there is no level, so it lets go.
-      if (this._activeListVisible()) this._back(); else this._pickRoom(null);
+      if (this._activeListVisible()) back(this); else this._pickRoom(null);
       ev.preventDefault();
       return;
     }
@@ -960,7 +959,7 @@ export class FloorplanStudioCard extends LitElement {
 
   // ---- S31.10: keys on the plan (D4) --------------------------------------------------------------------------------------------------
 
-  private _stageSvg(): SVGSVGElement | null {
+  _stageSvg(): SVGSVGElement | null {
     return this.shadowRoot?.querySelector<SVGSVGElement>("svg.fp-zoomable") ?? null;
   }
 
@@ -975,7 +974,7 @@ export class FloorplanStudioCard extends LitElement {
   private _onStageFocus = (ev: FocusEvent): void => {
     const svg = ev.currentTarget as SVGSVGElement;
     if (this._focusDev !== null || !svg.matches(":focus-visible")) return;
-    const v = this._visibleBox(), pts = this._planPoints();
+    const v = visibleBox(this), pts = this._planPoints();
     const at = firstFocus(pts, v ? { x: (v.left + v.right) / 2, y: (v.top + v.bottom) / 2 } : null);
     if (at >= 0) this._focusOn(pts[at]!.i);
   };
@@ -1011,7 +1010,7 @@ export class FloorplanStudioCard extends LitElement {
   private _focusOn(i: number): void {
     this._focusDev = i;
     const g = this._stageSvg()?.querySelector(`g[data-x="${i}"]`);
-    if (g && !this._shows3d()) this._panBoxIn(g);
+    if (g && !this._shows3d()) panBoxIn(this, g);
     this.requestUpdate();
   }
 
@@ -1166,7 +1165,7 @@ export class FloorplanStudioCard extends LitElement {
     </div>`;
   }
 
-  private _saveActiveState(): void {
+  _saveActiveState(): void {
     try {
       globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeUserChose && this._activeCollapsed, chosen: this._activeUserChose, all: this._overviewAll }));
     } catch {
@@ -1208,7 +1207,7 @@ export class FloorplanStudioCard extends LitElement {
     // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
     // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
     if (typeof ResizeObserver !== "undefined") {
-      this._activeResizeObserver = new ResizeObserver(() => { this._fitHeight(); this._applyWidthDefault(); this._positionActivePanel(); this._measurePx(); });
+      this._activeResizeObserver = new ResizeObserver(() => { this._fitHeight(); applyWidthDefault(this); this._positionActivePanel(); this._measurePx(); });
       this._activeResizeObserver.observe(this);
       // S31.7: and the parent, whose height is what says whether the card is fitted: a sections row resized by hand moves it
       // while the card, held at its own pixel height, would not move at all.
@@ -1795,9 +1794,9 @@ export class FloorplanStudioCard extends LitElement {
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
     this._glidePeople();
-    this._applyWidthDefault();
+    applyWidthDefault(this);
     this._positionActivePanel();
-    if (this._panTarget) this._panIntoVisible();
+    if (this._panTarget) panIntoVisible(this);
     // S24.8: the search box draws itself after this render; the panel grows by its height then, so place it again.
     const box = this.shadowRoot?.querySelector<HTMLElement & { hasUpdated: boolean; updateComplete: Promise<unknown> }>("fp-search");
     if (box && !box.hasUpdated) void box.updateComplete.then(() => this._positionActivePanel());
@@ -2237,7 +2236,7 @@ export class FloorplanStudioCard extends LitElement {
     this._hideTip();
     if (this._popup?.s.key === s.key) { this._closePopup(); return; }
     this._popup = { s, x: at.x, y: at.y, opener: from, confirming: false, draft: null };
-    this._sheetTo("half"); // S31.8: on a phone the popup is the Device level
+    sheetTo(this, "half"); // S31.8: on a phone the popup is the Device level
     this.requestUpdate();
   }
 
@@ -2330,7 +2329,7 @@ export class FloorplanStudioCard extends LitElement {
   /** The popup's markup: floating at the end of the card, or (`inSheet`) as the bottom sheet's Device level. Each caller asks for its place and gets nothing from the other. */
   private _popupTemplate(inSheet = false) {
     const p = this._popup;
-    if (!p || inSheet !== this._popupInSheet()) return null;
+    if (!p || inSheet !== popupInSheet(this)) return null;
     const s = p.s, st = this._hass?.states[s.entity ?? ""], op = this._popupOp(s);
     const light = op !== null && s.entity?.startsWith("light.") && st?.state !== "off" ? true : op !== null && s.entity?.startsWith("light.");
     const caps = light ? lightCaps(st?.attributes) : null;
@@ -2418,7 +2417,7 @@ export class FloorplanStudioCard extends LitElement {
   /** After every render: the popup sits near where it was tapped, inside the card; focus goes to its button when it opens and back to what opened it when it closes. */
   private _syncPopup(): void {
     const key = this._popup?.s.key ?? null, el = this.shadowRoot?.querySelector<HTMLElement>(".fp-pop") ?? null;
-    if (this._popup && el && !this._popupInSheet()) {
+    if (this._popup && el && !popupInSheet(this)) {
       const o = this._popup.opener;
       placeNear(el, this, this._popup.x, this._popup.y, 14, o?.isConnected && o.matches(".fp-active-row, fp-search") ? this._besideRect(o) : null);
     }
@@ -2621,26 +2620,8 @@ export class FloorplanStudioCard extends LitElement {
 
 
 
-  /** S31.5, Back in the side sheet: a room goes up to its floor, a floor to the Overview. Focus follows to what is now on top. */
-  private _back(): void {
-    if (this._popup && this._popupInSheet()) { this._closePopup(); return; } // S31.8: Device goes back to what was under it
-    const room = this._pickedRoom;
-    if (this._frame === "bottom" && !room && !this._pickedFloor) { this._sheetStop = "peek"; this.requestUpdate(); return; }
-    this._pickFloor(room && room.floor === this._floorKey() ? room.floor : null);
-    // Focus follows only if the card already had it. A card that owns the key by hover alone must not pull focus off the page's own control.
-    const had = !!this.shadowRoot?.activeElement;
-    void this.updateComplete.then(() => { if (had) this.shadowRoot?.querySelector<HTMLElement>(".fp-back, .fp-active-collapse, .fp-rail-open, .fp-handle")?.focus(); });
-  }
 
-  /** S31.8: whether the popup is drawn in the bottom sheet (the Device level) and not floating: a card with a sheet, under 640 px. */
-  _popupInSheet(): boolean {
-    return this._frame === "bottom" && this._activeListVisible() && !!this._layout;
-  }
 
-  /** S31.8: the sheet goes to `stop` when this card has a bottom sheet. */
-  private _sheetTo(stop: SheetStop): void {
-    if (this._frame === "bottom" && this._activeListVisible()) this._sheetStop = stop;
-  }
 
   /** The key of the selected floor while it is the one shown, else null (a floor the config no longer lists means nothing). */
   _pickedFloorKey(): string | null {
@@ -2652,7 +2633,7 @@ export class FloorplanStudioCard extends LitElement {
     this._pickedFloor = key;
     this._roomFilter = true;
     this._sceneAsk = null;
-    if (key !== null) this._sheetTo("half");
+    if (key !== null) sheetTo(this, "half");
     this.requestUpdate();
   }
 
@@ -2662,12 +2643,6 @@ export class FloorplanStudioCard extends LitElement {
     return this._config.active_list !== false && !this._kiosk();
   }
 
-  private _toggleActiveCollapsed(): void {
-    this._activeCollapsed = !this._activeCollapsed;
-    this._activeUserChose = true;
-    this._saveActiveState();
-    this.requestUpdate();
-  }
 
   /** After each render and resize: the 3D camera frames the house in what the side panel leaves. (The floating panel and its
    * dock are gone: the side sheet is a grid cell and the bottom sheet sits below the house.) */
@@ -2675,93 +2650,16 @@ export class FloorplanStudioCard extends LitElement {
     lib3d?.apply3dFrame(this);
   }
 
-  /** S31.5: what the card's width gives it, from `frame.ts`: the side sheet from 640 px, the old floating panel under it, no
-   *  sheet in kiosk or with `active_list: false`. Reads the host's own width, which the sheet's column does not change.
-   *  True when the answer changed (the template differs by mode, so the caller renders again). */
-  private _measureFrame(): boolean {
-    const width = this.getBoundingClientRect().width;
-    if (!(width > 0)) return false;
-    const mode = frameMode(width, { kiosk: this._kiosk(), sheet: this._config?.active_list !== false }), was = this._frame;
-    const sheetW = mode === "side" ? (this._sheetOpen() ? sideWidth(width) : HEADER_H) : 0;
-    this.style.setProperty("--fp-sheet-w", `${sheetW}px`);
-    this._sheetPx = sheetW;
-    this._frame = mode; // `_fitHeight` reads it: the peek is chrome on a phone
-    this._fitHeight();
-    // S31.8: the peek keeps a row of the grid to itself, and the three stops are the card's height now, as CSS lengths the sheet
-    // reads, so a resize moves the sheet without a render.
-    this.style.setProperty("--fp-peek-row", mode === "bottom" ? `${PEEK_H}px` : "0px");
-    if (mode === "bottom") {
-      const stops = sheetStops(this.getBoundingClientRect().height, HEADER_H);
-      for (const k of ["peek", "half", "full"] as const) this.style.setProperty(`--fp-sheet-${k}`, `${Math.round(stops[k])}px`);
-    }
-    return mode !== was;
-  }
 
   /** The sheet column's width in px, as `_measureFrame` last set it: what the stage is short of the card's width. */
-  private _sheetPx = 0;
+  _sheetPx = 0;
   /** The pixel height `_fitHeight` last gave the host. An inline height that is not this one is somebody else's. */
-  private _fitted = "";
+  _fitted = "";
 
-  /**
-   * S31.7, fit to height (docs/specs/card-layout-touch.md, the assumption). In a parent with no height of its own (masonry, a
-   * stack, `rows: auto`) the card was as tall as the plan at its width, so a wide plan on a short screen ran under the browser's
-   * bottom edge. Its height is now `cardHeight` (frame.ts): the plan's height plus the header, cut to the visual viewport less
-   * HA's header and 16 px, and on a phone at least the sheet's minimum. The plan letterboxes in what is left.
-   * A parent that does give a height (HA's sections row, a panel view) already bounds the card, so it is left alone: the row
-   * wins, as in 0.28.1. Arrow, so it can be a listener. Nothing laid out (jsdom, a hidden card) changes nothing.
-   */
-  private _fitHeight = (): void => {
-    const width = this.getBoundingClientRect().width, fit = this._fit;
-    if (this.style.height !== this._fitted) return; // a height set on the host by hand (an inline style) is the user's: leave it
-    const off = (): void => { this.style.removeProperty("height"); this._fitted = ""; };
-    if (!(width > 0) || !fit || !(fit.w > 0) || !(fit.h > 0) || this.hasAttribute("panel") || this._rowIsFixed()) return off();
-    const header = parseFloat(getComputedStyle(this).getPropertyValue("--header-height"));
-    const h = cardHeight({
-      planAspect: fit.w / fit.h,
-      // Side mode sizes from the sheet's RESTING state, never from a pick: open from 900 px (its width), the 52 px rail below that
-      // or once folded by hand. A room pick that opens the rail over the plan letterboxes it and never moves the card's edge.
-      width: width - (this._frame === "side" ? (this._activeCollapsed ? HEADER_H : sideWidth(width)) : this._sheetPx),
-      viewportH: globalThis.visualViewport?.height ?? globalThis.innerHeight,
-      haHeader: Number.isFinite(header) ? header : 56, // the same fallback `:host([panel])` uses
-      chrome: this._kiosk() ? 0 : HEADER_H + (this._frame === "bottom" ? PEEK_H : 0),
-      mode: this._frame,
-    });
-    this.style.height = this._fitted = `${Math.round(h)}px`;
-  };
+  private _fitHeight = (): void => fitHeight(this); // card-sheet.ts
 
-  /** Whether the card's parent has a height that does not follow the card: shrink the card to 1 px and see if the parent
-   *  notices. A parent whose height comes from its content shrinks with it; a sections row or a panel does not. A parent
-   *  that another box holds up looks fixed too, and then the card is simply left at its plan's height, as before. */
-  private _rowIsFixed(): boolean {
-    const parent = this.parentElement ?? (this.getRootNode() as ShadowRoot | undefined)?.host;
-    if (!parent) return false;
-    const was = this.style.height, before = parent.getBoundingClientRect().height;
-    this.style.height = "1px";
-    const after = parent.getBoundingClientRect().height;
-    this.style.height = was;
-    return before > 2 && Math.abs(before - after) < 0.5;
-  }
 
-  /** Whether the sheet is open and not the 52 px rail: not folded, or a room or floor is picked (which opens it). */
-  private _sheetOpen(): boolean {
-    return !this._activeCollapsed || this._picked() !== null || this._pickedFloorKey() !== null;
-  }
 
-  /** Until the viewer has chosen by hand, the sheet's width decides: a side sheet is open from 900 px and a rail below,
-   * the floating panel under 640 px is folded under 480 px and open from there up. Runs from `updated()` and the ResizeObserver; width 0 (detached,
-   * `display:none`, not laid out yet) decides nothing. */
-  private _applyWidthDefault(): void {
-    const changed = this._measureFrame();
-    if (this._activeUserChose) { if (changed) this.requestUpdate(); return; }
-    const width = this.getBoundingClientRect().width;
-    if (width === 0) return;
-    // The side sheet starts open from 900 px (frame.ts), the floating panel from 480; until the viewer folds by hand.
-    const narrow = this._frame === "side" ? !sideOpenByDefault(width) : width < ACTIVE_FOLD_BELOW_PX;
-    if (narrow === this._activeCollapsed && !changed) return;
-    this._activeCollapsed = narrow;
-    this._measureFrame();
-    this.requestUpdate();
-  }
 
   /** S11.3: the index of the picked room on the shown floor, or null: none picked, a room of another floor, or one the
    *  layout no longer has (a reload keeps the id, so it survives an edit that moves the index). */
@@ -2781,7 +2679,7 @@ export class FloorplanStudioCard extends LitElement {
     this._pickedFloor = null;
     this._roomFilter = true;
     this._sceneAsk = null;
-    if (this._pickedRoom) { this._sheetTo("half"); this._panTarget = "svg polygon.room-picked"; }
+    if (this._pickedRoom) { sheetTo(this, "half"); this._panTarget = "svg polygon.room-picked"; }
     this.requestUpdate();
   }
 
@@ -3095,12 +2993,12 @@ export class FloorplanStudioCard extends LitElement {
     if (folded) {
       const n = attn.items.length;
       return html`<div class=${cls} role="region" aria-label=${t("Overview")}>
-        <button type="button" class="fp-rail-open" aria-label=${t("Open overview")} aria-expanded="false" title=${n ? t("Open overview, {alerts}", { alerts: tn("{n} alert", "{n} alerts", n) }) : t("Open overview")} @click=${() => this._toggleActiveCollapsed()}>▸${n ? html`<span class="fp-rail-count">${n}</span>` : nothing}</button>
+        <button type="button" class="fp-rail-open" aria-label=${t("Open overview")} aria-expanded="false" title=${n ? t("Open overview, {alerts}", { alerts: tn("{n} alert", "{n} alerts", n) }) : t("Open overview")} @click=${() => toggleActiveCollapsed(this)}>▸${n ? html`<span class="fp-rail-count">${n}</span>` : nothing}</button>
       </div>`;
     }
     return html`<div class=${cls} role="region" aria-label=${name}>
       <div class="fp-active-head">
-        ${summary ? html`<button type="button" class="fp-back" aria-label=${t("Back")} title=${t("Back")} @click=${() => this._back()}>←</button>` : nothing}
+        ${summary ? html`<button type="button" class="fp-back" aria-label=${t("Back")} title=${t("Back")} @click=${() => back(this)}>←</button>` : nothing}
         <span class="fp-active-title">${t("Home")}${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}</span>
         ${summary
           ? nothing
@@ -3109,7 +3007,7 @@ export class FloorplanStudioCard extends LitElement {
           class="fp-active-collapse"
           aria-label=${this._activeCollapsed ? t("Open overview") : t("Fold overview")}
           aria-expanded=${this._activeCollapsed ? "false" : "true"}
-          @click=${() => this._toggleActiveCollapsed()}
+          @click=${() => toggleActiveCollapsed(this)}
         >${this._activeCollapsed ? "▸" : "▾"}</button>`}
         ${this._chips(items, attn.items.length)}
       </div>
@@ -3125,13 +3023,13 @@ export class FloorplanStudioCard extends LitElement {
    * region around it is named for the level.
    */
   private _bottomSheet(name: string, crumb: string, deeper: boolean, chips: unknown, content: () => unknown) {
-    const pop = this._popup && this._popupInSheet() ? this._popup.s : null;
+    const pop = this._popup && popupInSheet(this) ? this._popup.s : null;
     const peek = this._sheetStop === "peek" && !this._sheetDrag;
     const level = pop ? pop.name : name;
     const drag = this._sheetDrag;
     return html`<div class=${drag ? "fp-active fp-bottom fp-dragging" : "fp-active fp-bottom"} data-stop=${this._sheetStop} role="region" aria-label=${level} style=${drag ? `height:${drag.h}px` : ""}>
       <div class="fp-sheet-top">
-        ${deeper || pop || this._sheetStop !== "peek" ? html`<button type="button" class="fp-back" aria-label=${t("Back")} title=${t("Back")} @click=${() => this._back()}>←</button>` : nothing}
+        ${deeper || pop || this._sheetStop !== "peek" ? html`<button type="button" class="fp-back" aria-label=${t("Back")} title=${t("Back")} @click=${() => back(this)}>←</button>` : nothing}
         <button type="button" class="fp-handle" aria-label=${t("Overview")} aria-expanded=${this._sheetStop === "peek" ? "false" : "true"}
           @pointerdown=${this._onHandleDown} @pointermove=${this._onHandleMove} @pointerup=${this._onHandleUp} @pointercancel=${this._onHandleCancel}
           @click=${this._onHandleClick} @keydown=${this._onHandleKey}>
@@ -3145,112 +3043,22 @@ export class FloorplanStudioCard extends LitElement {
 
   // ---- S31.8: the bottom sheet's handle ---------------------------------------------------------------------------------------------
 
-  private _onHandleDown = (e: PointerEvent): void => {
-    if ((e.pointerType === "mouse" && e.button !== 0) || this._sheetDrag) return;
-    const stops = this._stopsNow();
-    if (!stops) return;
-    const h0 = stops[this._sheetStop];
-    this._sheetDrag = { id: e.pointerId, y0: e.clientY, h0, h: h0, moved: false, stops, trail: [{ t: e.timeStamp, h: h0 }] };
-    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* a synthetic event with no live pointer: the drag still works without capture */ }
-  };
+  private _onHandleDown = (e: PointerEvent): void => onHandleDown(this, e); // card-sheet.ts
 
-  private _onHandleMove = (e: PointerEvent): void => {
-    const d = this._sheetDrag;
-    if (!d || e.pointerId !== d.id) return;
-    const dy = e.clientY - d.y0;
-    if (!d.moved && Math.abs(dy) < TAP_SLOP_PX) return; // a finger wobbles: under the slop it is still a tap
-    d.moved = true;
-    d.h = Math.min(d.stops.full, Math.max(d.stops.peek, d.h0 - dy));
-    d.trail.push({ t: e.timeStamp, h: d.h });
-    if (d.trail.length > 24) d.trail.shift();
-    const sheet = this.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
-    if (sheet) { sheet.classList.add("fp-dragging"); sheet.style.height = `${d.h}px`; } // straight to the element: no render per move
-  };
+  private _onHandleMove = (e: PointerEvent): void => onHandleMove(this, e); // card-sheet.ts
 
-  private _onHandleUp = (e: PointerEvent): void => {
-    const d = this._sheetDrag;
-    if (!d || e.pointerId !== d.id) return;
-    this._sheetDrag = null;
-    const sheet = this.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
-    if (sheet) { sheet.classList.remove("fp-dragging"); sheet.style.removeProperty("height"); }
-    if (d.moved) {
-      // The velocity of the last 100 ms, in px/ms, up positive. A finger that rested before it lifted has none.
-      const recent = d.trail.filter((p) => p.t >= e.timeStamp - 100);
-      const from = recent[0];
-      const v = from && recent.length > 1 ? (d.h - from.h) / Math.max(e.timeStamp - from.t, 16) : 0;
-      this._sheetStop = snapSheet(d.h, v, d.stops);
-      this._dragEnded = true; // the click that follows is the drag's own
-      globalThis.setTimeout(() => { this._dragEnded = false; }, 0);
-    }
-    this.requestUpdate();
-  };
+  private _onHandleUp = (e: PointerEvent): void => onHandleUp(this, e); // card-sheet.ts
 
-  private _onHandleCancel = (e: PointerEvent): void => {
-    const d = this._sheetDrag;
-    if (!d || e.pointerId !== d.id) return;
-    this._sheetDrag = null; // the browser took the gesture: the sheet goes back to its stop
-    const sheet = this.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
-    if (sheet) { sheet.classList.remove("fp-dragging"); sheet.style.removeProperty("height"); }
-    this.requestUpdate();
-  };
+  private _onHandleCancel = (e: PointerEvent): void => onHandleCancel(this, e); // card-sheet.ts
 
-  private _onHandleClick = (): void => {
-    if (this._dragEnded) { this._dragEnded = false; return; }
-    this._sheetStop = nextOnHandleTap(this._sheetStop);
-    this.requestUpdate();
-  };
+  private _onHandleClick = (): void => onHandleClick(this); // card-sheet.ts
 
-  /** Arrow keys on the handle move one stop, so the sheet is reachable without a tap or a drag. */
-  private _onHandleKey = (e: KeyboardEvent): void => {
-    const order: SheetStop[] = ["peek", "half", "full"], i = order.indexOf(this._sheetStop);
-    const to = e.key === "ArrowUp" ? order[Math.min(2, i + 1)] : e.key === "ArrowDown" ? order[Math.max(0, i - 1)] : null;
-    if (!to) return;
-    e.preventDefault();
-    e.stopPropagation(); // the card's own arrows pan the plan
-    this._sheetStop = to;
-    this.requestUpdate();
-  };
+  private _onHandleKey = (e: KeyboardEvent): void => onHandleKey(this, e); // card-sheet.ts
 
-  /** The three stops for the card's height now, in px, or null when the card is not laid out. */
-  _stopsNow(): Stops | null {
-    const h = this.getBoundingClientRect().height;
-    return h > 0 ? sheetStops(h, HEADER_H) : null;
-  }
+  _stopsNow(): Stops | null { return stopsNow(this); } // card-sheet.ts
 
-  /** After the render that opened the sheet for a room or a thing: moves the plan so that thing's box is inside what the sheet at
-   *  its stop leaves, by the pixel difference that centres it there. Nothing moves when it is already inside, or in 3D. */
-  private _panIntoVisible(): void {
-    const sel = this._panTarget;
-    this._panTarget = null;
-    if (!sel || this._frame !== "bottom" || this._shows3d() || this._turn) return;
-    const el = this.shadowRoot?.querySelector(sel);
-    if (el && this._stopsNow()) this._panBoxIn(el);
-  }
 
-  /** The part of the plan the eye can use: the stage's box, less the bottom sheet at its stop (S31.8). Null before the first layout. */
-  private _visibleBox(): { left: number; top: number; right: number; bottom: number } | null {
-    const svg = this._stageSvg();
-    if (!svg) return null;
-    const s = svg.getBoundingClientRect(), stops = this._frame === "bottom" ? this._stopsNow() : null;
-    if (!(s.width > 0)) return null;
-    return { left: s.left, right: s.right, top: s.top, bottom: stops ? Math.min(s.bottom, this.getBoundingClientRect().bottom - stops[this._sheetStop]) : s.bottom };
-  }
 
-  /** Moves the plan so `el`'s box is inside the visible part, by the pixel difference that centres it there. Nothing moves when it is already inside. */
-  private _panBoxIn(el: Element): void {
-    const svg = this._stageSvg(), vis = this._visibleBox(), v = this._current();
-    if (!svg || !vis || !v || this._turn) return;
-    const s = svg.getBoundingClientRect(), r = el.getBoundingClientRect();
-    if (!(r.width + r.height > 0)) return;
-    const m = 8; // a hair of air, so an icon is not touching the sheet's edge
-    if (r.top >= vis.top + m && r.bottom <= vis.bottom - m && r.left >= vis.left && r.right <= vis.right) return;
-    const dx = (vis.left + vis.right) / 2 - (r.left + r.width / 2), dy = (vis.top + vis.bottom) / 2 - (r.top + r.height / 2);
-    const k = Math.min(s.width / v.w, s.height / v.h); // screen px per plan unit: the svg letterboxes its view box
-    // A view at fit cannot be panned: `clamp` hands fit back for any box as wide as fit. A hair of zoom (0.1 %, invisible) makes it
-    // a view that can move; the Fit button still takes it home.
-    const base = this._view ? v : zoomAt(v, 1.001, v.x + v.w / 2, v.y + v.h / 2);
-    this._setView(panBy(base, -dx / k, -dy / k));
-  }
 
   private _toggleOverviewAll(): void {
     this._overviewAll = !this._overviewAll;
@@ -3282,7 +3090,7 @@ export class FloorplanStudioCard extends LitElement {
   _openSearch(): boolean {
     if (!this._activeListVisible() || !this._layout) return false;
     if (this._pickedRoom || this._pickedFloor) this._pickRoom(null);
-    this._sheetTo("full"); // S31.8: Search opens the phone's sheet full
+    sheetTo(this, "full"); // S31.8: Search opens the phone's sheet full
     if (this._activeCollapsed) { this._activeCollapsed = false; this._activeUserChose = true; this._saveActiveState(); }
     this._closePopup();
     this.requestUpdate();
@@ -3498,7 +3306,7 @@ export class FloorplanStudioCard extends LitElement {
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
     const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" tabindex="0" role="group" aria-label=${t("Floor plan, {floor}", { floor: this._floorTitle(this._floorKey() ?? "") })} @focus=${this._onStageFocus} @blur=${this._onStageBlur} @pointerdown=${this._dropFocus} ${planPatch(body)}></svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${t(this._fallback3d)}</p>` : null;
-    this._measureFrame();
+    measureFrame(this);
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label=${t("Reset camera")} title=${t("Reset camera")} @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
     const stackEl = stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit) : null;
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
@@ -3703,7 +3511,7 @@ export class FloorplanStudioCard extends LitElement {
 
   /** The view on screen now: the zoomed one, clamped to the whole floor (a pinned card can still pinch/pan out to
    * see the rest of the house), or home. */
-  private _current(): View | null {
+  _current(): View | null {
     const fit = this._fit;
     if (!fit) return null;
     return this._view ? clamp(this._view, fit) : this._home();
@@ -3720,7 +3528,7 @@ export class FloorplanStudioCard extends LitElement {
   /** Stores `v`, clamped to the whole floor, as the view; home itself is stored as `null` (the same "no override"
    * state `_current`/`_zoomed` already read), so a pinch or pan that lands back exactly on home does not pin an
    * equivalent-but-distinct box that would, say, disable the fit button. */
-  private _setView(v: View): void {
+  _setView(v: View): void {
     const fit = this._fit, home = this._home();
     if (!fit || !home) return;
     if (this._turn) return; // the plan is moving: a gesture would be applied to a box that is already leaving
