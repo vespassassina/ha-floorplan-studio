@@ -77,6 +77,9 @@ export function bindDeviceActions(
     /** What a press lands on, when the DOM cannot say (the 3D view picks with a ray): an element that carries `data-x`,
      *  `data-d` or `data-u`, or null. Replaces the lookup of the event's target. */
     resolve?: (e: PointerEvent) => Element | null;
+    /** S39.3: true while the card replays the past. A tap then acts on nothing and calls `onReplay`; a hold does nothing. */
+    replaying?: () => boolean;
+    onReplay?: () => void;
   },
 ): () => void {
   const longPress = opts?.longPress !== false;
@@ -135,6 +138,7 @@ export function bindDeviceActions(
     startY = pe.clientY ?? 0;
     const target = opts?.resolve ? opts.resolve(pe) : (e.target as Element | null)?.closest('g[data-x], button[data-x], line[data-d], g[data-u], g[data-f][data-linked], g[data-cam]');
     if (!target) return;
+    if (opts?.replaying?.()) { arm(() => opts.onReplay?.()); return; }
     const at = { x: startX, y: startY };
     const popupFrom = (el: Element) => (el.tagName === "BUTTON" ? el : null);
     const popup = (t: TapTarget) => () => opts?.openPopup?.(t, at, popupFrom(target));

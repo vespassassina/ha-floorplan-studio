@@ -154,3 +154,25 @@ test(`the form chunk is at most ${FORM_CHUNK_LIMIT} bytes gzipped, and it is not
   expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(FORM_CHUNK_LIMIT);
   expect(readdirSync("dist").filter((n) => /^floorplan-studio-3d-.*\.js$/.test(n))).toHaveLength(1);
 });
+
+// S39.2: the history parser is a lazy chunk (src/card/replay/history.ts), loaded the first time Replay opens. Nobody who never opens it pays for it.
+const REPLAY_CHUNK_LIMIT = 1500; // gzip; 728 when written (a parser and an index), with room for what follows
+const replayChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-replay-.+\.js$/.test(f));
+
+test(`there is exactly one replay chunk, it is at most ${REPLAY_CHUNK_LIMIT} bytes gzipped, and the card names it by import() only`, () => {
+  expect(replayChunks()).toHaveLength(1);
+  const [f] = replayChunks();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(REPLAY_CHUNK_LIMIT);
+  const chunk = readFileSync(`dist/${f}`, "utf8");
+  expect(chunk, "the parser lives in the chunk").toContain("history/history_during_period");
+  expect(chunk).not.toMatch(/\bfrom\s*["'][^"']*floorplan-studio-(card|3d)/);
+  expect(readFileSync("dist/floorplan-studio-card.js", "utf8")).toMatch(/"\.\/floorplan-studio-replay-[\w-]+\.js"/);
+});
+
+test("the card file does not carry the parser: REPLAY_CHUNK's marker and the history command are only in the chunk", () => {
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  expect(card).not.toContain("fp-replay-v1");
+  expect(card).not.toContain("history/history_during_period");
+  expect(readFileSync(`dist/${replayChunks()[0]}`, "utf8")).toContain("fp-replay-v1"); // so the two checks above can fail
+});

@@ -18,6 +18,9 @@ async function mount(language: string): Promise<FloorplanStudioCard> {
   document.body.appendChild(el);
   el.setConfig({ layout, floor: "ground" } as never);
   el.hass = hassOf(language);
+  // The card asked for the catalogue; await that same load (useLanguage hands back the pending promise), not a count of ticks:
+  // six ticks lost to a slow import one run in nine (2026-10-28).
+  await useLanguage(language);
   await settle(el);
   return el;
 }

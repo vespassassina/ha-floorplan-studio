@@ -258,5 +258,14 @@ const c: Catalogue = {
   "people|layer": "人员",
   "other|layer": "其他",
   "furniture|layer": "家具",
+  "Replay": "回放",
+  "Replay time": "回放时间",
+  "Play": "播放",
+  "Live": "实时",
+  "Replaying": "正在回放",
+  "Loading history…": "正在加载历史记录…",
+  "Could not load the history: {why}": "无法加载历史记录：{why}",
+  "no answer in 20 s": "20 秒内无响应",
+  "{n} entity on this floor has no history": "此楼层有 {n} 个实体没有历史记录",
 };
 export default c;

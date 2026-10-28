@@ -4699,6 +4699,54 @@ S38.2 at integration); **perf** S38.5; **areas** S38.9.
       a number and a unit. English (the card in English, and the Studio) keeps the type id, so no title text changed.
 - [x] S38.9 (2026-10-27) Nit: two HA areas with the same name. `layoutFromAreas` names the second room "Office 2", the third
       "Office 3", so `catalog.room` values differ. Unit test with three areas named "Office" and one blank.
-- [ ] S38.10 Integrate on `task/s38-sun`, full suite, shots, Opus review, release 0.37.0 after Diego's yes.
+- [x] S38.10 (2026-10-28) Integrate on `task/s38-sun`, full suite, shots, Opus review, release 0.37.0 after Diego's yes. Released 0.37.0; HA reads v0.37.0 back. Tablet 3D first frame: waits for Diego.
 
 Not in this sprint: the 2D sun wedge (S15.3d); the card file split beyond the form (review item 15); CI shards.
+
+## Sprint 39: Release 0.38.0, history replay, the card file split
+
+Branch `task/s39-replay`. Diego, 2026-10-28: "ok, do the replay", "then plan D". His answers: card only; a bar under
+the plan, opened from the ⋯ menu; the whole shown floor in 2D and 3D; plan D one item per sprint, the card split in
+this one. Spec: `docs/specs/replay-s39.md` (criteria 1 to 15). Decisions: `docs/DECISIONS.md`, 2026-10-28.
+
+The card file is 119,612 gz against a cap of 124,650. The replay's maths goes in a lazy chunk; the bar and the wiring
+stay in the card. Every lane reports `gzip -9` of the card and the chunks before and after. No lane raises the cap.
+
+Lanes, each in its own worktree and `PW_PORT`: **split** S39.0 first, alone on the card file; **replay** S39.1 (the
+chunk only, starts at once); **card** S39.2, S39.3, S39.4 after S39.0 lands (one coder, in order); then S39.5.
+
+- [x] S39.0 Split the card file (2026-10-28: element source 275,489 -> 142,657 B, seven modules `card-menu`, `card-sheet`, `card-overview`, `card-dialogs`, `card-popup`, `card-view-state`, `card-zoom`; card gzip -9 119,612 -> 119,638, +26 B, cap 124,650; vitest 5517 passed; the 3D host glue and the sun and night logic stay on the element). (review item 15). `src/card/floorplan-studio-card.ts` is 275 KB of source. Move whole
+      concerns out into modules beside it (the 3D host glue, the sheet and popup wiring, the header and menu, the floor
+      row, the measuring and level logic), each a plain function or a small helper class over the element; the element
+      keeps its state and lifecycle. No behaviour change, no new public name, and the card's gzip bytes do not grow by
+      more than 1 %. The full suite is the test; report source size of the element before and after, and the gzip.
+- [x] S39.1 (2026-10-28) The replay chunk: `src/card/replay/history.ts` with `parseHistory(reply, asked)` and `stateAt(index, t)`,
+      built as `floorplan-studio-replay-<hash>.js` (the Vite chunk naming rule today calls every non-language chunk
+      `3d`; give the replay its own name). Spec criteria 1, 2. Pure, unit tests only.
+- [x] S39.2 (2026-10-28) The bar and the fetch: "Replay" in the ⋯ menu, the bar (slider, time, play/pause, Live), the
+      `history/history_during_period` call per floor, busy and error states. Spec items 1 to 4, 10; criteria 3, 10 to
+      13.
+- [x] S39.3 (2026-10-28) One draw path for the past: `_stateForRender()`, motion fade, `_night()`, `_sun()` and the 3D `now` read
+      the replayed moment; `hass` updates held; taps off. Spec items 6 to 9; criteria 4 to 9.
+- [x] S39.4 (2026-10-28) Words and pictures: the new strings in all ten catalogues, the raw-English lint over the new files, the
+      release zip check for the replay chunk, the shots of criterion 15 looked at. Criteria 14, 15.
+- [ ] S39.5 Integrate on `task/s39-replay`, full suite, shots, Opus review, release 0.38.0 after Diego's yes. The tablet's
+      3D first frame in the CHANGELOG.
+
+Not in this sprint: CI shards, the surface freeze, the editor-app split (Sprints 40 and 41); vacuum position.
+
+## Sprint 40 (outline): CI shards and the surface freeze
+
+Plan D, items 16 and 17, beside the next feature sprint. Detailed when Sprint 39 closes.
+
+- S40.a Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
+  `globalSetup` building once per shard. Done when CI on `main` is under half today's wall time with the same count of
+  tests, and a deliberately failing test still turns CI red.
+- S40.b The surface freeze in `docs/WORKFLOW.md`: no new theme, no new car model, a new config key needs a removed one
+  or a DECISIONS entry that says why. A unit test lists today's config keys and themes, so a new one fails until the
+  list and the reason are written down (finding 17).
+
+## Sprint 41 (outline): split editor-app
+
+Plan D, item 15, second half. `src/editor/editor-app.ts` (220 KB of source) split as S39.0 split the card: whole
+concerns into modules, no behaviour change, the full suite as the test.

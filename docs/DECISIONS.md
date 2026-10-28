@@ -2,6 +2,51 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-28: Sprint 39 review fixes
+
+From the Opus review of the history replay. Each defect has a test that failed first (`tests/card/replay-bar.spec.ts`, `replay-bar.test.ts`, `replay-history.test.ts`).
+
+- **Other floors stay live during a replay (S4).** Attention and the Overview run over every floor, and the replay holds the shown floor only. The floor menu's alert badges, the Attention list and "All floors" read the shown floor from the replay and every other floor from `hass` (`overviewStates` in `card-replay.ts`): an alarm upstairs now must not vanish because the ground floor is in the past. A shown-floor entity with no row at that moment is absent, as on the plan.
+- **Supersedes** the Sprint 39 card entry's "floors drawn below it (3D) and ghost floors have no history and are drawn as they are live". They carry no state at all, only geometry and the replayed sun, so the picture is right; the live part was never true of the picture, only of the badges and the Overview, which the decision above settles.
+- **Person positions stay out of the fetch.** `Device.room` of a person is not asked for: person positions are a non-goal of the spec. Every other entity the floor draws is: furniture `entity` and a car's `attached`, the power sensor linked to a plug, and the battery sensors on the HA device behind a placed entity (the sources `attention` reads). A test iterates `DEVICE_TYPES` and `FURNITURE_SYMBOLS` so a new member needs a line.
+- **Nothing acts from the past (B1).** The guard sits at the two choke points, `callService` and `openSubject`, so Lights off, favourites, scenes, Overview rows, search and Enter on a focused device are all covered, and a new button is too. The words (Active row, tooltip, favourites, focus line) and the favourite's label read the states on show (`subjectText`, `subjectOp`).
+- **A plan that is live has a live clock (S2).** While the history loads or has failed, `_now()` and the motion timer are the real ones; a floor switched to while playing pauses the play until its history is ready.
+- **The Overview redraws for a minute only when an Attention row shows an age (N1).** Supersedes the Sprint 39 card entry's "or the sheet shown (its ages)": with nothing in Attention a minute changes nothing on the sheet, and play no longer redraws the card 24 times a second.
+- **The replay closes on `setConfig` and on disconnect (S6, N5).** A new config, or a card attached again later, does not show a stale window. This replaces the earlier pause that kept the place.
+- **The replay chunk retries like the 3D one (N2).** A failed import is retried under a new query; the bar says the page is stale. The history parser drops times a Date cannot hold (B2).
+- **Camera pictures are probably not recorded (N4).** The recorder keeps a camera's state (`idle`, `recording`), not its `entity_picture` token, so a camera thumbnail may vanish during a replay. Not checked against the HA source; seen in a real replay before it is called a defect.
+- **Spec criterion 10 is reworded.** "60 s of play covers 24 h within 2 s (fake clock)" cannot be timed in real time under Playwright (the earlier entry says why). The test checks the replay's own clock (half the slider after 30 s of clock time, the end after 60 s) and a bounded draw count; `docs/specs/replay-s39.md` says so.
+
+## 2026-10-28: Sprint 39 card, what the spec left open
+
+Choices made building S39.2 to S39.4 (`src/card/card-replay.ts`). Each is the simplest reading of `docs/specs/replay-s39.md`.
+
+- **Replay is offered only with a `hass.connection`** (and a layout, and not in kiosk). Without a connection there is nothing to ask, and
+  the menu tests that have none stay as they were.
+- **The plan is drawn again for a minute only when the minute can change the picture:** a motion fade still running, or the sheet shown
+  (its ages). Otherwise only the bar's time is painted, by `lit.render` into its own place. This narrows "one draw per minute" (item 11) to
+  "no more than one per frame, and only when something visible changed". A minute of play does not redraw an unchanged plan.
+- **Time is the browser's zone.** `locale.time_format` "12" or "24" is honoured; otherwise the language decides.
+- **Only the shown floor is fetched.** Floors drawn below it (3D) and ghost floors have no history and are drawn as they are live.
+- **The bar is not chrome for `fitHeight`:** the plan letterboxes in the room left when it opens.
+- **A hidden tab pauses play:** a frame step is capped at 500 ms, so the replay does not jump when the tab returns.
+- **Entities with no history are absent** from the replayed states, as the spec says; the info button shows how many.
+- **Replayed states carry `entity_id` and `last_updated`,** which Home Assistant's formatters read.
+- **The 60 s run is not timed in real time.** Playwright's fake clock costs 17 s of real time for 60 s of an empty `requestAnimationFrame` loop,
+  so "24 h in 60 s" is tested as clock time (value after 30 s, stop at the end) and the draw count is bounded instead.
+
+## 2026-10-28: Sprint 39 plan, history replay and plan D
+
+Diego's answers, each the proposed default. Spec: `docs/specs/replay-s39.md`.
+
+- **Card only.** The Studio has no live state, so the replay is an exception to the parity rule, stated, as the sun was.
+- **A bar under the plan, from the ⋯ menu.** No config key (the surface freeze, review item 17), and no timeline taking
+  room on every dashboard. It opens paused at now, so the first frame is the live plan.
+- **The whole shown floor, 2D and 3D,** through `_stateForRender()` and the card's one clock, so the past is drawn by
+  the same path as the present (finding 8). Taps do not act while replaying.
+- **Plan D, one item per sprint,** as the review said: the card file split in Sprint 39 (before the replay touches the
+  card), CI shards and the surface freeze in 40, the editor-app split in 41.
+
 ## 2026-10-28: Sprint 38 Opus review
 
 - **One sun for the whole house.** The floors below (ghost or solid) are lit by the same moving sun as the floor shown.
