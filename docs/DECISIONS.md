@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-28: the replayed sun is computed
+
+Field report on 0.38.0: during a replay the 3D view had no sun. Home Assistant's recorder keeps `sun.sun`'s state but not its `azimuth` and `elevation`: a real `history/history_during_period` reply (291 rows over 24 h) held `friendly_name` in the first row's attributes and none after. `_sun()` read the attributes, so it returned null. Night was fine: it reads only the state. The Playwright stub had invented the two attributes, which is why nothing caught it.
+
+- **The replay computes the sun** from the replayed moment (`_now()`) and Home Assistant's location (`hass.config.latitude` and `longitude`, the frontend's `HassConfig`), with `sunPosition` in `src/core/sun-position.ts` (NOAA's low-precision series, about 1 degree, no refraction, no dependency). Recorded attributes, if a row has them, win. No location, or junk, is no sun.
+- **Live is unchanged.** A live sun entity with no attributes is still no sun; nothing is computed outside a replay.
+- **Tests.** The stub rows are now the real shape; `tests/card/card-sun-replay.test.ts` and a 3D test in `replay-bar.spec.ts` (east in the morning, west in the afternoon, none at night) fail without the change.
+
 ## 2026-10-28: Sprint 39 review fixes
 
 From the Opus review of the history replay. Each defect has a test that failed first (`tests/card/replay-bar.spec.ts`, `replay-bar.test.ts`, `replay-history.test.ts`).

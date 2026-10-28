@@ -17,6 +17,9 @@ import { openMenu, menuItem, menuPanel, menuButton, pick } from "./menu-helper";
 
 const NOW = new Date(2026, 9, 28, 12, 0, 0).getTime();
 const secs = (h: number, m = 0, day = 0) => (NOW + ((h - 12) * 60 + m + day * 1440) * 60000) / 1000;
+// HA's location for the replayed sun: Berlin's latitude, and the longitude whose mean solar time is this machine's clock, so "08:00" and
+// "15:00" are a morning and an afternoon wherever the suite runs.
+const LONGITUDE = -new Date(NOW).getTimezoneOffset() / 4;
 const iso = (s: number) => new Date(s * 1000).toISOString();
 
 const card = (page: Page) => page.locator("floorplan-studio-card");
@@ -35,10 +38,12 @@ const st = (state: string, attributes: Record<string, unknown> = {}, last_change
 const ROWS = (): Rows => ({
   "light.demo_kitchen": [{ s: "off", a: { friendly_name: "Kitchen" }, lu: secs(12, 0, -1) - 7200 }, { s: "on", lu: secs(8, 0) }, { s: "off", lu: secs(10, 0) }],
   "binary_sensor.demo_hall_motion": [{ s: "off", a: {}, lu: secs(12, 0, -1) - 100 }, { s: "on", lu: secs(9, 0) }, { s: "off", lu: secs(9, 1) }],
+  // Copied from a real history/history_during_period reply for sun.sun from Home Assistant, 2026-10-28 (include_start_time_state, no_attributes false):
+  // the first row carries friendly_name only, later rows no `a` at all. The recorder does not keep azimuth or elevation (finding 21).
   "sun.sun": [
-    { s: "below_horizon", a: { azimuth: 10, elevation: -30 }, lu: secs(12, 0, -1) - 100 },
-    { s: "above_horizon", a: { azimuth: 90, elevation: 30 }, lu: secs(7, 0) },
-    { s: "above_horizon", a: { azimuth: 270, elevation: 30 }, lu: secs(10, 30) },
+    { s: "below_horizon", a: { friendly_name: "Sun" }, lu: secs(12, 0, -1) - 100 },
+    { s: "above_horizon", lu: secs(7, 0) },
+    { s: "above_horizon", lu: secs(10, 30) },
   ],
 });
 
@@ -53,8 +58,8 @@ async function boot(page: Page, o: Opts = {}) {
     const w = window as unknown as Record<string, unknown>;
     w.__calls = []; w.__sent = [];
     // The connection as Home Assistant's frontend hands it: `sendMessagePromise` answers a websocket command or rejects with { code, message }.
-    w.__mk = (states: unknown, extra: { language?: string; rows?: Record<string, unknown[]>; fail?: unknown; connection?: boolean }) => ({
-      states, themes: { darkMode: false }, language: extra.language, locale: { language: extra.language ?? "en", time_format: "24" },
+    w.__mk = (states: unknown, extra: { longitude?: number; language?: string; rows?: Record<string, unknown[]>; fail?: unknown; connection?: boolean }) => ({
+      states, themes: { darkMode: false }, config: { latitude: 52.52, longitude: extra.longitude }, language: extra.language, locale: { language: extra.language ?? "en", time_format: "24" },
       callService: (d: string, s: string, data: { entity_id: string }) => { (w.__calls as string[]).push(`${d}.${s} ${data.entity_id}`); return Promise.resolve(); },
       connection: extra.connection === false ? undefined : {
         sendMessagePromise: (m: { type: string; entity_ids?: string[] }) => {
@@ -77,7 +82,7 @@ async function boot(page: Page, o: Opts = {}) {
     el.setConfig(config);
     el.hass = w.__mk(live, extra);
     return el.updateComplete;
-  }, [{ layout: structuredClone(demo), floor: "ground", theme: "light", active_list: false, ...o.config }, o.live ?? {}, { language: o.language, rows: o.rows ?? ROWS(), fail: o.fail, connection: o.connection }] as const);
+  }, [{ layout: structuredClone(demo), floor: "ground", theme: "light", active_list: false, ...o.config }, o.live ?? {}, { longitude: LONGITUDE, language: o.language, rows: o.rows ?? ROWS(), fail: o.fail, connection: o.connection }] as const);
   await expect(card(page).locator("css=svg polygon[data-r], .fp-3d").first()).toBeVisible();
 }
 /** A hass update as Home Assistant makes one: a new object with new states. */
@@ -609,13 +614,13 @@ test.describe("S39.2 play and keys", () => {
 
 test.describe("S39.3 in 3D", () => {
   const pools = (page: Page) => page.evaluate(() => (window as unknown as { __fp3d: { live(): { pools: { visible: boolean }[] } } }).__fp3d.live().pools.filter((p) => p.visible).length);
-  const light = (page: Page) => page.evaluate(() => (window as unknown as { __fp3d: { light(): { x: number } } }).__fp3d.light().x);
+  const lightFull = (page: Page) => page.evaluate(() => (window as unknown as { __fp3d: { light(): { x: number; y: number; z: number; intensity: number } } }).__fp3d.light());
   async function still(page: Page) {
     let prev = -1, same = 0;
     await expect.poll(async () => { const n = (await cam(page)).drawn; same = n === prev ? same + 1 : 0; prev = n; return same; }, { intervals: [100], timeout: 15000 }).toBeGreaterThanOrEqual(3);
   }
 
-  test("criterion 5: the lamp's pool is there at 09:00 and not at 11:00, live says the opposite; the sun follows the replayed moment; the moment survives a change of view", async ({ page }) => {
+  test("criterion 5: the lamp's pool is there at 09:00 and not at 11:00, live says the opposite; the moment survives a change of view", async ({ page }) => {
     await boot(page, { config: { view: "3d", walls: "full" }, live: { "light.demo_kitchen": st("off"), "sun.sun": st("above_horizon", { azimuth: 180, elevation: 60 }) } });
     await drawn(page); await still(page);
     expect(await pools(page)).toBe(0);
@@ -623,17 +628,39 @@ test.describe("S39.3 in 3D", () => {
     await to(page, 9);
     await still(page);
     expect(await pools(page)).toBeGreaterThan(0);
-    const east = await light(page);
-    await update(page, { "light.demo_kitchen": st("on"), "sun.sun": st("above_horizon", { azimuth: 180, elevation: 60 }) });
+    await update(page, { "light.demo_kitchen": st("on") });
     await to(page, 11);
     await still(page);
     expect(await pools(page)).toBe(0);
-    const west = await light(page);
-    expect(Math.sign(east) * Math.sign(west), `sun at 90 degrees then 270: x ${east} then ${west}`).toBe(-1);
     await pick(page, "view:2d"); // another view, the same moment
     await expect(card(page).locator("css=.fp-rp-time")).toHaveText("11:00");
     await expect(g(page, lampIdx)).not.toHaveClass(/\bon\b/);
     await to(page, 9);
     await expect(g(page, lampIdx)).toHaveClass(/\bon\b/);
+  });
+
+  test("the sun follows the replay although the recorder keeps no azimuth: a sun by day, none at night, east in the morning and west in the afternoon", async ({ page }) => {
+    // Live, the sun has no attributes (as in a real replayed row), so the live light is the fixed one; the replay computes the sun from the time and hass.config.
+    // A day on both sides of midnight, in the real row shape: up when the window opens, down at 17:00 yesterday, up again from 07:00 today.
+    const sunRows = [{ s: "above_horizon", a: { friendly_name: "Sun" }, lu: secs(12, 0, -1) - 100 }, { s: "below_horizon", lu: secs(17, 0, -1) }, { s: "above_horizon", lu: secs(7, 0) }];
+    await boot(page, { config: { view: "3d", walls: "full" }, live: { "sun.sun": st("above_horizon") }, rows: { ...ROWS(), "sun.sun": sunRows } });
+    await drawn(page); await still(page);
+    const fixed = await page.evaluate(() => (window as unknown as { __fp3d: { light(): Record<string, unknown> } }).__fp3d.light());
+    await openBar(page);
+    await to(page, 8);
+    await still(page);
+    const morning = await lightFull(page);
+    await to(page, -9); // 15:00 yesterday: `to` counts from 12:00 yesterday
+    await still(page);
+    const afternoon = await lightFull(page);
+    await to(page, 3);
+    await still(page);
+    const night = await lightFull(page);
+    expect(morning, "08:00 has a sun of its own").not.toMatchObject({ x: fixed.x, y: fixed.y });
+    expect(afternoon, "15:00 has a sun of its own").not.toMatchObject({ x: fixed.x, y: fixed.y });
+    expect(morning.x, `east in the morning: x ${morning.x}`).toBeGreaterThan(0.2);
+    expect(afternoon.x, `west in the afternoon: x ${afternoon.x}`).toBeLessThan(-0.2);
+    expect(morning.y, "above the horizon").toBeGreaterThan(0);
+    expect(night, "03:00 is night: the night light, no sun").toMatchObject({ x: fixed.x, y: fixed.y, z: fixed.z, intensity: 0.35 });
   });
 });

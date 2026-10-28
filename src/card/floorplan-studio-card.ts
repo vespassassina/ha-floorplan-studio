@@ -15,6 +15,7 @@ import { strategyElement } from "./strategy";
 import { CARD_VERSION } from "./version";
 import { INSTALL_HINT, NOTHING_SAVED, PLAN_UNUSABLE, STALE_PAGE, NO_ANSWER, loadErrorText, loadShared, pageIsStale, type Conn, type StoredError } from "./load";
 import { mark, t } from "../core/i18n";
+import { sunPosition } from "../core/sun-position";
 import { currentLanguage, useLanguage } from "./i18n";
 import { clamp, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { firstFocus, nextInDirection, type FocusDir } from "./plan-focus";
@@ -61,6 +62,8 @@ export interface Hass {
   /** S37.5: the user's language code as HA writes it ("it", "pt-BR", "zh-Hans"); `locale.language` is the same value on a frontend that has no top-level field. */
   language?: string;
   locale?: { language?: string; time_format?: string };
+  /** Home's location, for the replayed sun. Shape from the frontend's `HassConfig` (`hass.config.latitude`, `longitude`); only these two are read. */
+  config?: { latitude?: number; longitude?: number };
   callService?(domain: string, service: string, data?: Record<string, unknown>): Promise<unknown>;
   /** HA's own display text for a state ("21.5 °C", "Heat/Cool"). Absent on an old frontend; the card then prints the raw state. */
   formatEntityState?(stateObj: HassEntity): string;
@@ -1869,11 +1872,15 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** S38.2: the sun entity's own `azimuth` and `elevation` (Home Assistant sends floats), with the plan's `north`, for the 3D view,
-   * which works out the direction and ignores a sun below the horizon or at night. Anything else is no sun. */
+   * which works out the direction and ignores a sun below the horizon or at night. Anything else is no sun, except in a replay (see `pos`). */
   _sun(): { azimuth: number; elevation: number; north: number } | null {
     const a = this._stateForRender()?.[this._sunId()]?.attributes;
-    const azimuth = a?.azimuth, elevation = a?.elevation;
-    if (!(typeof azimuth === "number" && Number.isFinite(azimuth) && typeof elevation === "number" && Number.isFinite(elevation))) return null;
+    const rec = typeof a?.azimuth === "number" && Number.isFinite(a.azimuth) && typeof a.elevation === "number" && Number.isFinite(a.elevation) ? { azimuth: a.azimuth, elevation: a.elevation } : null;
+    // Home Assistant's recorder keeps the sun's state but not its azimuth and elevation, so a replayed row has neither: work them out
+    // from the replayed moment and the home's location. Live, a missing attribute is still no sun.
+    const pos = rec ?? (replayStates(this) ? sunPosition(this._now(), this._hass?.config?.latitude, this._hass?.config?.longitude) : null);
+    if (!pos) return null;
+    const { azimuth, elevation } = pos;
     // The view draws the shown floor in its stored frame, which sits in the house turned by the floor's `rotation`, so the sun's
     // bearing there is azimuth + north - rotation. Kept in [0, 360): `sunDir` takes nothing else. The floors below hang on the same frame.
     const key = this._floorKey(), turn = this._layout && key ? floorPose(this._layout, key).rot : 0;
