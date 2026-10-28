@@ -2,6 +2,7 @@ import { html, nothing, render } from "lit";
 import { mark, t, tn } from "../core/i18n";
 import { DEFAULT_MOTION_FADE_S } from "../core";
 import { entitiesOfDevice, entitiesOfDoor, moreInfoEntities } from "../core/attachments";
+import { carEntities } from "../core/car-status";
 import type { Floor } from "../core/schema";
 import { NO_ANSWER } from "./load";
 import { closePopup } from "./card-popup";
@@ -48,24 +49,59 @@ let lib: typeof import("./replay/history") | null = null;
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && s !== "") : []);
 const text = (v: unknown): string[] => (typeof v === "string" && v ? [v] : []);
 
-/** S39.2, spec item 4: every entity the shown floor draws from. Layout data is untrusted, so junk is skipped, never thrown on. */
-export function replayEntities(f: Floor, sunId: string): string[] {
+/** What the card has at hand beyond the layout: the plug-to-power-sensor links, and the registry with the live states, to find the
+ * battery sensors behind a placed entity (the same sources `attention` reads). All optional; junk is skipped. */
+export interface ReplayExtras {
+  powerLinks?: Record<string, string>;
+  registry?: Record<string, { device_id?: string | null } | undefined>;
+  liveStates?: Record<string, { attributes?: Record<string, unknown> } | undefined>;
+}
+
+const ownOf = <T>(o: Record<string, T>, k: string): T | undefined => (Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined);
+
+/** The battery entities that share an HA device with any of `placed`: what attention reads for a device with no battery of its own. */
+function batteriesBehind(placed: ReadonlySet<string>, reg: ReplayExtras["registry"], states: ReplayExtras["liveStates"]): string[] {
+  if (!reg || typeof reg !== "object" || !states || typeof states !== "object") return [];
+  const devs = new Set<string>();
+  for (const id of placed) { const d = ownOf(reg, id)?.device_id; if (typeof d === "string" && d) devs.add(d); }
+  if (!devs.size) return [];
+  const out: string[] = [];
+  for (const id of Object.keys(reg)) {
+    const d = ownOf(reg, id)?.device_id;
+    if (typeof d !== "string" || !devs.has(d) || placed.has(id)) continue;
+    if ((id.startsWith("sensor.") || id.startsWith("binary_sensor.")) && ownOf(states, id)?.attributes?.device_class === "battery") out.push(id);
+  }
+  return out;
+}
+
+/** S39.2, spec item 4: every entity the shown floor draws from. Layout data is untrusted, so junk is skipped, never thrown on.
+ * Person `Device.room` is left out on purpose: person positions are a non-goal of the spec (DECISIONS, Sprint 39 review fixes). */
+export function replayEntities(f: Floor, sunId: string, extras: ReplayExtras = {}): string[] {
   const out = new Set<string>([sunId]);
   const add = (list: unknown[]) => list.forEach((e) => { if (typeof e === "string" && e) out.add(e); });
   const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+  const links = extras.powerLinks && typeof extras.powerLinks === "object" ? extras.powerLinks : {};
   for (const d of list(f?.devices)) {
     if (!d || typeof d !== "object") continue;
     const dev = d as Floor["devices"][number];
     add(moreInfoEntities(dev)); // the entity, its `bound` relay and the attachments
     add(text(dev.power)); add(text(dev.motion));
+    // A plug with no `power` of its own shows the sensor the card linked to it (`_powerLinks`).
+    if (dev.type === "plug" && !dev.power && typeof dev.entity === "string") add(text(ownOf(links, dev.entity)));
   }
   for (const d of list(f?.doors)) if (d && typeof d === "object") add(entitiesOfDoor(d as Floor["doors"][number]));
   for (const u of list(f?.unlinked)) if (u && typeof u === "object") add(entitiesOfDevice(u as never));
+  for (const m of list(f?.furniture)) {
+    if (!m || typeof m !== "object") continue;
+    add(text((m as { entity?: unknown }).entity)); // a tv, speaker or computer piece, and any piece that lights with its entity
+    add(carEntities(m as never)); // a car's attached entities
+  }
   for (const r of list(f?.rooms)) {
     if (!r || typeof r !== "object") continue;
     const room = r as Floor["rooms"][number];
     add(strings(room.temps)); add(strings(room.humidity)); add(strings(room.motion)); add(text(room.entity));
   }
+  add(batteriesBehind(out, extras.registry, extras.liveStates));
   return [...out];
 }
 
@@ -175,7 +211,7 @@ export function syncReplay(c: FloorplanStudioCard): void {
 }
 
 async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHistory, f: Floor): Promise<void> {
-  const ids = replayEntities(f, c._sunId());
+  const ids = replayEntities(f, c._sunId(), { powerLinks: c._powerLinks(), registry: c._hass?.entities, liveStates: c._hass?.states });
   try {
     const conn = c._hass?.connection;
     if (!conn) throw { message: t(NO_ANSWER) };
