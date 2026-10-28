@@ -13,10 +13,13 @@ const version = JSON.parse(readFileSync("custom_components/floorplan_studio/mani
 const chunkName = () => ({
   name: "fp-chunk-name",
   generateBundle(_o: unknown, bundle: Record<string, { type: string; fileName: string; isEntry?: boolean; code?: string }>) {
-    const chunk = Object.values(bundle).find((c) => c.type === "chunk" && !c.isEntry && /^floorplan-studio-3d-.+\.js$/.test(c.fileName));
-    if (!chunk) return;
-    for (const c of Object.values(bundle)) {
-      if (c.type === "chunk" && c.isEntry && c.code?.includes("__FP3D_CHUNK__")) c.code = c.code.replace('"__FP3D_CHUNK__"', JSON.stringify(chunk.fileName));
+    // S39 review N2: the replay chunk is retried the same way, under its own placeholder.
+    for (const [placeholder, name] of [["__FP3D_CHUNK__", /^floorplan-studio-3d-.+\.js$/], ["__FPREPLAY_CHUNK__", /^floorplan-studio-replay-.+\.js$/]] as const) {
+      const chunk = Object.values(bundle).find((c) => c.type === "chunk" && !c.isEntry && name.test(c.fileName));
+      if (!chunk) continue;
+      for (const c of Object.values(bundle)) {
+        if (c.type === "chunk" && c.isEntry && c.code?.includes(placeholder)) c.code = c.code.replace(`"${placeholder}"`, JSON.stringify(chunk.fileName));
+      }
     }
   },
 });

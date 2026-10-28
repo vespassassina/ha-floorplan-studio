@@ -264,15 +264,15 @@ test.describe("S39.3 one draw path for the past", () => {
   });
 
   test("zoom, floor and selection survive opening and closing the bar", async ({ page }) => {
-    await boot(page, { config: { floor: "all" }, live: {} });
+    await boot(page, { config: { floor: "all", active_list: true }, live: {} }); // a room is picked only with the Overview on (tapRoom)
     await card(page).locator("css=.fp-floors button", { hasText: "First" }).click();
     await expect(card(page).locator("css=.fp-floors button", { hasText: "First" })).toHaveAttribute("aria-pressed", "true");
     await card(page).locator("css=button[aria-label='Zoom in']").click();
     const zoomed = await viewBox(page);
     const picked = () => card(page).evaluate((el) => (el as unknown as { _picked(): number | null })._picked());
-    const room = card(page).locator("css=svg polygon[data-r]").first();
-    await room.click({ position: { x: 5, y: 5 }, force: true });
+    await card(page).locator("css=svg text[data-rl]").first().click(); // the room's own name picks it
     const before = await picked();
+    expect(before, "a room is selected before the bar opens, so the comparison below means something").not.toBeNull();
     await openBar(page);
     await to(page, 9);
     await card(page).locator("css=button.fp-rp-live").click();
@@ -305,6 +305,218 @@ test.describe("S39.3 one draw path for the past", () => {
     await expect(off).toBeEnabled();
     await openBar(page);
     await expect(off).toBeDisabled();
+  });
+});
+
+test.describe("Opus review B1: nothing acts or opens while replaying, whatever the path (with the Overview on)", () => {
+  // Every test above uses active_list: false, so none of these paths was ever reached. The kitchen lamp is on in the replayed past (08:00 to 10:00)
+  // and off live, so the replayed rows offer Turn off / Lights off and a service call would be a real act on the present.
+  const live = { "light.demo_kitchen": st("off") };
+  const CFG = { active_list: true, favourites: ["light.demo_kitchen"] };
+  const noPopup = (page: Page) => expect(card(page).locator("css=.fp-pop")).toHaveCount(0);
+
+  test("the room's Lights off, a favourite's button and an Active row's tap call no service and open no popup; the bar says Replaying", async ({ page }) => {
+    await boot(page, { config: CFG, live });
+    await openBar(page);
+    await to(page, 9);
+    await expect(g(page, lampIdx)).toHaveClass(/\bon\b/);
+    // The favourite's own button must do nothing (its label is another matter: subjectOp reads the live state).
+    await card(page).locator('css=.fp-ov-fav .fp-fav-row[data-entity="light.demo_kitchen"] .fp-fav-act').click();
+    await expect(msg(page)).toHaveText("Replaying");
+    // The Active row of the same lamp (the replayed state lists it): a tap goes to the thing, and must not.
+    await card(page).locator('css=.fp-ov-act .fp-active-row[data-entity="light.demo_kitchen"]').click();
+    await noPopup(page);
+    // A real click on the Kitchen room, then its Lights off.
+    await card(page).locator("css=svg text[data-rl='1']").click(); // the room's own name picks it (tapRoom)
+    const off = card(page).locator("css=.fp-room .fp-alloff");
+    await expect(off).toHaveCount(1); // its rows come from the replayed states
+    await page.evaluate(() => { (document.querySelector("floorplan-studio-card") as unknown as { _replay: { note: boolean } })._replay.note = false; });
+    await off.click();
+    await expect(msg(page)).toHaveText("Replaying");
+    await noPopup(page);
+    expect(await calls(page)).toEqual([]);
+    // Live gives the acts back: the same button now calls the service (the control: the paths above were reachable).
+    await card(page).locator("css=button.fp-rp-live").click();
+    await update(page, { "light.demo_kitchen": st("on") });
+    await off.click();
+    expect(await calls(page)).toEqual(["light.turn_off light.demo_kitchen"]);
+  });
+
+  test("Enter on a device the keys have focused opens nothing while replaying, and opens the popup live", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live });
+    const tabIn = async () => { await card(page).locator("css=button[aria-label='View options']").focus(); await page.keyboard.press("Tab"); await expect(card(page).locator("css=.fp-focus")).toBeVisible(); };
+    await tabIn();
+    await page.keyboard.press("Enter");
+    await expect(card(page).locator("css=.fp-pop")).toHaveCount(1); // live: it opens, so the key does reach the device
+    await page.keyboard.press("Escape");
+    await expect(card(page).locator("css=.fp-pop")).toHaveCount(0);
+    await openBar(page);
+    await to(page, 9);
+    await tabIn();
+    await page.keyboard.press("Enter");
+    await noPopup(page);
+    await expect(msg(page)).toHaveText("Replaying");
+    expect(await calls(page)).toEqual([]);
+  });
+});
+
+test.describe("Opus review S1: the words are the past's, like the picture", () => {
+  test("lamp on 08:00 to 10:00, off live, thumb at 09:00: the Active row and the hover tooltip say on", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live: { "light.demo_kitchen": st("off") } });
+    await openBar(page);
+    await to(page, 9);
+    await expect(g(page, lampIdx)).toHaveClass(/\bon\b/);
+    await expect(card(page).locator('css=.fp-ov-act .fp-active-row[data-entity="light.demo_kitchen"] .fp-row-state')).toHaveText(/^on\b/i);
+    await g(page, lampIdx).hover();
+    await expect(card(page).locator("css=.fp-tip")).toHaveText(/^Kitchen light\s*on$/i); // name, type, state: the spans run together in textContent
+    await expect(card(page).locator("css=#fp-tip")).not.toContainText(/off/i);
+  });
+});
+
+test.describe("Opus review S2: the clock is the past's only while the past is drawn", () => {
+  const fade = (page: Page) => g(page, motionIdx).evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-fade"));
+
+  test("a failed fetch keeps the plan live, and the motion fade keeps moving with the clock", async ({ page }) => {
+    // The sensor went off 140 s before 12:00:00, so the live fade of 600 s starts at 1 - 140/600.
+    await boot(page, { clock: "install", config: { fade: 600 }, fail: { code: "unknown_error", message: "no recorder" }, live: { "binary_sensor.demo_hall_motion": st("off", {}, iso(NOW / 1000 - 140)) } });
+    await openMenu(page);
+    await menuItem(page, "replay").click();
+    await expect(msg(page)).toHaveText(/no recorder/);
+    await expect.poll(async () => Number(await fade(page))).toBeCloseTo(1 - 140 / 600, 2);
+    await page.clock.runFor(300000);
+    await expect.poll(async () => Number(await fade(page))).toBeCloseTo(1 - 440 / 600, 2); // five minutes later, live, not frozen
+  });
+
+  test("a floor switch while playing pauses the play until the new floor's history is there", async ({ page }) => {
+    await boot(page, { clock: "install", config: { floor: "all" } });
+    await openBar(page);
+    await page.evaluate(() => { // the second floor's answer waits for the test
+      const w = window as unknown as { __release: () => void };
+      const el = document.getElementById("card") as unknown as { hass: { connection: { sendMessagePromise: (m: unknown) => Promise<unknown> } } };
+      const slow = new Promise<void>((r) => { w.__release = r; });
+      const was = el.hass.connection.sendMessagePromise;
+      el.hass.connection.sendMessagePromise = (m) => slow.then(() => was(m));
+    });
+    await playBtn(page).click();
+    await page.clock.runFor(2000);
+    await expect(playBtn(page)).toHaveAttribute("aria-label", "Pause");
+    await card(page).locator("css=.fp-floors button", { hasText: "First" }).click();
+    await expect(range(page)).toBeDisabled(); // loading
+    await page.clock.runFor(2000);
+    await expect(playBtn(page)).toHaveAttribute("aria-label", "Play"); // paused, not running on live states with a past clock
+    await page.evaluate(() => (window as unknown as { __release: () => void }).__release());
+    await expect(range(page)).toBeEnabled();
+    const held = await range(page).inputValue();
+    await page.clock.runFor(3000);
+    await expect(range(page)).toHaveValue(held);
+  });
+});
+
+test.describe("Opus review S4: the floors that are not on show keep their alerts live", () => {
+  test("an unlocked door upstairs keeps its badge while the ground floor is replayed; the ground floor's own badge follows the replay", async ({ page }) => {
+    const layout = structuredClone(demo);
+    layout.floors.ground.devices.push({ id: "dev-down-lock", type: "lock", entity: "lock.down_front", x: 300, y: 300 });
+    layout.floors.first.devices.push({ id: "dev-up-lock", type: "lock", entity: "lock.up_front", x: 300, y: 300 });
+    const rows = ROWS();
+    rows["lock.down_front"] = [{ s: "locked", a: {}, lu: secs(12, 0, -1) - 100 }]; // locked all day in the recorder
+    const pill = (title: string) => card(page).locator("css=.fp-floors button", { hasText: title }).locator("css=.fp-floor-count");
+    await boot(page, { config: { layout, floor: "all" }, rows, live: { "lock.down_front": st("unlocked"), "lock.up_front": st("unlocked") } });
+    await expect(pill("Ground")).toHaveText("1"); // live: both are unlocked
+    await expect(pill("First")).toHaveText("1");
+    await openBar(page);
+    await to(page, 9);
+    await expect(pill("Ground")).toHaveCount(0); // the shown floor, as it was at 09:00
+    await expect(pill("First")).toHaveText("1"); // another floor: now, not absent
+    await card(page).locator("css=button.fp-rp-live").click();
+    await expect(pill("Ground")).toHaveText("1");
+  });
+});
+
+test.describe("Opus review S5: the timeout reason is translated", () => {
+  test("a history that never answers says why in German after 20 s", async ({ page }) => {
+    await boot(page, { language: "de", clock: "install" });
+    await page.evaluate(() => {
+      const el = document.getElementById("card") as unknown as { hass: { connection: { sendMessagePromise: (m: unknown) => Promise<unknown> } } };
+      el.hass.connection.sendMessagePromise = () => new Promise(() => undefined); // the socket is open and silent
+    });
+    await card(page).locator("css=fp-menu button").first().click();
+    await card(page).locator("css=[data-value='replay']").click();
+    await expect(bar(page)).toHaveAttribute("aria-busy", "true"); // waiting, not an error yet
+    await page.clock.runFor(20001);
+    await expect(msg(page)).toHaveText("Der Verlauf konnte nicht geladen werden: keine Antwort in 20 s");
+  });
+});
+
+test.describe("Opus review S6, N5: the bar does not outlive its card's config or its place in the page", () => {
+  test("setConfig with kiosk: true while replaying closes the bar", async ({ page }) => {
+    await boot(page);
+    await openBar(page);
+    await to(page, 9);
+    await page.evaluate(([config]) => { (document.getElementById("card") as unknown as { setConfig(c: unknown): void }).setConfig(config); }, [{ layout: structuredClone(demo), floor: "ground", theme: "light", kiosk: true }] as const);
+    await expect(bar(page)).toHaveCount(0);
+    await expect(g(page, lampIdx)).not.toHaveClass(/\bon\b/); // the live plan: the lamp is unknown in the stub's live states
+  });
+
+  test("a card taken out of the page and put back shows no stale window: the replay is closed", async ({ page }) => {
+    await boot(page);
+    await openBar(page);
+    await to(page, 9);
+    await page.evaluate(() => { // out of the page and back in, the same element, as a dashboard view switch does
+      const el = document.getElementById("card")!, parent = el.parentNode!, next = el.nextSibling;
+      el.remove();
+      parent.insertBefore(el, next);
+    });
+    await expect(card(page).locator("css=svg.fp-zoomable")).toBeVisible(); // drawn again
+    await expect(bar(page)).toHaveCount(0);
+    await expect(g(page, lampIdx)).not.toHaveClass(/\bon\b/); // the live plan, not the 09:00 one
+  });
+});
+
+test.describe("Opus review N1: the plan is drawn for a minute only when a minute shows", () => {
+  /** Draws of the card during 60 s of play from the start, with the Overview on. */
+  async function drawsOfAMinutePlay(page: Page, layout: unknown, rows: Rows) {
+    await boot(page, { clock: "install", config: { active_list: true, layout }, rows });
+    await page.evaluate(() => {
+      const P = customElements.get("floorplan-studio-card")!.prototype as unknown as { render(): unknown };
+      const was = P.render; const w = window as unknown as { __renders: number };
+      w.__renders = 0;
+      P.render = function (this: unknown) { w.__renders++; return was.call(this); };
+    });
+    await openBar(page);
+    await playBtn(page).click();
+    const before = await page.evaluate(() => (window as unknown as { __renders: number }).__renders);
+    await page.clock.runFor(60500);
+    await expect(range(page)).toHaveValue("1440");
+    return (await page.evaluate(() => (window as unknown as { __renders: number }).__renders)) - before;
+  }
+
+  test("with the Overview on and nothing in Attention, a day of play is not 1,440 draws", async ({ page }) => {
+    expect(await drawsOfAMinutePlay(page, structuredClone(demo), ROWS())).toBeLessThan(80);
+  });
+
+  test("control: with an item in Attention, its age is on screen and the plan is drawn for the minutes", async ({ page }) => {
+    const layout = structuredClone(demo);
+    layout.floors.ground.devices.push({ id: "dev-down-lock", type: "lock", entity: "lock.down_front", x: 300, y: 300 });
+    const rows = ROWS();
+    rows["lock.down_front"] = [{ s: "unlocked", a: {}, lu: secs(12, 0, -1) - 100 }];
+    expect(await drawsOfAMinutePlay(page, layout, rows)).toBeGreaterThan(1000);
+  });
+});
+
+test.describe("Opus review N2: the replay chunk loads like the 3D and form chunks", () => {
+  test("a chunk that cannot be fetched says the page is stale; closing and opening again asks under a new URL and works", async ({ page }) => {
+    await boot(page);
+    const asked: string[] = [];
+    await page.route("**/floorplan-studio-replay-*.js*", (route) => { asked.push(route.request().url()); return route.abort(); });
+    await openMenu(page);
+    await menuItem(page, "replay").click();
+    await expect(msg(page)).toHaveText("Could not load the history: Floorplan Studio was updated. Reload this page.");
+    await expect(range(page)).toBeDisabled();
+    expect(asked).toHaveLength(1);
+    await page.unroute("**/floorplan-studio-replay-*.js*"); // the network is back (or the page was reloaded under a new build)
+    await card(page).locator("css=button.fp-rp-live").click();
+    await openBar(page); // expects the slider enabled: the history has come
+    expect(await sent(page)).toHaveLength(1);
   });
 });
 

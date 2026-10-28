@@ -7,7 +7,7 @@ The card can look back. Open the ⋯ menu, choose Replay, and a bar appears unde
 - Card: "Replay" in the ⋯ menu (not in kiosk, not in the Studio). A slider over the last 24 hours with the time in your language and your Home Assistant time format, play and pause (24 hours in one minute), and Live. Keys on the bar: arrows 5 minutes, Page Up and Page Down an hour, Home and End the ends, Space plays, Escape closes.
 - Card: while replaying, a tap acts on nothing and opens no popup; a short "Replaying" note shows instead. Changes that arrive from Home Assistant are kept and shown when you press Live.
 - Card: zoom, floor, view and selection are kept when you open and close the bar. The 3D view follows the replayed moment, the sun and the pools of light too.
-- Card: the history parser is a lazy file of its own, `floorplan-studio-replay-<hash>.js`, about 0.7 KB gzipped. The card file grows by about 3.4 KB gzipped. Update the integration as well as the card.
+- Card: the history parser is a lazy file of its own, `floorplan-studio-replay-<hash>.js`, about 0.7 KB gzipped. The card file grows by about 4.1 KB gzipped. Update the integration as well as the card.
 
 ## 0.37.0 - 2026-10-28
 

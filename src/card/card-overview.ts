@@ -9,6 +9,7 @@ import { scenesTemplate } from "./room-scenes-ui";
 import type { Pt } from "./viewport";
 import { html, nothing } from "lit";
 import { floorOffButton, openVacuumDialog } from "./card-dialogs";
+import { overviewStates } from "./card-replay";
 import { callService, closePopup, deviceSubject, openPopup, openSubject, popupMarkup, runOp, subjectOf, subjectOp, subjectText, thingSel } from "./card-popup";
 import { back, popupInSheet, sheetTo, toggleActiveCollapsed } from "./card-sheet";
 import { scheduleSave } from "./card-view-state";
@@ -327,7 +328,7 @@ export function roomSection(c: FloorplanStudioCard, s: RoomSummary, active: unkn
 
 /** `attention()` for the layout and states on show; computed once per pair (the pills and the Overview both read it). */
 export function attentionOf(c: FloorplanStudioCard): Attention | null {
-  const layout = c._layout, states = c._stateForRender(), reg = c._hass?.entities;
+  const layout = c._layout, states = overviewStates(c), reg = c._hass?.entities; // S39 review S4: other floors stay live while replaying
   if (!layout) return null;
   const m = c._attnMemo;
   if (m && m.layout === layout && m.states === states && m.reg === reg) return m.a;
@@ -446,7 +447,7 @@ export function chips(c: FloorplanStudioCard, items: ActiveDevice[], alerts: num
  *  (`filterToRoom`) until "Show all", which lists every floor. The panel stays open while a room is picked. */
 export function activePanel(c: FloorplanStudioCard) {
   if (!c._activeListVisible() || !c._layout) return null;
-  const state = c._stateForRender();
+  const state = overviewStates(c);
   const opts = { plugWatts: plugThreshold(c._config.plug_watts), powerLinks: c._powerLinks(), formatState: c._format };
   const at = picked(c), floor = c._floor();
   const floorKey = pickedFloorKey(c), shown = c._floorKey();

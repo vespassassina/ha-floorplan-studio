@@ -30,7 +30,7 @@ export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from 
 export { DOUBLE_TAP_MS, DOUBLE_TAP_PX } from "./card-zoom"; // the 3D host and its test read them from here
 import { chooserDialogTemplate, coverDialogTemplate, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
-import { pauseReplay, REPLAY_CSS, replayBar, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
+import { closeReplay, REPLAY_CSS, replayBar, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
 import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
@@ -982,6 +982,7 @@ export class FloorplanStudioCard extends LitElement {
 
   setConfig(config: FloorplanStudioCardConfig): void {
     this._validateConfig(config ?? {});
+    closeReplay(this); // S6: a new config can be kiosk, or another layout; the bar and its history belong to the old one
     this._releaseFocus();
     this._flushSave(); // under the old config's key
     this._settleTurn(false);
@@ -1048,7 +1049,8 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S39.3: the card's one clock for drawing (motion fade, the 3D `now`), the replayed moment while the bar is open. Service calls keep the real one. */
   _now(): number {
-    return this._replay?.drawnT ?? Date.now();
+    // The past's clock only goes with the past's states: while the history loads or failed the plan is live (spec item 10), and so is its clock.
+    return this._replay && replayStates(this) ? this._replay.drawnT : Date.now();
   }
 
   /** S39.3: a tap acts on nothing in the past; the bar says why. Passed to the gesture binders. */
@@ -1124,8 +1126,8 @@ export class FloorplanStudioCard extends LitElement {
     super.disconnectedCallback();
     this._cam.want(false);
     this._releaseFocus();
+    closeReplay(this); // N5: a card attached again later must not show a stale window; before _stopTimer, which closeReplay's _syncTimer could restart
     this._stopTimer();
-    pauseReplay(this);
     const sub = this._sub; // may still be on its way: unsubscribe when it lands
     this._sub = null;
     void sub?.then((u) => u(), () => undefined);
@@ -1461,7 +1463,7 @@ export class FloorplanStudioCard extends LitElement {
   private _motionFading(): boolean {
     const f = this._floor();
     const fadeMs = (this._config.fade ?? DEFAULT_MOTION_FADE_S) * 1000;
-    if (!f || !this._hass || fadeMs <= 0 || this._replay) return false; // a replayed fade follows the bar's moment, not the clock
+    if (!f || !this._hass || fadeMs <= 0 || (this._replay && replayStates(this))) return false; // a replayed fade follows the bar's moment, not the clock
     const now = Date.now();
     const ids = [...f.devices.filter((d) => d.type === "motion").map((d) => d.entity), ...f.rooms.flatMap((r) => r.motion ?? [])];
     return ids.some((id) => {

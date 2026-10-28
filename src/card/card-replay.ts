@@ -2,9 +2,11 @@ import { html, nothing, render } from "lit";
 import { mark, t, tn } from "../core/i18n";
 import { DEFAULT_MOTION_FADE_S } from "../core";
 import { entitiesOfDevice, entitiesOfDoor, moreInfoEntities } from "../core/attachments";
+import { carEntities } from "../core/car-status";
 import type { Floor } from "../core/schema";
-import { NO_ANSWER } from "./load";
+import { NO_ANSWER, STALE_PAGE } from "./load";
 import { closePopup } from "./card-popup";
+import { attentionOf } from "./card-overview";
 import type { FloorplanStudioCard, Hass, HassEntity } from "./floorplan-studio-card";
 import type { HistoryIndex } from "./replay/history";
 
@@ -25,7 +27,7 @@ const FETCH_FAILED = mark("Could not load the history: {why}");
 const TIMED_OUT = mark("no answer in 20 s");
 
 type States = Record<string, HassEntity>;
-interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; missing: number; why?: string }
+interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; missing: number; why?: string; ids?: string[] }
 export interface ReplayState {
   /** The moment the bar opened: the end of the slider. */
   end: number;
@@ -41,31 +43,82 @@ export interface ReplayState {
   note: boolean;
   noteTimer: ReturnType<typeof setTimeout> | null;
   info: boolean;
+  /** What `overviewStates` made last, with the replayed and live states it was made from. */
+  mix: { shown: States; live: Hass["states"]; out: Hass["states"] } | null;
 }
 
-let lib: typeof import("./replay/history") | null = null;
+type Lib = typeof import("./replay/history");
+let lib: Lib | null = null;
+/** The build puts the chunk's hashed file name here (vite.config.ts); unbuilt (vitest, dev) it stays a placeholder and the plain import is used. */
+const CHUNK_FILE = "__FPREPLAY_CHUNK__";
+let libTries = 0;
+/** As the 3D chunk: a browser remembers a failed `import()` of one URL and never asks the network again, so each try after the first asks
+ * for the same file under a new query. A failed load is not cached here, so closing the bar and opening it again is the retry. */
+async function loadLib(): Promise<Lib> {
+  if (lib) return lib;
+  const n = libTries++;
+  lib = n > 0 && /^floorplan-studio-replay-.+\.js$/.test(CHUNK_FILE)
+    ? await import(/* @vite-ignore */ `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${CHUNK_FILE}?r=${n}`)
+    : await import("./replay/history");
+  return lib!;
+}
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && s !== "") : []);
 const text = (v: unknown): string[] => (typeof v === "string" && v ? [v] : []);
 
-/** S39.2, spec item 4: every entity the shown floor draws from. Layout data is untrusted, so junk is skipped, never thrown on. */
-export function replayEntities(f: Floor, sunId: string): string[] {
+/** What the card has at hand beyond the layout: the plug-to-power-sensor links, and the registry with the live states, to find the
+ * battery sensors behind a placed entity (the same sources `attention` reads). All optional; junk is skipped. */
+export interface ReplayExtras {
+  powerLinks?: Record<string, string>;
+  registry?: Record<string, { device_id?: string | null } | undefined>;
+  liveStates?: Record<string, { attributes?: Record<string, unknown> } | undefined>;
+}
+
+const ownOf = <T>(o: Record<string, T>, k: string): T | undefined => (Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined);
+
+/** The battery entities that share an HA device with any of `placed`: what attention reads for a device with no battery of its own. */
+function batteriesBehind(placed: ReadonlySet<string>, reg: ReplayExtras["registry"], states: ReplayExtras["liveStates"]): string[] {
+  if (!reg || typeof reg !== "object" || !states || typeof states !== "object") return [];
+  const devs = new Set<string>();
+  for (const id of placed) { const d = ownOf(reg, id)?.device_id; if (typeof d === "string" && d) devs.add(d); }
+  if (!devs.size) return [];
+  const out: string[] = [];
+  for (const id of Object.keys(reg)) {
+    const d = ownOf(reg, id)?.device_id;
+    if (typeof d !== "string" || !devs.has(d) || placed.has(id)) continue;
+    if ((id.startsWith("sensor.") || id.startsWith("binary_sensor.")) && ownOf(states, id)?.attributes?.device_class === "battery") out.push(id);
+  }
+  return out;
+}
+
+/** S39.2, spec item 4: every entity the shown floor draws from. Layout data is untrusted, so junk is skipped, never thrown on.
+ * Person `Device.room` is left out on purpose: person positions are a non-goal of the spec (DECISIONS, Sprint 39 review fixes). */
+export function replayEntities(f: Floor, sunId: string, extras: ReplayExtras = {}): string[] {
   const out = new Set<string>([sunId]);
   const add = (list: unknown[]) => list.forEach((e) => { if (typeof e === "string" && e) out.add(e); });
   const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+  const links = extras.powerLinks && typeof extras.powerLinks === "object" ? extras.powerLinks : {};
   for (const d of list(f?.devices)) {
     if (!d || typeof d !== "object") continue;
     const dev = d as Floor["devices"][number];
     add(moreInfoEntities(dev)); // the entity, its `bound` relay and the attachments
     add(text(dev.power)); add(text(dev.motion));
+    // A plug with no `power` of its own shows the sensor the card linked to it (`_powerLinks`).
+    if (dev.type === "plug" && !dev.power && typeof dev.entity === "string") add(text(ownOf(links, dev.entity)));
   }
   for (const d of list(f?.doors)) if (d && typeof d === "object") add(entitiesOfDoor(d as Floor["doors"][number]));
   for (const u of list(f?.unlinked)) if (u && typeof u === "object") add(entitiesOfDevice(u as never));
+  for (const m of list(f?.furniture)) {
+    if (!m || typeof m !== "object") continue;
+    add(text((m as { entity?: unknown }).entity)); // a tv, speaker or computer piece, and any piece that lights with its entity
+    add(carEntities(m as never)); // a car's attached entities
+  }
   for (const r of list(f?.rooms)) {
     if (!r || typeof r !== "object") continue;
     const room = r as Floor["rooms"][number];
     add(strings(room.temps)); add(strings(room.humidity)); add(strings(room.motion)); add(text(room.entity));
   }
+  add(batteriesBehind(out, extras.registry, extras.liveStates));
   return [...out];
 }
 
@@ -130,7 +183,7 @@ export function openReplay(c: FloorplanStudioCard): void {
   if (c._replay || !canReplay(c)) return;
   closePopup(c);
   const end = Date.now();
-  c._replay = { end, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false };
+  c._replay = { end, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null };
   c._syncTimer(); // the motion fade follows the replayed moment now, not the clock
   c.requestUpdate();
 }
@@ -143,15 +196,6 @@ export function closeReplay(c: FloorplanStudioCard): void {
   c._replay = null;
   c._syncTimer();
   c.requestUpdate();
-}
-
-/** The card left the page: stop the frames and the note, keep the place. */
-export function pauseReplay(c: FloorplanStudioCard): void {
-  const r = c._replay;
-  if (!r) return;
-  r.playing = false;
-  stopFrames(r);
-  if (r.noteTimer !== null) { globalThis.clearTimeout(r.noteTimer); r.noteTimer = null; r.note = false; }
 }
 
 function stopFrames(r: ReplayState): void {
@@ -175,20 +219,23 @@ export function syncReplay(c: FloorplanStudioCard): void {
 }
 
 async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHistory, f: Floor): Promise<void> {
-  const ids = replayEntities(f, c._sunId());
+  const ids = replayEntities(f, c._sunId(), { powerLinks: c._powerLinks(), registry: c._hass?.entities, liveStates: c._hass?.states });
   try {
     const conn = c._hass?.connection;
     if (!conn) throw { message: t(NO_ANSWER) };
-    lib ??= await import("./replay/history");
-    const reply = await withTimeout(conn.sendMessagePromise<unknown>(lib.historyRequest(ids, startOf(r), r.end)), FETCH_TIMEOUT_MS);
-    fh.index = lib.parseHistory(reply, ids);
+    // A chunk that will not load is a page older than the server, or a lost network: the words of the 3D and form chunks, not the browser's.
+    const h = await loadLib().catch(() => { throw { message: t(STALE_PAGE) }; });
+    const reply = await withTimeout(conn.sendMessagePromise<unknown>(h.historyRequest(ids, startOf(r), r.end)), FETCH_TIMEOUT_MS);
+    fh.index = h.parseHistory(reply, ids);
+    fh.ids = ids;
     const sun = c._sunId();
     fh.missing = ids.filter((id) => id !== sun && !fh.index!.has(id)).length;
     fh.status = "ready";
   } catch (e) {
     fh.status = "error";
-    const m = (e as { message?: unknown } | null)?.message;
-    fh.why = typeof m === "string" && m ? m : t(NO_ANSWER);
+    const m = (e as { message?: unknown; code?: unknown } | null)?.message;
+    // Our own timeout carries the English key; the reasons Home Assistant gives are its own words.
+    fh.why = (e as { code?: unknown } | null)?.code === "timeout" ? t(TIMED_OUT) : typeof m === "string" && m ? m : t(NO_ANSWER);
   }
   if (c._replay === r) c.requestUpdate();
 }
@@ -218,10 +265,25 @@ export function replayStates(c: FloorplanStudioCard): Hass["states"] | undefined
   return at?.states;
 }
 
+/** The states attention reads (alert badges, the Overview's items): the shown floor as it was, every other floor as it is. Attention runs
+ * over all floors and the replay holds the shown floor only; an alarm upstairs now must not vanish because the ground floor is in the past.
+ * An entity of the shown floor with no row at that moment is absent, as on the plan. */
+export function overviewStates(c: FloorplanStudioCard): Hass["states"] | undefined {
+  const live = c._hass?.states, r = c._replay, shown = replayStates(c), ids = floorHistory(c)?.ids;
+  if (!r || !live || !shown || !ids) return live;
+  if (r.mix && r.mix.shown === shown && r.mix.live === live) return r.mix.out;
+  const out: Hass["states"] = { ...live };
+  for (const id of ids) { if (shown[id]) out[id] = shown[id]; else delete out[id]; }
+  r.mix = { shown, live, out };
+  return out;
+}
+
 /** Whether a minute alone can change the picture: a motion fade still running, or the sheet's ages ("since 3 min"). Otherwise the
  * plan is not drawn again for it, and only the bar's own time moves. */
 function minuteMatters(c: FloorplanStudioCard, at: { states: States } | undefined, ms: number): boolean {
-  if (c._activeListVisible()) return true;
+  // The sheet prints an age ("12 min") only on an Attention row; with none, a minute changes nothing on it.
+  const a = c._activeListVisible() ? attentionOf(c) : null;
+  if (a && (a.items.length || a.unavailable.length)) return true;
   const f = c._floor(), fadeMs = (c._config.fade ?? DEFAULT_MOTION_FADE_S) * 1000;
   if (!f || !at || !(fadeMs > 0)) return false;
   const ids = [...f.devices.filter((d) => d.type === "motion").map((d) => d.entity), ...f.rooms.flatMap((r) => r.motion ?? [])];
@@ -254,6 +316,8 @@ function seek(c: FloorplanStudioCard, r: ReplayState, ms: number): void {
 function step(c: FloorplanStudioCard, ts: number): void {
   const r = c._replay;
   if (!r || !r.playing) return;
+  // A floor switched to while playing has no history yet (or none): the play head would run on live states. Stop; Play is the user's.
+  if (floorHistory(c)?.status !== "ready") { r.playing = false; r.raf = null; paintBar(c); return; }
   const dt = r.last ? Math.min(MAX_STEP_MS, Math.max(0, ts - r.last)) : 0;
   r.last = ts;
   r.t = Math.min(r.end, r.t + dt * PLAY_MS_PER_MS);

@@ -83,7 +83,7 @@ HA source (`homeassistant/components/history/websocket_api.py`, `homeassistant/c
 8. A `hass` update with a light change while replaying leaves the plan as it was; Live shows the new state, and zoom
    and floor are kept.
 9. A tap on a device while replaying calls no service (the stub records none) and opens no popup.
-10. Play from the end restarts from the start; 60 s of play covers 24 h within 2 s (fake clock); it stops at the end.
+10. Play from the end restarts from the start; the replay's own clock covers 24 h in 60 s of clock time (half the slider after 30 s) and a bounded number of draws; it stops at the end. (Reworded 2026-10-28: "within 2 s (fake clock)" cannot be timed in real time under Playwright, see DECISIONS.)
 11. Keyboard: arrows, Page Up/Down, Home, End, Space, Escape, each with its effect.
 12. A failed fetch: the error line shows, translated in German; the plan stays live.
 13. No Replay item in kiosk mode, without `hass`, or in the Studio.

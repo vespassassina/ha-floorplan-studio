@@ -45,7 +45,7 @@ export function subjectOf(c: FloorplanStudioCard, t: TapTarget): PopupSubject | 
 
 /** The one state line: the popup and the tooltip both print this. A door says its cover's state, else its first entity's. */
 export function subjectText(c: FloorplanStudioCard, s: PopupSubject): string {
-  const states = c._hass?.states, e = s.door?.cover || (s.door ? s.entities[0] : s.entity);
+  const states = c._stateForRender(), e = s.door?.cover || (s.door ? s.entities[0] : s.entity);
   if (!e) return "";
   // S22.1: a lamp lit only by its relay reads as the plan draws it, and names what keeps it on.
   const via = s.lamp ? relayText(s.lamp, states) : null;
@@ -94,6 +94,7 @@ export function thingSel(c: FloorplanStudioCard, what: ThingRef["what"], index: 
 
 /** Opens the popup, swaps it for another subject's, or closes it when the same subject is tapped again. Nothing is operated here. */
 export function openSubject(c: FloorplanStudioCard, s: PopupSubject, at: { x: number; y: number }, from: Element | null): void {
+  if (c._replay) { c._replayGuard().onReplay(); return; } // S39 review B1: the popup's button would act on the present
   if (dialogOpen(c)) return;
   hideTip(c);
   if (c._popup?.s.key === s.key) { closePopup(c); return; }
@@ -183,7 +184,8 @@ export function levelOf(c: FloorplanStudioCard, kind: SliderKind, a: Record<stri
 
 export function subjectOp(c: FloorplanStudioCard, s: PopupSubject): PopupOp | null {
   if (s.door) return null;
-  return s.lamp ? lampOp(s.lamp, c._hass?.states) : popupOp(s.type, s.entity, c._hass?.states[s.entity ?? ""]?.state);
+  const states = c._stateForRender(); // the button's label follows the plan on show; while replaying it acts on nothing (callService)
+  return s.lamp ? lampOp(s.lamp, states) : popupOp(s.type, s.entity, states?.[s.entity ?? ""]?.state);
 }
 
 /** The popup's markup: floating at the end of the card, or (`inSheet`) as the bottom sheet's Device level. Each caller asks for its place and gets nothing from the other. */
@@ -232,6 +234,7 @@ export function popupAct(c: FloorplanStudioCard): void {
 /** G11: the one way the card calls a service. Home Assistant rejects a call it cannot make (no such service, entity gone, no right to);
  *  that is caught and shown in HA's own toast (`hass-notification`) instead of an unhandled rejection nobody sees. */
 export function callService(c: FloorplanStudioCard, domain: string, service: string, data?: Record<string, unknown>): void {
+  if (c._replay) { c._replayGuard().onReplay(); return; } // S39 review B1: nothing acts from the past, whichever button got here
   const call = c._hass?.callService;
   if (!call) return;
   const failed = (e: unknown) => {

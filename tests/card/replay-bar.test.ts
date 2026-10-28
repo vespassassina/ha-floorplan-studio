@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import demo from "../../demo/layout.json";
-import type { Layout } from "../../src/core/schema";
+import { DEVICE_TYPES, FURNITURE_SYMBOLS, type DeviceType, type FurnitureSymbol, type Layout } from "../../src/core/schema";
 import { keyMinute, replayEntities, replayTime, sameStates, withTimeout, DAY_MINUTES } from "../../src/card/card-replay";
 
 const L = demo as unknown as Layout;
@@ -82,5 +82,51 @@ describe("withTimeout", () => {
   });
   it("passes a rejection through", async () => {
     await expect(withTimeout(Promise.reject({ code: "x", message: "no" }), 1000)).rejects.toEqual({ code: "x", message: "no" });
+  });
+});
+
+// S3 of the Opus review: the fetch must ask for everything the floor draws or attention reads.
+describe("replayEntities: every member of an enumeration is a decision (CLAUDE.md finding 17)", () => {
+  const floor = (patch: Record<string, unknown>) => ({ ...L.floors.ground, devices: [], rooms: [], doors: [], unlinked: [], furniture: [], ...patch }) as never;
+  // What the fetch asks for a device of each type. A new DeviceType is a type error here until someone writes its line down.
+  const DEVICE_ASKS: Record<DeviceType, "entity"> = Object.fromEntries(DEVICE_TYPES.map((t) => [t, "entity"])) as Record<DeviceType, "entity">;
+  it("asks for the entity of a device of every type", () => {
+    expect(Object.keys(DEVICE_ASKS).sort()).toEqual([...DEVICE_TYPES].sort());
+    for (const type of DEVICE_TYPES) {
+      const got = replayEntities(floor({ devices: [{ id: "d", type, entity: `sensor.t_${type}`, x: 1, y: 1 }] }), "sun.sun");
+      expect(got, type).toContain(`sensor.t_${type}`);
+    }
+  });
+  it("does not ask for the room a person is in: person positions are a non-goal (spec), decided", () => {
+    const got = replayEntities(floor({ devices: [{ id: "p", type: "person", entity: "person.ann", room: "sensor.where", x: 1, y: 1 }] }), "sun.sun");
+    expect(got).toContain("person.ann");
+    expect(got).not.toContain("sensor.where");
+  });
+  // The furniture symbols that read an entity: every symbol is listed, with what it asks for.
+  const FURNITURE_ASKS: Record<FurnitureSymbol, "entity" | "entity+attached"> = Object.fromEntries(FURNITURE_SYMBOLS.map((s) => [s, s === "car" ? "entity+attached" : "entity"])) as Record<FurnitureSymbol, "entity" | "entity+attached">;
+  it("asks for the entity of a piece of furniture of every symbol, and the attached entities of a car", () => {
+    expect(Object.keys(FURNITURE_ASKS).sort()).toEqual([...FURNITURE_SYMBOLS].sort());
+    for (const symbol of FURNITURE_SYMBOLS) {
+      const m = { id: "m", symbol, x: 1, y: 1, rot: 0, w: 10, h: 10, entity: `sensor.f_${symbol}`, ...(symbol === "car" ? { attached: ["sensor.car_battery", "device_tracker.car", 5, ""] } : {}) };
+      const got = replayEntities(floor({ furniture: [m] }), "sun.sun");
+      expect(got, symbol).toContain(`sensor.f_${symbol}`);
+      if (FURNITURE_ASKS[symbol] === "entity+attached") expect(got).toEqual(expect.arrayContaining(["sensor.car_battery", "device_tracker.car"]));
+      else expect(got).not.toContain("sensor.car_battery");
+    }
+  });
+  it("asks for the power sensor a plug is linked to, but only for plugs of this floor", () => {
+    const f = floor({ devices: [{ id: "a", type: "plug", entity: "switch.plug_a", x: 1, y: 1 }, { id: "b", type: "light", entity: "light.b", x: 1, y: 1 }] });
+    const got = replayEntities(f, "sun.sun", { powerLinks: { "switch.plug_a": "sensor.plug_a_power", "switch.plug_other_floor": "sensor.other_power" } });
+    expect(got).toContain("sensor.plug_a_power");
+    expect(got).not.toContain("sensor.other_power");
+  });
+  it("asks for the battery sensors of the HA device behind a placed entity (what attention reads), from the registry", () => {
+    const f = floor({ devices: [{ id: "l", type: "lock", entity: "lock.front", x: 1, y: 1 }], furniture: [{ id: "m", symbol: "tv", x: 1, y: 1, rot: 0, w: 10, h: 10, entity: "media_player.tv" }] });
+    const reg = { "lock.front": { device_id: "dev1" }, "sensor.front_battery": { device_id: "dev1" }, "sensor.front_rssi": { device_id: "dev1" }, "media_player.tv": { device_id: "dev2" }, "sensor.tv_battery": { device_id: "dev2" }, "sensor.elsewhere_battery": { device_id: "dev9" } };
+    const states = { "sensor.front_battery": { attributes: { device_class: "battery" } }, "sensor.front_rssi": { attributes: { device_class: "signal_strength" } }, "sensor.tv_battery": { attributes: { device_class: "battery" } }, "sensor.elsewhere_battery": { attributes: { device_class: "battery" } } };
+    const got = replayEntities(f, "sun.sun", { registry: reg, liveStates: states });
+    expect(got).toEqual(expect.arrayContaining(["sensor.front_battery", "sensor.tv_battery"]));
+    expect(got).not.toContain("sensor.front_rssi");
+    expect(got).not.toContain("sensor.elsewhere_battery");
   });
 });
