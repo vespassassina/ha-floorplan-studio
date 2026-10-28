@@ -30,7 +30,7 @@ export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from 
 export { DOUBLE_TAP_MS, DOUBLE_TAP_PX } from "./card-zoom"; // the 3D host and its test read them from here
 import { chooserDialogTemplate, coverDialogTemplate, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
-import { pauseReplay, REPLAY_CSS, replayBar, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
+import { closeReplay, REPLAY_CSS, replayBar, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
 import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
@@ -982,6 +982,7 @@ export class FloorplanStudioCard extends LitElement {
 
   setConfig(config: FloorplanStudioCardConfig): void {
     this._validateConfig(config ?? {});
+    closeReplay(this); // S6: a new config can be kiosk, or another layout; the bar and its history belong to the old one
     this._releaseFocus();
     this._flushSave(); // under the old config's key
     this._settleTurn(false);
@@ -1125,8 +1126,8 @@ export class FloorplanStudioCard extends LitElement {
     super.disconnectedCallback();
     this._cam.want(false);
     this._releaseFocus();
+    closeReplay(this); // N5: a card attached again later must not show a stale window; before _stopTimer, which closeReplay's _syncTimer could restart
     this._stopTimer();
-    pauseReplay(this);
     const sub = this._sub; // may still be on its way: unsubscribe when it lands
     this._sub = null;
     void sub?.then((u) => u(), () => undefined);

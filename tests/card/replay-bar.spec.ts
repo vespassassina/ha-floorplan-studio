@@ -447,6 +447,31 @@ test.describe("Opus review S5: the timeout reason is translated", () => {
   });
 });
 
+test.describe("Opus review S6, N5: the bar does not outlive its card's config or its place in the page", () => {
+  test("setConfig with kiosk: true while replaying closes the bar", async ({ page }) => {
+    await boot(page);
+    await openBar(page);
+    await to(page, 9);
+    await page.evaluate(([config]) => { (document.getElementById("card") as unknown as { setConfig(c: unknown): void }).setConfig(config); }, [{ layout: structuredClone(demo), floor: "ground", theme: "light", kiosk: true }] as const);
+    await expect(bar(page)).toHaveCount(0);
+    await expect(g(page, lampIdx)).not.toHaveClass(/\bon\b/); // the live plan: the lamp is unknown in the stub's live states
+  });
+
+  test("a card taken out of the page and put back shows no stale window: the replay is closed", async ({ page }) => {
+    await boot(page);
+    await openBar(page);
+    await to(page, 9);
+    await page.evaluate(() => { // out of the page and back in, the same element, as a dashboard view switch does
+      const el = document.getElementById("card")!, parent = el.parentNode!, next = el.nextSibling;
+      el.remove();
+      parent.insertBefore(el, next);
+    });
+    await expect(card(page).locator("css=svg.fp-zoomable")).toBeVisible(); // drawn again
+    await expect(bar(page)).toHaveCount(0);
+    await expect(g(page, lampIdx)).not.toHaveClass(/\bon\b/); // the live plan, not the 09:00 one
+  });
+});
+
 test.describe("S39.2 play and keys", () => {
   test("criterion 10: play from the end restarts at the start, 60 s of play cover 24 h, few draws, one draw per minute, and it stops at the end", async ({ page }) => {
     await boot(page, { clock: "install" });

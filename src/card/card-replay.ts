@@ -183,15 +183,6 @@ export function closeReplay(c: FloorplanStudioCard): void {
   c.requestUpdate();
 }
 
-/** The card left the page: stop the frames and the note, keep the place. */
-export function pauseReplay(c: FloorplanStudioCard): void {
-  const r = c._replay;
-  if (!r) return;
-  r.playing = false;
-  stopFrames(r);
-  if (r.noteTimer !== null) { globalThis.clearTimeout(r.noteTimer); r.noteTimer = null; r.note = false; }
-}
-
 function stopFrames(r: ReplayState): void {
   if (r.raf !== null) globalThis.cancelAnimationFrame(r.raf);
   r.raf = null;
