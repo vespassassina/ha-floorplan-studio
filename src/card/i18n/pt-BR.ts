@@ -258,5 +258,14 @@ const c: Catalogue = {
   "people|layer": "pessoas",
   "other|layer": "outro",
   "furniture|layer": "mobiliário",
+  "Replay": "Reprodução",
+  "Replay time": "Momento",
+  "Play": "Reproduzir",
+  "Live": "Ao vivo",
+  "Replaying": "Reproduzindo o passado",
+  "Loading history…": "Carregando o histórico…",
+  "Could not load the history: {why}": "Não foi possível carregar o histórico: {why}",
+  "no answer in 20 s": "sem resposta em 20 s",
+  "{n} entity on this floor has no history": { one: "{n} entidade deste andar não tem histórico", other: "{n} entidades deste andar não têm histórico" },
 };
 export default c;

@@ -6,6 +6,7 @@ import type { Pt } from "./viewport";
 import { html, nothing } from "lit";
 import { attentionOf, openSearch, pickFloor, pickedFloorKey } from "./card-overview";
 import { popupInSheet } from "./card-sheet";
+import { canReplay, openReplay } from "./card-replay";
 import { saveViewNow } from "./card-view-state";
 import { resetView } from "./card-zoom";
 import type { FloorplanStudioCard, CardView } from "./floorplan-studio-card";
@@ -104,6 +105,7 @@ export function menuSections(c: FloorplanStudioCard): MenuSection[] {
     acts.push({ kind: "action", label: t("Reset view"), value: "reset", disabled: !c._modified() });
     out.push({ items: acts });
   }
+  if (canReplay(c) && !c._replay) out.push({ items: [{ kind: "action", label: t("Replay"), value: "replay" }] });
   return out;
 }
 
@@ -200,5 +202,6 @@ export function onMenuPick(c: FloorplanStudioCard, ev: Event): void {
     case "layer": if (LAYERS.some((l) => l.id === arg)) c._setLayers(d?.alt === true ? soloLayer(c._hiddenLayers, arg as LayerId) : toggleLayer(c._hiddenLayers, arg as LayerId)); break; // Alt: this family alone, again: all
     case "rotate": if (arg === "1" || arg === "-1") c._turnBy(Number(arg) * ROTATION_STEP); break;
     case "reset": resetView(c); break;
+    case "replay": openReplay(c); break;
   }
 }

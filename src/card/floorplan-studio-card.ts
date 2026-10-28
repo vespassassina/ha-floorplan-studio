@@ -30,6 +30,7 @@ export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from 
 export { DOUBLE_TAP_MS, DOUBLE_TAP_PX } from "./card-zoom"; // the 3D host and its test read them from here
 import { chooserDialogTemplate, coverDialogTemplate, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
+import { pauseReplay, REPLAY_CSS, replayBar, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
 import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
@@ -59,7 +60,7 @@ export interface Hass {
   user?: { is_admin?: boolean };
   /** S37.5: the user's language code as HA writes it ("it", "pt-BR", "zh-Hans"); `locale.language` is the same value on a frontend that has no top-level field. */
   language?: string;
-  locale?: { language?: string };
+  locale?: { language?: string; time_format?: string };
   callService?(domain: string, service: string, data?: Record<string, unknown>): Promise<unknown>;
   /** HA's own display text for a state ("21.5 °C", "Heat/Cool"). Absent on an old frontend; the card then prints the raw state. */
   formatEntityState?(stateObj: HassEntity): string;
@@ -277,7 +278,7 @@ export class FloorplanStudioCard extends LitElement {
        fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
        the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
        than cropped or stretched. */
-    :host { display: grid; grid-template-columns: var(--fp-sheet-w, 0px) minmax(0, 1fr); grid-template-rows: auto 1fr var(--fp-peek-row, 0px); grid-template-areas: "head head" "sheet stage" "peek peek"; position: relative; height: 100%; }
+    :host { display: grid; grid-template-columns: var(--fp-sheet-w, 0px) minmax(0, 1fr); grid-template-rows: auto 1fr var(--fp-peek-row, 0px) auto; grid-template-areas: "head head" "sheet stage" "peek peek" "bar bar"; position: relative; height: 100%; }
     /* S8.3: hui-panel-view gives the card no definite height either, so the plan grew by width past the bottom of
        the screen and "fit" looked zoomed in. In panel layout the card takes the screen below HA's header. */
     :host([panel]) { height: calc(100vh - var(--header-height, 56px)); }
@@ -385,7 +386,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-active.fp-side .fp-active-body, .fp-active.fp-bottom .fp-active-body { flex: 1 1 auto; min-height: 0; }
     /* S31.8: the phone's sheet: along the bottom, over the plan above its 64 px peek (the peek has its own grid row). The stops are
        lengths on the host (\`_measureFrame\`); a drag writes the height inline, with the transition off. Reduced motion: it jumps. */
-    .fp-active.fp-bottom { grid-area: 1 / 1 / -1 / -1; inset: auto 0 0 0; width: auto; max-width: none; max-height: none; box-sizing: border-box; border-radius: 12px 12px 0 0; border-width: 1px 0 0; z-index: 2; height: var(--fp-sheet-peek, 64px); transition: height 0.2s ease; }
+    .fp-active.fp-bottom { grid-area: 1 / 1 / 4 / -1; inset: auto 0 0 0; width: auto; max-width: none; max-height: none; box-sizing: border-box; border-radius: 12px 12px 0 0; border-width: 1px 0 0; z-index: 2; height: var(--fp-sheet-peek, 64px); transition: height 0.2s ease; }
     .fp-active.fp-bottom[data-stop="half"] { height: var(--fp-sheet-half, 50%); }
     .fp-active.fp-bottom[data-stop="full"] { height: var(--fp-sheet-full, 100%); }
     .fp-active.fp-bottom.fp-dragging { transition: none; }
@@ -493,7 +494,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-room-facts { margin: 4px 0 6px; font: 12px/1.4 var(--fp-font, system-ui, sans-serif); }
     .fp-filter { display: flex; align-items: center; gap: 6px; font: 600 10px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); text-transform: none; letter-spacing: 0; border-radius: 4px; padding: 1px 6px; cursor: pointer; }
-  `, POPUP_CSS, SCENES_CSS, TOUCH_CSS];
+  `, POPUP_CSS, SCENES_CSS, TOUCH_CSS, unsafeCSS(REPLAY_CSS)];
 
   _config: FloorplanStudioCardConfig = {};
   _hass?: Hass;
@@ -1032,13 +1033,27 @@ export class FloorplanStudioCard extends LitElement {
    * fade starts (2026-10-06: the card used to remember when it went on, which ended a long motion's fade before it began). */
   /** G9: HA's display text for an entity (precision, translated state), or undefined when the frontend has no formatter or it throws. */
   _format = (entity: string): string | undefined => {
-    const h = this._hass, st = h?.states?.[entity];
+    const h = this._hass, st = this._stateForRender()?.[entity];
     if (!h?.formatEntityState || !st) return undefined;
     try { return h.formatEntityState(st) || undefined; } catch { return undefined; }
   };
 
+  /** S39.3: the replay, while the bar is open (card-replay.ts). Null is live. */
+  _replay: ReplayState | null = null;
+
+  /** S39.3: the states the plan is drawn from: the replayed ones while the bar is open and its history is there, else Home Assistant's. */
   _stateForRender(): Hass["states"] | undefined {
-    return this._hass?.states;
+    return replayStates(this) ?? this._hass?.states;
+  }
+
+  /** S39.3: the card's one clock for drawing (motion fade, the 3D `now`), the replayed moment while the bar is open. Service calls keep the real one. */
+  _now(): number {
+    return this._replay?.drawnT ?? Date.now();
+  }
+
+  /** S39.3: a tap acts on nothing in the past; the bar says why. Passed to the gesture binders. */
+  _replayGuard() {
+    return { replaying: () => this._replay !== null, onReplay: () => replayTap(this) };
   }
 
   /** S14.8: the draw range plugs are tinted over, from the two card options (untrusted: junk is the default range). */
@@ -1110,6 +1125,7 @@ export class FloorplanStudioCard extends LitElement {
     this._cam.want(false);
     this._releaseFocus();
     this._stopTimer();
+    pauseReplay(this);
     const sub = this._sub; // may still be on its way: unsubscribe when it lands
     this._sub = null;
     void sub?.then((u) => u(), () => undefined);
@@ -1445,7 +1461,7 @@ export class FloorplanStudioCard extends LitElement {
   private _motionFading(): boolean {
     const f = this._floor();
     const fadeMs = (this._config.fade ?? DEFAULT_MOTION_FADE_S) * 1000;
-    if (!f || !this._hass || fadeMs <= 0) return false;
+    if (!f || !this._hass || fadeMs <= 0 || this._replay) return false; // a replayed fade follows the bar's moment, not the clock
     const now = Date.now();
     const ids = [...f.devices.filter((d) => d.type === "motion").map((d) => d.entity), ...f.rooms.flatMap((r) => r.motion ?? [])];
     return ids.some((id) => {
@@ -1467,7 +1483,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** Starts a 1 s re-render timer while a motion device is fading, stops it the moment none is. Never runs for nothing else. */
-  private _syncTimer(): void {
+  _syncTimer(): void {
     const active = this._motionFading();
     if (active && this._timer === null) {
       // Each tick checks for itself, so the timer stops the moment the fade window closes rather than running forever once started.
@@ -1521,6 +1537,7 @@ export class FloorplanStudioCard extends LitElement {
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
     this._glidePeople();
+    syncReplay(this);
     applyWidthDefault(this);
     this._positionActivePanel();
     if (this._panTarget) panIntoVisible(this);
@@ -1559,6 +1576,7 @@ export class FloorplanStudioCard extends LitElement {
             getPiece: (i) => this._floor()?.furniture?.[i],
             stack: (i) => tapStack(this, i),
             ...this._tapOpts(),
+            ...this._replayGuard(),
           })
         : null;
       this._unbindSpider?.();
@@ -1593,6 +1611,7 @@ export class FloorplanStudioCard extends LitElement {
             openVacuumDialog: (d) => this._openVacuumDialog(d),
             openChooser: (title, entities, line) => this._openChooserDialog(title, entities, line),
             openPopup: (t, at, from) => this._openPopup(t, at, from),
+            ...this._replayGuard(),
           })
         : null;
       this._actionsPanel = panel;
@@ -1833,7 +1852,7 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  private _sunId(): string {
+  _sunId(): string {
     return typeof this._config.sun === "string" && this._config.sun ? this._config.sun : "sun.sun";
   }
 
@@ -1843,14 +1862,14 @@ export class FloorplanStudioCard extends LitElement {
     const mode = this._config.night;
     if (mode === "on") return true;
     if (mode === "off") return false;
-    const s = this._hass?.states?.[this._sunId()]?.state;
+    const s = this._stateForRender()?.[this._sunId()]?.state;
     return s === "below_horizon" || s === "on";
   }
 
   /** S38.2: the sun entity's own `azimuth` and `elevation` (Home Assistant sends floats), with the plan's `north`, for the 3D view,
    * which works out the direction and ignores a sun below the horizon or at night. Anything else is no sun. */
   _sun(): { azimuth: number; elevation: number; north: number } | null {
-    const a = this._hass?.states?.[this._sunId()]?.attributes;
+    const a = this._stateForRender()?.[this._sunId()]?.attributes;
     const azimuth = a?.azimuth, elevation = a?.elevation;
     if (!(typeof azimuth === "number" && Number.isFinite(azimuth) && typeof elevation === "number" && Number.isFinite(elevation))) return null;
     // The view draws the shown floor in its stored frame, which sits in the house turned by the floor's `rotation`, so the sun's
@@ -1909,7 +1928,7 @@ export class FloorplanStudioCard extends LitElement {
       bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - qstrip(this._strip, fit.w)) } : undefined, // S23 review S3: names stay off the control stack
       state: this._stateForRender(),
       formatState: this._format,
-      now: Date.now(),
+      now: this._now(),
       fade: this._config.fade,
       plugWatts: plugThreshold(this._config.plug_watts),
       plugHeat: this._plugHeat(),
@@ -1946,7 +1965,7 @@ export class FloorplanStudioCard extends LitElement {
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? optionsMenu(this) : null;
     const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
-    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */

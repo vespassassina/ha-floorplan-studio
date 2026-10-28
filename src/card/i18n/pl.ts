@@ -258,5 +258,14 @@ const c: Catalogue = {
   "people|layer": "osoby",
   "other|layer": "inne",
   "furniture|layer": "meble",
+  "Replay": "Powtórka",
+  "Replay time": "Moment",
+  "Play": "Odtwórz",
+  "Live": "Na żywo",
+  "Replaying": "Trwa powtórka",
+  "Loading history…": "Wczytywanie historii…",
+  "Could not load the history: {why}": "Nie można wczytać historii: {why}",
+  "no answer in 20 s": "brak odpowiedzi w ciągu 20 s",
+  "{n} entity on this floor has no history": { one: "{n} encja na tym piętrze nie ma historii", few: "{n} encje na tym piętrze nie mają historii", many: "{n} encji na tym piętrze nie ma historii", other: "{n} encji na tym piętrze nie ma historii" },
 };
 export default c;
