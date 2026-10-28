@@ -360,6 +360,19 @@ test.describe("Opus review B1: nothing acts or opens while replaying, whatever t
   });
 });
 
+test.describe("Opus review S1: the words are the past's, like the picture", () => {
+  test("lamp on 08:00 to 10:00, off live, thumb at 09:00: the Active row and the hover tooltip say on", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live: { "light.demo_kitchen": st("off") } });
+    await openBar(page);
+    await to(page, 9);
+    await expect(g(page, lampIdx)).toHaveClass(/\bon\b/);
+    await expect(card(page).locator('css=.fp-ov-act .fp-active-row[data-entity="light.demo_kitchen"] .fp-row-state')).toHaveText(/^on\b/i);
+    await g(page, lampIdx).hover();
+    await expect(card(page).locator("css=.fp-tip")).toHaveText(/^Kitchen light\s*on$/i); // name, type, state: the spans run together in textContent
+    await expect(card(page).locator("css=#fp-tip")).not.toContainText(/off/i);
+  });
+});
+
 test.describe("S39.2 play and keys", () => {
   test("criterion 10: play from the end restarts at the start, 60 s of play cover 24 h, few draws, one draw per minute, and it stops at the end", async ({ page }) => {
     await boot(page, { clock: "install" });

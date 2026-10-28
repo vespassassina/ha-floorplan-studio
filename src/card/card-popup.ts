@@ -45,7 +45,7 @@ export function subjectOf(c: FloorplanStudioCard, t: TapTarget): PopupSubject | 
 
 /** The one state line: the popup and the tooltip both print this. A door says its cover's state, else its first entity's. */
 export function subjectText(c: FloorplanStudioCard, s: PopupSubject): string {
-  const states = c._hass?.states, e = s.door?.cover || (s.door ? s.entities[0] : s.entity);
+  const states = c._stateForRender(), e = s.door?.cover || (s.door ? s.entities[0] : s.entity);
   if (!e) return "";
   // S22.1: a lamp lit only by its relay reads as the plan draws it, and names what keeps it on.
   const via = s.lamp ? relayText(s.lamp, states) : null;
@@ -184,7 +184,8 @@ export function levelOf(c: FloorplanStudioCard, kind: SliderKind, a: Record<stri
 
 export function subjectOp(c: FloorplanStudioCard, s: PopupSubject): PopupOp | null {
   if (s.door) return null;
-  return s.lamp ? lampOp(s.lamp, c._hass?.states) : popupOp(s.type, s.entity, c._hass?.states[s.entity ?? ""]?.state);
+  const states = c._stateForRender(); // the button's label follows the plan on show; while replaying it acts on nothing (callService)
+  return s.lamp ? lampOp(s.lamp, states) : popupOp(s.type, s.entity, states?.[s.entity ?? ""]?.state);
 }
 
 /** The popup's markup: floating at the end of the card, or (`inSheet`) as the bottom sheet's Device level. Each caller asks for its place and gets nothing from the other. */
