@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { carStatus, carText, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_MODES, iconsHold, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, NAME_MIN_PX, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, FLOORPLAN_CSS, THEMES, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, deviceInfo, relayText, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { carStatus, carText, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_MODES, iconsHold, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, NAME_MIN_PX, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, FLOORPLAN_CSS, THEMES, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, deviceInfo, relayText, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { CamThumb, HeatKind, LayerId, OffRow, SearchEntry } from "../core";
 import type { Attention, ThingRef, PowerCandidate, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -29,6 +29,7 @@ import type { View3D } from "./three/view3d";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
 import { belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
 export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from here
+import { chooserDialogTemplate, coverDialogTemplate, coverService, dialogOpen, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
 import { TOGGLE_AT_ONCE, activePanel, attentionOf, floorTitle, keptHere, openSearch, pickRoom, picked, placePulse, restorePick, tapRoom } from "./card-overview";
 import { applyWidthDefault, back, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, popupInSheet, sheetTo, stopsNow, visibleBox } from "./card-sheet";
@@ -533,24 +534,24 @@ export class FloorplanStudioCard extends LitElement {
   /** S2.7: the door whose cover confirm dialog is open, or `null` for none. Only `_openCoverDialog` sets it, and
    * only when it is already `null` — a second tap while the dialog is open (CLAUDE.md-style "Break it") must not
    * replace it with a different door or stack a second dialog. */
-  private _coverDialog: Door | null = null;
+  _coverDialog: Door | null = null;
   /** Tracks whether the dialog was open on the *previous* render, so `updated()` moves focus into it exactly once
    * per open (not on every unrelated re-render while it stays open) and back out exactly once per close. */
   private _coverDialogWasOpen = false;
   /** S7.10: the vacuum whose Start/Pause/Return-to-dock dialog is open, or `null` for none. Same "ignore a second
    * tap while open" rule as `_coverDialog`, and its own was-open flag for the same once-per-open/close focus move. */
-  private _vacuumDialog: Device | null = null;
+  _vacuumDialog: Device | null = null;
   private _vacuumDialogWasOpen = false;
 
   /** S10.4: the chooser dialog, or `null` for none. Opened whenever a tap or hold would have opened more-info but
    *  the object (a device or a non-cover door) names more than one entity — `entitiesOfDevice`/`entitiesOfDoor`,
    *  read by `bindDeviceActions`, decide that, not this file. Same "one dialog at a time, once-per-open/close
    *  focus move" rules as `_coverDialog`/`_vacuumDialog`. */
-  private _chooserDialog: { title: string; entities: string[]; line?: () => string } | null = null;
+  _chooserDialog: { title: string; entities: string[]; line?: () => string } | null = null;
   private _chooserDialogWasOpen = false;
   /** S24.8 (C2): "Turn off on this floor…": the floor, its title, the rows that were on when it opened (a snapshot: a row
    *  does not vanish under the finger while a light goes off elsewhere), and which rows are ticked. Same one-dialog rules. */
-  private _offDialog: { floor: string; title: string; rows: OffRow[]; ticked: boolean[] } | null = null;
+  _offDialog: { floor: string; title: string; rows: OffRow[]; ticked: boolean[] } | null = null;
   private _offDialogWasOpen = false;
   /** S24.8: the families this viewer hid with the layer chips, kept in the view memory. */
   /** S25.8: the detail mode this viewer picked with the Detail button; `null` leaves the card's YAML `detail` in charge. */
@@ -889,7 +890,7 @@ export class FloorplanStudioCard extends LitElement {
    * holding an arrow keeps zooming. */
   private _onViewKey = (ev: KeyboardEvent): void => {
     if (!this.isConnected || !this._ownsViewKeys()) return;
-    if (this._dialogOpen()) return; // a dialog has its own keys
+    if (dialogOpen(this)) return; // a dialog has its own keys
     // S24.8: ⌘K, Ctrl+K or / opens the search, under the same gate as the view keys: the card focused, else hovered.
     if (isSearchChord(ev)) { if (openSearch(this)) ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
@@ -1896,59 +1897,15 @@ export class FloorplanStudioCard extends LitElement {
     this._focusHold = false;
   }
 
-  /**
-   * S2.7: opens the cover confirm dialog for `door`, unless one is already open — a second tap while the dialog
-   * is shown (a door re-tapped, or another cover door tapped through the dialog's own backdrop) does not open a
-   * second one or swap which door it acts on ("Break it" in the PLAN block).
-   */
-  /** Whether any of the card's dialogs is open. Only one is ever open; each `_open…Dialog` checks this first. */
-  private _dialogOpen(): boolean {
-    return !!(this._coverDialog || this._vacuumDialog || this._chooserDialog || this._offDialog);
-  }
 
-  private _openCoverDialog(door: Door): void {
-    if (this._dialogOpen()) return;
-    this._coverDialog = door;
-    this.requestUpdate();
-  }
+  _openCoverDialog(door: Door): void { return openCoverDialog(this, door); } // card-dialogs.ts
 
-  private _closeCoverDialog(): void {
-    this._coverDialog = null;
-    this.requestUpdate();
-  }
 
-  /**
-   * S7.10: opens the vacuum dialog for `d`, unless a dialog (this one or the cover one) is already open — the
-   * same "ignore a second tap while open" rule as `_openCoverDialog`.
-   */
-  _openVacuumDialog(d: Device): void {
-    if (this._dialogOpen()) return;
-    this._vacuumDialog = d;
-    this.requestUpdate();
-  }
+  _openVacuumDialog(d: Device): void { return openVacuumDialog(this, d); } // card-dialogs.ts
 
-  private _closeVacuumDialog(): void {
-    this._vacuumDialog = null;
-    this.requestUpdate();
-  }
 
-  /**
-   * S10.4: opens the chooser dialog listing `entities` under `title`, unless a dialog (any of the three) is
-   * already open — the same "ignore a second tap while open" rule as `_openCoverDialog`/`_openVacuumDialog`.
-   * `bindDeviceActions` only ever calls this with two or more entities (one opens more-info directly instead), but
-   * this checks anyway rather than trusting that, so a future caller mistake shows an empty, if odd, dialog rather
-   * than a crash.
-   */
-  _openChooserDialog(title: string, entities: string[], line?: () => string): void {
-    if (this._dialogOpen()) return;
-    this._chooserDialog = { title, entities, ...(line ? { line } : {}) };
-    this.requestUpdate();
-  }
+  _openChooserDialog(title: string, entities: string[], line?: () => string): void { return openChooserDialog(this, title, entities, line); } // card-dialogs.ts
 
-  private _closeChooserDialog(): void {
-    this._chooserDialog = null;
-    this.requestUpdate();
-  }
 
   // ---- S14.2: the tap popup and the hover tooltip ------------------------------------------------------------------------------------
 
@@ -2091,7 +2048,7 @@ export class FloorplanStudioCard extends LitElement {
   /** `tap_action: toggle`: the popup's button, pressed for the person, but only for a plain on/off. A lock, cover or siren (and any other domain) opens the popup instead. ON, and a light's OFF, act at once; any other OFF opens the popup at its Confirm step (S14.2 stands). No button (a sensor, a camera, no state) is the popup as ever. */
   private _tapToggle(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
     const s = this._subjectOf(t), op = s ? this._popupOp(s) : null;
-    if (!s || !op || !s.entity || s.door || this._dialogOpen()) { this._openPopup(t, at, from); return; }
+    if (!s || !op || !s.entity || s.door || dialogOpen(this)) { this._openPopup(t, at, from); return; }
     if (op.confirm) {
       this._openPopup(t, at, from);
       if (this._popup?.s.key === s.key) { this._popup.confirming = true; this.requestUpdate(); }
@@ -2117,7 +2074,7 @@ export class FloorplanStudioCard extends LitElement {
 
   /** Opens the popup, swaps it for another subject's, or closes it when the same subject is tapped again. Nothing is operated here. */
   _openSubject(s: PopupSubject, at: { x: number; y: number }, from: Element | null): void {
-    if (this._dialogOpen()) return;
+    if (dialogOpen(this)) return;
     this._hideTip();
     if (this._popup?.s.key === s.key) { this._closePopup(); return; }
     this._popup = { s, x: at.x, y: at.y, opener: from, confirming: false, draft: null };
@@ -2226,7 +2183,7 @@ export class FloorplanStudioCard extends LitElement {
     return popupTemplate({
       subject: s, text: this._subjectText(s), op, confirming: p.confirming, kiosk: this._kiosk(), caps, fan,
       info: this._kiosk() || !(s.entity ?? s.entities[0]) ? [] : deviceInfo((s.entity ?? s.entities[0])!, { ...this._hass, states: this._stateForRender() }, this._format),
-      doorLabel: s.door?.cover ? (this._coverService(s.door) === "close_cover" ? t("Close") : t("Open")) : null,
+      doorLabel: s.door?.cover ? (coverService(this, s.door) === "close_cover" ? t("Close") : t("Open")) : null,
       level: { b: caps?.brightness ? level("b") : null, s: fan ? level("s") : null, t: caps?.temp ? level("t") : null, h: caps?.hue ? level("h") : null },
       act: () => this._popupAct(),
       cancel: () => { if (this._popup) { this._popup.confirming = false; this.requestUpdate(); } },
@@ -2310,7 +2267,7 @@ export class FloorplanStudioCard extends LitElement {
     this._popupFocusKey = key;
     if (key && el) (el.querySelector<HTMLElement>(".fp-pop-do") ?? el.querySelector<HTMLElement>(".fp-pop-more"))?.focus({ preventScroll: true });
     else if (!key) {
-      if (this._dialogOpen()) { this._popupReturn = null; return; } // the dialog took focus; it hands it back itself
+      if (dialogOpen(this)) { this._popupReturn = null; return; } // the dialog took focus; it hands it back itself
       const back = this._popupReturn as HTMLElement | null;
       this._popupReturn = null;
       (back?.isConnected ? back : this).focus({ preventScroll: true });
@@ -2414,87 +2371,14 @@ export class FloorplanStudioCard extends LitElement {
     if (t?.el.isConnected && !t.el.querySelector(":scope > title")) t.el.prepend(t.title);
   };
 
-  /** The chooser's own row label: HA's `friendly_name` when the entity has state, else the plan id itself — same
-   *  fallback order `active.ts`'s `nameFor` already uses for a device row, so the two never disagree about what an
-   *  entity is called. Untrusted state (finding 1): anything that is not text is skipped. */
-  private _chooserEntityName(entityId: string): string {
-    const friendly = this._hass?.states[entityId]?.attributes?.friendly_name;
-    if (typeof friendly === "string" && friendly) return friendly;
-    // Review fix: the plan's own catalog name before the bare id, the order the S10.4 brief asked for.
-    const cat = Array.isArray(this._layout?.catalog) ? this._layout!.catalog.find((c) => c?.entity === entityId)?.name : undefined;
-    return typeof cat === "string" && cat ? cat : entityId;
-  }
 
-  /** The row's live state, with its unit when HA gives one; empty when HA has no state for it. Untrusted: only text. */
-  private _chooserEntityState(entityId: string): string {
-    const st = this._hass?.states[entityId];
-    if (!st || typeof st.state !== "string") return "";
-    const unit = st.attributes?.unit_of_measurement;
-    return typeof unit === "string" && unit ? `${st.state} ${unit}` : st.state;
-  }
 
-  private _pickChooserEntity(entityId: string): void {
-    this._closeChooserDialog();
-    fireEvent(this, "hass-more-info", { entityId });
-  }
 
-  /** S7.10: Break it — `unavailable`/`unknown` (or no state at all) disables the three action buttons; Cancel
-   *  always stays enabled, so the dialog can still be dismissed. */
-  private _vacuumDisabled(): boolean {
-    const d = this._vacuumDialog;
-    if (!d) return true;
-    const s = this._hass?.states[d.entity]?.state;
-    return !s || s === "unavailable" || s === "unknown";
-  }
 
-  private _vacuumAction(service: "start" | "pause" | "return_to_base"): void {
-    const d = this._vacuumDialog;
-    if (d) this._call("vacuum", service, { entity_id: d.entity });
-    this._closeVacuumDialog();
-  }
 
-  /** The one place that reads a cover's live state and decides what pressing the button does — the dialog's text
-   * (`_coverDialogTemplate`) and the actual service call (`_confirmCoverDialog`) both call this, so they can never
-   * disagree (Opus review of S2.7: a dialog that says "Open" while its button closes is worse than no dialog, since
-   * the person has been trained to trust the words). Read fresh every time, not cached when the dialog opened, so a
-   * cover that changes state while the dialog is up (another user, an automation) re-renders with the matching
-   * label before anyone can press anything stale — `hass`'s setter already calls `requestUpdate()` on every change,
-   * and `_confirmCoverDialog` reads this same expression again at the moment of the click, so label and action are
-   * always the same read, never two. A cover missing from `hass.states`, or `unknown`/`unavailable`/`opening`/
-   * `closing`, is anything other than `"open"`, so it opens rather than closes — docs/DECISIONS.md has why. */
-  private _coverService(door: Door): "open_cover" | "close_cover" {
-    return this._hass?.states[door.cover ?? ""]?.state === "open" ? "close_cover" : "open_cover";
-  }
 
-  private _confirmCoverDialog(): void {
-    const door = this._coverDialog;
-    if (door?.cover) this._call("cover", this._coverService(door), { entity_id: door.cover });
-    this._closeCoverDialog();
-  }
 
-  /** Escape cancels; Tab/Shift+Tab cycle only between the open dialog's own buttons, so focus never escapes it into
-   * the rest of the card while it is open. Shared by the cover dialog (two buttons), the vacuum dialog (four) and
-   * the S10.4 chooser (its entity rows plus Cancel) — `_openCoverDialog`/`_openVacuumDialog`/`_openChooserDialog`
-   * never let more than one be open at once, so exactly one dialog's buttons are ever on the page and this reads
-   * them generically rather than picking a dialog by name. */
-  private _onDialogKeydown = (e: KeyboardEvent): void => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      if (this._vacuumDialog) this._closeVacuumDialog();
-      else if (this._chooserDialog) this._closeChooserDialog();
-      else if (this._offDialog) this._closeOffDialog();
-      else this._closeCoverDialog();
-      return;
-    }
-    if (e.key !== "Tab") return;
-    const root = this.shadowRoot;
-    const buttons = root ? [...root.querySelectorAll<HTMLElement>(".fp-dialog-actions button:not(:disabled), .fp-chooser-list button, .fp-off-list input")] : [];
-    if (buttons.length < 2) return;
-    const first = buttons[0]!, last = buttons[buttons.length - 1]!;
-    const active = root?.activeElement;
-    if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
-  };
+  _onDialogKeydown = (e: KeyboardEvent): void => onDialogKeydown(this, e); // card-dialogs.ts
 
 
 
@@ -2612,43 +2496,10 @@ export class FloorplanStudioCard extends LitElement {
 
   // ---- S24.8 (C2): Turn off on this floor… --------------------------------------------------------------------------------------
 
-  /** The entry: for the floor on show, disabled with its reason when nothing on it is on. */
-  _floorOffButton() {
-    const f = this._floor(), key = this._floorKey();
-    if (!f || !key) return nothing;
-    const none = floorOffRows(f, this._stateForRender()).length === 0;
-    return html`<button type="button" class="fp-floor-off" ?disabled=${none} title=${none ? t("Nothing is on on this floor") : t("Choose what to turn off on this floor")} @click=${() => this._openOffDialog()}>${t("Turn off on this floor…")}</button>`;
-  }
 
-  private _openOffDialog(): void {
-    const f = this._floor(), key = this._floorKey();
-    if (!f || !key || this._dialogOpen()) return;
-    const rows = floorOffRows(f, this._stateForRender());
-    if (!rows.length) return;
-    this._closePopup();
-    this._offDialog = { floor: key, title: floorTitle(this, key), rows, ticked: rows.map(() => true) };
-    this.requestUpdate();
-  }
 
-  private _closeOffDialog(): void {
-    this._offDialog = null;
-    this.requestUpdate();
-  }
 
-  private _tickOff(i: number, on: boolean): void {
-    const d = this._offDialog;
-    if (!d || i < 0 || i >= d.ticked.length) return;
-    d.ticked = d.ticked.map((t, j) => (j === i ? on : t));
-    this.requestUpdate();
-  }
 
-  /** One `turn_off` per domain over the ticked rows (`floorOffCalls`), then the dialog closes. */
-  private _confirmOffDialog(): void {
-    const d = this._offDialog;
-    if (!d) return;
-    for (const c of floorOffCalls(d.rows.filter((_, i) => d.ticked[i]))) this._call(c.domain, c.service, c.data);
-    this._closeOffDialog();
-  }
 
   private _sunId(): string {
     return typeof this._config.sun === "string" && this._config.sun ? this._config.sun : "sun.sun";
@@ -2763,7 +2614,7 @@ export class FloorplanStudioCard extends LitElement {
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? optionsMenu(this) : null;
     const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
-    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${this._popupTemplate()}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
@@ -3162,108 +3013,9 @@ export class FloorplanStudioCard extends LitElement {
     };
   }
 
-  /** S2.7: the cover confirm dialog, or `null` when none is open. Card chrome (like `_floorChips` above): outside
-   * the `<svg>` renderFloor draws, never inside it (CLAUDE.md finding 8). `lit-html`'s own text-node escaping
-   * handles the door's `name` safely, the same guarantee `esc()` gives core's hand-built SVG strings (finding 2).
-   * The verb (both the question and the button's own label) comes from `_coverService`, the same call
-   * `_confirmCoverDialog` makes, so the text can never promise one thing and do another (Opus review). `role`,
-   * `aria-modal` and `aria-labelledby` name this to assistive tech as the modal it is, pointed at the question
-   * itself so its name changes along with the verb. */
-  private _coverDialogTemplate() {
-    const door = this._coverDialog;
-    if (!door?.cover) return null;
-    const closing = this._coverService(door) === "close_cover";
-    return html`
-      <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown}>
-        <div class="fp-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-dialog-title">
-          <p id="fp-dialog-title">${closing ? t("Close {name}?", { name: door.name }) : t("Open {name}?", { name: door.name })}</p>
-          <div class="fp-dialog-actions">
-            <button type="button" class="cancel" @click=${() => this._closeCoverDialog()}>${t("Cancel")}</button>
-            <button type="button" class="confirm" @click=${() => this._confirmCoverDialog()}>${closing ? t("Close") : t("Open")}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
 
-  /** S24.8: the floor-off checklist. Groups in `OFF_GROUPS` order with their counts, a tick per row (all ticked), and one
-   *  confirm that names how many will go. Names go through lit, escaped (finding 2). */
-  private _offDialogTemplate() {
-    const d = this._offDialog;
-    if (!d) return null;
-    const n = d.ticked.filter(Boolean).length;
-    return html`
-      <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown}>
-        <div class="fp-dialog fp-off-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-off-title">
-          <p id="fp-off-title">${t("Turn off on {name}", { name: d.title })}</p>
-          <div class="fp-off-list">
-            ${OFF_GROUPS.map((g) => {
-              const idx = d.rows.flatMap((r, i) => (r.group === g ? [i] : []));
-              return idx.length ? html`<fieldset class="fp-off-group"><legend>${t("{group} · {n}", { group: t(OFF_GROUP_LABEL[g]), n: idx.length })}</legend>
-                ${idx.map((i) => { const r = d.rows[i]!; return html`<label class="fp-off-row" data-entity=${r.entity}><input type="checkbox" .checked=${d.ticked[i] ?? false} @change=${(e: Event) => this._tickOff(i, (e.target as HTMLInputElement).checked)} /><span>${r.name}${r.via ? html` <span class="fp-off-via">${t("with {name}", { name: r.via })}</span>` : nothing}</span></label>`; })}
-              </fieldset>` : nothing;
-            })}
-          </div>
-          <div class="fp-dialog-actions">
-            <button type="button" class="cancel" @click=${() => this._closeOffDialog()}>${t("Cancel")}</button>
-            <button type="button" class="confirm" ?disabled=${n === 0} @click=${() => this._confirmOffDialog()}>${t("Turn off {n}", { n })}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
 
-  /** S7.10: the vacuum dialog, or `null` when none is open — same shape and rules as `_coverDialogTemplate` above
-   * (card chrome outside `<svg>`, `lit-html` escaping the name, `role`/`aria-modal`/`aria-labelledby`), but three
-   * actions instead of one, since a vacuum has no single obvious verb. Start/Pause/Return to dock each read
-   * `_vacuumDisabled()` fresh on every render, so an entity that goes `unavailable` while the dialog is open
-   * (`hass`'s setter calls `requestUpdate()` on every change, same as the cover dialog) disables them at once
-   * rather than leaving a stale, clickable button. Cancel is never disabled, so the dialog can always be dismissed. */
-  private _vacuumDialogTemplate() {
-    const d = this._vacuumDialog;
-    if (!d) return null;
-    const disabled = this._vacuumDisabled();
-    return html`
-      <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown}>
-        <div class="fp-dialog fp-vacuum-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-vacuum-dialog-title">
-          <p id="fp-vacuum-dialog-title">${d.name ?? d.id}</p>
-          <div class="fp-dialog-actions">
-            <button type="button" class="cancel" @click=${() => this._closeVacuumDialog()}>${t("Cancel")}</button>
-            <button type="button" ?disabled=${disabled} @click=${() => this._vacuumAction("start")}>${t("Start")}</button>
-            <button type="button" ?disabled=${disabled} @click=${() => this._vacuumAction("pause")}>${t("Pause")}</button>
-            <button type="button" class="confirm" ?disabled=${disabled} @click=${() => this._vacuumAction("return_to_base")}>${t("Return to dock")}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
 
-  /**
-   * S10.4: the chooser dialog, or `null` when none is open — a device or a non-cover door that names more than
-   * one entity lists them here (each one's HA `friendly_name`, or its id with none) instead of `bindDeviceActions`
-   * guessing which one the tap or hold meant. Same card-chrome/escaping/aria shape as the two dialogs above.
-   * Clicking a row closes the dialog and opens that entity's own more-info, in one step (`_pickChooserEntity`);
-   * clicking the backdrop itself (outside the dialog box) also closes it — the one dialog of the three where the
-   * chosen action already needs a second click (row, then whatever HA's own more-info offers), so a quick way to
-   * back out of a wrong tap earns its keep here more than it would next to a single Yes/No question.
-   */
-  private _chooserDialogTemplate() {
-    const c = this._chooserDialog;
-    if (!c) return null;
-    return html`
-      <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown} @click=${(e: Event) => { if (e.target === e.currentTarget) this._closeChooserDialog(); }}>
-        <div class="fp-dialog fp-chooser-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-chooser-dialog-title">
-          <p id="fp-chooser-dialog-title">${[c.title, c.line?.()].filter(Boolean).join(" · ")}</p>
-          <div class="fp-chooser-list">
-            ${c.entities.map((id) => html`<button type="button" @click=${() => this._pickChooserEntity(id)}><span class="name">${this._chooserEntityName(id)}</span><span class="state">${this._chooserEntityState(id)}</span></button>`)}
-          </div>
-          <div class="fp-dialog-actions">
-            <button type="button" class="cancel" @click=${() => this._closeChooserDialog()}>${t("Cancel")}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
 }
 
 if (typeof window !== "undefined") {
