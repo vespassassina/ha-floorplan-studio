@@ -40,6 +40,16 @@ describe("parseHistory", () => {
     expect(idx.get("light.a")!).toHaveLength(3);
   });
 
+  it("drops a time that is finite but past what a Date can hold, and stateAt never throws on the rest (B2)", () => {
+    // new Date(1e20 * 1000).toISOString() throws RangeError; the limit is 8.64e12 seconds either way.
+    const idx = parseHistory({
+      "light.a": [{ s: "on", lu: 100, lc: 1e20 }, { s: "off", lu: -1e20 }, { s: "on", lu: 8.64e12 + 1 }, { s: "on", lu: 200, lc: -8.64e12 - 1 }],
+    }, ["light.a"]);
+    expect(idx.get("light.a")!.map((r) => [r.lu, r.lc])).toEqual([[100, 100], [200, 200]]); // bad lc is lc = lu; bad lu rows are gone
+    expect(() => stateAt(idx, T(1e9))).not.toThrow();
+    expect(stateAt(idx, T(150))["light.a"].last_changed).toBe(new Date(T(100)).toISOString());
+  });
+
   it("gives an empty index for __proto__, constructor, a number, null, an array, a string", () => {
     const evil = JSON.parse('{"__proto__":[{"s":"on","lu":1}],"constructor":[{"s":"on","lu":1}]}');
     expect(parseHistory(evil, ["__proto__", "constructor"]).size).toBe(0);

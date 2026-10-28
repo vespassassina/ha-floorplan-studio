@@ -17,7 +17,9 @@ export interface HistoryRow { state: string; attributes: Record<string, unknown>
 export type HistoryIndex = Map<string, HistoryRow[]>;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-const isTime = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+/** What a Date can hold, in seconds: past it `toISOString()` throws RangeError, and stateAt runs inside render. */
+const MAX_SECONDS = 8.64e12;
+const isTime = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= MAX_SECONDS;
 
 const RESERVED = new Set(["__proto__", "constructor", "prototype"]);
 
