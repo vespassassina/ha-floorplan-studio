@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-28: Sprint 39 review fixes
+
+From the Opus review of the history replay. Each defect has a test that failed first (`tests/card/replay-bar.spec.ts`, `replay-bar.test.ts`, `replay-history.test.ts`).
+
+- **Other floors stay live during a replay (S4).** Attention and the Overview run over every floor, and the replay holds the shown floor only. The floor menu's alert badges, the Attention list and "All floors" read the shown floor from the replay and every other floor from `hass` (`overviewStates` in `card-replay.ts`): an alarm upstairs now must not vanish because the ground floor is in the past. A shown-floor entity with no row at that moment is absent, as on the plan.
+- **Supersedes** the Sprint 39 card entry's "floors drawn below it (3D) and ghost floors have no history and are drawn as they are live". They carry no state at all, only geometry and the replayed sun, so the picture is right; the live part was never true of the picture, only of the badges and the Overview, which the decision above settles.
+- **Person positions stay out of the fetch.** `Device.room` of a person is not asked for: person positions are a non-goal of the spec. Every other entity the floor draws is: furniture `entity` and a car's `attached`, the power sensor linked to a plug, and the battery sensors on the HA device behind a placed entity (the sources `attention` reads). A test iterates `DEVICE_TYPES` and `FURNITURE_SYMBOLS` so a new member needs a line.
+- **Nothing acts from the past (B1).** The guard sits at the two choke points, `callService` and `openSubject`, so Lights off, favourites, scenes, Overview rows, search and Enter on a focused device are all covered, and a new button is too. The words (Active row, tooltip, favourites, focus line) and the favourite's label read the states on show (`subjectText`, `subjectOp`).
+- **A plan that is live has a live clock (S2).** While the history loads or has failed, `_now()` and the motion timer are the real ones; a floor switched to while playing pauses the play until its history is ready.
+- **The Overview redraws for a minute only when an Attention row shows an age (N1).** Supersedes the Sprint 39 card entry's "or the sheet shown (its ages)": with nothing in Attention a minute changes nothing on the sheet, and play no longer redraws the card 24 times a second.
+- **The replay closes on `setConfig` and on disconnect (S6, N5).** A new config, or a card attached again later, does not show a stale window. This replaces the earlier pause that kept the place.
+- **The replay chunk retries like the 3D one (N2).** A failed import is retried under a new query; the bar says the page is stale. The history parser drops times a Date cannot hold (B2).
+- **Camera pictures are probably not recorded (N4).** The recorder keeps a camera's state (`idle`, `recording`), not its `entity_picture` token, so a camera thumbnail may vanish during a replay. Not checked against the HA source; seen in a real replay before it is called a defect.
+- **Spec criterion 10 is reworded.** "60 s of play covers 24 h within 2 s (fake clock)" cannot be timed in real time under Playwright (the earlier entry says why). The test checks the replay's own clock (half the slider after 30 s of clock time, the end after 60 s) and a bounded draw count; `docs/specs/replay-s39.md` says so.
+
 ## 2026-10-28: Sprint 39 card, what the spec left open
 
 Choices made building S39.2 to S39.4 (`src/card/card-replay.ts`). Each is the simplest reading of `docs/specs/replay-s39.md`.
