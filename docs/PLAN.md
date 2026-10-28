@@ -4720,7 +4720,7 @@ chunk only, starts at once); **card** S39.2, S39.3, S39.4 after S39.0 lands (one
       row, the measuring and level logic), each a plain function or a small helper class over the element; the element
       keeps its state and lifecycle. No behaviour change, no new public name, and the card's gzip bytes do not grow by
       more than 1 %. The full suite is the test; report source size of the element before and after, and the gzip.
-- [ ] S39.1 The replay chunk: `src/card/replay/history.ts` with `parseHistory(reply, asked)` and `stateAt(index, t)`,
+- [x] S39.1 (2026-10-28) The replay chunk: `src/card/replay/history.ts` with `parseHistory(reply, asked)` and `stateAt(index, t)`,
       built as `floorplan-studio-replay-<hash>.js` (the Vite chunk naming rule today calls every non-language chunk
       `3d`; give the replay its own name). Spec criteria 1, 2. Pure, unit tests only.
 - [ ] S39.2 The bar and the fetch: "Replay" in the ⋯ menu, the bar (slider, time, play/pause, Live), the

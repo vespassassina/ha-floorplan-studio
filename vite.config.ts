@@ -49,7 +49,8 @@ export default defineConfig(({ mode }) => {
       // its content so a browser never keeps a stale one under the same name, and found from the card's own URL.
       // S37.5: each language of the card's own words is a chunk too (src/card/i18n/<code>.ts, loaded by import() for `hass.language`).
       // Its own prefix keeps it from counting as the one 3D chunk the release checks for.
-      rollupOptions: { output: { chunkFileNames: (c: { name: string; facadeModuleId?: string | null }) => (/[\\/]card[\\/]i18n[\\/]/.test(c.facadeModuleId ?? "") ? `floorplan-studio-lang-${c.name}-[hash].js` : "floorplan-studio-3d-[hash].js") } },
+      // S39.1: the history replay (src/card/replay/) is a chunk of its own, loaded on the first Replay, named apart for the same reason.
+      rollupOptions: { output: { chunkFileNames: (c: { name: string; facadeModuleId?: string | null }) => (/[\\/]card[\\/]i18n[\\/]/.test(c.facadeModuleId ?? "") ? `floorplan-studio-lang-${c.name}-[hash].js` : /[\\/]card[\\/]replay[\\/]/.test(c.facadeModuleId ?? "") ? "floorplan-studio-replay-[hash].js" : "floorplan-studio-3d-[hash].js") } },
     },
   });
   if (mode === "form") return lib("src/card/config-editor.ts", "floorplan-studio-form-[hash].js");
