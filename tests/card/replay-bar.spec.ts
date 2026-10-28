@@ -264,15 +264,15 @@ test.describe("S39.3 one draw path for the past", () => {
   });
 
   test("zoom, floor and selection survive opening and closing the bar", async ({ page }) => {
-    await boot(page, { config: { floor: "all" }, live: {} });
+    await boot(page, { config: { floor: "all", active_list: true }, live: {} }); // a room is picked only with the Overview on (tapRoom)
     await card(page).locator("css=.fp-floors button", { hasText: "First" }).click();
     await expect(card(page).locator("css=.fp-floors button", { hasText: "First" })).toHaveAttribute("aria-pressed", "true");
     await card(page).locator("css=button[aria-label='Zoom in']").click();
     const zoomed = await viewBox(page);
     const picked = () => card(page).evaluate((el) => (el as unknown as { _picked(): number | null })._picked());
-    const room = card(page).locator("css=svg polygon[data-r]").first();
-    await room.click({ position: { x: 5, y: 5 }, force: true });
+    await card(page).locator("css=svg text[data-rl]").first().click(); // the room's own name picks it
     const before = await picked();
+    expect(before, "a room is selected before the bar opens, so the comparison below means something").not.toBeNull();
     await openBar(page);
     await to(page, 9);
     await card(page).locator("css=button.fp-rp-live").click();
