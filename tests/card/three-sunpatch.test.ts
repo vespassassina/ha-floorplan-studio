@@ -3,6 +3,7 @@ import { sunDir } from "../../src/card/three/sun";
 import { MAX_SUN_PATCHES, SUN_REACH, sunPatch, sunPatches } from "../../src/card/three/sunpatch";
 import { inPoly } from "../../src/card/three/light";
 import type { Aperture } from "../../src/core/scene-build";
+import { DOOR_KINDS, ROOM_KINDS } from "../../src/core";
 
 // S38.4 (docs/specs/sun-s38.md, behaviour 6): the floor patch a window throws. Plan frame: x east, y south, cm.
 // One room 800 x 600; its south wall is y = 600, outward normal (0, 1). Sun at azimuth 180 (south), 40 degrees up: the light
@@ -118,5 +119,32 @@ describe("sunPatch: junk", () => {
     for (const d of [undefined, [], [Number.NaN, 0, 1], "x", [0, 1, 0], [0, 0, 1]]) { expect(() => sunPatch(south, [room], d as never)).not.toThrow(); expect(sunPatch(south, [room], d as never)).toBeNull(); }
     expect(() => sunPatches(null as never, [room], sun(180, 40))).not.toThrow();
     expect(sunPatches("x" as never, [room], sun(180, 40))).toEqual([]);
+  });
+});
+
+// Finding 17: an enumeration is a list of decisions. Every kind the schema has is written down here as shining in (or not), indoors (or
+// not); a kind added to the schema fails these tests until someone decides what the sun does with it.
+describe("sunPatch: every opening kind and room kind is decided", () => {
+  const SHINES_IN = ["window", "fullwindow", "glass", "slit", "open"];
+  const NO_SUN = ["door", "sealed"];
+  const INDOORS = ["room", "structure"];
+  const OUTDOORS = ["garden", "terrace", "pavement", "water", "zone", "fill"];
+
+  it("each opening kind is in exactly one of the two lists, and the list says whether a patch falls", () => {
+    for (const kind of DOOR_KINDS) {
+      expect([SHINES_IN, NO_SUN].filter((l) => l.includes(kind)).length, `${kind}: decide whether the sun shines through it`).toBe(1);
+      const patch = sunPatch({ ...south, kind }, [room], sun(180, 40));
+      expect(patch !== null, `${kind} ${SHINES_IN.includes(kind) ? "lets the sun in" : "does not"}`).toBe(SHINES_IN.includes(kind));
+    }
+    for (const kind of [...SHINES_IN, ...NO_SUN]) expect(DOOR_KINDS as readonly string[], `${kind} is no longer a schema kind`).toContain(kind);
+  });
+
+  it("each room kind is in exactly one of the two lists, and the list says whether the sun lands in it", () => {
+    for (const kind of ROOM_KINDS) {
+      expect([INDOORS, OUTDOORS].filter((l) => l.includes(kind)).length, `${kind}: decide whether it is indoors`).toBe(1);
+      const patch = sunPatch(south, [{ ...room, kind }], sun(180, 40));
+      expect(patch !== null, `${kind} ${INDOORS.includes(kind) ? "takes a patch" : "takes none"}`).toBe(INDOORS.includes(kind));
+    }
+    for (const kind of [...INDOORS, ...OUTDOORS]) expect(ROOM_KINDS as readonly string[], `${kind} is no longer a schema kind`).toContain(kind);
   });
 });
