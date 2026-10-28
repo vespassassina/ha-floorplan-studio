@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.38.1 - 2026-10-28
 
 The 3D sun now follows the replay. Home Assistant does not record where the sun stood, so the card works it out from the replayed time and your Home Assistant location.
 
