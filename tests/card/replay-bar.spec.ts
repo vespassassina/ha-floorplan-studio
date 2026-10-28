@@ -412,6 +412,26 @@ test.describe("Opus review S2: the clock is the past's only while the past is dr
   });
 });
 
+test.describe("Opus review S4: the floors that are not on show keep their alerts live", () => {
+  test("an unlocked door upstairs keeps its badge while the ground floor is replayed; the ground floor's own badge follows the replay", async ({ page }) => {
+    const layout = structuredClone(demo);
+    layout.floors.ground.devices.push({ id: "dev-down-lock", type: "lock", entity: "lock.down_front", x: 300, y: 300 });
+    layout.floors.first.devices.push({ id: "dev-up-lock", type: "lock", entity: "lock.up_front", x: 300, y: 300 });
+    const rows = ROWS();
+    rows["lock.down_front"] = [{ s: "locked", a: {}, lu: secs(12, 0, -1) - 100 }]; // locked all day in the recorder
+    const pill = (title: string) => card(page).locator("css=.fp-floors button", { hasText: title }).locator("css=.fp-floor-count");
+    await boot(page, { config: { layout, floor: "all" }, rows, live: { "lock.down_front": st("unlocked"), "lock.up_front": st("unlocked") } });
+    await expect(pill("Ground")).toHaveText("1"); // live: both are unlocked
+    await expect(pill("First")).toHaveText("1");
+    await openBar(page);
+    await to(page, 9);
+    await expect(pill("Ground")).toHaveCount(0); // the shown floor, as it was at 09:00
+    await expect(pill("First")).toHaveText("1"); // another floor: now, not absent
+    await card(page).locator("css=button.fp-rp-live").click();
+    await expect(pill("Ground")).toHaveText("1");
+  });
+});
+
 test.describe("S39.2 play and keys", () => {
   test("criterion 10: play from the end restarts at the start, 60 s of play cover 24 h, few draws, one draw per minute, and it stops at the end", async ({ page }) => {
     await boot(page, { clock: "install" });

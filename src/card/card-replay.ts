@@ -26,7 +26,7 @@ const FETCH_FAILED = mark("Could not load the history: {why}");
 const TIMED_OUT = mark("no answer in 20 s");
 
 type States = Record<string, HassEntity>;
-interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; missing: number; why?: string }
+interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; missing: number; why?: string; ids?: string[] }
 export interface ReplayState {
   /** The moment the bar opened: the end of the slider. */
   end: number;
@@ -42,6 +42,8 @@ export interface ReplayState {
   note: boolean;
   noteTimer: ReturnType<typeof setTimeout> | null;
   info: boolean;
+  /** What `overviewStates` made last, with the replayed and live states it was made from. */
+  mix: { shown: States; live: Hass["states"]; out: Hass["states"] } | null;
 }
 
 let lib: typeof import("./replay/history") | null = null;
@@ -166,7 +168,7 @@ export function openReplay(c: FloorplanStudioCard): void {
   if (c._replay || !canReplay(c)) return;
   closePopup(c);
   const end = Date.now();
-  c._replay = { end, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false };
+  c._replay = { end, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null };
   c._syncTimer(); // the motion fade follows the replayed moment now, not the clock
   c.requestUpdate();
 }
@@ -218,6 +220,7 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
     lib ??= await import("./replay/history");
     const reply = await withTimeout(conn.sendMessagePromise<unknown>(lib.historyRequest(ids, startOf(r), r.end)), FETCH_TIMEOUT_MS);
     fh.index = lib.parseHistory(reply, ids);
+    fh.ids = ids;
     const sun = c._sunId();
     fh.missing = ids.filter((id) => id !== sun && !fh.index!.has(id)).length;
     fh.status = "ready";
@@ -252,6 +255,19 @@ export function replayStates(c: FloorplanStudioCard): Hass["states"] | undefined
   const at = statesAt(c, r.drawnT); // a floor switched to: its history at the moment on show
   if (at) r.drawn = at;
   return at?.states;
+}
+
+/** The states attention reads (alert badges, the Overview's items): the shown floor as it was, every other floor as it is. Attention runs
+ * over all floors and the replay holds the shown floor only; an alarm upstairs now must not vanish because the ground floor is in the past.
+ * An entity of the shown floor with no row at that moment is absent, as on the plan. */
+export function overviewStates(c: FloorplanStudioCard): Hass["states"] | undefined {
+  const live = c._hass?.states, r = c._replay, shown = replayStates(c), ids = floorHistory(c)?.ids;
+  if (!r || !live || !shown || !ids) return live;
+  if (r.mix && r.mix.shown === shown && r.mix.live === live) return r.mix.out;
+  const out: Hass["states"] = { ...live };
+  for (const id of ids) { if (shown[id]) out[id] = shown[id]; else delete out[id]; }
+  r.mix = { shown, live, out };
+  return out;
 }
 
 /** Whether a minute alone can change the picture: a motion fade still running, or the sheet's ages ("since 3 min"). Otherwise the
