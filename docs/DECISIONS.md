@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-28: Sprint 39 plan, history replay and plan D
+
+Diego's answers, each the proposed default. Spec: `docs/specs/replay-s39.md`.
+
+- **Card only.** The Studio has no live state, so the replay is an exception to the parity rule, stated, as the sun was.
+- **A bar under the plan, from the ⋯ menu.** No config key (the surface freeze, review item 17), and no timeline taking
+  room on every dashboard. It opens paused at now, so the first frame is the live plan.
+- **The whole shown floor, 2D and 3D,** through `_stateForRender()` and the card's one clock, so the past is drawn by
+  the same path as the present (finding 8). Taps do not act while replaying.
+- **Plan D, one item per sprint,** as the review said: the card file split in Sprint 39 (before the replay touches the
+  card), CI shards and the surface freeze in 40, the editor-app split in 41.
+
 ## 2026-10-28: Sprint 38 Opus review
 
 - **One sun for the whole house.** The floors below (ghost or solid) are lit by the same moving sun as the floor shown.
