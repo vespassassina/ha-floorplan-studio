@@ -2,6 +2,20 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-28: Sprint 38 Opus review
+
+- **One sun for the whole house.** The floors below (ghost or solid) are lit by the same moving sun as the floor shown.
+  Supersedes the non-goal in `docs/specs/sun-s38.md` "Floors below keep today's fixed light": a second light for them
+  costs bytes and draw time and gives a less true picture. They still get no patches.
+- **The sun's north is the floor's.** The card passes `north − rotation` of the current floor (wrapped into [0, 360)),
+  since the 3D view draws a floor in its stored frame (SPEC, `floor.rotation`). Without it a turned floor was lit, and
+  took patches, from the wrong side.
+- **The icons-or-dots level settles one render late.** The card keeps the last level (S38.7) and corrects it in
+  `updated()` from the new measure. After a floor switch, a turn or a return from 3D, the first render may use the old
+  level for one frame. Accepted: the alternative recomputes the band in render and loses the hysteresis.
+- **A failed form load retries, then says to reload.** Edit card's form is fetched with the 3D chunk's retry; a file
+  that stays missing (a tab open across an update) shows the stale-page message instead of HA's YAML fallback.
+
 ## 2026-10-28: S38.7 and S38.8, two card nits
 
 - **Dots at 380 and under, not under 380.** A 380 px box gives a plan exactly 380 wide; with "under 380" it sat in the
