@@ -812,7 +812,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   /**
    * S38.4: the sun's patches on the floor. Built when the floor or the theme was (`builds`), or the sun moved 1 degree or more in azimuth or
    * elevation since the last build; a state update that leaves the sun alone builds none. At most MAX_SUN_PATCHES, the largest first; none
-   * with no sun. The current floor only: the floors below keep the fixed light and get no patches.
+   * with no sun. The current floor only: the floors below get no patches, though they take the one sun like the rest of the scene (a deliberate decision, docs/DECISIONS.md 2026-10-28).
    */
   function applyPatches(s: ReturnType<typeof applySun>, light: boolean) {
     if (!s || !plan) { if (patchSun) suns.set([]); patchSun = ""; container.dataset.sunPatches = "0/0"; return; }
