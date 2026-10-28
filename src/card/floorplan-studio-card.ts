@@ -1048,7 +1048,8 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S39.3: the card's one clock for drawing (motion fade, the 3D `now`), the replayed moment while the bar is open. Service calls keep the real one. */
   _now(): number {
-    return this._replay?.drawnT ?? Date.now();
+    // The past's clock only goes with the past's states: while the history loads or failed the plan is live (spec item 10), and so is its clock.
+    return this._replay && replayStates(this) ? this._replay.drawnT : Date.now();
   }
 
   /** S39.3: a tap acts on nothing in the past; the bar says why. Passed to the gesture binders. */
@@ -1461,7 +1462,7 @@ export class FloorplanStudioCard extends LitElement {
   private _motionFading(): boolean {
     const f = this._floor();
     const fadeMs = (this._config.fade ?? DEFAULT_MOTION_FADE_S) * 1000;
-    if (!f || !this._hass || fadeMs <= 0 || this._replay) return false; // a replayed fade follows the bar's moment, not the clock
+    if (!f || !this._hass || fadeMs <= 0 || (this._replay && replayStates(this))) return false; // a replayed fade follows the bar's moment, not the clock
     const now = Date.now();
     const ids = [...f.devices.filter((d) => d.type === "motion").map((d) => d.entity), ...f.rooms.flatMap((r) => r.motion ?? [])];
     return ids.some((id) => {

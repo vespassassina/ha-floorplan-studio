@@ -373,6 +373,45 @@ test.describe("Opus review S1: the words are the past's, like the picture", () =
   });
 });
 
+test.describe("Opus review S2: the clock is the past's only while the past is drawn", () => {
+  const fade = (page: Page) => g(page, motionIdx).evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-fade"));
+
+  test("a failed fetch keeps the plan live, and the motion fade keeps moving with the clock", async ({ page }) => {
+    // The sensor went off 140 s before 12:00:00, so the live fade of 600 s starts at 1 - 140/600.
+    await boot(page, { clock: "install", config: { fade: 600 }, fail: { code: "unknown_error", message: "no recorder" }, live: { "binary_sensor.demo_hall_motion": st("off", {}, iso(NOW / 1000 - 140)) } });
+    await openMenu(page);
+    await menuItem(page, "replay").click();
+    await expect(msg(page)).toHaveText(/no recorder/);
+    await expect.poll(async () => Number(await fade(page))).toBeCloseTo(1 - 140 / 600, 2);
+    await page.clock.runFor(300000);
+    await expect.poll(async () => Number(await fade(page))).toBeCloseTo(1 - 440 / 600, 2); // five minutes later, live, not frozen
+  });
+
+  test("a floor switch while playing pauses the play until the new floor's history is there", async ({ page }) => {
+    await boot(page, { clock: "install", config: { floor: "all" } });
+    await openBar(page);
+    await page.evaluate(() => { // the second floor's answer waits for the test
+      const w = window as unknown as { __release: () => void };
+      const el = document.getElementById("card") as unknown as { hass: { connection: { sendMessagePromise: (m: unknown) => Promise<unknown> } } };
+      const slow = new Promise<void>((r) => { w.__release = r; });
+      const was = el.hass.connection.sendMessagePromise;
+      el.hass.connection.sendMessagePromise = (m) => slow.then(() => was(m));
+    });
+    await playBtn(page).click();
+    await page.clock.runFor(2000);
+    await expect(playBtn(page)).toHaveAttribute("aria-label", "Pause");
+    await card(page).locator("css=.fp-floors button", { hasText: "First" }).click();
+    await expect(range(page)).toBeDisabled(); // loading
+    await page.clock.runFor(2000);
+    await expect(playBtn(page)).toHaveAttribute("aria-label", "Play"); // paused, not running on live states with a past clock
+    await page.evaluate(() => (window as unknown as { __release: () => void }).__release());
+    await expect(range(page)).toBeEnabled();
+    const held = await range(page).inputValue();
+    await page.clock.runFor(3000);
+    await expect(range(page)).toHaveValue(held);
+  });
+});
+
 test.describe("S39.2 play and keys", () => {
   test("criterion 10: play from the end restarts at the start, 60 s of play cover 24 h, few draws, one draw per minute, and it stops at the end", async ({ page }) => {
     await boot(page, { clock: "install" });

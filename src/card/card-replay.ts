@@ -254,6 +254,8 @@ function seek(c: FloorplanStudioCard, r: ReplayState, ms: number): void {
 function step(c: FloorplanStudioCard, ts: number): void {
   const r = c._replay;
   if (!r || !r.playing) return;
+  // A floor switched to while playing has no history yet (or none): the play head would run on live states. Stop; Play is the user's.
+  if (floorHistory(c)?.status !== "ready") { r.playing = false; r.raf = null; paintBar(c); return; }
   const dt = r.last ? Math.min(MAX_STEP_MS, Math.max(0, ts - r.last)) : 0;
   r.last = ts;
   r.t = Math.min(r.end, r.t + dt * PLAY_MS_PER_MS);
