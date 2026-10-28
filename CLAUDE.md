@@ -134,7 +134,9 @@ Each of these was a real defect. Do not repeat them.
     card's websocket test returned a bare layout; `websocket.py` sends
     `{ layout }`. The test was green for months while every real dashboard
     read "No layout". When you stub a reply, open the code that sends it and
-    copy the shape, and say in the test where the shape comes from.
+    copy the shape, and say in the test where the shape comes from. On
+    2026-10-28 the replay's sun stub carried azimuth and elevation that HA's
+    recorder never stores, and the 3D sun was dead in every real replay.
 
 ## Domain notes
 
