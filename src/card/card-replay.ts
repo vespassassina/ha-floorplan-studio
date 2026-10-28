@@ -6,6 +6,7 @@ import { carEntities } from "../core/car-status";
 import type { Floor } from "../core/schema";
 import { NO_ANSWER } from "./load";
 import { closePopup } from "./card-popup";
+import { attentionOf } from "./card-overview";
 import type { FloorplanStudioCard, Hass, HassEntity } from "./floorplan-studio-card";
 import type { HistoryIndex } from "./replay/history";
 
@@ -265,7 +266,9 @@ export function overviewStates(c: FloorplanStudioCard): Hass["states"] | undefin
 /** Whether a minute alone can change the picture: a motion fade still running, or the sheet's ages ("since 3 min"). Otherwise the
  * plan is not drawn again for it, and only the bar's own time moves. */
 function minuteMatters(c: FloorplanStudioCard, at: { states: States } | undefined, ms: number): boolean {
-  if (c._activeListVisible()) return true;
+  // The sheet prints an age ("12 min") only on an Attention row; with none, a minute changes nothing on it.
+  const a = c._activeListVisible() ? attentionOf(c) : null;
+  if (a && (a.items.length || a.unavailable.length)) return true;
   const f = c._floor(), fadeMs = (c._config.fade ?? DEFAULT_MOTION_FADE_S) * 1000;
   if (!f || !at || !(fadeMs > 0)) return false;
   const ids = [...f.devices.filter((d) => d.type === "motion").map((d) => d.entity), ...f.rooms.flatMap((r) => r.motion ?? [])];

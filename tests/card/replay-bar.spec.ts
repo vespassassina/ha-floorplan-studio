@@ -472,6 +472,37 @@ test.describe("Opus review S6, N5: the bar does not outlive its card's config or
   });
 });
 
+test.describe("Opus review N1: the plan is drawn for a minute only when a minute shows", () => {
+  /** Draws of the card during 60 s of play from the start, with the Overview on. */
+  async function drawsOfAMinutePlay(page: Page, layout: unknown, rows: Rows) {
+    await boot(page, { clock: "install", config: { active_list: true, layout }, rows });
+    await page.evaluate(() => {
+      const P = customElements.get("floorplan-studio-card")!.prototype as unknown as { render(): unknown };
+      const was = P.render; const w = window as unknown as { __renders: number };
+      w.__renders = 0;
+      P.render = function (this: unknown) { w.__renders++; return was.call(this); };
+    });
+    await openBar(page);
+    await playBtn(page).click();
+    const before = await page.evaluate(() => (window as unknown as { __renders: number }).__renders);
+    await page.clock.runFor(60500);
+    await expect(range(page)).toHaveValue("1440");
+    return (await page.evaluate(() => (window as unknown as { __renders: number }).__renders)) - before;
+  }
+
+  test("with the Overview on and nothing in Attention, a day of play is not 1,440 draws", async ({ page }) => {
+    expect(await drawsOfAMinutePlay(page, structuredClone(demo), ROWS())).toBeLessThan(80);
+  });
+
+  test("control: with an item in Attention, its age is on screen and the plan is drawn for the minutes", async ({ page }) => {
+    const layout = structuredClone(demo);
+    layout.floors.ground.devices.push({ id: "dev-down-lock", type: "lock", entity: "lock.down_front", x: 300, y: 300 });
+    const rows = ROWS();
+    rows["lock.down_front"] = [{ s: "unlocked", a: {}, lu: secs(12, 0, -1) - 100 }];
+    expect(await drawsOfAMinutePlay(page, layout, rows)).toBeGreaterThan(1000);
+  });
+});
+
 test.describe("S39.2 play and keys", () => {
   test("criterion 10: play from the end restarts at the start, 60 s of play cover 24 h, few draws, one draw per minute, and it stops at the end", async ({ page }) => {
     await boot(page, { clock: "install" });
