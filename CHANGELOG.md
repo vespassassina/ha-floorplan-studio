@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.38.0 - 2026-10-28
 
 The card can look back. Open the ⋯ menu, choose Replay, and a bar appears under the plan: drag it, or press play, and the plan shows how the last 24 hours looked, lamps, motion, the sun and the night included. Live returns to now. The history is read from Home Assistant when you open it, one call per floor.
 
