@@ -503,6 +503,23 @@ test.describe("Opus review N1: the plan is drawn for a minute only when a minute
   });
 });
 
+test.describe("Opus review N2: the replay chunk loads like the 3D and form chunks", () => {
+  test("a chunk that cannot be fetched says the page is stale; closing and opening again asks under a new URL and works", async ({ page }) => {
+    await boot(page);
+    const asked: string[] = [];
+    await page.route("**/floorplan-studio-replay-*.js*", (route) => { asked.push(route.request().url()); return route.abort(); });
+    await openMenu(page);
+    await menuItem(page, "replay").click();
+    await expect(msg(page)).toHaveText("Could not load the history: Floorplan Studio was updated. Reload this page.");
+    await expect(range(page)).toBeDisabled();
+    expect(asked).toHaveLength(1);
+    await page.unroute("**/floorplan-studio-replay-*.js*"); // the network is back (or the page was reloaded under a new build)
+    await card(page).locator("css=button.fp-rp-live").click();
+    await openBar(page); // expects the slider enabled: the history has come
+    expect(await sent(page)).toHaveLength(1);
+  });
+});
+
 test.describe("S39.2 play and keys", () => {
   test("criterion 10: play from the end restarts at the start, 60 s of play cover 24 h, few draws, one draw per minute, and it stops at the end", async ({ page }) => {
     await boot(page, { clock: "install" });

@@ -4,7 +4,7 @@ import { DEFAULT_MOTION_FADE_S } from "../core";
 import { entitiesOfDevice, entitiesOfDoor, moreInfoEntities } from "../core/attachments";
 import { carEntities } from "../core/car-status";
 import type { Floor } from "../core/schema";
-import { NO_ANSWER } from "./load";
+import { NO_ANSWER, STALE_PAGE } from "./load";
 import { closePopup } from "./card-popup";
 import { attentionOf } from "./card-overview";
 import type { FloorplanStudioCard, Hass, HassEntity } from "./floorplan-studio-card";
@@ -47,7 +47,21 @@ export interface ReplayState {
   mix: { shown: States; live: Hass["states"]; out: Hass["states"] } | null;
 }
 
-let lib: typeof import("./replay/history") | null = null;
+type Lib = typeof import("./replay/history");
+let lib: Lib | null = null;
+/** The build puts the chunk's hashed file name here (vite.config.ts); unbuilt (vitest, dev) it stays a placeholder and the plain import is used. */
+const CHUNK_FILE = "__FPREPLAY_CHUNK__";
+let libTries = 0;
+/** As the 3D chunk: a browser remembers a failed `import()` of one URL and never asks the network again, so each try after the first asks
+ * for the same file under a new query. A failed load is not cached here, so closing the bar and opening it again is the retry. */
+async function loadLib(): Promise<Lib> {
+  if (lib) return lib;
+  const n = libTries++;
+  lib = n > 0 && /^floorplan-studio-replay-.+\.js$/.test(CHUNK_FILE)
+    ? await import(/* @vite-ignore */ `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${CHUNK_FILE}?r=${n}`)
+    : await import("./replay/history");
+  return lib!;
+}
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && s !== "") : []);
 const text = (v: unknown): string[] => (typeof v === "string" && v ? [v] : []);
@@ -209,9 +223,10 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
   try {
     const conn = c._hass?.connection;
     if (!conn) throw { message: t(NO_ANSWER) };
-    lib ??= await import("./replay/history");
-    const reply = await withTimeout(conn.sendMessagePromise<unknown>(lib.historyRequest(ids, startOf(r), r.end)), FETCH_TIMEOUT_MS);
-    fh.index = lib.parseHistory(reply, ids);
+    // A chunk that will not load is a page older than the server, or a lost network: the words of the 3D and form chunks, not the browser's.
+    const h = await loadLib().catch(() => { throw { message: t(STALE_PAGE) }; });
+    const reply = await withTimeout(conn.sendMessagePromise<unknown>(h.historyRequest(ids, startOf(r), r.end)), FETCH_TIMEOUT_MS);
+    fh.index = h.parseHistory(reply, ids);
     fh.ids = ids;
     const sun = c._sunId();
     fh.missing = ids.filter((id) => id !== sun && !fh.index!.has(id)).length;
