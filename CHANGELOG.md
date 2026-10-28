@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.37.0 - 2026-10-28
 
 The 3D view follows the sun. By day the light comes from where `sun.sun` puts the sun, weaker and warmer when it is low, and a soft patch of sunlight falls on the floor behind each window the sun shines through (at most 24, the largest first). At night, with no sun, or on the floors below, the light is as before.
 
