@@ -3,6 +3,7 @@ import { t } from "../core/i18n";
 import { fireEvent } from "./actions";
 import { html, nothing } from "lit";
 import { floorTitle } from "./card-overview";
+import { callService, closePopup } from "./card-popup";
 import type { FloorplanStudioCard } from "./floorplan-studio-card";
 
 /**
@@ -94,7 +95,7 @@ export function vacuumDisabled(c: FloorplanStudioCard): boolean {
 
 export function vacuumAction(c: FloorplanStudioCard, service: "start" | "pause" | "return_to_base"): void {
   const d = c._vacuumDialog;
-  if (d) c._call("vacuum", service, { entity_id: d.entity });
+  if (d) callService(c, "vacuum", service, { entity_id: d.entity });
   closeVacuumDialog(c);
 }
 
@@ -113,7 +114,7 @@ export function coverService(c: FloorplanStudioCard, door: Door): "open_cover" |
 
 export function confirmCoverDialog(c: FloorplanStudioCard): void {
   const door = c._coverDialog;
-  if (door?.cover) c._call("cover", coverService(c, door), { entity_id: door.cover });
+  if (door?.cover) callService(c, "cover", coverService(c, door), { entity_id: door.cover });
   closeCoverDialog(c);
 }
 
@@ -130,7 +131,7 @@ export function openOffDialog(c: FloorplanStudioCard): void {
   if (!f || !key || dialogOpen(c)) return;
   const rows = floorOffRows(f, c._stateForRender());
   if (!rows.length) return;
-  c._closePopup();
+  closePopup(c);
   c._offDialog = { floor: key, title: floorTitle(c, key), rows, ticked: rows.map(() => true) };
   c.requestUpdate();
 }
@@ -151,7 +152,7 @@ export function tickOff(c: FloorplanStudioCard, i: number, on: boolean): void {
 export function confirmOffDialog(card: FloorplanStudioCard): void {
   const d = card._offDialog;
   if (!d) return;
-  for (const c of floorOffCalls(d.rows.filter((_, i) => d.ticked[i]))) card._call(c.domain, c.service, c.data);
+  for (const c of floorOffCalls(d.rows.filter((_, i) => d.ticked[i]))) callService(card, c.domain, c.service, c.data);
   closeOffDialog(card);
 }
 

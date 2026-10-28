@@ -2,6 +2,7 @@ import { TAP_SLOP_PX } from "./actions";
 import { cardHeight, frameMode, HEADER_H, nextOnHandleTap, PEEK_H, type SheetStop, sheetStops, sideOpenByDefault, sideWidth, snapSheet, type Stops } from "./frame";
 import { panBy, zoomAt } from "./viewport";
 import { pickFloor, picked, pickedFloorKey } from "./card-overview";
+import { closePopup } from "./card-popup";
 import type { FloorplanStudioCard } from "./floorplan-studio-card";
 
 /** Below this card width the Active list starts folded: it would cover the plan. */
@@ -9,7 +10,7 @@ const ACTIVE_FOLD_BELOW_PX = 480;
 
 /** S31.5, Back in the side sheet: a room goes up to its floor, a floor to the Overview. Focus follows to what is now on top. */
 export function back(c: FloorplanStudioCard): void {
-  if (c._popup && popupInSheet(c)) { c._closePopup(); return; } // S31.8: Device goes back to what was under it
+  if (c._popup && popupInSheet(c)) { closePopup(c); return; } // S31.8: Device goes back to what was under it
   const room = c._pickedRoom;
   if (c._frame === "bottom" && !room && !c._pickedFloor) { c._sheetStop = "peek"; c.requestUpdate(); return; }
   pickFloor(c, room && room.floor === c._floorKey() ? room.floor : null);

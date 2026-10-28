@@ -1,4 +1,4 @@
-import { type ActiveDevice, activeDevices, ALL_OFF_TITLE, allOffTitle, type Attention, attention, type AttentionItem, type AttentionKind, type CategoryId, customCalls, customScene, DEVICE_ICONS, deviceCentre, type DeviceType, filterToRoom, floorSummary, formatAge, formatChanged, groupByCategory, type LayerId, layerOfType, layerWord, layoutEntries, pieceDevice, plugThreshold, presetCalls, type RoomDeviceRow, roomHeat, roomScenes, type RoomSensorRow, roomSummary, type RoomSummary, sceneNeedsConfirm, type SearchEntry, stateText, type ThingRef } from "../core";
+import { type ActiveDevice, activeDevices, ALL_OFF_TITLE, allOffTitle, attention, type Attention, type AttentionItem, type AttentionKind, type CategoryId, customCalls, customScene, DEVICE_ICONS, deviceCentre, type DeviceType, filterToRoom, floorSummary, formatAge, formatChanged, groupByCategory, type LayerId, layerOfType, layerWord, layoutEntries, pieceDevice, plugThreshold, presetCalls, type RoomDeviceRow, roomHeat, roomScenes, type RoomSensorRow, roomSummary, type RoomSummary, sceneNeedsConfirm, type SearchEntry, stateText, type ThingRef } from "../core";
 import { colorVarFor } from "../core/active";
 import { t, tn } from "../core/i18n";
 import { fireEvent } from "./actions";
@@ -9,6 +9,7 @@ import { scenesTemplate } from "./room-scenes-ui";
 import type { Pt } from "./viewport";
 import { html, nothing } from "lit";
 import { floorOffButton, openVacuumDialog } from "./card-dialogs";
+import { callService, closePopup, deviceSubject, openPopup, openSubject, popupMarkup, runOp, subjectOf, subjectOp, subjectText, thingSel } from "./card-popup";
 import { back, popupInSheet, sheetTo, toggleActiveCollapsed } from "./card-sheet";
 import type { FloorplanStudioCard, PickMemo } from "./floorplan-studio-card";
 
@@ -106,10 +107,10 @@ export function locate(c: FloorplanStudioCard, ref: { floor: string } & ThingRef
   const fam: LayerId | null = device ? layerOfType(device.type) : piece ? "furniture" : null;
   c._kept = shows && fam && c._hiddenLayers.includes(fam) ? { floor: ref.floor, t: device ? "dev" : "furn", i: ref.index, fam } : null;
   const point = at ?? (() => { const b = (from ?? c).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.bottom }; })();
-  if (piece) { const d = pieceDevice(piece); if (d) { if (piece.symbol === "car") c._openSubject(c._deviceSubject(d), point, from); else fireEvent(c, "hass-more-info", { entityId: d.entity }); } }
-  else if (device) c._openSubject(c._deviceSubject(device), point, from);
-  else if (door) { const s = c._subjectOf({ door, index: ref.index }); if (s) c._openSubject(s, point, from); }
-  if (shows && (device || door) && c._popup) c._panTarget = c._thingSel(ref.what, ref.index); // S31.8: the plan goes to it, above the sheet
+  if (piece) { const d = pieceDevice(piece); if (d) { if (piece.symbol === "car") openSubject(c, deviceSubject(c, d), point, from); else fireEvent(c, "hass-more-info", { entityId: d.entity }); } }
+  else if (device) openSubject(c, deviceSubject(c, device), point, from);
+  else if (door) { const s = subjectOf(c, { door, index: ref.index }); if (s) openSubject(c, s, point, from); }
+  if (shows && (device || door) && c._popup) c._panTarget = thingSel(c, ref.what, ref.index); // S31.8: the plan goes to it, above the sheet
   c.requestUpdate();
 }
 
@@ -128,7 +129,7 @@ export function placePulse(c: FloorplanStudioCard): void {
   const ring = c.shadowRoot?.querySelector<HTMLElement>(".fp-pulse");
   const p = c._pulse;
   if (!ring || !p) return;
-  const sel = c._thingSel(p.what, p.index);
+  const sel = thingSel(c, p.what, p.index);
   const el = p.floor === c._floorKey() ? c.shadowRoot?.querySelector(sel) : null;
   const r = el?.getBoundingClientRect(), h = c.getBoundingClientRect();
   if (!r || (r.width === 0 && r.height === 0)) { ring.hidden = true; return; }
@@ -216,7 +217,7 @@ export function keyToggle(c: FloorplanStudioCard, r: RoomDeviceRow, row: Element
   const d = c._floor()?.devices[r.index];
   const b = row?.getBoundingClientRect();
   if (d?.type === "vacuum") { openVacuumDialog(c, d); return; } // as its tap on the plan does
-  if (d) c._openPopup({ device: d, index: r.index }, { x: b ? b.left + b.width / 2 : 0, y: b ? b.bottom : 0 }, row);
+  if (d) openPopup(c, { device: d, index: r.index }, { x: b ? b.left + b.width / 2 : 0, y: b ? b.bottom : 0 }, row);
 }
 
 /** A row of the room section's device list. It carries `data-x`, so the panel's own `bindDeviceActions` gives it the
@@ -266,7 +267,7 @@ export function runScene(card: FloorplanStudioCard, key: string): void {
   const f = card._floor(), at = picked(card), call = card._hass?.callService;
   if (!f || at === null || !call) return;
   const [kind, id = ""] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
-  const send = (c: { domain: string; service: string; data: Record<string, unknown> }) => card._call(c.domain, c.service, c.data);
+  const send = (c: { domain: string; service: string; data: Record<string, unknown> }) => callService(card, c.domain, c.service, c.data);
   if (kind === "ha") {
     if (!roomScenes(f, at, card._hass).ha.some((s) => s.entity === id)) return;
     send({ domain: "scene", service: "turn_on", data: { entity_id: id } });
@@ -287,7 +288,7 @@ export function runScene(card: FloorplanStudioCard, key: string): void {
  *  `offEntities`: the lights that are on, and (S22.1) the bound relays that are on, each once. In practice one
  *  `light.turn_off` and, with a relay-lit lamp, one `switch.turn_off`. */
 export function allOff(card: FloorplanStudioCard, lights: string[]): void {
-  for (const c of presetCalls("off", lights)) card._call(c.domain, c.service, c.data);
+  for (const c of presetCalls("off", lights)) callService(card, c.domain, c.service, c.data);
   card.requestUpdate();
 }
 
@@ -352,7 +353,7 @@ export function attnRow(c: FloorplanStudioCard, it: AttentionItem, now: number):
 export function activeRow(c: FloorplanStudioCard, it: ActiveDevice): OverviewRow {
   const f = c._layout?.floors[it.floor];
   const d = it.at.what === "device" ? f?.devices[it.at.index] : it.at.what === "piece" ? (f?.furniture?.[it.at.index] && pieceDevice(f.furniture[it.at.index]!)) || undefined : undefined;
-  const state = d ? c._subjectText(c._deviceSubject(d)) : stateText(it.type, c._hass?.states?.[it.entity], undefined, it.entity, c._format);
+  const state = d ? subjectText(c, deviceSubject(c, d)) : stateText(it.type, c._hass?.states?.[it.entity], undefined, it.entity, c._format);
   return { entity: it.entity, name: it.name, floor: it.floor, at: it.at, ...(it.room ? { room: it.room } : {}), state, type: it.type, colorVar: it.colorVar, attn: false };
 }
 
@@ -381,8 +382,8 @@ export function favouriteSection(c: FloorplanStudioCard) {
     const f = layout.floors[r.floor], m = f?.furniture?.[r.ref.index];
     const d = r.ref.what === "device" ? f?.devices[r.ref.index] : m ? pieceDevice(m) : undefined;
     if (!d) return [];
-    const s = c._deviceSubject(d), op = c._popupOp(s), state = c._hass?.states?.[r.entity]?.state;
-    const row: OverviewRow = { entity: r.entity, name: s.name, floor: r.floor, at: r.ref, state: c._subjectText(s), type: d.type, colorVar: colorVarFor(d, c._hass?.states), attn: false };
+    const s = deviceSubject(c, d), op = subjectOp(c, s), state = c._hass?.states?.[r.entity]?.state;
+    const row: OverviewRow = { entity: r.entity, name: s.name, floor: r.floor, at: r.ref, state: subjectText(c, s), type: d.type, colorVar: colorVarFor(d, c._hass?.states), attn: false };
     const confirm = op ? favConfirm(c, op, r.entity) : null;
     const asking = !!confirm && c._favAsk === r.entity;
     const act = !op ? nothing : asking
@@ -405,7 +406,7 @@ export function favConfirm(c: FloorplanStudioCard, op: PopupOp, entity: string):
 export function favAct(c: FloorplanStudioCard, s: PopupSubject, op: PopupOp): void {
   if (favConfirm(c, op, s.entity ?? "") && c._favAsk !== s.entity) { c._favAsk = s.entity ?? null; c.requestUpdate(); return; }
   c._favAsk = null;
-  c._runOp(s, op);
+  runOp(c, s, op);
   c.requestUpdate();
 }
 
@@ -526,10 +527,10 @@ export function bottomSheet(c: FloorplanStudioCard, name: string, crumb: string,
           @pointerdown=${c._onHandleDown} @pointermove=${c._onHandleMove} @pointerup=${c._onHandleUp} @pointercancel=${c._onHandleCancel}
           @click=${c._onHandleClick} @keydown=${c._onHandleKey}>
           <span class="fp-grab" aria-hidden="true"></span>
-          <span class="fp-handle-line"><span class="fp-active-title">${pop ? pop.name : deeper ? name : html`${t("Home")}${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}`}</span>${pop ? html` <span class="fp-ov-chips">${c._subjectText(pop)}</span>` : chips}</span>
+          <span class="fp-handle-line"><span class="fp-active-title">${pop ? pop.name : deeper ? name : html`${t("Home")}${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}`}</span>${pop ? html` <span class="fp-ov-chips">${subjectText(c, pop)}</span>` : chips}</span>
         </button>
       </div>
-      <div class="fp-active-body" ?inert=${peek}>${pop ? c._popupTemplate(true) : content()}</div>
+      <div class="fp-active-body" ?inert=${peek}>${pop ? popupMarkup(c, true) : content()}</div>
     </div>`;
 }
 
@@ -563,7 +564,7 @@ export function openSearch(c: FloorplanStudioCard): boolean {
   if (c._pickedRoom || c._pickedFloor) pickRoom(c, null);
   sheetTo(c, "full"); // S31.8: Search opens the phone's sheet full
   if (c._activeCollapsed) { c._activeCollapsed = false; c._activeUserChose = true; c._saveActiveState(); }
-  c._closePopup();
+  closePopup(c);
   c.requestUpdate();
   void c.updateComplete.then(async () => {
     const box = c.shadowRoot?.querySelector<HTMLElement & { updateComplete: Promise<unknown> }>("fp-search");

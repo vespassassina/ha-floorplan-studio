@@ -1,16 +1,15 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { carStatus, carText, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_MODES, iconsHold, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, NAME_MIN_PX, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, FLOORPLAN_CSS, THEMES, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, deviceInfo, relayText, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { DETAIL_MODES, iconsHold, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, NAME_MIN_PX, FLOORPLAN_CSS, THEMES, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { CamThumb, HeatKind, LayerId, OffRow, SearchEntry } from "../core";
 import type { Attention, ThingRef, PowerCandidate, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { tapActionOf, holdActionOf } from "./tap-action";
 import { favouritesOf, type FavouritesRead } from "./favourites";
-import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
-import { fanCaps, lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
+import { TAP_SLOP_PX, THINGS, bindDeviceActions, type TapTarget } from "./actions";
 import { SCENES_CSS } from "./room-scenes-ui";
 import { TOUCH_CSS } from "./touch-css";
-import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
+import { POPUP_CSS, type PopupSubject, type SliderKind } from "./popup-ui";
 import { defineElement } from "./define";
 import { strategyElement } from "./strategy";
 import { CARD_VERSION } from "./version";
@@ -29,10 +28,11 @@ import type { View3D } from "./three/view3d";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
 import { belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
 export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from here
-import { chooserDialogTemplate, coverDialogTemplate, coverService, dialogOpen, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
+import { chooserDialogTemplate, coverDialogTemplate, dialogOpen, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
-import { TOGGLE_AT_ONCE, activePanel, attentionOf, floorTitle, keptHere, openSearch, pickRoom, picked, placePulse, restorePick, tapRoom } from "./card-overview";
-import { applyWidthDefault, back, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, popupInSheet, sheetTo, stopsNow, visibleBox } from "./card-sheet";
+import { activePanel, attentionOf, floorTitle, keptHere, openSearch, pickRoom, picked, placePulse, restorePick, tapRoom } from "./card-overview";
+import { bindHover, bindSpider, closePopup, foldSpider, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
+import { applyWidthDefault, back, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
 
 const NO_LAYOUT: StoredError = { key: INSTALL_HINT };
 
@@ -574,21 +574,21 @@ export class FloorplanStudioCard extends LitElement {
   /** S14.2: the tap popup, or `null` for none. One at a time; `s.key` is who it is about, `x`/`y` where the pointer landed (client px), `opener` the
    *  focusable thing that opened it (an Active row), `confirming` the turn-OFF question, `draft` a slider's shown value until Home Assistant answers. */
   /** S25.5: the device indices of the stack fanned out into a ring, on the floor `_spiderFloor`; null when folded. */
-  private _spider: number[] | null = null;
-  private _spiderFloor: string | null = null;
+  _spider: number[] | null = null;
+  _spiderFloor: string | null = null;
   _popup: { s: PopupSubject; x: number; y: number; opener: Element | null; confirming: boolean; draft: { kind: SliderKind; value: number; from: number | null } | null } | null = null;
-  private _popupFocusKey: string | null = null;
-  private _popupReturn: Element | null = null;
+  _popupFocusKey: string | null = null;
+  _popupReturn: Element | null = null;
   /** S14.2: the hover tooltip (mouse only). `_tipKey` is who it shows, `_tipHost` the card's box read once when it appears, `_tipTitle` a plan `<title>` held back so the browser's own tooltip does not double ours. */
-  private _tipKey: string | null = null;
-  private _tipHost: DOMRect | null = null;
-  private _tipEl: Element | null = null;
-  private _tipTitle: { el: Element; title: Element } | null = null;
+  _tipKey: string | null = null;
+  _tipHost: DOMRect | null = null;
+  _tipEl: Element | null = null;
+  _tipTitle: { el: Element; title: Element } | null = null;
   /** The tooltip's subject and the selector of its plan element, so a re-render (which replaces the plan's elements) can refresh its text and take the new element's `<title>` out again. */
-  private _tipTarget: TapTarget | null = null;
-  private _tipSel: string | null = null;
+  _tipTarget: TapTarget | null = null;
+  _tipSel: string | null = null;
   /** Where the pointer was when the tooltip last moved: a render checks the plan element is still under it (a zoom or turn moves icons under a still pointer). */
-  private _tipAt: { x: number; y: number } | null = null;
+  _tipAt: { x: number; y: number } | null = null;
   /** S7.4: the zoomed viewBox, or `null` for fit. Card state: reset by `setConfig` and a floor change, never by `hass`. */
   _view: View | null = null;
   /** S12.3: the live 3D view, the floor and stair context it was built for, and why 3D cannot run (`null` while it can). */
@@ -894,7 +894,7 @@ export class FloorplanStudioCard extends LitElement {
     // S24.8: ⌘K, Ctrl+K or / opens the search, under the same gate as the view keys: the card focused, else hovered.
     if (isSearchChord(ev)) { if (openSearch(this)) ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
-    if (ev.key === "Escape" && this._spider) { this._foldSpider(); ev.preventDefault(); return; }
+    if (ev.key === "Escape" && this._spider) { foldSpider(this); ev.preventDefault(); return; }
     // S31.10: a device key counts only while the plan itself has the focus; in the popup or a text field the keys are theirs.
     const onStage = this._focusDev !== null && ev.composedPath()[0] === this._stageSvg();
     if (ev.key === "Escape" && onStage) { this._dropFocus(); ev.preventDefault(); return; }
@@ -988,8 +988,8 @@ export class FloorplanStudioCard extends LitElement {
 
   /** What the hidden status line says: "Kitchen spot 1, light, on". */
   private _focusText(): string {
-    const t = this._focusDev === null ? null : this._targetOf("x", this._focusDev), s = t && this._subjectOf(t);
-    return s ? [s.name, s.type, this._subjectText(s)].filter(Boolean).join(", ") : "";
+    const t = this._focusDev === null ? null : this._targetOf("x", this._focusDev), s = t && subjectOf(this, t);
+    return s ? [s.name, s.type, subjectText(this, s)].filter(Boolean).join(", ") : "";
   }
 
   /** After every render: the ring sits over the focused device's box, or hides when the plan does not show it. */
@@ -1779,14 +1779,14 @@ export class FloorplanStudioCard extends LitElement {
             openPopup: (t, at, from) => this._openPopup(t, at, from),
             getUnlinked: (i) => this._floor()?.unlinked[i],
             getPiece: (i) => this._floor()?.furniture?.[i],
-            stack: (i) => this._tapStack(i),
+            stack: (i) => tapStack(this, i),
             ...this._tapOpts(),
           })
         : null;
       this._unbindSpider?.();
-      this._unbindSpider = svg ? this._bindSpider(svg) : null;
+      this._unbindSpider = svg ? bindSpider(this, svg) : null;
       this._unbindHover?.();
-      this._unbindHover = svg ? this._bindHover(svg) : null;
+      this._unbindHover = svg ? bindHover(this, svg) : null;
       this._unbindZoom?.();
       this._unbindZoom = svg ? this._bindZoom(svg) : null;
       // S16.3: an <image> that fails to load fires `error` on itself and does not bubble, so it is heard on the way down.
@@ -1859,8 +1859,8 @@ export class FloorplanStudioCard extends LitElement {
       this.focus();
     }
     this._offDialogWasOpen = offOpen;
-    this._syncPopup();
-    this._syncTip();
+    syncPopup(this);
+    syncTip(this);
     placePulse(this);
     this._placeFocusRing();
   }
@@ -1909,61 +1909,12 @@ export class FloorplanStudioCard extends LitElement {
 
   // ---- S14.2: the tap popup and the hover tooltip ------------------------------------------------------------------------------------
 
-  /** A pointer went down somewhere: a popup closes unless the press was in it or on something that decides for itself (an icon, a door, an Active row, the 3D view: those open, swap or close it on their own tap). */
-  private _onOutsideDown = (e: Event): void => {
-    if (!this._popup) return;
-    for (const n of e.composedPath()) {
-      // Only what is in this card's own shadow tree counts as inside: an icon of another card must close this card's popup.
-      if (n instanceof Element && n.getRootNode() === this.shadowRoot && (n.classList.contains("fp-pop") || n.classList.contains("fp-bottom") || n.classList.contains("fp-3d") || n.matches(`${THINGS}, button[data-x], [data-pop]`))) return;
-    }
-    this._closePopup();
-  };
+  private _onOutsideDown = (e: Event): void => onOutsideDown(this, e); // card-popup.ts
 
-  /** What index `i` of the shown floor is, as the gesture code names it. */
-  _targetOf(kind: "x" | "d" | "u" | "f", i: number): TapTarget | null {
-    const f = this._floor();
-    if (!f || !Number.isFinite(i)) return null;
-    if (kind === "x") { const device = f.devices[i]; return device ? { device, index: i } : null; }
-    // A linked piece speaks for its device (`pieceDevice`): the same name and state line as a device icon. `index` is the piece's, nothing reads it for a hover.
-    if (kind === "f") { const m = f.furniture?.[i], device = m && pieceDevice(m); return device ? { device, index: i } : null; }
-    if (kind === "d") { const door = f.doors[i]; return door ? { door, index: i } : null; }
-    const unlinked = f.unlinked?.[i];
-    return unlinked ? { unlinked, index: i } : null;
-  }
+  _targetOf(kind: "x" | "d" | "u" | "f", i: number): TapTarget | null { return targetOf(this, kind, i); } // card-popup.ts
 
-  _deviceSubject(d: Device, name?: string): PopupSubject {
-    const friendly = this._hass?.states[d.entity]?.attributes?.friendly_name;
-    return {
-      key: `d:${d.entity || d.id}`, type: d.type, entity: d.entity || undefined, entities: moreInfoEntities(d),
-      ...(d.type === "light" && d.bound ? { lamp: d } : {}),
-      name: name || d.name || (typeof friendly === "string" && friendly) || d.entity || d.id,
-      powerEntity: d.power || (d.type === "plug" ? this._powerLinks()?.[d.entity] : undefined),
-    };
-  }
 
-  /** The popup's (and the tooltip's) subject for a tap target; null when there is nothing to say or do. */
-  _subjectOf(t: TapTarget): PopupSubject | null {
-    if ("device" in t) return this._deviceSubject(t.device);
-    if ("door" in t) {
-      const door = t.door, entities = entitiesOfDoor(door);
-      return door.cover || entities.length ? { key: `o:${door.id}`, name: door.name, type: "door", entities, ...(door.cover ? { door } : {}) } : null;
-    }
-    const u = t.unlinked, entities = entitiesOfDevice(u);
-    return { key: `u:${u.id}`, name: u.name ?? u.id, type: u.type, entities };
-  }
 
-  /** The one state line: the popup and the tooltip both print this. A door says its cover's state, else its first entity's. */
-  _subjectText(s: PopupSubject): string {
-    const states = this._hass?.states, e = s.door?.cover || (s.door ? s.entities[0] : s.entity);
-    if (!e) return "";
-    // S22.1: a lamp lit only by its relay reads as the plan draws it, and names what keeps it on.
-    const via = s.lamp ? relayText(s.lamp, states) : null;
-    if (via) return via;
-    // A car speaks for all its entities (tracker, charging, battery), not the main one alone: the same line as its chooser title.
-    if (s.type === "car" && s.entity) { const line = carText(carStatus({ entity: s.entity, attached: s.entities }, states)); if (line) return line; }
-    const w = s.powerEntity ? wattsOf(states?.[s.powerEntity]) : null;
-    return stateText(s.type, states?.[e], w === null ? undefined : `${Math.round(w * 10) / 10} W`, e, this._format);
-  }
 
 
 
@@ -2036,340 +1987,38 @@ export class FloorplanStudioCard extends LitElement {
     console.warn(`floorplan-studio-card: ${keys.join(" and ")} not supported, using the default. tap_action takes popup, more-info, toggle or none; hold_action takes more-info or none (docs/card.md).`);
   }
 
-  /** S33.4: the card-wide tap and hold actions for the device icons of the plan and the 3D view. Read afresh per press, so `setConfig` needs no rebind. */
-  _tapOpts() {
-    return {
-      tapAction: () => tapActionOf(this._config.tap_action).action,
-      holdAction: () => holdActionOf(this._config.hold_action).action,
-      toggle: (t: TapTarget, at: { x: number; y: number }, from: Element | null) => this._tapToggle(t, at, from),
-    };
-  }
+  _tapOpts() { return tapOpts(this); } // card-popup.ts
 
-  /** `tap_action: toggle`: the popup's button, pressed for the person, but only for a plain on/off. A lock, cover or siren (and any other domain) opens the popup instead. ON, and a light's OFF, act at once; any other OFF opens the popup at its Confirm step (S14.2 stands). No button (a sensor, a camera, no state) is the popup as ever. */
-  private _tapToggle(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
-    const s = this._subjectOf(t), op = s ? this._popupOp(s) : null;
-    if (!s || !op || !s.entity || s.door || dialogOpen(this)) { this._openPopup(t, at, from); return; }
-    if (op.confirm) {
-      this._openPopup(t, at, from);
-      if (this._popup?.s.key === s.key) { this._popup.confirming = true; this.requestUpdate(); }
-      return;
-    }
-    if (!TOGGLE_AT_ONCE.has(s.entity.split(".")[0] ?? "")) { this._openPopup(t, at, from); return; } // a lock, a cover, a siren: a stray tap must not act
-    this._hideTip();
-    this._closePopup();
-    this._runOp(s, op);
-  }
 
-  _openPopup(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
-    const s = this._subjectOf(t);
-    if (!s) return;
-    this._openSubject(s, at, from);
-    if (this._popup?.s === s) this._panTarget = "device" in t ? this._thingSel(t.piece ? "piece" : "device", t.index) : "door" in t ? this._thingSel("door", t.index) : `svg g[data-u="${t.index}"]`;
-  }
+  _openPopup(t: TapTarget, at: { x: number; y: number }, from: Element | null): void { return openPopup(this, t, at, from); } // card-popup.ts
 
-  /** The selector of a thing on the plan, as `_placePulse` finds it. */
-  _thingSel(what: ThingRef["what"], index: number): string {
-    return what === "device" ? `svg g[data-x="${index}"]` : what === "piece" ? `svg g[data-f="${index}"]` : `svg line[data-d="${index}"]`;
-  }
 
-  /** Opens the popup, swaps it for another subject's, or closes it when the same subject is tapped again. Nothing is operated here. */
-  _openSubject(s: PopupSubject, at: { x: number; y: number }, from: Element | null): void {
-    if (dialogOpen(this)) return;
-    this._hideTip();
-    if (this._popup?.s.key === s.key) { this._closePopup(); return; }
-    this._popup = { s, x: at.x, y: at.y, opener: from, confirming: false, draft: null };
-    sheetTo(this, "half"); // S31.8: on a phone the popup is the Device level
-    this.requestUpdate();
-  }
 
-  _closePopup(): void {
-    if (!this._popup) return;
-    this._popupReturn = this._popup.opener;
-    this._popup = null;
-    this.requestUpdate();
-  }
+  _closePopup(): void { return closePopup(this); } // card-popup.ts
 
   // ---- S25.5: spiderfy ----------------------------------------------------------------------------------------------
 
-  private _foldSpider(): void {
-    if (!this._spider) return;
-    this._spider = null;
-    this.requestUpdate();
-  }
 
-  /** The devices whose discs overlap device `i`'s on screen and are drawn at this detail level, `i` included; fewer than two when it stands alone. */
-  private _stackOf(i: number): number[] {
-    const f = this._floor(), fit = this._fit, v = this._current(), svg = this.shadowRoot?.querySelector("svg.fp-zoomable");
-    if (!f || !fit || !v || !svg || !(this._px > 0) || !(v.w > 0)) return [];
-    const unit = 1 / (this._px * (fit.w / v.w));
-    const ids: number[] = [], spots: Pt[] = [];
-    f.devices.forEach((d, j) => {
-      const g = svg.querySelector<SVGGElement>(`g[data-x="${j}"]`);
-      if (!g || getComputedStyle(g).display === "none") return; // not drawn: layer hidden, or idle at far
-      ids.push(j);
-      spots.push("a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y]);
-    });
-    const at = ids.indexOf(i);
-    if (at < 0) return [];
-    const group = stackGroups(spots, STACK_PX * unit).find((g) => g.includes(at)) ?? [];
-    // Overlaps chain, so a packed grid is one group of dozens and its ring would be wider than the card: the tapped device and its nearest neighbours.
-    const near = group.length > SPIDER_MAX ? [...group].sort((a, b) => Math.hypot(spots[a][0] - spots[at][0], spots[a][1] - spots[at][1]) - Math.hypot(spots[b][0] - spots[at][0], spots[b][1] - spots[at][1])).slice(0, SPIDER_MAX).sort((a, b) => a - b) : group;
-    return near.map((k) => ids[k]);
-  }
 
-  /** The tap of a device icon asks here first. A tap on a stack opens its ring and is handled; a tap on a ring member, or on a lone device, is not (it acts as ever). */
-  private _tapStack(i: number): boolean {
-    if (this._spider?.includes(i)) return false;
-    const members = this._stackOf(i);
-    if (members.length < 2) return false;
-    this._closePopup();
-    this._spider = members;
-    this._spiderFloor = this._floorKey();
-    this.requestUpdate();
-    return true;
-  }
 
-  /** The ring's spots for `renderFloor`, or none. The ring is a fixed size on screen (`spiderLayout`), kept inside the view. */
-  private _spiderSpots(f: Floor, fit: View, box: View, rotate: unknown): { i: number; at: Pt }[] | undefined {
-    if (this._spider && this._spiderFloor !== this._floorKey()) this._spider = null;
-    if (!this._spider || !(this._px > 0) || !(box.w > 0)) return undefined;
-    const ids = this._spider.filter((i) => i < f.devices.length);
-    const spots = ids.map((i) => { const d = f.devices[i]; return "a" in d ? ([(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] as Pt) : ([d.x, d.y] as Pt); });
-    // A turned plan is rotated after the drawing, so its view box is not in the drawing's frame: no clamp then.
-    const room = rotate ? { x: -1e9, y: -1e9, w: 2e9, h: 2e9 } : box;
-    const at = spiderLayout(spots, 1 / (this._px * (fit.w / box.w)), room);
-    return at.length ? ids.map((i, j) => ({ i, at: at[j] })) : undefined;
-  }
 
-  /** A press on the plan that is not on a member of the open ring folds it. Escape does the same (`_onViewKey`). */
-  private _bindSpider(svg: Element): () => void {
-    const onDown = (e: Event) => {
-      if (!this._spider) return;
-      const g = (e.target as Element | null)?.closest?.("g[data-x]");
-      if (g && this._spider.includes(Number(g.getAttribute("data-x")))) return;
-      this._foldSpider();
-    };
-    svg.addEventListener("pointerdown", onDown);
-    return () => svg.removeEventListener("pointerdown", onDown);
-  }
 
-  private _levelOf(kind: SliderKind, a: Record<string, unknown> | undefined): number | null {
-    const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-    if (kind === "b") { const b = n(a?.brightness); return b === null ? null : Math.max(1, Math.min(100, Math.round((b / 255) * 100))); }
-    if (kind === "s") { const v = n(a?.percentage); return v === null ? null : Math.max(0, Math.min(100, Math.round(v))); }
-    if (kind === "t") return n(a?.color_temp_kelvin);
-    const hs = a?.hs_color;
-    const h = Array.isArray(hs) ? n(hs[0]) : null;
-    return h === null ? null : Math.round(h);
-  }
 
-  _popupOp(s: PopupSubject): PopupOp | null {
-    if (s.door) return null;
-    return s.lamp ? lampOp(s.lamp, this._hass?.states) : popupOp(s.type, s.entity, this._hass?.states[s.entity ?? ""]?.state);
-  }
 
-  /** The popup's markup: floating at the end of the card, or (`inSheet`) as the bottom sheet's Device level. Each caller asks for its place and gets nothing from the other. */
-  _popupTemplate(inSheet = false) {
-    const p = this._popup;
-    if (!p || inSheet !== popupInSheet(this)) return null;
-    const s = p.s, st = this._hass?.states[s.entity ?? ""], op = this._popupOp(s);
-    const light = op !== null && s.entity?.startsWith("light.") && st?.state !== "off" ? true : op !== null && s.entity?.startsWith("light.");
-    const caps = light ? lightCaps(st?.attributes) : null;
-    const fan = op !== null && s.entity?.startsWith("fan.") ? fanCaps(st?.attributes) : null;
-    const level = (k: SliderKind) => {
-      const now = this._levelOf(k, st?.attributes);
-      return p.draft && p.draft.kind === k && p.draft.from === now ? p.draft.value : now;
-    };
-    return popupTemplate({
-      subject: s, text: this._subjectText(s), op, confirming: p.confirming, kiosk: this._kiosk(), caps, fan,
-      info: this._kiosk() || !(s.entity ?? s.entities[0]) ? [] : deviceInfo((s.entity ?? s.entities[0])!, { ...this._hass, states: this._stateForRender() }, this._format),
-      doorLabel: s.door?.cover ? (coverService(this, s.door) === "close_cover" ? t("Close") : t("Open")) : null,
-      level: { b: caps?.brightness ? level("b") : null, s: fan ? level("s") : null, t: caps?.temp ? level("t") : null, h: caps?.hue ? level("h") : null },
-      act: () => this._popupAct(),
-      cancel: () => { if (this._popup) { this._popup.confirming = false; this.requestUpdate(); } },
-      more: () => this._popupMore(),
-      key: (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); this._closePopup(); } },
-      slide: (kind, value, commit) => this._popupSlide(kind, value, commit),
-      inSheet,
-    });
-  }
 
-  /** The popup's one button. A cover door's opens the card's confirm dialog; a turn OFF (not a light's) first turns the button into its confirm; anything else is one service call. */
-  private _popupAct(): void {
-    const p = this._popup;
-    if (!p) return;
-    if (p.s.door?.cover) {
-      const door = p.s.door;
-      this._closePopup();
-      this._openCoverDialog(door);
-      return;
-    }
-    const op = this._popupOp(p.s);
-    if (!op || !p.s.entity) return;
-    if (op.confirm && !p.confirming) { p.confirming = true; this.requestUpdate(); return; }
-    this._runOp(p.s, op);
-    this._closePopup();
-  }
 
-  /** G11: the one way the card calls a service. Home Assistant rejects a call it cannot make (no such service, entity gone, no right to);
-   *  that is caught and shown in HA's own toast (`hass-notification`) instead of an unhandled rejection nobody sees. */
-  _call(domain: string, service: string, data?: Record<string, unknown>): void {
-    const call = this._hass?.callService;
-    if (!call) return;
-    const failed = (e: unknown) => {
-      const m = e && typeof e === "object" && typeof (e as { message?: unknown }).message === "string" ? (e as { message: string }).message : typeof e === "string" ? e : t("the call failed");
-      fireEvent(this, "hass-notification", { message: `${domain}.${service}: ${m}` });
-    };
-    try { Promise.resolve(call.call(this._hass, domain, service, data)).catch(failed); } catch (e) { failed(e); }
-  }
 
-  /** The one call (or the calls of a relay-lit lamp's Turn off) a popup button makes. */
-  _runOp(s: PopupSubject, op: PopupOp): void {
-    if (op.calls) for (const c of op.calls) this._call(c.domain, c.service, c.data);
-    else this._call(op.domain, op.service, { entity_id: s.entity });
-  }
 
-  private _popupMore(): void {
-    const p = this._popup;
-    if (!p) return;
-    this._closePopup();
-    if (p.s.entities.length > 1) this._openChooserDialog(p.s.name, p.s.entities);
-    else if (p.s.entities.length === 1) fireEvent(this, "hass-more-info", { entityId: p.s.entities[0]! });
-  }
 
-  /** A slider moving only changes the number shown; its release (`change`) is the one `light.turn_on` (a fan's speed: `fan.set_percentage`), so dragging never floods Home Assistant. */
-  private _popupSlide(kind: SliderKind, value: number, commit: boolean): void {
-    const p = this._popup, entity = p?.s.entity;
-    if (!p || !entity || !Number.isFinite(value)) return;
-    const a = this._hass?.states[entity]?.attributes;
-    p.draft = { kind, value, from: this._levelOf(kind, a) };
-    if (commit) {
-      if (kind === "s") {
-        this._call("fan", "set_percentage", { entity_id: entity, percentage: Math.max(0, Math.min(100, value)) });
-        this.requestUpdate();
-        return;
-      }
-      const hs = a?.hs_color, sat = Array.isArray(hs) && typeof hs[1] === "number" && Number.isFinite(hs[1]) ? hs[1] : 100;
-      const data = kind === "b" ? { brightness_pct: value } : kind === "t" ? { color_temp_kelvin: value } : { hs_color: [value, sat] };
-      this._call("light", "turn_on", { entity_id: entity, ...data });
-    }
-    this.requestUpdate();
-  }
 
-  /** After every render: the popup sits near where it was tapped, inside the card; focus goes to its button when it opens and back to what opened it when it closes. */
-  private _syncPopup(): void {
-    const key = this._popup?.s.key ?? null, el = this.shadowRoot?.querySelector<HTMLElement>(".fp-pop") ?? null;
-    if (this._popup && el && !popupInSheet(this)) {
-      const o = this._popup.opener;
-      placeNear(el, this, this._popup.x, this._popup.y, 14, o?.isConnected && o.matches(".fp-active-row, fp-search") ? this._besideRect(o) : null);
-    }
-    if (key === this._popupFocusKey) return;
-    this._popupFocusKey = key;
-    if (key && el) (el.querySelector<HTMLElement>(".fp-pop-do") ?? el.querySelector<HTMLElement>(".fp-pop-more"))?.focus({ preventScroll: true });
-    else if (!key) {
-      if (dialogOpen(this)) { this._popupReturn = null; return; } // the dialog took focus; it hands it back itself
-      const back = this._popupReturn as HTMLElement | null;
-      this._popupReturn = null;
-      (back?.isConnected ? back : this).focus({ preventScroll: true });
-    }
-  }
 
-  /** Where a popup opened from the sheet stands beside: the opener's height, the sheet's sides, so it clears the sheet's
-   *  border and padding as well as the row or the search box (S24.8). */
-  private _besideRect(o: Element): DOMRect {
-    const r = o.getBoundingClientRect(), sheet = o.closest(".fp-active")?.getBoundingClientRect();
-    return sheet ? new DOMRect(sheet.left, r.top, sheet.width, r.height) : r;
-  }
 
-  /** Hover on the plan (mouse only; a finger has the popup). The tooltip follows the pointer over an icon, a door or an appliance and goes when it leaves, is pressed or the page scrolls. */
-  private _bindHover(svg: Element): () => void {
-    const move = (e: Event) => {
-      const pe = e as PointerEvent;
-      if (pe.pointerType !== "mouse" || pe.buttons || this._popup) { this._hideTip(); return; }
-      const el = (pe.target as Element | null)?.closest?.(THINGS);
-      const kind = el ? thingKind(el) : "u";
-      const t = el ? this._targetOf(kind, Number(el.getAttribute(`data-${kind}`))) : null;
-      if (t && el) this._showTip(t, pe.clientX, pe.clientY, el);
-      else this._hideTip();
-    };
-    const hide = () => this._hideTip();
-    svg.addEventListener("pointermove", move);
-    svg.addEventListener("pointerleave", hide);
-    svg.addEventListener("pointerdown", hide);
-    return () => {
-      svg.removeEventListener("pointermove", move);
-      svg.removeEventListener("pointerleave", hide);
-      svg.removeEventListener("pointerdown", hide);
-      this._hideTip();
-    };
-  }
 
-  /** Shows (or moves) the tooltip for `t` at the client point (x, y). The text is worked out when the target changes, not on every move. `el` is the plan's element, which gets `aria-describedby`. */
-  _showTip(t: TapTarget, x: number, y: number, el: Element | null): void {
-    const tip = this.shadowRoot?.querySelector<HTMLElement>(".fp-tip");
-    const s = tip ? this._subjectOf(t) : null;
-    if (!tip || !s) { this._hideTip(); return; }
-    if (s.key !== this._tipKey) {
-      this._hideTip();
-      (tip.firstElementChild as HTMLElement).textContent = s.name;
-      (tip.lastElementChild as HTMLElement).textContent = this._subjectText(s);
-      tip.hidden = false;
-      this._tipKey = s.key;
-      this._tipTarget = t;
-      this._tipHost = this.getBoundingClientRect();
-      if (el) {
-        const kind = thingKind(el);
-        this._tipSel = `[data-${kind}="${el.getAttribute(`data-${kind}`)}"]`;
-        this._holdTipEl(el);
-      }
-    }
-    this._tipAt = el || this._tipSel ? { x, y } : null;
-    const h = this._tipHost!, w = tip.offsetWidth, ht = tip.offsetHeight;
-    const left = Math.max(4, Math.min(h.width - w - 4, x - h.left + 12));
-    const below = y - h.top + 18;
-    tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(below + ht > h.height - 4 ? Math.max(4, y - h.top - ht - 10) : below)}px)`;
-  }
+  _showTip(t: TapTarget, x: number, y: number, el: Element | null): void { return showTip(this, t, x, y, el); } // card-popup.ts
 
-  /** The plan's element under the tooltip: it points at the tooltip and its own `<title>` is held back, so the browser's tooltip does not sit under ours. */
-  private _holdTipEl(el: Element): void {
-    el.setAttribute("aria-describedby", "fp-tip");
-    const title = el.querySelector(":scope > title");
-    if (title) { el.removeChild(title); this._tipTitle = { el, title }; }
-    this._tipEl = el;
-  }
 
-  /** After every render: a state change while the tooltip is up rewrites its text, and the plan's elements, drawn again by that render, get the same treatment as the first (the new `<title>` out, `aria-describedby` on). The subject gone from the plan hides it. */
-  private _syncTip(): void {
-    const tip = this.shadowRoot?.querySelector<HTMLElement>(".fp-tip");
-    if (this._tipKey === null || !tip) return;
-    const s = this._tipTarget ? this._subjectOf(this._tipTarget) : null;
-    if (!s || s.key !== this._tipKey) { this._hideTip(); return; }
-    (tip.firstElementChild as HTMLElement).textContent = s.name;
-    (tip.lastElementChild as HTMLElement).textContent = this._subjectText(s);
-    if (this._tipSel) {
-      const el = this.shadowRoot?.querySelector(`svg ${this._tipSel}`) ?? null;
-      if (!el) { this._hideTip(); return; }
-      if (el !== this._tipEl) { this._tipTitle = null; this._holdTipEl(el); } // the old element and its title are gone with the old drawing
-      // A zoom or a turn moves the icon from under a pointer that did not move, and no pointermove follows: a tooltip names what is under the pointer.
-      const at = this._tipAt, top = at ? this.shadowRoot?.elementFromPoint(at.x, at.y)?.closest(THINGS) ?? null : el;
-      if (top !== el) { this._hideTip(); return; }
-    }
-  }
 
-  _hideTip = (): void => {
-    if (this._tipKey === null) return;
-    this._tipKey = null;
-    this._tipTarget = null;
-    this._tipSel = null;
-    this._tipAt = null;
-    const tip = this.shadowRoot?.querySelector<HTMLElement>(".fp-tip");
-    if (tip) tip.hidden = true;
-    this._tipEl?.removeAttribute("aria-describedby");
-    this._tipEl = null;
-    const t = this._tipTitle;
-    this._tipTitle = null;
-    if (t?.el.isConnected && !t.el.querySelector(":scope > title")) t.el.prepend(t.title);
-  };
+  _hideTip = (): void => hideTip(this); // card-popup.ts
 
 
 
@@ -2598,7 +2247,7 @@ export class FloorplanStudioCard extends LitElement {
       attention: attentionOf(this) ? { floor: this._floorKey()!, result: attentionOf(this)! } : undefined, // the Overview's own result, with the registry
       detail: detailFor(fit, box, this._detailMode(), this._iconsOn ? Infinity : 0), // S25.2: the level for this zoom and mode; S37.6/S38.7: auto draws icons at fit from a plan 420 px wide, dots under 380, the last level between
       ghost: this._ghost(), // S27.13: the floor below, as faint lines at its place in the house
-      spider: this._spiderSpots(f, fit, box, rotate), // S25.5: a fanned stack, or nothing
+      spider: spiderSpots(this, f, fit, box, rotate), // S25.5: a fanned stack, or nothing
       keep: keptHere(this),
       heat: this._heatKind(), // S34.8: rooms with a reading of that kind are filled by it; `off` draws the plan as before
       camThumb: this._camOpts(), // S16.3: a picture beside each camera icon; off asks for none
@@ -2614,7 +2263,7 @@ export class FloorplanStudioCard extends LitElement {
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? optionsMenu(this) : null;
     const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
-    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${this._popupTemplate()}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
@@ -2719,7 +2368,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** S23.2: screen px per plan unit at fit (see `_measurePx`); 0 until known. */
-  private _px = 0;
+  _px = 0;
   /** S23 review S3: plan units at the right of the fit box that the control stack covers (see `_measurePx`); 0 for none. */
   private _strip = 0;
 
