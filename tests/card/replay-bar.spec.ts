@@ -308,6 +308,58 @@ test.describe("S39.3 one draw path for the past", () => {
   });
 });
 
+test.describe("Opus review B1: nothing acts or opens while replaying, whatever the path (with the Overview on)", () => {
+  // Every test above uses active_list: false, so none of these paths was ever reached. The kitchen lamp is on in the replayed past (08:00 to 10:00)
+  // and off live, so the replayed rows offer Turn off / Lights off and a service call would be a real act on the present.
+  const live = { "light.demo_kitchen": st("off") };
+  const CFG = { active_list: true, favourites: ["light.demo_kitchen"] };
+  const noPopup = (page: Page) => expect(card(page).locator("css=.fp-pop")).toHaveCount(0);
+
+  test("the room's Lights off, a favourite's button and an Active row's tap call no service and open no popup; the bar says Replaying", async ({ page }) => {
+    await boot(page, { config: CFG, live });
+    await openBar(page);
+    await to(page, 9);
+    await expect(g(page, lampIdx)).toHaveClass(/\bon\b/);
+    // The favourite's own button must do nothing (its label is another matter: subjectOp reads the live state).
+    await card(page).locator('css=.fp-ov-fav .fp-fav-row[data-entity="light.demo_kitchen"] .fp-fav-act').click();
+    await expect(msg(page)).toHaveText("Replaying");
+    // The Active row of the same lamp (the replayed state lists it): a tap goes to the thing, and must not.
+    await card(page).locator('css=.fp-ov-act .fp-active-row[data-entity="light.demo_kitchen"]').click();
+    await noPopup(page);
+    // A real click on the Kitchen room, then its Lights off.
+    await card(page).locator("css=svg text[data-rl='1']").click(); // the room's own name picks it (tapRoom)
+    const off = card(page).locator("css=.fp-room .fp-alloff");
+    await expect(off).toHaveCount(1); // its rows come from the replayed states
+    await page.evaluate(() => { (document.querySelector("floorplan-studio-card") as unknown as { _replay: { note: boolean } })._replay.note = false; });
+    await off.click();
+    await expect(msg(page)).toHaveText("Replaying");
+    await noPopup(page);
+    expect(await calls(page)).toEqual([]);
+    // Live gives the acts back: the same button now calls the service (the control: the paths above were reachable).
+    await card(page).locator("css=button.fp-rp-live").click();
+    await update(page, { "light.demo_kitchen": st("on") });
+    await off.click();
+    expect(await calls(page)).toEqual(["light.turn_off light.demo_kitchen"]);
+  });
+
+  test("Enter on a device the keys have focused opens nothing while replaying, and opens the popup live", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live });
+    const tabIn = async () => { await card(page).locator("css=button[aria-label='View options']").focus(); await page.keyboard.press("Tab"); await expect(card(page).locator("css=.fp-focus")).toBeVisible(); };
+    await tabIn();
+    await page.keyboard.press("Enter");
+    await expect(card(page).locator("css=.fp-pop")).toHaveCount(1); // live: it opens, so the key does reach the device
+    await page.keyboard.press("Escape");
+    await expect(card(page).locator("css=.fp-pop")).toHaveCount(0);
+    await openBar(page);
+    await to(page, 9);
+    await tabIn();
+    await page.keyboard.press("Enter");
+    await noPopup(page);
+    await expect(msg(page)).toHaveText("Replaying");
+    expect(await calls(page)).toEqual([]);
+  });
+});
+
 test.describe("S39.2 play and keys", () => {
   test("criterion 10: play from the end restarts at the start, 60 s of play cover 24 h, few draws, one draw per minute, and it stops at the end", async ({ page }) => {
     await boot(page, { clock: "install" });

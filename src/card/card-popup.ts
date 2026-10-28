@@ -94,6 +94,7 @@ export function thingSel(c: FloorplanStudioCard, what: ThingRef["what"], index: 
 
 /** Opens the popup, swaps it for another subject's, or closes it when the same subject is tapped again. Nothing is operated here. */
 export function openSubject(c: FloorplanStudioCard, s: PopupSubject, at: { x: number; y: number }, from: Element | null): void {
+  if (c._replay) { c._replayGuard().onReplay(); return; } // S39 review B1: the popup's button would act on the present
   if (dialogOpen(c)) return;
   hideTip(c);
   if (c._popup?.s.key === s.key) { closePopup(c); return; }
@@ -232,6 +233,7 @@ export function popupAct(c: FloorplanStudioCard): void {
 /** G11: the one way the card calls a service. Home Assistant rejects a call it cannot make (no such service, entity gone, no right to);
  *  that is caught and shown in HA's own toast (`hass-notification`) instead of an unhandled rejection nobody sees. */
 export function callService(c: FloorplanStudioCard, domain: string, service: string, data?: Record<string, unknown>): void {
+  if (c._replay) { c._replayGuard().onReplay(); return; } // S39 review B1: nothing acts from the past, whichever button got here
   const call = c._hass?.callService;
   if (!call) return;
   const failed = (e: unknown) => {
