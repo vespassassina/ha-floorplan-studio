@@ -4644,4 +4644,61 @@ From the review's plan B. Diego took the defaults on 2026-10-25 (`docs/DECISIONS
   - The plan's measured size reads width only near the 400 px bound (ghost-floor clearance can move it), and has no hysteresis.
   - The raw-English lint covers 5 files, and misses the SVG `<title>` type names in `src/core/render.ts`.
   - Two HA areas with the same name give equal `catalog.room` values.
-- Later (plan C): vacuum position and trail; sun on the 3D house; a 24 h history replay.
+- Later (plan C): vacuum position and trail; a 24 h history replay. The sun and the four nits above: Sprint 38.
+
+## Sprint 38: Release 0.37.0, the sun, a performance budget, the S37 nits
+
+Branch `task/s38-sun`. Diego, 2026-10-27: "Plan Sprint 38: sun on the 3D house, the performance budget test, and the
+four S37 nits." His answers: sun direction, low-sun warmth and sun patches through the windows; no new config key; the
+budget on the 2D update of the stress house, 3D checked by hand; the nits fixed as proposed. Spec:
+`docs/specs/sun-s38.md` (criteria 1 to 13). Decisions: `docs/DECISIONS.md`, 2026-10-27.
+
+The card file is 124,495 gz against a cap of 124,650 (155 bytes). S38.2, S38.6, S38.7 and S38.8 each add card bytes, so
+S38.0 makes room first. Every lane reports `gzip -9` of the card and the chunks before and after. No lane raises the cap.
+
+Lanes, each in its own worktree and `PW_PORT`: **room** S38.0, then **card** S38.2, S38.6, S38.7, S38.8 (one coder,
+in order, since all touch the card file); **sun** S38.1, S38.3, S38.4 (starts at once, the chunk only; S38.3 joins
+S38.2 at integration); **perf** S38.5; **areas** S38.9.
+
+- [x] S38.0 Room in the card (2026-10-27: card 124,495 -> 119,214 gzip -9, 5,281 B of room under the 124,650 cap; the form is `floorplan-studio-form-<hash>.js`, 24,828 gz, a bundle of its own beside the card; `tests/card/size-budget.spec.ts` caps it at 26,000; the release zip checks for exactly one). The card form (`src/card/config-editor.ts`, imported statically today) becomes a lazy
+      chunk, loaded by `static async getConfigElement()`. HA awaits that call; copy the shape from the HA frontend
+      source and say where in the test (finding 21). The release zip check counts the new chunk as it counts the 3D
+      one. No behaviour change: `tests/card/config-editor.spec.ts` and the full suite are the test, plus one new test
+      that the card file no longer holds the form's element name. Report gz before and after.
+- [x] S38.1 (2026-10-27) `sunDir(azimuth, elevation, north)` in `src/card/three/sun.ts` (S15.3b, moved from core to the chunk so the
+      card does not carry it). Spec criterion 1.
+- [x] S38.2 (2026-10-27) The card hands the sun to 3D: `azimuth` and `elevation` of the `sun` entity (config `sun`, default
+      `sun.sun`) go into `setLive`, or nothing. Day only, as `_night()` decides. Spec criterion 2.
+- [x] S38.3 (2026-10-27) The 3D sun light follows `sunDir`: direction, strength by elevation, warmth under 15°; no sun is today's
+      light, pixel for pixel. Spec criteria 3 to 7.
+- [x] S38.4 (2026-10-27) Sun patches through windows that face the sun, clipped to the room, at most 24, built only when the floor,
+      the theme or the sun moves. Spec criteria 8 to 13. Shots looked at in three themes, the patches at 4x.
+- [x] S38.5 Performance budget (review item 18). In `tests/card/plan-incremental.spec.ts`, the 400-device case and the
+      stress house (`tests/fixtures/stress-layout.json`, 3 floors, 437 devices) on its largest floor: one sensor update,
+      all lights on, all off, each the median of 5 runs, under a fixed budget in ms. Today, on Diego's Mac: one change
+      23.2 ms, all on 40.4 ms, all off 27.8 ms (2026-10-27). The coder measures a forced full render too, and sets each
+      budget between the two, with CI headroom, so the test fails with S25.6's incremental path reverted (revert it once
+      and show the failure). If CI cannot tell the two apart, stop and report. `docs/WORKFLOW.md`, Release: the release
+      report asks Diego for one 3D number from his tablet (time to first frame), and it goes in the CHANGELOG.
+      Done 2026-10-27, changed from the plan: the incremental and the full render cost the same (renderFloor's markup
+      dominates), so time cannot pin S25.6. ms, median of 5, Diego's Mac, incremental / full. 400 devices: one 19.0 / 23.4,
+      all on 36.4 / 35.1, all off 25.8 / 24.0. Stress ground (182 devices): one 17.1 / 18.3, all on 21.1 / 21.1, all off
+      19.3 / 19.0. Time is a ceiling at about 5x (400: 100 / 200 / 130; stress: 90 / 110 / 100). S25.6 is pinned by the
+      root untouched, the same device node, and a write ceiling (2461 nodes -> 2710; stress 421 -> 465). See DECISIONS.
+- [x] S38.6 (2026-10-27) Nit: a stored error is translated when it is drawn. The card stores the key and its values
+      (`{ key, vars }`), not the text. Test: an error set in English, then `hass.language` to `de`, shows German without
+      a new error.
+- [x] S38.7 (2026-10-28) Nit: hysteresis on the icons-or-dots bound. Icons from a plan 420 px wide, dots under 380, the last level
+      kept in between. The S37.6 straddle test (380/420 boxes) still sees one switch per resize; a new one at 400 sees
+      none in either direction. Built with dots at a plan of 380 and under (a 380 px box makes a 380 px plan, and the
+      straddle test needs it to read dots).
+- [x] S38.8 (2026-10-28) Nit: the `<title>` type names in `src/core/render.ts` are translated in the card. `renderFloor` takes an
+      optional `tr` function; the card passes `t`, the Studio passes nothing and stays English. The raw-English lint
+      covers `render.ts`. Test: a German card's device `<title>` reads the German type name; a payload `"><script>` in a
+      name is still escaped (finding 2). Only the type name is translated; the rest of a title is a name from the layout,
+      a number and a unit. English (the card in English, and the Studio) keeps the type id, so no title text changed.
+- [x] S38.9 (2026-10-27) Nit: two HA areas with the same name. `layoutFromAreas` names the second room "Office 2", the third
+      "Office 3", so `catalog.room` values differ. Unit test with three areas named "Office" and one blank.
+- [ ] S38.10 Integrate on `task/s38-sun`, full suite, shots, Opus review, release 0.37.0 after Diego's yes.
+
+Not in this sprint: the 2D sun wedge (S15.3d); the card file split beyond the form (review item 15); CI shards.

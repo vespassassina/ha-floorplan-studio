@@ -123,3 +123,34 @@ test("the card does not carry the language chunks: a word of each is only in its
 test("a language chunk imports nothing: it is data", () => {
   for (const f of langChunks()) expect(readFileSync(`dist/${f}`, "utf8"), f).not.toMatch(/\bfrom\s*["'][^"']+["']|\bimport\s*\(/);
 });
+
+// S38.0 (docs/DECISIONS.md, 2026-10-27): the Edit-card form is a chunk of its own (floorplan-studio-form-<hash>.js), fetched by import()
+// from getConfigElement(). Home Assistant loads the form only when someone edits the card, so no viewer pays for it in the card file.
+const FORM_CHUNK_LIMIT = 26000; // gzip; 24.8 KB when written (the form is a bundle of its own: it carries its copy of lit and of the validator), with room for the fields that follow
+const formChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-form-.+\.js$/.test(f));
+
+test("the card file does not hold the Edit-card form: its element name and a label of its markup are only in the form chunk", () => {
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  // The card names the tag once, to create the element after the import. It does not define it: the definition (the class, its
+  // markup and the define call) is the form's.
+  expect(card.split("floorplan-studio-card-editor")).toHaveLength(2);
+  expect(card).toContain('createElement("floorplan-studio-card-editor")');
+  expect(card).not.toContain("Switcher shows"); // a label only the form draws
+  expect(card).not.toContain("config-changed"); // the event only the form fires
+  expect(formChunks()).toHaveLength(1);
+  const form = readFileSync(`dist/${formChunks()[0]}`, "utf8");
+  expect(form).toContain("floorplan-studio-card-editor");
+  expect(form).toContain("Switcher shows");
+  // Named by a relative path, so it loads from /hacsfiles/... or /floorplan_studio_static/... as the language chunks do. It is a file of its
+  // own, not a rollup chunk of the card (that would import the card's code back from a hoisted third file).
+  expect(card).toMatch(/"\.\/floorplan-studio-form-[\w-]+\.js"/);
+  expect(form).not.toMatch(/\bfrom\s*["'][^"']*floorplan-studio-(card|3d)/);
+});
+
+test(`the form chunk is at most ${FORM_CHUNK_LIMIT} bytes gzipped, and it is not counted as the 3D chunk`, () => {
+  const [f] = formChunks();
+  expect(f, "there is a form chunk").toBeTruthy();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(FORM_CHUNK_LIMIT);
+  expect(readdirSync("dist").filter((n) => /^floorplan-studio-3d-.*\.js$/.test(n))).toHaveLength(1);
+});

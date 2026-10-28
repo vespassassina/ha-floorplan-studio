@@ -6,6 +6,21 @@ import { EditorState, emptyLayout } from "./state";
 export const AREA_ROOM_CM = 400;
 
 /**
+ * S38.9: two areas may share a name, but the rooms must be told apart (`catalog.room` is the room's name). The first keeps
+ * it, the next become "Office 2", "Office 3". Case-insensitive, as the renderer matches room names (`render.ts`). A real
+ * area named "Office 2" is never renamed and a generated name never takes it: the next free number is used.
+ */
+function uniqueRoomNames(names: string[]): string[] {
+  const key = (n: string) => n.toLowerCase(), real = new Set(names.map(key)), used = new Set<string>();
+  return names.map((name) => {
+    let out = name;
+    for (let n = 2; used.has(key(out)) || (out !== name && real.has(key(out))); n++) out = `${name} ${n}`;
+    used.add(key(out));
+    return out;
+  });
+}
+
+/**
  * S37.2: a first plan from Home Assistant's areas. One AREA_ROOM_CM square per area that has something the plan can draw,
  * on a grid that wraps (as square as it can be, areas by name), a wall on every edge once, linked to the area by its id the way
  * a drawn room is. Each room gets the entities Place would give it (`placeableDevicesInArea`, so one icon per HA device,
@@ -28,6 +43,7 @@ export function layoutFromAreas(ha: HaData | undefined): Layout | null {
   const blank = emptyLayout();
   const drawn = areas.filter((a) => placeableDevicesInArea(blank, ha, a.id).length > 0);
   if (!drawn.length) return null;
+  const names = uniqueRoomNames(drawn.map((a) => a.name));
 
   const cols = Math.ceil(Math.sqrt(drawn.length)), rows = Math.ceil(drawn.length / cols), S = AREA_ROOM_CM;
   const layout = emptyLayout();
@@ -47,7 +63,7 @@ export function layoutFromAreas(ha: HaData | undefined): Layout | null {
     const pts: Pt[] = [[x, y], [x + S, y], [x + S, y + S], [x, y + S]];
     const across = [at(c, r - 1), at(c + 1, r), at(c, r + 1), at(c - 1, r)]; // the cell over each edge: top, right, bottom, left
     const wk = across.map((j): EdgeKind => (j < 0 ? "external" : j > i ? "wall" : "none"));
-    return { id: `room-ground-${i + 1}`, name: a.name, area: a.id, kind: "room", pts, wk };
+    return { id: `room-ground-${i + 1}`, name: names[i], area: a.id, kind: "room", pts, wk };
   });
 
   // Place's own spreading, on a scratch state that knows HA, one room at a time.

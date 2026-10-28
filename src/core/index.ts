@@ -7,7 +7,7 @@ export type { HaData } from "./ha";
 export { addCandidates, areaChoices, areaMenuEntities, AREA_NOISE_TYPES, AREA_PLACEABLE_TYPES, areaMove, availableEntities, entitiesForType, furnitureForEntity, furnitureForType, haFloorIdsForPlanFloor, mainEntitiesByDevice, mainEntity, placeableDevicesInArea, placeableInArea, roomHaBox, switchChoicesForLight, typeForEntity, unplacedDevicesInArea, unplacedHaEntities } from "./ha";
 export type { AddCandidate, HaBox, HaBoxRow, SwitchChoice } from "./ha";
 export * from "./geometry";
-export { DETAIL_LABELS, DETAIL_MODES, DETAIL_MID_FROM, DETAIL_NEAR_FROM, ICONS_MIN_PLAN_PX, detailFor, detailLevel, parseDetailMode } from "./detail";
+export { DETAIL_LABELS, DETAIL_MODES, DETAIL_MID_FROM, DETAIL_NEAR_FROM, ICONS_MIN_PLAN_PX, ICONS_ON_PLAN_PX, ICONS_OFF_PLAN_PX, iconsHold, detailFor, detailLevel, parseDetailMode } from "./detail";
 export type { DetailLevel, DetailMode } from "./detail";
 export { SPIDER_GAP_PX, SPIDER_MAX, SPIDER_MIN_R_PX, STACK_PX, spiderLayout, stackGroups } from "./spider";
 export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS } from "./icons";

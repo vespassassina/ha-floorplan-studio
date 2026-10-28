@@ -153,7 +153,9 @@ transient git write error.
    2. Wait until `update.floorplan_studio_update` shows the new version.
    3. Install it, restart Home Assistant, and read the installed version back.
    4. Then retest the case Diego reported.
-8. If Home Assistant cannot be reached, say so and hand Diego the two steps.
+8. Ask Diego for one 3D number from his wall tablet: the time to first frame of the 3D view.
+   Put it in the CHANGELOG entry for the release. CI cannot time 3D, so this is the only check.
+9. If Home Assistant cannot be reached, say so and hand Diego the two steps.
    Never sign in for him.
 
 ## At the end of a sprint

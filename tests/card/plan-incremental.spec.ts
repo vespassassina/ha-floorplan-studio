@@ -53,6 +53,37 @@ async function update(page: Page, states: Record<string, unknown>) {
   }, states);
 }
 
+/** Set `hass` and return only the time until the card has rendered it. No observer: it would add to what is measured. */
+async function timeUpdate(page: Page, states: Record<string, unknown>) {
+  return page.evaluate(async (states) => {
+    const el = document.getElementById("card") as unknown as HTMLElement & { hass: unknown; updateComplete: Promise<unknown> };
+    const t0 = performance.now();
+    el.hass = { states, callService: () => {} };
+    await el.updateComplete;
+    el.shadowRoot!.querySelector("svg")!.getBoundingClientRect(); // forces style and layout, where replaced nodes cost more
+    return performance.now() - t0;
+  }, states);
+}
+const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
+/** Median of 5 runs of each step, every run a real change: the two states alternate. */
+async function measure(page: Page, one: [Record<string, unknown>, Record<string, unknown>], allOn: Record<string, unknown>, allOff: Record<string, unknown>) {
+  const o: number[] = [], on: number[] = [], off: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    o.push(await timeUpdate(page, one[i % 2]!));
+    on.push(await timeUpdate(page, allOn));
+    off.push(await timeUpdate(page, allOff));
+  }
+  return { one: median(o), on: median(on), off: median(off) };
+}
+// NODE WRITES in an "all on" update, counted by a MutationObserver (2026-10-27): 400 devices 2461, stress ground 421.
+const WRITES = { big: 2710, stress: 465 };
+// S38.5 time ceiling, ms per step, median of 5, built Chromium, about 5x today's incremental time on Diego's Mac (2026-10-27):
+//   400 devices    incremental one 19.0 / on 36.4 / off 25.8    full render one 23.4 / on 35.1 / off 24.0
+//   stress ground  incremental one 17.1 / on 21.1 / off 19.3    full render one 18.3 / on 21.1 / off 19.0
+// The full render (the plan replaced, S25.6 off) costs the same: renderFloor's markup dominates. So time cannot pin S25.6; it is a
+// ceiling against a renderFloor slowdown, wide for CI (2-3x slower). The node identity and write ceilings above pin S25.6.
+const BUDGET = { big: { one: 100, on: 200, off: 130 }, stress: { one: 90, on: 110, off: 100 } };
+
 test.describe("S25.6 incremental render, demo", () => {
   test("one lamp changing writes its own group and its dependents, nothing else", async ({ page }) => {
     await boot(page, structuredClone(demo), "ground", STATES());
@@ -106,8 +137,47 @@ test.describe("S25.6 incremental render, 400 devices", () => {
     const none = await update(page, { ...states([5]), "sensor.elsewhere": st("1") });
     expect(none.seen).toEqual([]);
     const all = await update(page, states([], "on"));
+    // S38.5: a replaced plan is one record on the root <svg>, so the root check pins S25.6; the ceiling guards over-writing (DECISIONS 2026-10-27).
+    expect(all.seen.some((s) => s.tag.toLowerCase() === "svg"), "all on: the plan's root is not rewritten").toBe(false);
+    expect(all.seen.length, "nodes written by all 400 on").toBeLessThan(WRITES.big);
     const back = await update(page, states([], "off"));
     info.annotations.push({ type: "timing", description: `400 devices: one change ${one.ms.toFixed(1)} ms (${one.seen.length} nodes), all 400 on ${all.ms.toFixed(1)} ms (${all.seen.length} nodes), all off ${back.ms.toFixed(1)} ms` });
     console.log(`TIMING 400 devices: one change ${one.ms.toFixed(1)} ms (${one.seen.length} nodes), all 400 on ${all.ms.toFixed(1)} ms (${all.seen.length} nodes), all off ${back.ms.toFixed(1)} ms`);
+  });
+  test("budget: 400 devices, one change, all on, all off", async ({ page }) => {
+    await boot(page, big(), key, states());
+    const m = await measure(page, [states([5]), states()], states([], "on"), states([], "off"));
+    console.log(`BUDGET 400 devices: one ${m.one.toFixed(1)}, on ${m.on.toFixed(1)}, off ${m.off.toFixed(1)} ms`);
+    expect(m.one, "one change").toBeLessThan(BUDGET.big.one);
+    expect(m.on, "all on").toBeLessThan(BUDGET.big.on);
+    expect(m.off, "all off").toBeLessThan(BUDGET.big.off);
+  });
+});
+
+test.describe("S38.5 performance budget, stress house", () => {
+  const floor = "ground"; // the largest of its three floors: 182 of 437 devices
+  const devs = stress.floors[floor].devices as { type: string; entity: string }[];
+  const sensor = devs.find((d) => d.type === "temp")!.entity;
+  const states = (opts: { lights?: string; temp?: string } = {}) =>
+    Object.fromEntries(devs.map((d) => [d.entity, st(d.type === "light" ? (opts.lights ?? "off") : d.entity === sensor ? (opts.temp ?? "20") : "off", { friendly_name: d.entity })]));
+  test("all lights on writes only what changed", async ({ page }) => {
+    await boot(page, structuredClone(stress), floor, states());
+    await page.evaluate(() => { (window as unknown as { __g1: Element }).__g1 = document.getElementById("card")!.shadowRoot!.querySelector('svg g[data-x="1"]')!; });
+    const { seen } = await update(page, states({ lights: "on" }));
+    console.log(`WRITES stress ground: all lights on ${seen.length} nodes`);
+    // A replaced plan shows as one record on the root <svg> (fewer than the patch writes), so the ceiling alone cannot see it:
+    // the root untouched and the same device node are what pin S25.6 here.
+    expect(seen.some((s) => s.tag.toLowerCase() === "svg"), "the plan's root is not rewritten").toBe(false);
+    expect(await page.evaluate(() => (window as unknown as { __g1: Element }).__g1 === document.getElementById("card")!.shadowRoot!.querySelector('svg g[data-x="1"]')), "device 1 is the same node").toBe(true);
+    expect(seen.length, "nodes written by all lights on").toBeLessThan(WRITES.stress);
+  });
+  test("one sensor, all lights on, all lights off", async ({ page }) => {
+    await boot(page, structuredClone(stress), floor, states());
+    expect(await page.evaluate(() => document.getElementById("card")!.shadowRoot!.querySelectorAll("svg g[data-x]").length)).toBeGreaterThanOrEqual(150);
+    const m = await measure(page, [states({ temp: "21" }), states()], states({ lights: "on" }), states());
+    console.log(`BUDGET stress ground: one ${m.one.toFixed(1)}, on ${m.on.toFixed(1)}, off ${m.off.toFixed(1)} ms`);
+    expect(m.one, "one sensor").toBeLessThan(BUDGET.stress.one);
+    expect(m.on, "all lights on").toBeLessThan(BUDGET.stress.on);
+    expect(m.off, "all lights off").toBeLessThan(BUDGET.stress.off);
   });
 });

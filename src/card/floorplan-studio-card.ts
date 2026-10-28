@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { layerWord, carStatus, carText, ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, ICONS_MIN_PLAN_PX, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorPlace, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, roomHeat, HEAT_KINDS, CAM_POS, CAM_SIZES, ThumbFeed, camThumbOf, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { layerWord, carStatus, carText, ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, iconsHold, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, roomHeat, HEAT_KINDS, CAM_POS, CAM_SIZES, ThumbFeed, camThumbOf, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { CamPos, CamSize, CamThumb, HeatKind, LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout, SavedView } from "../core";
@@ -12,16 +12,12 @@ import { fanCaps, lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
 import { TOUCH_CSS } from "./touch-css";
 import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
-// S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
-// one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
-// second built file (PLAN block interface).
-import "./config-editor";
 import { defineElement } from "./define";
 import { strategyElement } from "./strategy";
 import { CARD_VERSION } from "./version";
-import { INSTALL_HINT, NOTHING_SAVED, STALE_PAGE, loadErrorText, loadShared, pageIsStale, type Conn } from "./load";
+import { INSTALL_HINT, NOTHING_SAVED, PLAN_UNUSABLE, STALE_PAGE, NO_ANSWER, loadErrorText, loadShared, pageIsStale, type Conn, type StoredError } from "./load";
 import { mark, t, tn } from "../core/i18n";
-import { useLanguage } from "./i18n";
+import { currentLanguage, useLanguage } from "./i18n";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { PAN_STEP, isSearchChord, planKeyFor, type ViewKey } from "./view-keys";
 import { firstFocus, nextInDirection, type FocusDir } from "./plan-focus";
@@ -35,7 +31,13 @@ import type { View3D } from "./three/view3d";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
 import { BELOW_LABELS, BELOW_MODES, HEAT_LABELS, belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
 
-const NO_LAYOUT = INSTALL_HINT;
+const NO_LAYOUT: StoredError = { key: INSTALL_HINT };
+
+declare const __FP_FORM_FILE__: string | undefined;
+/** S38.0: the built form's file beside the card, `./floorplan-studio-form-<hash>.js`, compiled in by vite.config.ts. Empty in the dev server and in
+ * vitest, where the form is imported from source. */
+const FORM_FILE: string = typeof __FP_FORM_FILE__ === "string" ? __FP_FORM_FILE__ : "";
+let formFails = 0;
 
 /** What the card needs of `hass`. Home Assistant's real object has far more; this is only what the card reads. */
 export interface HassEntity { state: string; attributes: Record<string, unknown>; last_changed: string }
@@ -573,7 +575,7 @@ export class FloorplanStudioCard extends LitElement {
   _config: FloorplanStudioCardConfig = {};
   private _hass?: Hass;
   _layout: Layout | null = null;
-  private _error: string | null = null;
+  private _error: StoredError | null = null;
   private _urlRequested = false;
   private _wsRequested = false;
   /** Failed websocket loads since the last success or reconnect: one retry on the next `hass`, then wait for the connection's `ready`. */
@@ -1197,9 +1199,22 @@ export class FloorplanStudioCard extends LitElement {
     return { type: "custom:floorplan-studio-card" };
   }
 
-  /** S7.7: the Edit-card dialog's own form instead of raw YAML. */
-  static getConfigElement(): HTMLElement {
-    return document.createElement("floorplan-studio-card-editor");
+  /** S7.7: the Edit-card dialog's own form instead of raw YAML.
+   * S38.0: the form is a chunk beside the card (floorplan-studio-form-<hash>.js), fetched here on first use; it registers
+   * `floorplan-studio-card-editor` as it loads. Home Assistant awaits this call (frontend `hui-card-element-editor.ts` returns it from an async method,
+   * `hui-element-editor.ts` does `await this.getConfigElement()`), so a viewer who never edits the card never downloads the form. */
+  static async getConfigElement(): Promise<HTMLElement> {
+    // A browser remembers a failed `import()` of one URL (as for the 3D chunk above), so each call after a failure asks under a new
+    // query (the count of failures so far; a success is cached under its own URL, so it is never imported twice). A failure does not
+    // reject: Home Assistant would show a broken dialog until the page is reloaded; it gets the words instead.
+    // The URL is built from `import.meta.url`, not a template over the compiled-in name (Vite would bundle every file the template could
+    // match), and the import is not inside a `try` (Rollup then keeps the dead `./config-editor` branch and the card splits in two).
+    const fails = formFails;
+    const url = fails > 0 ? `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${FORM_FILE.slice(2)}?r=${fails}` : FORM_FILE;
+    return (FORM_FILE ? import(/* @vite-ignore */ url) : import("./config-editor")).then(
+      () => document.createElement("floorplan-studio-card-editor"),
+      () => { formFails++; return Object.assign(document.createElement("p"), { textContent: t(STALE_PAGE), setConfig: () => undefined }); },
+    );
   }
 
   connectedCallback(): void {
@@ -1450,9 +1465,9 @@ export class FloorplanStudioCard extends LitElement {
       this._error = null;
     } catch (e) {
       const why = e instanceof Error ? e.message : "";
-      this._error = why ? t("The plan could not be used: {why}", { why }) : NO_LAYOUT;
+      this._error = why ? { key: PLAN_UNUSABLE, vars: { why } } : NO_LAYOUT;
       // A plan this build rejects may be one a newer Studio wrote: a cached card after an update. Say so.
-      if (why && this._hass?.connection) void pageIsStale(this._hass.connection).then((stale) => { if (stale && !this._layout) { this._error = STALE_PAGE; this.requestUpdate(); } });
+      if (why && this._hass?.connection) void pageIsStale(this._hass.connection).then((stale) => { if (stale && !this._layout) { this._error = { key: STALE_PAGE }; this.requestUpdate(); } });
     }
     this._syncTimer();
     this.requestUpdate();
@@ -1491,7 +1506,7 @@ export class FloorplanStudioCard extends LitElement {
     loadShared(conn).then((r) => {
       this._wsFails = 0;
       if (r?.layout == null) {
-        if (!reload) { this._error = NOTHING_SAVED; this.requestUpdate(); }
+        if (!reload) { this._error = { key: NOTHING_SAVED }; this.requestUpdate(); }
         return;
       }
       this._applyLayout(structuredClone(r.layout));
@@ -3558,20 +3573,41 @@ export class FloorplanStudioCard extends LitElement {
     this._closeOffDialog();
   }
 
+  private _sunId(): string {
+    return typeof this._config.sun === "string" && this._config.sun ? this._config.sun : "sun.sun";
+  }
+
   /** S7.6: whether the plan is drawn at night. `on`/`off` force it; anything else is `auto`: the sun entity (config
    * `sun`, default `sun.sun`) is `below_horizon`, or `on` for a binary sensor. Missing or `unavailable` is day. */
   _night(): boolean {
     const mode = this._config.night;
     if (mode === "on") return true;
     if (mode === "off") return false;
-    const id = typeof this._config.sun === "string" && this._config.sun ? this._config.sun : "sun.sun";
-    const s = this._hass?.states?.[id]?.state;
+    const s = this._hass?.states?.[this._sunId()]?.state;
     return s === "below_horizon" || s === "on";
+  }
+
+  /** S38.2: the sun entity's own `azimuth` and `elevation` (Home Assistant sends floats), with the plan's `north`, for the 3D view,
+   * which works out the direction and ignores a sun below the horizon or at night. Anything else is no sun. */
+  _sun(): { azimuth: number; elevation: number; north: number } | null {
+    const a = this._hass?.states?.[this._sunId()]?.attributes;
+    const azimuth = a?.azimuth, elevation = a?.elevation;
+    if (!(typeof azimuth === "number" && Number.isFinite(azimuth) && typeof elevation === "number" && Number.isFinite(elevation))) return null;
+    // The view draws the shown floor in its stored frame, which sits in the house turned by the floor's `rotation`, so the sun's
+    // bearing there is azimuth + north - rotation. Kept in [0, 360): `sunDir` takes nothing else. The floors below hang on the same frame.
+    const key = this._floorKey(), turn = this._layout && key ? floorPose(this._layout, key).rot : 0;
+    return { azimuth, elevation, north: ((((this._layout?.north ?? 0) - turn) % 360) + 360) % 360 };
+  }
+
+  /** S38.6: the stored error in the language of now. */
+  private _errorText(): string {
+    const vars = this._error?.vars && Object.fromEntries(Object.entries(this._error.vars).map(([k, v]) => [k, v ?? t(NO_ANSWER)]));
+    return t(this._error?.key ?? NO_LAYOUT.key, vars);
   }
 
   protected render() {
     const f = this._floor();
-    if (!f) return html`<p class="msg">${t(this._error ?? NO_LAYOUT)}${this._error === NOTHING_SAVED && this._hass?.user?.is_admin !== false ? html` <a class="fp-studio-link" href="/floorplan-studio" @click=${this._openStudio}>${t("Open Floorplan Studio")}</a>` : nothing}</p>`;
+    if (!f) return html`<p class="msg">${this._errorText()}${this._error?.key === NOTHING_SAVED && this._hass?.user?.is_admin !== false ? html` <a class="fp-studio-link" href="/floorplan-studio" @click=${this._openStudio}>${t("Open Floorplan Studio")}</a>` : nothing}</p>`;
     this._syncFloorMemory();
     const rotate = this._rotate();
     const view = this._planView();
@@ -3606,6 +3642,8 @@ export class FloorplanStudioCard extends LitElement {
     const live3d = this._shows3d();
     const body = live3d ? "" : renderFloor(f, {
       scale: this._scale(fit),
+      tr: currentLanguage() ? t : undefined, // S38.8: English keeps the type id in a title, as before; another language names the type
+
       px: qpx(this._px) || undefined, // S23.2: the 11 px floor for names and discs (quantised: see `qpx`)
       zoom: box.w > 0 ? fit.w / box.w : undefined, // S25.4: labels keep their on-screen size at any zoom
       bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - qstrip(this._strip, fit.w)) } : undefined, // S23 review S3: names stay off the control stack
@@ -3630,7 +3668,7 @@ export class FloorplanStudioCard extends LitElement {
       selectedRoom: this._picked() ?? undefined,
       hiddenLayers: this._hiddenLayers,
       attention: this._attention() ? { floor: this._floorKey()!, result: this._attention()! } : undefined, // the Overview's own result, with the registry
-      detail: detailFor(fit, box, this._detailMode(), this._planPx(fit)), // S25.2: the level for this zoom and mode; S37.6: auto draws icons at fit on a plan 400 px wide or more
+      detail: detailFor(fit, box, this._detailMode(), this._iconsOn ? Infinity : 0), // S25.2: the level for this zoom and mode; S37.6/S38.7: auto draws icons at fit from a plan 420 px wide, dots under 380, the last level between
       ghost: this._ghost(), // S27.13: the floor below, as faint lines at its place in the house
       spider: this._spiderSpots(f, fit, box, rotate), // S25.5: a fanned stack, or nothing
       keep: this._keptHere(),
@@ -3769,7 +3807,8 @@ export class FloorplanStudioCard extends LitElement {
     const k = (p: number) => Math.max(base, p ? NAME_MIN_PX / (12 * p) : 0);
     const was = k(qpx(this._px)), old = this._px;
     this._px = px;
-    if (this._iconsAt(old, fit) !== this._iconsAt(px, fit)) this.requestUpdate(); // S37.6: the plan crossed 400 px wide: icons or dots
+    const icons = iconsHold(this._planPx(fit, px), this._iconsOn);
+    if (icons !== this._iconsOn) { this._iconsOn = icons; this.requestUpdate(); } // S37.6/S38.7: the plan crossed 420 up or 380 down: icons or dots
     // S23 review S3: the stack of buttons at the right covers a strip of the plan; names keep out of it. The svg keeps
     // its aspect (meet, centred), so the fit box starts (r.width - fit.w * px) / 2 in. A stack laid out as a row is
     // above the plan's top, not beside it: no strip. 4 px of air before the buttons.
@@ -3788,7 +3827,8 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S37.6: the floor's rendered width at fit for a measured `px`, or Infinity while nothing is laid out (the level then reads "cannot tell": icons). */
   private _planPx(fit: { w: number }, px = this._px): number { return px > 0 ? px * fit.w : Infinity; }
-  private _iconsAt(px: number, fit: { w: number }): boolean { return this._planPx(fit, px) >= ICONS_MIN_PLAN_PX; }
+  /** S38.7: icons (true) or dots at fit; the last level is kept while the plan is between 380 and 420 px wide. Unmeasured: icons. */
+  private _iconsOn = true;
 
   /** S9.2: the `scale` passed to `renderFloor`. Icons, names, values and radar dots are drawn at `24 * (1/scale)`
    * units, so shrinking `scale` grows them on screen. `auto` keeps a plan of 1000 cm or less exactly as before

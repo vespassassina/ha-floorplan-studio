@@ -2,6 +2,107 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-28: Sprint 38 Opus review
+
+- **One sun for the whole house.** The floors below (ghost or solid) are lit by the same moving sun as the floor shown.
+  Supersedes the non-goal in `docs/specs/sun-s38.md` "Floors below keep today's fixed light": a second light for them
+  costs bytes and draw time and gives a less true picture. They still get no patches.
+- **The sun's north is the floor's.** The card passes `north − rotation` of the current floor (wrapped into [0, 360)),
+  since the 3D view draws a floor in its stored frame (SPEC, `floor.rotation`). Without it a turned floor was lit, and
+  took patches, from the wrong side.
+- **The icons-or-dots level settles one render late.** The card keeps the last level (S38.7) and corrects it in
+  `updated()` from the new measure. After a floor switch, a turn or a return from 3D, the first render may use the old
+  level for one frame. Accepted: the alternative recomputes the band in render and loses the hysteresis.
+- **A failed form load retries, then says to reload.** Edit card's form is fetched with the 3D chunk's retry; a file
+  that stays missing (a tab open across an update) shows the stale-page message instead of HA's YAML fallback.
+
+## 2026-10-28: S38.7 and S38.8, two card nits
+
+- **Dots at 380 and under, not under 380.** A 380 px box gives a plan exactly 380 wide; with "under 380" it sat in the
+  dead band and the S37.6 straddle test saw no switch. The band is strictly between 380 and 420. Supersedes the plan
+  entry's "dots under 380" and S37.6's single bound of 400 (`ICONS_MIN_PLAN_PX` stays for `detailFor`'s own callers).
+  An unmeasured card shows icons, as before.
+- **English keeps the type id in a title.** The card passes its translator only when a language other than English is
+  active, so an English title still reads "plug: TV plug" and no existing pin changed; German reads "Licht: Küche". The
+  Studio passes none. Only the type is translated; the rest of a title is the layout's own name, a number and a unit.
+
+## 2026-10-28: S38.4, sun patches
+
+- **Outdoor kinds are not rooms.** Garden, terrace, pavement, water, zone and fill take no patch and do not count as
+  "inside" when an edge is tested for the outside; a window onto the garden is an outer window.
+- **Core knows the openings.** `scene-build.ts` gives `Scene.apertures` and a `WallSeg.outline` flag, so the chunk finds
+  outer openings without reading the layout. Pure geometry, unit tested in core.
+- **First exit clips.** A patch is clipped along each ray at the first point it leaves the room, so an L-shaped room's
+  patch stops at the inner corner rather than crossing the notch.
+- **Lowered walls keep their patches.** The patch is the sun through the opening as built; lowering walls for the view
+  does not move the sun.
+- **Strength.** Dark themes add light: gain 0.45 x `strength`, thinning to 40 % at the far edge, feathered over 25 %
+  across and 20 % along. Light themes mix instead: normal blending toward a warm tint (about 245/240/228 on screen) at
+  alpha `min(1.4 x strength x feather, 0.8)`, so a pale floor never clips to white. Supersedes spec item 7's "a light
+  theme caps it as `LIGHT_GLOW_CAP` caps a wall glow": the additive cap of 0.35 on a floor at about 0.85 clipped the
+  kitchen in the demo to flat white. The light-theme patch is subtle by design (centre about 7 % over the floor).
+
+## 2026-10-27: S38.0, the card form is a file of its own
+
+- **A bundle, not a Rollup chunk.** A dynamic import of `config-editor.ts` made Rollup hoist the card's shared code
+  (lit, core) into a third file named like the 3D chunk. The form is now its own Vite build (mode `form`, built before
+  the card), `floorplan-studio-form-<hash>.js`, whose name the card compiles in. `getConfigElement()` is async; HA
+  awaits it (`hui-element-editor.ts`, cited in `tests/card/card.test.ts`).
+- **The cost moves to the editor.** The form carries its own lit and validator: 24,828 gz, loaded only when someone
+  opens Edit card. The card file went from 124,495 to 119,214 gz, 5,435 under the cap. The form has a limit of its
+  own, 26,000 gz. The release requires exactly one form file, as it does one 3D chunk.
+
+## 2026-10-27: S38.1 and S38.3, the 3D sun light
+
+- **`north` travels with the sun.** The 3D view cannot read the layout, so the live sun is `{ azimuth, elevation, north? }`
+  (default 0). The card passes `layout.north` beside the two raw attributes (S38.2). Supersedes "the card passes the two
+  raw numbers" in `docs/specs/sun-s38.md` criterion 9 by one field.
+- **A low sun lights a wall more than a roof.** At 10° elevation a flat top reads darker than the sunlit face (blueprint
+  85 against 96); at 50° the top is lighter (109 against 94). The SPEC rule asks that tops, sun faces and shade faces
+  step apart by 6 %; they do, at about 13 %, so the order may flip and the test asserts the step, not the order, below
+  30°. Real light does the same; no change to the hemisphere light for it.
+
+## 2026-10-27: S38.9, duplicate area names
+
+`layoutFromAreas` keeps the first room's name and numbers the next ones with the same name ("Office 2", "Office 3"), so `catalog.room`, which is the room's name, tells rooms apart. Case-insensitive, as `render.ts` matches room names; a real area named "Office 2" keeps its name and a generated one takes the next free number.
+
+## 2026-10-27: S38.5, the performance budget
+
+Supersedes the line in the Sprint 38 plan entry below: "each budget set between the incremental and the full render so
+the test fails without S25.6".
+
+- **The two cost the same.** Median of 5, ms, Diego's Mac, incremental / full (the plan replaced, `innerHTML`). 400
+  devices: one 19.0 / 23.4, all on 36.4 / 35.1, all off 25.8 / 24.0. Stress ground (182 devices): one 17.1 / 18.3, all
+  on 21.1 / 21.1, all off 19.3 / 19.0. Forcing layout in the timed span changed nothing. `renderFloor` building the
+  markup dominates; the DOM patch is a small part. No time budget can tell the two apart.
+- **Time is a ceiling against a `renderFloor` slowdown.** About 5x today's incremental number, for CI at 2 to 3x slower:
+  400 devices 100 / 200 / 130 ms, stress ground 90 / 110 / 100 ms (one change / all on / all off). Raise one only with
+  new numbers here.
+- **S25.6 is pinned by structure, not time.** After all on: the plan's root `<svg>` is not written, and (stress) a
+  device node is the same node; plus a write ceiling just above today's count (400 devices 2461 -> 2710, stress
+  ground 421 -> 465). A replaced plan shows as one record on the root, so the root and node checks are what fail
+  when S25.6 is removed; the ceiling guards a patch that writes too much.
+
+## 2026-10-27: Sprint 38 plan, the sun, a performance budget, the S37 nits
+
+Diego's answers, 2026-10-27. Spec `docs/specs/sun-s38.md`; plan `docs/PLAN.md`, Sprint 38.
+
+- **The sun is direction, warmth and patches, in 3D only.** The light comes from the `sun` entity's azimuth plus the
+  layout's `north`, at its elevation, warmer under 15°, and shines through windows that face it as soft patches on the
+  floor. The 2D wedge (S15.3d) stays later. Supersedes the S15.3 plan of 2026-10-06 for this sprint: `sunDir` lives in
+  the 3D chunk, not in core, because the card is 155 gzip bytes under its cap.
+- **No new config key.** The sun follows the `sun` entity `night: auto` already reads. With no usable azimuth and
+  elevation, or at night, the light is today's fixed daylight. Fits review item 17 (freeze the surface).
+- **The Studio has no live 3D view, so the sun is card-only.** A stated exception to the parity rule.
+- **Room before features.** The card form moves to a lazy chunk (S38.0) before any card-side task. Chosen over raising
+  the cap: HA loads the form only when someone edits the card, so no viewer should pay for it.
+- **The performance budget is on the 2D state update**, the stress house and the 400-device case, median of 5, each
+  budget set between the incremental and the full render so the test fails without S25.6. 3D is a hand check on
+  Diego's tablet once per release, the number in the CHANGELOG: 3D timings under CI's software renderer are too noisy.
+- **The four S37 nits are fixed as proposed**: errors translated when drawn; a 380/420 px band on the icons bound;
+  `renderFloor` takes an optional translator for `<title>` names (the Studio stays English); duplicate area names get
+  a number.
+
 ## 2026-10-25: S37 review fixes
 
 Corrections from the Opus review of Sprint 37. Supersedes the S37.5 line "may be retried on the next `hass` update".

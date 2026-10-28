@@ -185,3 +185,39 @@ describe("raw English in the card", () => {
     expect([...joined.matchAll(/\b(aria-label)="([^"\u0000]*[A-Za-z][^"\u0000]*)"/g)]).toHaveLength(1);
   });
 });
+
+/** S38.8: render.ts is shared with the Studio and takes no `t`, but the card's device `<title>` is translated through `tr`. So no
+ *  literal word may sit in a title template: the type name comes from `typeName`, a name from the layout. Units and separators ("W", " + ") are not words. */
+function rawInRenderTitles(src: string, file = "src/core/render.ts"): string[] {
+  const out: string[] = [];
+  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+  const visit = (n: ts.Node) => {
+    if (ts.isTemplateExpression(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
+      const parts = ts.isNoSubstitutionTemplateLiteral(n) ? [n.text] : [n.head.text, ...n.templateSpans.map((s) => s.literal.text)];
+      const line = sf.getLineAndCharacterOfPosition(n.getStart()).line + 1;
+      const isTitleConst = ts.isVariableDeclaration(n.parent) && n.parent.name.getText(sf) === "title";
+      for (const p of parts) {
+        if (/<title>[^<]*[A-Za-z]{2,}/.test(p)) out.push(`${file}:${line}: <title> holds a literal word: ${p.slice(0, 60)}`);
+        if (isTitleConst && /[A-Za-z]{2,}/.test(p)) out.push(`${file}:${line}: title holds a literal word: ${p.slice(0, 60)}`);
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+describe("raw English in render.ts titles", () => {
+  it("no device or door title holds a literal word", () => expect(rawInRenderTitles(readFileSync("src/core/render.ts", "utf8"))).toEqual([]));
+  it("the lint sees a raw word (it fails on one)", () => {
+    expect(rawInRenderTitles("const a = `<title>Door: ${x}</title>`;")).toHaveLength(1);
+    expect(rawInRenderTitles("const title = `Light: ${x}`;")).toHaveLength(1);
+    expect(rawInRenderTitles("const title = `${x}: ${y}, 5 W + ${z}`;")).toEqual([]);
+  });
+  it("every device type has a label the catalogue holds (an enumeration is a list of decisions, finding 17)", async () => {
+    for (const code of Object.keys(LANGUAGES)) {
+      const cat = await catalogue(code);
+      for (const label of Object.values(DEVICE_TYPE_LABELS)) expect(Object.hasOwn(cat, label), `${code}: ${label}`).toBe(true);
+    }
+  });
+});

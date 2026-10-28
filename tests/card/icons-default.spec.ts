@@ -68,18 +68,19 @@ test("360 wide: the default draws dots only; the devices that are on stay, as di
   expect(d.dots, "the devices that are on").toBeGreaterThanOrEqual(5);
 });
 
-test("the bound is the plan's own width: every box from 380 to 420 px reads icons at 400 px of plan and up, dots under", async ({ page }) => {
+test("the bound is the plan's own width: sweeping 380 up to 420 px of box stays dots until the plan is 420 wide (S38.7)", async ({ page }) => {
   await open(page, {}, 380);
+  await settle(page, "far");
   const seen: { box: number; w: number; l: string | null }[] = [];
   for (let box = 380; box <= 420; box++) {
     await width(page, box);
     const w = await planWidth(page);
-    await settle(page, w >= 400 ? "mid" : "far");
+    await settle(page, w >= 420 ? "mid" : "far");
     seen.push({ box, w, l: await level(page) });
   }
-  expect(seen.some((s) => s.w < 400 && s.w > 395), "the sweep has a plan just under the bound").toBe(true);
-  expect(seen.some((s) => s.w >= 400 && s.w < 405), "and one just over").toBe(true);
-  for (const s of seen) expect(s.l, JSON.stringify(s)).toBe(s.w >= 400 ? "mid" : "far");
+  expect(seen.some((s) => s.w < 420 && s.w > 415), "the sweep has a plan just under the bound").toBe(true);
+  expect(seen.some((s) => s.w >= 420), "and one at it").toBe(true);
+  for (const s of seen) expect(s.l, JSON.stringify(s)).toBe(s.w >= 420 ? "mid" : "far");
 });
 
 test("an explicit detail wins over the width: minimal at 1280 is dots, full at 360 is everything", async ({ page }) => {
@@ -112,4 +113,33 @@ test("resizing across the bound settles: one switch per crossing, no flicker, no
   expect(collapsed, "mid, then far/mid once per resize").toEqual(["mid", "far", "mid", "far", "mid", "far", "mid"]);
   expect(levels.length - before, "frames at rest").toBeGreaterThan(10);
   expect(new Set(levels.slice(before)).size, "no change at rest").toBe(1);
+});
+
+// S38.7: hysteresis. Icons from a plan 420 px wide, dots under 380, the last level in between. At 400 px nothing switches,
+// whichever side the card came from. Asymmetric on purpose (finding 4): the two directions must read different levels.
+/** The detail level read on each of `n` animation frames: "nothing switches" is proved by every frame agreeing, not by a pause. */
+const levelsOver = (page: Page, n: number) => page.evaluate((n) => new Promise<(string | null)[]>((done) => {
+  const el = document.getElementById("card") as any, seen: (string | null)[] = [];
+  const tick = () => { seen.push(el.shadowRoot.querySelector("svg g[data-detail]")?.getAttribute("data-detail") ?? null); if (seen.length < n) requestAnimationFrame(tick); else done(seen); };
+  tick();
+}), n);
+
+test("a plan 400 px wide keeps its last level: coming from icons stays icons, coming from dots stays dots", async ({ page }) => {
+  await open(page, {}, 600);
+  await settle(page, "mid");
+  await width(page, 400);
+  const inBand = await planWidth(page);
+  expect(inBand, "the plan is inside the band").toBeGreaterThan(385);
+  expect(inBand).toBeLessThan(415);
+  expect(new Set(await levelsOver(page, 30)), "30 frames from icons").toEqual(new Set(["mid"]));
+  expect(await level(page), "from icons").toBe("mid");
+  expect((await drawn(page)).icons).toBeGreaterThanOrEqual(10);
+  await width(page, 360);
+  await settle(page, "far");
+  await width(page, 400);
+  expect(new Set(await levelsOver(page, 30)), "30 frames from dots").toEqual(new Set(["far"]));
+  expect(await level(page), "from dots").toBe("far");
+  expect((await drawn(page)).icons).toBe(0);
+  await width(page, 420);
+  await settle(page, "mid");
 });
