@@ -122,13 +122,13 @@ export function confirmCoverDialog(c: FloorplanStudioCard): void {
 export function floorOffButton(c: FloorplanStudioCard) {
   const f = c._floor(), key = c._floorKey();
   if (!f || !key) return nothing;
-  const none = floorOffRows(f, c._stateForRender()).length === 0;
+  const none = c._replay !== null || floorOffRows(f, c._stateForRender()).length === 0;
   return html`<button type="button" class="fp-floor-off" ?disabled=${none} title=${none ? t("Nothing is on on this floor") : t("Choose what to turn off on this floor")} @click=${() => openOffDialog(c)}>${t("Turn off on this floor…")}</button>`;
 }
 
 export function openOffDialog(c: FloorplanStudioCard): void {
   const f = c._floor(), key = c._floorKey();
-  if (!f || !key || dialogOpen(c)) return;
+  if (!f || !key || dialogOpen(c) || c._replay) return; // the rows are the past's: it must not switch anything off
   const rows = floorOffRows(f, c._stateForRender());
   if (!rows.length) return;
   closePopup(c);

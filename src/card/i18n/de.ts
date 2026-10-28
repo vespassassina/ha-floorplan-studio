@@ -258,5 +258,14 @@ const c: Catalogue = {
   "people|layer": "Personen",
   "other|layer": "Sonstiges",
   "furniture|layer": "Möbel",
+  "Replay": "Rückblick",
+  "Replay time": "Zeitpunkt",
+  "Play": "Abspielen",
+  "Live": "Aktuell",
+  "Replaying": "Rückblick läuft",
+  "Loading history…": "Verlauf wird geladen…",
+  "Could not load the history: {why}": "Der Verlauf konnte nicht geladen werden: {why}",
+  "no answer in 20 s": "keine Antwort in 20 s",
+  "{n} entity on this floor has no history": { one: "{n} Entität auf diesem Stockwerk hat keinen Verlauf", other: "{n} Entitäten auf diesem Stockwerk haben keinen Verlauf" },
 };
 export default c;

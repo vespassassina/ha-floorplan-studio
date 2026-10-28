@@ -354,7 +354,7 @@ export function attnRow(c: FloorplanStudioCard, it: AttentionItem, now: number):
 export function activeRow(c: FloorplanStudioCard, it: ActiveDevice): OverviewRow {
   const f = c._layout?.floors[it.floor];
   const d = it.at.what === "device" ? f?.devices[it.at.index] : it.at.what === "piece" ? (f?.furniture?.[it.at.index] && pieceDevice(f.furniture[it.at.index]!)) || undefined : undefined;
-  const state = d ? subjectText(c, deviceSubject(c, d)) : stateText(it.type, c._hass?.states?.[it.entity], undefined, it.entity, c._format);
+  const state = d ? subjectText(c, deviceSubject(c, d)) : stateText(it.type, c._stateForRender()?.[it.entity], undefined, it.entity, c._format);
   return { entity: it.entity, name: it.name, floor: it.floor, at: it.at, ...(it.room ? { room: it.room } : {}), state, type: it.type, colorVar: it.colorVar, attn: false };
 }
 
@@ -383,8 +383,8 @@ export function favouriteSection(c: FloorplanStudioCard) {
     const f = layout.floors[r.floor], m = f?.furniture?.[r.ref.index];
     const d = r.ref.what === "device" ? f?.devices[r.ref.index] : m ? pieceDevice(m) : undefined;
     if (!d) return [];
-    const s = deviceSubject(c, d), op = subjectOp(c, s), state = c._hass?.states?.[r.entity]?.state;
-    const row: OverviewRow = { entity: r.entity, name: s.name, floor: r.floor, at: r.ref, state: subjectText(c, s), type: d.type, colorVar: colorVarFor(d, c._hass?.states), attn: false };
+    const s = deviceSubject(c, d), op = subjectOp(c, s), state = c._stateForRender()?.[r.entity]?.state;
+    const row: OverviewRow = { entity: r.entity, name: s.name, floor: r.floor, at: r.ref, state: subjectText(c, s), type: d.type, colorVar: colorVarFor(d, c._stateForRender()), attn: false };
     const confirm = op ? favConfirm(c, op, r.entity) : null;
     const asking = !!confirm && c._favAsk === r.entity;
     const act = !op ? nothing : asking
@@ -413,7 +413,7 @@ export function favAct(c: FloorplanStudioCard, s: PopupSubject, op: PopupOp): vo
 
 /** S24.7: Attention on top, then Active by category, over `attn` and `items` (already cut to the scope). */
 export function overviewList(c: FloorplanStudioCard, attn: Attention, items: ActiveDevice[], badge: boolean, empty: string) {
-  const now = Date.now();
+  const now = c._now();
   const unOpen = c._foldedCats.has(UNAVAILABLE_OPEN);
   const attnRows = attn.items.map((it) => attnRow(c, it, now));
   const groups = groupByCategory(items.map((it) => ({ type: it.type, row: activeRow(c, it) })));

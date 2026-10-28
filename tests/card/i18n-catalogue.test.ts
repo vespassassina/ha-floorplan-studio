@@ -19,7 +19,7 @@ import type { Catalogue, Entry } from "../../src/core/i18n";
 const SRC = ["src/card", "src/core"];
 const SKIP = new Set(["src/card/config-editor.ts", "src/card/strategy.ts", "src/card/i18n.ts", "src/core/i18n.ts"]);
 const files = SRC.flatMap((d) => readdirSync(d).filter((f) => f.endsWith(".ts")).map((f) => `${d}/${f}`)).filter((f) => !SKIP.has(f));
-const TEMPLATE_FILES = ["floorplan-studio-card", "popup-ui", "room-scenes-ui", "search-box", "more-menu"].map((n) => `src/card/${n}.ts`);
+const TEMPLATE_FILES = ["floorplan-studio-card", "popup-ui", "room-scenes-ui", "search-box", "more-menu", "card-replay"].map((n) => `src/card/${n}.ts`);
 
 /** The label tables the card shows through `t(TABLE[x])`: their values are keys too. */
 const TABLES: Record<string, Record<string, string>> = { THEME_LABELS, DETAIL_LABELS, WALLS_LABELS, BELOW_LABELS, HEAT_LABELS, OFF_GROUP_LABEL };
