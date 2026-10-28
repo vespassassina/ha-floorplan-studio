@@ -1,6 +1,7 @@
 import { TAP_SLOP_PX } from "./actions";
 import { cardHeight, frameMode, HEADER_H, nextOnHandleTap, PEEK_H, type SheetStop, sheetStops, sideOpenByDefault, sideWidth, snapSheet, type Stops } from "./frame";
 import { panBy, zoomAt } from "./viewport";
+import { pickFloor, picked, pickedFloorKey } from "./card-overview";
 import type { FloorplanStudioCard } from "./floorplan-studio-card";
 
 /** Below this card width the Active list starts folded: it would cover the plan. */
@@ -11,7 +12,7 @@ export function back(c: FloorplanStudioCard): void {
   if (c._popup && popupInSheet(c)) { c._closePopup(); return; } // S31.8: Device goes back to what was under it
   const room = c._pickedRoom;
   if (c._frame === "bottom" && !room && !c._pickedFloor) { c._sheetStop = "peek"; c.requestUpdate(); return; }
-  c._pickFloor(room && room.floor === c._floorKey() ? room.floor : null);
+  pickFloor(c, room && room.floor === c._floorKey() ? room.floor : null);
   // Focus follows only if the card already had it. A card that owns the key by hover alone must not pull focus off the page's own control.
   const had = !!c.shadowRoot?.activeElement;
   void c.updateComplete.then(() => { if (had) c.shadowRoot?.querySelector<HTMLElement>(".fp-back, .fp-active-collapse, .fp-rail-open, .fp-handle")?.focus(); });
@@ -71,7 +72,7 @@ export function rowIsFixed(c: FloorplanStudioCard): boolean {
 
 /** Whether the sheet is open and not the 52 px rail: not folded, or a room or floor is picked (which opens it). */
 export function sheetOpen(c: FloorplanStudioCard): boolean {
-  return !c._activeCollapsed || c._picked() !== null || c._pickedFloorKey() !== null;
+  return !c._activeCollapsed || picked(c) !== null || pickedFloorKey(c) !== null;
 }
 
 /** Until the viewer has chosen by hand, the sheet's width decides: a side sheet is open from 900 px and a rail below,

@@ -4,6 +4,7 @@ import type { MenuItem, MenuSection } from "./more-menu";
 import { BELOW_LABELS, BELOW_MODES, type BelowMode, HEAT_LABELS, normaliseRotation, ROTATION_STEP, shortestDelta } from "./view-state";
 import type { Pt } from "./viewport";
 import { html, nothing } from "lit";
+import { attentionOf, openSearch, pickFloor, pickedFloorKey } from "./card-overview";
 import { popupInSheet } from "./card-sheet";
 import type { FloorplanStudioCard, CardView } from "./floorplan-studio-card";
 
@@ -37,7 +38,7 @@ export const isTheme = (v: unknown): v is Theme => typeof v === "string" && (THE
 export function header(c: FloorplanStudioCard) {
   if (c._kiosk()) return null;
   const tabs = floorChips(c);
-  const search = c._activeListVisible() && c._layout ? html`<button type="button" class="fp-head-btn" aria-label=${t("Search")} title=${t("Search")} @click=${() => { c._openSearch(); }}>${t("Search")}</button>` : null;
+  const search = c._activeListVisible() && c._layout ? html`<button type="button" class="fp-head-btn" aria-label=${t("Search")} title=${t("Search")} @click=${() => { openSearch(c); }}>${t("Search")}</button>` : null;
   const options = optionsMenu(c);
   if (!tabs && !search && !options) return null;
   return html`<div class="fp-head">${tabs}<span class="fp-head-gap"></span>${search}${options}</div>`;
@@ -148,7 +149,7 @@ export function floorChips(c: FloorplanStudioCard) {
   if (c._kiosk()) return null; // S7.5: no switcher in kiosk mode, even with floors or floor: "all" configured
   const list = c._floorList();
   if (!list) return null;
-  const current = c._floorKey(), selected = c._pickedFloorKey(), floors = c._attention()?.floors ?? {};
+  const current = c._floorKey(), selected = pickedFloorKey(c), floors = attentionOf(c)?.floors ?? {};
   // aria-pressed marks the floor shown; the class marks the floor whose panel is open (S20.2), a separate fact.
   // S24.7: "Ground · 3", the floor's attention count (things, not items; nothing at 0); an alarm turns the pill --fp-warn.
   return html`<div class="fp-floors">
@@ -165,9 +166,9 @@ export function floorChips(c: FloorplanStudioCard) {
  *  room tap does nothing there. Kiosk has no pills, so it never gets here. */
 export function tapFloorChip(c: FloorplanStudioCard, key: string): void {
   // S31.8: with the Device level open, a floor tab goes to the Floor level, one level up, even when it names the floor already picked.
-  const letGo = c._pickedFloorKey() === key && !(c._popup && popupInSheet(c));
+  const letGo = pickedFloorKey(c) === key && !(c._popup && popupInSheet(c));
   c._selectFloor(key);
-  c._pickFloor(letGo || !c._activeListVisible() ? null : key);
+  pickFloor(c, letGo || !c._activeListVisible() ? null : key);
 }
 
 /** One pick from the ⋯ menu. The value is `kind:arg`; every arg is checked against its list (the menu is the host's own
