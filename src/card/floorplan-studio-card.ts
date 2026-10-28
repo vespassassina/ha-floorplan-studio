@@ -1,12 +1,12 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { DETAIL_MODES, iconsHold, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, NAME_MIN_PX, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { CamThumb, HeatKind, LayerId, OffRow, SearchEntry } from "../core";
 import type { Attention, ThingRef, PowerCandidate, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { tapActionOf, holdActionOf } from "./tap-action";
 import { favouritesOf, type FavouritesRead } from "./favourites";
-import { TAP_SLOP_PX, THINGS, bindDeviceActions, type TapTarget } from "./actions";
+import { bindDeviceActions, type TapTarget } from "./actions";
 import { SCENES_CSS } from "./room-scenes-ui";
 import { TOUCH_CSS } from "./touch-css";
 import { POPUP_CSS, type PopupSubject, type SliderKind } from "./popup-ui";
@@ -16,8 +16,7 @@ import { CARD_VERSION } from "./version";
 import { INSTALL_HINT, NOTHING_SAVED, PLAN_UNUSABLE, STALE_PAGE, NO_ANSWER, loadErrorText, loadShared, pageIsStale, type Conn, type StoredError } from "./load";
 import { mark, t } from "../core/i18n";
 import { currentLanguage, useLanguage } from "./i18n";
-import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
-import { PAN_STEP, isSearchChord, planKeyFor, type ViewKey } from "./view-keys";
+import { clamp, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { firstFocus, nextInDirection, type FocusDir } from "./plan-focus";
 import { type FrameMode, type SheetStop, type Stops } from "./frame";
 // S24.8: registers <fp-search>, the search box the Studio uses too.
@@ -26,14 +25,16 @@ import "./search-box";
 import "./more-menu";
 import type { View3D } from "./three/view3d";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
-import { belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta, viewAround, type FloorView } from "./view-state";
+import { belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, viewAround, type FloorView } from "./view-state";
 export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from here
-import { chooserDialogTemplate, coverDialogTemplate, dialogOpen, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
+export { DOUBLE_TAP_MS, DOUBLE_TAP_PX } from "./card-zoom"; // the 3D host and its test read them from here
+import { chooserDialogTemplate, coverDialogTemplate, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
-import { activePanel, attentionOf, floorTitle, keptHere, openSearch, pickRoom, picked, placePulse, restorePick, tapRoom } from "./card-overview";
-import { bindHover, bindSpider, closePopup, foldSpider, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
-import { applyWidthDefault, back, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
+import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
+import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
+import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
 import { loadActiveState, loadViewState, saveViewNow, scheduleSave } from "./card-view-state";
+import { bindZoom, fitView, measurePx, onViewKey, qpx, qstrip, rotatedCenter, scale, viewStack, zoomLevel } from "./card-zoom";
 
 const NO_LAYOUT: StoredError = { key: INSTALL_HINT };
 
@@ -169,11 +170,6 @@ const TURN_MS = 350;
 /** Card config is untrusted input (CLAUDE.md finding 1): only a plain `#rrggbb` hex is accepted for open_color. */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
-/** Two taps closer than this in time and space are a double-tap. */
-export const DOUBLE_TAP_MS = 350;
-export const DOUBLE_TAP_PX = 24;
-/** One click of a zoom button. */
-const BUTTON_ZOOM = 1.5;
 /** The 3D chunk (three/host.ts) sets these English texts as `_fallback3d` and cannot call `t`; the card translates them where it shows them. Listed here so the catalogue test sees the keys. */
 export const FALLBACK_3D_KEYS = [mark("3D view unavailable: this browser has no WebGL. Showing 2D."), mark("3D view unavailable: it could not start. Showing 2D.")] as const;
 
@@ -184,10 +180,6 @@ export interface PickMemo { pick: { floor: string; id: string } | null; floor: s
 const DEFAULT_ICON_SIZE = 1;
 const ICON_SIZE_MIN = 0.5;
 const ICON_SIZE_MAX = 3;
-/** S9.6: `zoom_level` default and clamp range — 1 is the whole floor, `MAX_ZOOM` (viewport.ts) is as deep as the
- * pinch zoom itself ever goes. */
-const DEFAULT_ZOOM_LEVEL = 1;
-const ZOOM_LEVEL_MIN = 1;
 
 declare global {
   interface Window {
@@ -275,13 +267,6 @@ let focusedCard: FloorplanStudioCard | null = null;
  * sheet leaves (`apply3dFrame`, in the 3D chunk).
  */
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
-/** The scale and the control strip the plan is DRAWN with are snapped DOWN to steps (1 % of scale, 0.5 % of the plan's width; down, so a name's 11 px floor is never missed), and
- *  `_measurePx` re-renders when the step changes. A settled render is then a pure function of the final measured size, not of
- *  the sizes the card passed through on the way (a render drawn at a scale 0.4 % off used to stay, and differed in the second
- *  decimal of a label from a card drawn at the final size). */
-const PX_STEP = Math.log(1.01);
-const qpx = (p: number): number => (p > 0 ? Math.exp(Math.floor(Math.log(p) / PX_STEP + 1e-9) * PX_STEP) : 0);
-const qstrip = (s: number, w: number): number => { const u = w * 0.005; return u > 0 ? Math.round(s / u) * u : s; };
 
 
 // S36.4: the underscore members that are not `private` are the ones the 3D glue in `three/host.ts` (the lazy chunk) reads.
@@ -687,7 +672,7 @@ export class FloorplanStudioCard extends LitElement {
   _pulse: ({ floor: string } & ThingRef) | null = null;
   /** S31.10: the index (`data-x`) of the device the keys stand on, or null. Card state: kept through `hass`, dropped by a floor switch, `setConfig`,
    *  a click on the plan and focus leaving the plan (its own popup excepted). */
-  private _focusDev: number | null = null;
+  _focusDev: number | null = null;
   _pulseTimer: ReturnType<typeof setTimeout> | null = null;
   /** `attention()` for the layout and states on show, computed once per pair: the pills and the Overview both read it. */
   _attnMemo: { layout: Layout; states: unknown; reg: unknown; a: Attention } | null = null;
@@ -769,46 +754,12 @@ export class FloorplanStudioCard extends LitElement {
    * tracked by the card's own focusin and focusout, not read from `document.activeElement`: in Home Assistant the
    * card sits inside several shadow roots, where `activeElement` is the outermost host and never the card, so a
    * click on the card and then the pointer moving off it lost the keys. */
-  private _ownsViewKeys(): boolean {
+  _ownsViewKeys(): boolean {
     if (focusedCard) return focusedCard === this;
     return this._hovered;
   }
 
-  /** Arrows zoom (up in, down out) and turn (left, right); Space is Reset view. The same keys as the editor's, from
-   * `view-keys.ts`. A key is taken (preventDefault) only when it did something, so a card that cannot act, because
-   * zoom is off or the controls are hidden, leaves the page its arrows and its Space. Auto-repeat is let through:
-   * holding an arrow keeps zooming. */
-  private _onViewKey = (ev: KeyboardEvent): void => {
-    if (!this.isConnected || !this._ownsViewKeys()) return;
-    if (dialogOpen(this)) return; // a dialog has its own keys
-    // S24.8: ⌘K, Ctrl+K or / opens the search, under the same gate as the view keys: the card focused, else hovered.
-    if (isSearchChord(ev)) { if (openSearch(this)) ev.preventDefault(); return; }
-    if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
-    if (ev.key === "Escape" && this._spider) { foldSpider(this); ev.preventDefault(); return; }
-    // S31.10: a device key counts only while the plan itself has the focus; in the popup or a text field the keys are theirs.
-    const onStage = this._focusDev !== null && ev.composedPath()[0] === this._stageSvg();
-    if (ev.key === "Escape" && onStage) { this._dropFocus(); ev.preventDefault(); return; }
-    if (ev.key === "Escape" && this._frame === "bottom" && this._activeListVisible() && (this._pickedRoom || this._pickedFloor || this._sheetStop !== "peek")) {
-      back(this); // S31.8: one level up, and from the Overview down to peek
-      ev.preventDefault();
-      return;
-    }
-    if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
-      // Escape is Back: one level up in a side sheet too (room to floor to Overview). With no sheet there is no level, so it lets go.
-      if (this._activeListVisible()) back(this); else this._pickRoom(null);
-      ev.preventDefault();
-      return;
-    }
-    const key = planKeyFor(ev, onStage);
-    if (!key) return;
-    if (key === "open") { if (this._openFocused()) ev.preventDefault(); return; }
-    if (key === "leave") return; // handled above, before the Escape rules that would take it
-    if (key === "focusLeft" || key === "focusRight" || key === "focusUp" || key === "focusDown") {
-      if (this._moveFocus(key.slice(5).toLowerCase() as FocusDir)) ev.preventDefault();
-      return;
-    }
-    if (this._doViewKey(key)) ev.preventDefault();
-  };
+  private _onViewKey = (ev: KeyboardEvent): void => onViewKey(this, ev); // card-zoom.ts
 
   // ---- S31.10: keys on the plan (D4) --------------------------------------------------------------------------------------------------
 
@@ -816,7 +767,7 @@ export class FloorplanStudioCard extends LitElement {
     return this.shadowRoot?.querySelector<SVGSVGElement>("svg.fp-zoomable") ?? null;
   }
 
-  private _dropFocus = (): void => {
+  _dropFocus = (): void => {
     if (this._focusDev === null) return;
     this._focusDev = null;
     this.requestUpdate();
@@ -851,7 +802,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** An arrow with a device focused: the nearest drawn device that way on screen. True when focus moved (the key is then taken). */
-  private _moveFocus(dir: FocusDir): boolean {
+  _moveFocus(dir: FocusDir): boolean {
     const pts = this._planPoints(), at = pts.findIndex((p) => p.i === this._focusDev);
     const to = at < 0 ? firstFocus(pts, null) : nextInDirection(pts, at, dir);
     if (to < 0 || to === at) return at >= 0; // the edge of the house: the key is ours, nothing moves
@@ -868,7 +819,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** Enter or Space: the popup of the focused device, as a tap on it opens it (the Device level of the sheet on a phone). */
-  private _openFocused(): boolean {
+  _openFocused(): boolean {
     const svg = this._stageSvg(), i = this._focusDev, t = i === null ? null : this._targetOf("x", i);
     const r = i === null ? null : svg?.querySelector(`g[data-x="${i}"]`)?.getBoundingClientRect();
     if (!svg || !t || !r) return false;
@@ -913,44 +864,6 @@ export class FloorplanStudioCard extends LitElement {
     return this._viewSwitchOn() || this._rotateOn();
   }
 
-  private _doViewKey(key: ViewKey): boolean {
-    if (!this._floor() || this._shows3d()) return false; // the 3D camera is the pointer's; the plan's zoom and turn are not on show
-    switch (key) {
-      case "zoomIn":
-      case "zoomOut":
-        if (this._zoomMode() === false) return false;
-        this._zoomCentre(key === "zoomIn" ? BUTTON_ZOOM : 1 / BUTTON_ZOOM);
-        return true;
-      case "panLeft":
-      case "panRight":
-      case "panUp":
-      case "panDown": {
-        if (this._zoomMode() === false) return false;
-        const v = this._current(), fit = this._fit;
-        if (!v || !fit) return false;
-        const dx = key === "panLeft" ? -PAN_STEP * v.w : key === "panRight" ? PAN_STEP * v.w : 0;
-        const dy = key === "panUp" ? -PAN_STEP * v.h : key === "panDown" ? PAN_STEP * v.h : 0;
-        const to = clamp(panBy(v, dx, dy), fit);
-        if (sameView(to, v, fit)) return false; // at the edge, or not zoomed: nothing moved, so the page keeps the key
-        this._setView(to);
-        return true;
-      }
-      case "rotateLeft":
-      case "rotateRight":
-        if (!this._rotateOn()) return false;
-        this._turnBy(key === "rotateLeft" ? -ROTATION_STEP : ROTATION_STEP);
-        return true;
-      case "reset":
-        if (this._hasViewControls()) {
-          if (!this._modified()) return false;
-          this._resetView();
-          return true;
-        }
-        if (this._zoomMode() === false || !this._zoomed()) return false;
-        this._fitView();
-        return true;
-    }
-  }
 
   /** The zoomed view as what survives a turn and a reload: its zoom against fit and its centre in plan cm, which is
    * the layout's own coordinates before any rotation. `null` at home. */
@@ -2133,7 +2046,7 @@ export class FloorplanStudioCard extends LitElement {
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${t(this._fallback3d)}</p>` : null;
     measureFrame(this);
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label=${t("Reset camera")} title=${t("Reset camera")} @click=${() => { this._forgetCamera(); saveViewNow(this); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
-    const stackEl = stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit) : null;
+    const stackEl = stack3d !== undefined ? stack3d : showZoomButtons ? viewStack(this, box, home, fit) : null;
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? optionsMenu(this) : null;
     const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
@@ -2192,23 +2105,6 @@ export class FloorplanStudioCard extends LitElement {
       || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedNames, this._pickedRot, this._pickedDetail, this._pickedGhost, this._pickedBelow, this._pickedHeat, this._pickedCam].some((v) => v !== null);
   }
 
-  /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
-   * back the short way (315 to 0 is +45). */
-  _resetView(): void {
-    this._appliedView = null;
-    this._fallback3d = null;
-    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedDetail = this._pickedGhost = this._pickedBelow = this._pickedHeat = this._pickedCam = null;
-    this._pendingView = null;
-    this._view = null;
-    this._forgetCamera();
-    const from = this._userAngle();
-    this._startTurn(from + shortestDelta(from, normaliseRotation(this._config.rotation)), null);
-    if (!this._turn) {
-      this._pickedRot = null;
-      saveViewNow(this);
-    }
-    this.requestUpdate();
-  }
 
   /** The 3D camera goes back to its first view and the shown floor forgets it (Reset view, Reset camera). The floor's
    * zoom and turn are not touched here: `_stashFloor` rewrites them from the live state. */
@@ -2236,7 +2132,7 @@ export class FloorplanStudioCard extends LitElement {
   /** S9.2: `config.icon_size`, read as untrusted — a missing key, a non-number, or `NaN` all mean the default,
    * `1`; a real number clamps to [0.5, 3] rather than being refused, so a slider or a stray digit never breaks
    * the card. */
-  private _iconSize(): number {
+  _iconSize(): number {
     const v = this._config.icon_size;
     return typeof v === "number" && Number.isFinite(v) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v)) : DEFAULT_ICON_SIZE;
   }
@@ -2244,52 +2140,16 @@ export class FloorplanStudioCard extends LitElement {
   /** S23.2: screen px per plan unit at fit (see `_measurePx`); 0 until known. */
   _px = 0;
   /** S23 review S3: plan units at the right of the fit box that the control stack covers (see `_measurePx`); 0 for none. */
-  private _strip = 0;
+  _strip = 0;
 
-  /** S23.2: screen px per plan unit of the whole floor at fit, measured after each render and on a resize. Fit, not
-   *  the view on show: like S9.2's icon scale, the floor follows the card's size, never its zoom, so zooming in only
-   *  enlarges and a pinch costs no second render. The svg keeps its aspect (meet), so the scale is the smaller of the
-   *  two ratios. Nothing laid out (jsdom, a hidden card): nothing changes. */
-  private _measurePx(): void {
-    const svg = this.shadowRoot?.querySelector<SVGSVGElement>("svg.fp-zoomable"), fit = this._fit;
-    const r = svg?.getBoundingClientRect();
-    if (!svg || !fit || !r || !(fit.w > 0) || !(fit.h > 0) || r.width <= 0 || r.height <= 0) return;
-    const px = Math.min(r.width / fit.w, r.height / fit.h), base = 1 / this._scale(fit);
-    const k = (p: number) => Math.max(base, p ? NAME_MIN_PX / (12 * p) : 0);
-    const was = k(qpx(this._px)), old = this._px;
-    this._px = px;
-    const icons = iconsHold(this._planPx(fit, px), this._iconsOn);
-    if (icons !== this._iconsOn) { this._iconsOn = icons; this.requestUpdate(); } // S37.6/S38.7: the plan crossed 420 up or 380 down: icons or dots
-    // S23 review S3: the stack of buttons at the right covers a strip of the plan; names keep out of it. The svg keeps
-    // its aspect (meet, centred), so the fit box starts (r.width - fit.w * px) / 2 in. A stack laid out as a row is
-    // above the plan's top, not beside it: no strip. 4 px of air before the buttons.
-    const stack = this.shadowRoot?.querySelector<HTMLElement>(".fp-stack");
-    const sr = stack && !stack.classList.contains("fp-stack-row") ? stack.getBoundingClientRect() : null;
-    const right = r.left + (r.width + fit.w * px) / 2, strip = sr && sr.width > 0 ? Math.max(0, (right - sr.left + 4) / px) : 0, stripWas = this._strip;
-    this._strip = strip;
-    if (qstrip(strip, fit.w) !== qstrip(stripWas, fit.w)) return void this.requestUpdate();
-    if (k(qpx(px)) !== was) return void this.requestUpdate();
-    // k holds, but a name shrunk to fit its room has its own floor of 11 px: re-render when that floor binds now or did.
-    const sizes = [...svg.querySelectorAll("text.lbl[data-rl]")].map((t) => Number(t.getAttribute("font-size"))).filter((s) => s > 0);
-    if (!sizes.length || qpx(px) === qpx(old)) return;
-    const least = Math.min(...sizes), floorNow = NAME_MIN_PX / qpx(px), floorWas = old ? NAME_MIN_PX / qpx(old) : 0;
-    if (floorNow > least * 1.01 || floorWas >= least * 0.99) this.requestUpdate();
-  }
+  _measurePx(): void { return measurePx(this); } // card-zoom.ts
 
   /** S37.6: the floor's rendered width at fit for a measured `px`, or Infinity while nothing is laid out (the level then reads "cannot tell": icons). */
-  private _planPx(fit: { w: number }, px = this._px): number { return px > 0 ? px * fit.w : Infinity; }
+  _planPx(fit: { w: number }, px = this._px): number { return px > 0 ? px * fit.w : Infinity; }
   /** S38.7: icons (true) or dots at fit; the last level is kept while the plan is between 380 and 420 px wide. Unmeasured: icons. */
-  private _iconsOn = true;
+  _iconsOn = true;
 
-  /** S9.2: the `scale` passed to `renderFloor`. Icons, names, values and radar dots are drawn at `24 * (1/scale)`
-   * units, so shrinking `scale` grows them on screen. `auto` keeps a plan of 1000 cm or less exactly as before
-   * (icon_size at its own default too, so today's card is byte-identical); past that, icons stop shrinking with
-   * the plan, growing with its longest side instead — `fit` is the same view box `render()` already draws, per
-   * the S9.2 brief ("the same box the card draws"), so this reads no geometry of its own. */
-  private _scale(fit: { w: number; h: number }): number {
-    const auto = Math.max(1, Math.max(fit.w, fit.h) / 1000);
-    return 1 / (auto * this._iconSize());
-  }
+  _scale(fit: { w: number; h: number }): number { return scale(this, fit); } // card-zoom.ts
 
   /** S9.6: `config.center`, read as untrusted config (CLAUDE.md finding 1) — anything other than a two-element
    * array of finite numbers is `null` (no pin), silently. Unlike `zoom`/`kiosk` (which throw on a typo, per the
@@ -2297,32 +2157,16 @@ export class FloorplanStudioCard extends LitElement {
    * a default no one asked for) `center` is a wide-open pair of numbers, the same shape of untrusted input as
    * `icon_size`: a bad value here has an obviously safe fallback (the whole floor) that a slider or a stray digit
    * must never break out of. */
-  private _center(): Pt | null {
+  _center(): Pt | null {
     const c = this._config.center;
     if (!Array.isArray(c) || c.length !== 2) return null;
     const [x, y] = c;
     return typeof x === "number" && typeof y === "number" && Number.isFinite(x) && Number.isFinite(y) ? [x, y] : null;
   }
 
-  /** Opus review of S9.6: `center` is documented as plan cm — the same unrotated coordinates a room or device sits
-   * at in the layout — but `_home`'s own box (`viewBoxFor(f, 60, rotate)`, `render()` above) is already in the
-   * *rendered* frame: `renderFloor`/`viewBoxFor` turn every point by `rotate` themselves (unlike the editor, which
-   * draws unrotated coordinates inside a rotated `<g>`). Passing `_center()` straight into `pinnedView` therefore
-   * pinned the wrong spot on any layout with `rotate` set. This turns the config's plan-cm point by the same
-   * `rotate` before it reaches `pinnedView`, so it lands on the same plan point the layout itself names. */
-  private _rotatedCenter(): Pt | null {
-    const c = this._center();
-    if (!c) return null;
-    const rotate = this._rotate();
-    return rotate && rotate.deg % 360 ? rotateAbout(c, rotate.deg, rotate.pivot) : c;
-  }
+  _rotatedCenter(): Pt | null { return rotatedCenter(this); } // card-zoom.ts
 
-  /** S9.6: `config.zoom_level`, clamped to [1, MAX_ZOOM] — same untrusted-config shape as `_iconSize` above, and
-   * the same reasoning as `_center`'s comment for why this defaults silently rather than throwing. */
-  private _zoomLevel(): number {
-    const v = this._config.zoom_level;
-    return typeof v === "number" && Number.isFinite(v) ? Math.min(MAX_ZOOM, Math.max(ZOOM_LEVEL_MIN, v)) : DEFAULT_ZOOM_LEVEL;
-  }
+  _zoomLevel(): number { return zoomLevel(this); } // card-zoom.ts
 
   /** S9.6: the card's "home" view — the whole floor (`fit`) unless `center`/`zoom_level` pin it to part of the
    * plan. Every place that used to treat `fit` as "no zoom" (the `fp-zoomed` class, `_current`, `_zoomed`,
@@ -2330,7 +2174,7 @@ export class FloorplanStudioCard extends LitElement {
    * so a room-pinned card stays pinned across a pinch-zoom-and-reset. `_scale` (icon sizing, S9.2) deliberately
    * keeps reading `fit` itself, not this — see its own comment — so a room card's icons match the full-plan
    * card's icons at the same zoom, per the S9.6 brief. */
-  private _home(): View | null {
+  _home(): View | null {
     return this._fit ? pinnedView(this._fit, this._rotatedCenter(), this._zoomLevel()) : null;
   }
 
@@ -2346,7 +2190,7 @@ export class FloorplanStudioCard extends LitElement {
    * home's own zoom level (same width, different centre) read as "not zoomed" — a double-tap after panning a
    * pinned card then zoomed in from home instead of returning to it. `_setView` already normalises "back at home"
    * to `_view === null` (its own comment above), so "zoomed" is exactly "not that": no separate width check. */
-  private _zoomed(): boolean {
+  _zoomed(): boolean {
     return this._view !== null;
   }
 
@@ -2364,177 +2208,15 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** Zooms by `k` about the centre of what is on screen: the + and − buttons. */
-  private _zoomCentre(k: number): void {
+  _zoomCentre(k: number): void {
     const v = this._current();
     if (v) this._setView(zoomAt(v, k, v.x + v.w / 2, v.y + v.h / 2));
   }
 
-  private _fitView(): void {
-    if (this._turn) return;
-    this._view = null;
-    this._scheduleSave();
-    this.requestUpdate();
-  }
+  _fitView(): void { return fitView(this); } // card-zoom.ts
 
-  /** S7.4: +, − and fit, card chrome in the top-right corner (like `_floorChips`, outside the plan's `<svg>`).
-   * S9.6 review (Opus, 2026-09-27): a single `atFit` used to gate both "−" and Fit off `box.w < home.w`, width
-   * only. On a pinned card that reads two different things and neither is right for both buttons:
-   *  - "−" widens the box; it must stop only at the whole floor (`fit`), since the docs promise a pinned card can
-   *    still zoom out to see the rest of the house. Gating it at `home` disabled "−" the moment the card loaded,
-   *    even though there was more floor to see.
-   *  - Fit/Reset undoes `_view`; it must be disabled exactly when there is nothing to undo, i.e. `_view === null`
-   *    (`_zoomed()`, above) — not "box is as wide as home", which stayed true after a same-width sideways pan and
-   *    left Fit disabled with no way back to the pinned centre.
-   * Unpinned (`home` equals `fit`): both conditions coincide, so this changes nothing for a plain card.
-   *
-   * Diego field report, 0.12.14: "−" used to disable at `fit` itself, so a shed or a corner `viewBoxFor` did not
-   * bound on had no way to come into view. It now disables only at `MIN_ZOOM` (`viewport.ts`), the same floor
-   * `clamp` itself enforces, so the button and the drag/pinch gesture agree on how far out the card goes. */
-  private _viewStack(box: View, home: View, fit: View) {
-    const atMin = box.w >= (fit.w / MIN_ZOOM) * (1 - 1e-6);
-    const atHome = !this._zoomed();
-    const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
-    const pinned = !sameView(home, fit, fit);
-    // Fit only fits; "Reset view" (every view option back to the config) is in the ⋯ menu since S31.6.
-    const resetLabel = pinned ? t("Home view") : t("Fit");
-    return html`<div class="fp-stack">
-      <button type="button" aria-label=${t("Zoom in")} title=${t("Zoom in")} ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
-      <button type="button" aria-label=${t("Zoom out")} title=${t("Zoom out")} ?disabled=${atMin} @click=${() => this._zoomCentre(1 / BUTTON_ZOOM)}>−</button>
-      <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
-      </button>
-    </div>`;
-  }
 
-  /**
-   * S7.4: pointer and wheel handlers for zoom and pan on the plan's own `<svg>`, bound once per element like
-   * `bindDeviceActions`. Each handler reads `config.zoom` afresh, so `zoom: false` needs no rebinding.
-   *
-   * One pointer that moves past `TAP_SLOP_PX` pans (`bindDeviceActions` drops its tap at the same threshold); two
-   * pinch. A pointer that goes down while none is tracked and is not the primary one is a second finger whose
-   * first landed outside the svg: it is ignored, so half a pinch never pans the plan. Taps stay with
-   * `bindDeviceActions`, except two quick taps off any device or door: 2x about the tap at fit, back to fit when
-   * zoomed. The wheel zooms only with Ctrl/Cmd, or always under `zoom: "wheel"`; it is bound on the svg, so a
-   * wheel over a floor chip or a zoom button never reaches it and scrolls the page.
-   */
-  private _bindZoom(svg: SVGSVGElement): () => void {
-    const ptrs = new Map<number, { x: number; y: number }>();
-    let start = { x: 0, y: 0 };
-    let panning = false;
-    let pinched = false;
-    let lastTap: { t: number; x: number; y: number; before: PickMemo } | null = null;
-
-    /** Screen point to plan point under view `v`. */
-    const toPlan = (v: View, cx: number, cy: number): Pt => {
-      const r = svg.getBoundingClientRect();
-      return [v.x + ((cx - r.left) / r.width) * v.w, v.y + ((cy - r.top) / r.height) * v.h];
-    };
-    const capture = (id: number) => {
-      try { svg.setPointerCapture(id); } catch { /* the pointer is already gone */ }
-    };
-
-    const onDown = (e: PointerEvent) => {
-      if (e.pointerType === "mouse" && e.button !== 0) return;
-      if (e.isPrimary) ptrs.clear(); // nothing else of its kind is down: forget any pointer whose up went missing
-      else if (!ptrs.size) return;
-      // Diego field report, 0.12.14: the card must always be draggable, `zoom: false` or not — that config key
-      // turns off zoom, not pan. A first finger always starts a pan; a second finger only joins as a pinch when
-      // zoom is on, so `zoom: false` still blocks pinch-zoom without blocking the one-finger drag that got here.
-      if (ptrs.size === 1 && this._zoomMode() === false) return;
-      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (ptrs.size === 1) {
-        start = { x: e.clientX, y: e.clientY };
-        panning = false;
-        pinched = false;
-      } else {
-        pinched = true;
-        lastTap = null;
-        for (const id of ptrs.keys()) capture(id);
-      }
-    };
-
-    const onMove = (e: PointerEvent) => {
-      const p = ptrs.get(e.pointerId);
-      const v = this._current();
-      if (!p || !v) return;
-      if (ptrs.size === 1) {
-        if (!panning) {
-          if (Math.hypot(e.clientX - start.x, e.clientY - start.y) <= TAP_SLOP_PX) return;
-          panning = true;
-          capture(e.pointerId);
-        }
-        const r = svg.getBoundingClientRect();
-        this._setView(panBy(v, (-(e.clientX - p.x) / r.width) * v.w, (-(e.clientY - p.y) / r.height) * v.h));
-      } else if (ptrs.size === 2) {
-        const o = [...ptrs].find(([id]) => id !== e.pointerId)![1];
-        this._setView(pinch(v, toPlan(v, p.x, p.y), toPlan(v, o.x, o.y), toPlan(v, e.clientX, e.clientY), toPlan(v, o.x, o.y)));
-      }
-      p.x = e.clientX;
-      p.y = e.clientY;
-    };
-
-    const onUp = (e: PointerEvent) => {
-      if (!ptrs.delete(e.pointerId)) return;
-      if (ptrs.size) {
-        // One finger of a pinch lifted: the other carries on as a pan from where it is now.
-        panning = true;
-        return;
-      }
-      const tap = !panning && !pinched;
-      panning = false;
-      pinched = false;
-      const onThing = (e.target as Element | null)?.closest?.(`${THINGS}, g[data-cam]`);
-      if (!tap || onThing) {
-        lastTap = null;
-        return;
-      }
-      const now = performance.now();
-      if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
-        this._restorePick(lastTap.before); // a double tap is a zoom, and leaves the room pick as it found it (DECISIONS, S11.3)
-        lastTap = null;
-        if (this._zoomMode() === false) return; // a double tap zooms; pan alone stays on when zoom is off
-        // S9.6: zooms in from `home` (the pinned box, or the whole floor with no pin), not the whole floor — the
-        // screen shows `home` at rest, so the plan point under the tap must be read against that same box.
-        const home = this._home();
-        if (this._zoomed() || !home) this._fitView();
-        else this._setView(zoomAt(home, 2, ...toPlan(home, e.clientX, e.clientY)));
-        return;
-      }
-      lastTap = { t: now, x: e.clientX, y: e.clientY, before: { pick: this._pickedRoom, floor: this._pickedFloor, filter: this._roomFilter } };
-      tapRoom(this, e);
-    };
-
-    const onCancel = (e: PointerEvent) => {
-      ptrs.delete(e.pointerId);
-      if (!ptrs.size) {
-        panning = false;
-        pinched = false;
-      }
-    };
-
-    const onWheel = (e: WheelEvent) => {
-      const mode = this._zoomMode();
-      if (mode === false || (mode !== "wheel" && !e.ctrlKey && !e.metaKey)) return;
-      const v = this._current();
-      if (!v) return;
-      e.preventDefault();
-      const dy = Math.max(-100, Math.min(100, e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY));
-      this._setView(zoomAt(v, Math.exp(-dy * 0.002), ...toPlan(v, e.clientX, e.clientY)));
-    };
-
-    svg.addEventListener("pointerdown", onDown);
-    svg.addEventListener("pointermove", onMove);
-    svg.addEventListener("pointerup", onUp);
-    svg.addEventListener("pointercancel", onCancel);
-    svg.addEventListener("wheel", onWheel, { passive: false });
-    return () => {
-      svg.removeEventListener("pointerdown", onDown);
-      svg.removeEventListener("pointermove", onMove);
-      svg.removeEventListener("pointerup", onUp);
-      svg.removeEventListener("pointercancel", onCancel);
-      svg.removeEventListener("wheel", onWheel);
-    };
-  }
+  _bindZoom(svg: SVGSVGElement): () => void { return bindZoom(this, svg); } // card-zoom.ts
 
 
 

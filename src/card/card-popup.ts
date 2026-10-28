@@ -1,7 +1,7 @@
 import { carStatus, carText, type Device, deviceInfo, entitiesOfDevice, entitiesOfDoor, type Floor, moreInfoEntities, pieceDevice, relayText, SPIDER_MAX, spiderLayout, STACK_PX, stackGroups, stateText, type ThingRef, wattsOf } from "../core";
 import { t } from "../core/i18n";
 import { fireEvent, type TapTarget, thingKind, THINGS } from "./actions";
-import { fanCaps, lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
+import { fanCaps, lampOp, lightCaps, type PopupOp, popupOp } from "./popup";
 import { placeNear, type PopupSubject, popupTemplate, type SliderKind } from "./popup-ui";
 import { holdActionOf, tapActionOf } from "./tap-action";
 import type { Pt, View } from "./viewport";

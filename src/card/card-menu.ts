@@ -7,6 +7,7 @@ import { html, nothing } from "lit";
 import { attentionOf, openSearch, pickFloor, pickedFloorKey } from "./card-overview";
 import { popupInSheet } from "./card-sheet";
 import { saveViewNow } from "./card-view-state";
+import { resetView } from "./card-zoom";
 import type { FloorplanStudioCard, CardView } from "./floorplan-studio-card";
 
 /** The View dropdown's options, one list for the markup and for reading the choice back (a value that is not here
@@ -198,6 +199,6 @@ export function onMenuPick(c: FloorplanStudioCard, ev: Event): void {
     case "campos": if ((CAM_POS as readonly string[]).includes(arg)) { c._pickedCam = { ...c._pickedCam, pos: arg as CamPos }; done(); } break;
     case "layer": if (LAYERS.some((l) => l.id === arg)) c._setLayers(d?.alt === true ? soloLayer(c._hiddenLayers, arg as LayerId) : toggleLayer(c._hiddenLayers, arg as LayerId)); break; // Alt: this family alone, again: all
     case "rotate": if (arg === "1" || arg === "-1") c._turnBy(Number(arg) * ROTATION_STEP); break;
-    case "reset": c._resetView(); break;
+    case "reset": resetView(c); break;
   }
 }
