@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-29: Sprint 40, quick wins from a field report
+
+A user asked for five things; Diego took the four small ones first, and asked for a replay button. Spec:
+`docs/specs/quick-wins-s40.md`.
+
+- **A Replay button under the plan, and an X.** Replay was only in the ⋯ menu. The button sits where the bar opens,
+  so the bar replaces it. "Live" becomes an X, "Close replay": closing has always meant back to live, and the end of
+  the slider already is live. No config key: the button follows `canReplay`, so kiosk never shows it.
+- **A per-device `view`, not a card `navigate` tap action.** S33.3 refused `navigate` because a card has one target and
+  a plan has hundreds of icons. A path per device has one target per icon. It wins over the card's `tap_action` for that
+  icon only. A path inside Home Assistant only; anything with a scheme or `//` is refused, so a layout from a stranger
+  cannot send a tap off-site (finding 1).
+- **The trace image still never reaches the card.** Moving it is editor-only. Showing it on the card is a later sprint,
+  since it changes what the server sends to non-admins.
+- **Single entities in Add device only while searching.** With the search empty the list stays one row per HA device; a
+  hub of 172 entities would otherwise drown it.
+
 ## 2026-10-28: Replay at the top of the menu; the end of the slider is live
 
 Two defects from Diego's real Home Assistant on 0.38.1.
