@@ -6833,9 +6833,9 @@ test("S4.2: 'Areas not on the plan' lists an unused HA area; clicking it draws a
   await withNewAreaWriter(page);
   await page.keyboard.press("Escape"); // nothing selected: the floor panel
   const box = page.locator("#unplacedAreas");
-  await expect(box.locator("button")).toHaveText(["Garage"]); // Living is on the plan
-  await box.locator("button", { hasText: "Garage" }).click();
-  await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
+  await expect(box.locator("option")).toHaveText(["Choose an area to draw…", "Garage"]); // Living is on the plan
+  await box.locator("#drawAreaPick").selectOption("garage");
+  await expect(page.locator("#status")).toHaveText(`Drawing a room for Garage. ${DRAW_STATUS}`);
   const n = (await groundOf(page)).rooms.length;
   await clicksCm(page, ...FREE);
   await page.keyboard.press("Enter");

@@ -418,8 +418,11 @@ function unplacedAreas(c: PanelCtx, ha: HaData) {
   const list = areaChoices(ha).filter((a) => !used.has(a.id)); // S24.6 (U16): an area once, its floor when two share a name
   if (!list.length) return nothing;
   return html`<div id="unplacedAreas"><strong>Areas not on the plan (${list.length})</strong>
-    <div class="row">${list.map((a) => html`<button class="btn" @click=${() => c.drawArea(a)}>${a.label}</button>`)}</div>
-    ${hint("Click one, then draw its room.")}</div>`;
+    <select id="drawAreaPick" aria-label="Draw a room for a Home Assistant area" .value=${live("")} @change=${(e: Event) => { const a = list.find((x) => x.id === val(e)); if (a) c.drawArea(a); }}>
+      <option value="">Choose an area to draw…</option>
+      ${list.map((a) => html`<option value=${a.id}>${a.label}</option>`)}
+    </select>
+    ${hint("Pick one, then click the room's corners on the plan.")}</div>`;
 }
 
 /** Devices of this floor with no entity, as buttons that select them; nothing when there are none. */
