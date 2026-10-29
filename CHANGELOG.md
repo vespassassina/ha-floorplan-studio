@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.38.2 - 2026-10-29
 
 Replay is easier to find, and its first frame is the live plan. Replay is now the first item of the ⋯ menu. At the end of the slider the plan is exactly the live one; earlier, a lamp whose colour Home Assistant did not record shows the default lamp colour.
 
