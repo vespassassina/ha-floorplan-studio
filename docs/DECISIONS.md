@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-28: Replay at the top of the menu; the end of the slider is live
+
+Two defects from Diego's real Home Assistant on 0.38.1.
+
+- **Replay is the first section of the ⋯ menu**, above View. The menu is long (View, Theme, Labels, Detail, Layers, Heat map, Camera thumbnail with size and position, Rotate, Reset view) and Replay, pushed last, sat below the fold of its scroll area; he could not find it. Supersedes the order in the Sprint 39 card entry (Replay last). A Playwright test with the Overview on and a floor with a camera asserts the item is inside the menu's box without scrolling.
+- **At the end of the slider the plan is the live one.** Spec item 3 says the first frame is the live plan, and it was not: the recorder kept no `rgb_color`, `hs_color`, `color_mode` or `brightness` for `light.laundry` (a Hue group; the real rows' attributes held only dynamics, entity_id, friendly_name, hue_scenes, hue_type, is_hue_group, lights). At "now" the replay drew the lit lamp in the default warm yellow while the live plan drew it purple. While the thumb is at the end (`drawnT >= end`), `replayStates` returns nothing, which every reader already treats as live: `_stateForRender` reads `hass.states`, `_now` the real clock, the motion timer and the sun their live sources, `overviewStates` the live states. Play from the end still restarts from the start. A `hass` update now shows at the end of the slider; one step back, it does not move the plan (spec item 8 holds for every past moment).
+- **Earlier moments draw only what the recorder kept.** A lit lamp with no recorded colour draws the default lamp colour. We never borrow today's attributes for the past: that would paint a colour the lamp may not have had. The spec's item 6 says so.
+- **Tests.** `replay-bar.spec.ts` (menu position; purple at the end, default colour one step back, purple again on End, rows copied from the real reply) and `replay-bar.test.ts` (`replayStates` at and before the end) failed first. The `night: auto` test pinned the old end (a replayed day at 12:00 while live said night); it now expects the live night at End and the replayed day one step back.
+
 ## 2026-10-28: the replayed sun is computed
 
 Field report on 0.38.0: during a replay the 3D view had no sun. Home Assistant's recorder keeps `sun.sun`'s state but not its `azimuth` and `elevation`: a real `history/history_during_period` reply (291 rows over 24 h) held `friendly_name` in the first row's attributes and none after. `_sun()` read the attributes, so it returned null. Night was fine: it reads only the state. The Playwright stub had invented the two attributes, which is why nothing caught it.

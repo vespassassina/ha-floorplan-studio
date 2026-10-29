@@ -254,10 +254,12 @@ function statesAt(c: FloorplanStudioCard, ms: number): { floor: FloorHistory; st
   return { floor: fh, states: asHassStates(lib.stateAt(fh.index, ms)) };
 }
 
-/** `_stateForRender()` while the bar is open: the states last drawn, for the floor on show. */
+/** `_stateForRender()` while the bar is open: the states last drawn, for the floor on show. Undefined is live: at the end of the slider the
+ * plan is the live one, not the recorder's version of now (the recorder keeps fewer attributes than the live state, a lamp's colour for
+ * one), so `_stateForRender`, `_now`, the motion timer and the sun all read their live source there. */
 export function replayStates(c: FloorplanStudioCard): Hass["states"] | undefined {
   const r = c._replay;
-  if (!r) return undefined;
+  if (!r || r.drawnT >= r.end) return undefined;
   const fh = floorHistory(c);
   if (r.drawn && r.drawn.floor === fh) return r.drawn.states;
   const at = statesAt(c, r.drawnT); // a floor switched to: its history at the moment on show

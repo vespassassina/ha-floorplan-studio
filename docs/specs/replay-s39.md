@@ -48,7 +48,7 @@ been drawn at that moment.
 6. **State at a time.** `stateAt(index, t)` gives, for each entity, the last row with `lu ≤ t` as a `HassEntity`
    (`state`, `attributes`, `last_changed` as ISO). An entity with no row at or before `t` (none in history, or excluded
    from the recorder) is absent, so it draws as an unknown entity does today. The bar's info button says how many
-   entities on the floor have no history.
+   entities on the floor have no history. The recorder keeps fewer attributes than the live state (a Hue group's `rgb_color` is not kept), so a past moment draws only what was kept: a lit lamp with no recorded colour draws the default lamp colour, and today's attributes are never borrowed for the past. At the end of the slider (now) the plan is the live one, `hass.states` and the real clock (2026-10-28, DECISIONS).
 7. **One draw path.** While the bar is open, `_stateForRender()` returns the replayed states and every reader of
    time uses the replayed moment: motion fade, the 3D `now`, `_night()` with `night: auto`, and `_sun()`. Nothing else
    in render changes (finding 8). 2D and 3D both follow; switching view while replaying keeps the replayed moment.

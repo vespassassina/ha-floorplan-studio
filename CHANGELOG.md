@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+Replay is easier to find, and its first frame is the live plan. Replay is now the first item of the ⋯ menu. At the end of the slider the plan is exactly the live one; earlier, a lamp whose colour Home Assistant did not record shows the default lamp colour.
+
+- Card: Replay is the first section of the ⋯ menu, above View.
+- Card: at the end of the slider the plan is the live one; a past lamp shows the default colour when Home Assistant did not record its colour.
+
 ## 0.38.1 - 2026-10-28
 
 The 3D sun now follows the replay. Home Assistant does not record where the sun stood, so the card works it out from the replayed time and your Home Assistant location.
