@@ -37,6 +37,12 @@ One key, `theme:`. Every plan below is the same ground floor.
 
 ![The demo home as a live card: lights come on, the plan zooms, switches floor, turns 2.5D and 3D, darkens at dusk; then the Studio, dragging a device.](docs/img/demo.gif)
 
+## Replay the day
+
+⋯ > Replay plays back the last 24 hours from Home Assistant's history. Live leaves it.
+
+![The demo home replayed: the slider is dragged back to the morning, the kitchen lamp and the hall come on, the day plays, then the evening lamps, the TV and an open window; Live returns to now.](docs/img/replay.gif)
+
 ## What you get
 
 - An editor panel in HA: draw floors, rooms, walls, doors, windows (also slit windows), open doorways, stairs,

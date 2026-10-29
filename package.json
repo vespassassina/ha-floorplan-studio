@@ -15,6 +15,7 @@
     "build": "node scripts/build.mjs",
     "shots": "FP_TEST_BUILD=1 node scripts/build.mjs && node scripts/shots.mjs",
     "demo-gif": "node scripts/build.mjs && FP_TEST_BUILD=1 node scripts/build.mjs && node scripts/demo-gif.mjs",
+    "replay-gif": "FP_TEST_BUILD=1 node scripts/build.mjs && node scripts/replay-gif.mjs",
     "dev": "vite --config vite.config.ts --mode editor --host 127.0.0.1 src/editor",
     "docs:schema": "node scripts/gen-schema-docs.mjs > docs/schema.md",
     "docs:check": "markdown-link-check docs/*.md README.md CONTRIBUTING.md"
