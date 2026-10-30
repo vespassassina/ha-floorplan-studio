@@ -183,10 +183,8 @@ const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
 export const isEntityId = (x: unknown): x is string => typeof x === "string" && /^[a-z0-9_]+\.[a-z0-9_]+$/i.test(x);
 /** S40.3: the longest `view` path. */
 export const VIEW_MAX = 200;
-/** A path segment that is `.` or `..`, written in either form. */
-const DOT_SEGMENT = /^(?:\.|%2e){1,2}$/i;
 /** S40.3: a `view` is a path inside Home Assistant: one leading `/` and not `//` (or `/\`, which a browser reads as `//`), no scheme, no whitespace or control character, at most `VIEW_MAX`, and no `.` or `..` segment (a browser folds `/..//evil.com` into `//evil.com`; `%2e` counts as a dot). The card checks it again at tap time. */
-export const isViewPath = (x: unknown): x is string => typeof x === "string" && x.length <= VIEW_MAX && !x.split(/[?#]/, 1)[0].split("/").some((s) => DOT_SEGMENT.test(s)) && /^\/(?![/\\])[^\s\\\0-\x1f\x7f-\x9f]*$/.test(x);
+export const isViewPath = (x: unknown): x is string => typeof x === "string" && x.length <= VIEW_MAX && /^(?![^?#]*\/(?:\.|%2e){1,2}(?:[/?#]|$))\/(?![/\\])[^\s\\\0-\x1f\x7f-\x9f]*$/i.test(x);
 const isPt = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === "number" && Number.isFinite(n));
 
 /** cm. No coordinate of a plan lies further than this from the origin (100 km). Past it, a finite number such as 1.7e308 overflows the maths of the 3D camera and draws nothing (S12 review). */
