@@ -33,7 +33,8 @@ Room for the card. 0.39.0 shipped at 124,649 bytes gzip against a cap of 124,650
   every dist `.js` and `editor.html`, `(?<![=!])==null\?void 0` (so `===null?void 0` passes). Failed first (editor.html: 410),
   passes now.
 - **Cap.** The card is 121,511 against 124,650: 3,139 bytes of headroom.
-  TODO (Diego): decide the cap and its comment in `tests/card/size-budget.spec.ts` (keep 124,650, or lower it so the saving is not spent unseen).
+  Diego, 2026-10-30: the cap stays 124,650. The 3.1 KB is room for temperature warnings and the next card features;
+  each sprint states what it spends in its own entry.
 
 ## 2026-10-30: Sprint 40 review fixes, and the card lane's calls
 
