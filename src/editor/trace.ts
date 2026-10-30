@@ -56,3 +56,12 @@ export async function traceImage(file: Blob, limit: number = MAX_TRACE_BYTES): P
   if (cap >= MAX_TRACE_BYTES) throw new Error("That image is too detailed to store under 4 MB, even at low quality. Crop it first.");
   throw new Error(`That image is too big to keep with this plan: Home Assistant takes at most ${mb(MAX_LAYOUT_BYTES)} MB in one save, the rest of the plan leaves ${mb(Math.max(0, cap))} MB, and even at low quality the image needs more. Crop it, or remove another floor's trace image (Edit, Trace image…, Remove), then load it again.`);
 }
+
+/** The tenth of a degree a typed rotation lands on. Round before folding: folding first turned -0.04 into 360, which `validate` refuses. */
+export function traceRotStored(deg: number): number {
+  const r = Math.round(deg * 10) / 10;
+  const folded = Math.round((((r % 360) + 360) % 360) * 10) / 10; // the fold adds float noise; round once more
+  return folded >= 360 ? 0 : folded + 0; // `+ 0` turns -0 into 0
+}
+/** A stored `rot` in [0, 360) as the -180..180 the Rotation field shows. */
+export const traceRotShown = (rot: number): number => Math.round((rot > 180 ? rot - 360 : rot) * 10) / 10 + 0;
