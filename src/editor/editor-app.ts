@@ -15,7 +15,7 @@ import type { FpSearch } from "../card/search-box";
 import { layoutEntries, type SearchEntry } from "../core/search";
 import { buildOutline, deviceNodeId, filterOutline, outlineKey, outlineView, visibleRows, type OutlineNode, type OutlineRow } from "./outline";
 import { readViewMemory, writeViewMemory } from "./view-memory";
-import { traceImage } from "./trace";
+import { traceImage, traceRotStored, traceRotShown } from "./trace";
 import { furnitureNear, roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, rayPoint, snapRay, type AreaPreset, type DrawKind } from "./draw";
 import { restoreScene, tryScene } from "./scene-try";
@@ -78,8 +78,6 @@ type Drag =
 
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
-/** S40.2: a trace `rot` stored in [0, 360), shown in -180..180. */
-const traceDeg = (rot: number): number => Math.round((rot > 180 ? rot - 360 : rot) * 10) / 10;
 /** Where the measure grid reads zero: the top-left corner of the floor's outline (lowest x, lowest y). A floor with no outline has none, so its zero is the layout's own. */
 export const planZero = (f: Floor): Pt => (f.outline.length ? [Math.min(...f.outline.map((p) => p[0])), Math.min(...f.outline.map((p) => p[1]))] : [0, 0]);
 const DRAW_HINT = "Click to add points, double-click or Enter to finish, Esc to cancel";
@@ -499,6 +497,8 @@ export class FloorplanStudioEditor extends LitElement {
     .trace-panel{position:absolute;left:8px;bottom:8px;z-index:3;width:260px;max-width:calc(100% - 16px);display:flex;flex-direction:column;gap:6px;padding:0 10px 10px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .trace-panel .installcode-head{margin:0 -10px}
     .trace-panel .row .btn{flex:1}
+    .trace-panel .rotrow{display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .trace-panel .hint{margin:0}
     .trace-panel input[type=number]{width:6em}
     .stepper{display:flex;gap:2px;align-items:stretch} .stepper input{flex:1;min-width:0} .btn.step{padding:0 6px;min-width:26px}
     .controls{border-collapse:collapse;width:100%;margin:8px 0}
@@ -1072,6 +1072,15 @@ export class FloorplanStudioEditor extends LitElement {
     this.drag = null;
     this.requestUpdate();
   }
+  /** S40 review: Escape in a Move drag puts the image back where the press found it, writes no undo step and ends Move. */
+  private cancelTraceDrag() {
+    const d = this.drag, t = this.st.f.trace;
+    if (d?.type !== "trace") return;
+    if (t && d.moved) this.st.replaceFloor({ ...this.st.f, trace: { ...t, x: d.from[0], y: d.from[1] } });
+    this.drag = null;
+    this.traceMove = false;
+    this.requestUpdate();
+  }
   private begin(d: { moved: boolean }) {
     if (!d.moved) { d.moved = true; this.st.snapshot(); }
   }
@@ -1377,6 +1386,7 @@ export class FloorplanStudioEditor extends LitElement {
   openPlace(i: number) {
     const r = this.st.f.rooms[i];
     if (!r) return;
+    this.traceMove = false;
     this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.asideMode = "place";
     this.requestUpdate();
   }
@@ -1536,11 +1546,12 @@ export class FloorplanStudioEditor extends LitElement {
     const n = Number(input.value.trim().replace(",", "."));
     if (input.value.trim() === "" || !Number.isFinite(n) || n < -180 || n > 180) {
       this.status = "Type a rotation from -180 to 180 degrees";
-      input.value = String(traceDeg(t.rot));
+      input.value = String(traceRotShown(t.rot));
       this.requestUpdate();
       return;
     }
-    this.setTrace({ ...t, rot: Math.round((((n % 360) + 360) % 360) * 10) / 10 }, "Image turned");
+    this.setTrace({ ...t, rot: traceRotStored(n) }, "Image turned");
+    input.value = String(traceRotShown(this.st.f.trace?.rot ?? 0)); // the box shows what was stored, not what was typed
   }
   /** Load: downscale, then place the image over the outline (or the view, on a blank floor), fitted inside it. Load again resets the placement. */
   private async loadTrace(ev: Event) {
@@ -1613,8 +1624,9 @@ export class FloorplanStudioEditor extends LitElement {
               <button class="btn" id="traceApply" @click=${() => this.applyTraceScale()}>Apply</button></div>`
           : html`<button class="btn" id="traceScale" aria-pressed=${sc ? "true" : "false"} @click=${() => (sc ? this.cancelTraceScale() : this.startTraceScale())}>${sc ? `Click point ${sc.length + 1} of 2…` : "Scale…"}</button>`}
         ${t.on ? html`<button class="btn" id="traceMove" aria-pressed=${this.moving ? "true" : "false"} title="Drag the image, or nudge it with the arrow keys (Shift: 10 cm). Esc ends it" @click=${() => this.setTraceMove(!this.moving)}>Move</button>` : nothing}
-        <label for="traceRot">Rotation (°)</label>
-        <input id="traceRot" type="number" min="-180" max="180" step="0.1" .value=${live(String(traceDeg(t.rot)))} @change=${(e: Event) => this.setTraceRot(e)} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); this.setTraceRot(e); } }}>
+        ${this.moving ? html`<p class="hint" id="traceMoveHint">Move: drag the image, arrows nudge it</p>` : nothing}
+        <div class="rotrow"><label for="traceRot">Rotation (°)</label>
+        <input id="traceRot" type="number" min="-180" max="180" step="0.1" .value=${live(String(traceRotShown(t.rot)))} @change=${(e: Event) => this.setTraceRot(e)} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); this.setTraceRot(e); } }}></div>
         <label for="traceAlpha">Opacity</label>
         <div class="rangerow"><input id="traceAlpha" type="range" min="0" max="1" step="0.05" .value=${live(String(t.alpha))} @change=${(e: Event) => { const a = Number((e.target as HTMLInputElement).value); if (Number.isFinite(a)) this.setTrace({ ...t, alpha: Math.min(1, Math.max(0, a)) }, "Image opacity changed"); }}><span class="rot-val">${Math.round(t.alpha * 100)}%</span></div>
         <label><input id="traceOn" type="checkbox" .checked=${live(t.on)} @change=${(e: Event) => this.setTrace({ ...t, on: (e.target as HTMLInputElement).checked }, (e.target as HTMLInputElement).checked ? "Image shown" : "Image hidden")}> Show</label>
@@ -1898,6 +1910,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "?" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !takesTyping(t)) { ev.preventDefault(); this.toggleHelp(); return; }
     // Escape cancels a drag of devices before anything else: Help, Place and the rest must not swallow it while the plan is being dragged.
     if (ev.key === "Escape" && (this.drag?.type === "devs" || this.drag?.type === "dev")) { ev.preventDefault(); this.cancelDeviceDrag(); return; }
+    if (ev.key === "Escape" && this.drag?.type === "trace") { ev.preventDefault(); this.cancelTraceDrag(); return; }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
@@ -2332,6 +2345,7 @@ export class FloorplanStudioEditor extends LitElement {
   startDraw(kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
     if (this.st.planLocked) { this.planFixed(); return; }
     this.closeAlign(false); // review 29: a draw and Align never run together
+    this.traceMove = false; // S40 review: Move takes the press before Draw sees it, so Draw would be dead
     this.draw = new Draw(kind, wall, area);
     this.hover = this.aim = this.rayAim = null;
     this.st.sel = null;
@@ -2808,7 +2822,7 @@ export class FloorplanStudioEditor extends LitElement {
   openAlign() {
     this.closeMenus();
     if (floorBelow(this.st.layout, this.st.floor) === null) return;
-    this.stopDraw(); this.st.sel = null; this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
+    this.stopDraw(); this.traceMove = false; this.st.sel = null; this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
     if (this.st.helpOpen) this.st.setHelp(false);
     this.requestUpdate();
     this.focus({ preventScroll: true }); // S29.10: the keys are heard on the host, so the menu click must leave focus there
@@ -3022,7 +3036,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.setFloorNow(name);
     this.switchDir = floorSwitch(Object.keys(this.st.layout.floors), from, this.st.floor, reduced)?.dir ?? null; // S27.12: null for the same floor and for reduced motion
   }
-  private setFloorNow(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.closeAlign(false); this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
+  private setFloorNow(name: string) { this.stopDraw(); this.traceMove = false; /* S40 review: Move belongs to the floor's image; it must not resume on another floor */ this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.closeAlign(false); this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
 
   /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
   private saveByKey() {
