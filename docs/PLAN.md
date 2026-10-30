@@ -4760,14 +4760,27 @@ after; no lane raises the cap.
 Not in this sprint: the trace image on the card, a combined history chart in the popup, temperature range warnings, a
 generic value sensor with its own icon. Each needs its own design; they are next after this one.
 
-## Sprint 41 (outline): CI shards and the surface freeze
+## Sprint 41 (outline): replay review, a brainstorm, CI shards and the surface freeze
 
-Plan D, items 16 and 17, beside the next feature sprint. Detailed when Sprint 39 closes.
+Two discovery tasks first, asked by Diego on 2026-10-30; their output is a spec and a plan for Sprint 42 on, not
+code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
 
-- S41.a Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
+- S41.r Review the replay to widen it. Read the S39 and S40 replay code and DECISIONS, use it on Diego's HA, and
+  answer with evidence: event markers on the slider (lamps, motion, doors, alarms), clustered when they crowd;
+  a longer window (48 h, 7 days: what HA's recorder keeps, `purge_keep_days`, the cost of one history call per floor,
+  and statistics for long ranges); jump to the next event; filters by type or room. Also more cues on the live plan
+  that a replay can then show: open doors and windows, recent motion trails, a room that was busy, a value out of its
+  range. Output: `docs/specs/replay-2.md` with criteria, sizes measured against the card's gzip cap, and the order.
+- S41.b Brainstorm with Diego (build-flow design interview), from what is built: new features, and improvements to
+  usability, readability and integration with Home Assistant (areas, labels, the dashboard, Assist, notifications).
+  Prepared beforehand: a list of candidates from the field reports, open DECISIONS items and the four deferred field
+  requests (trace on the card, a combined history chart, temperature range warnings, a generic value sensor), each
+  with value, cost and risk. Output: a ranked list in `docs/ROADMAP.md` or PLAN outlines, and Diego's picks.
+
+- S41.c Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
   `globalSetup` building once per shard. Done when CI on `main` is under half today's wall time with the same count of
   tests, and a deliberately failing test still turns CI red.
-- S41.b The surface freeze in `docs/WORKFLOW.md`: no new theme, no new car model, a new config key needs a removed one
+- S41.d The surface freeze in `docs/WORKFLOW.md`: no new theme, no new car model, a new config key needs a removed one
   or a DECISIONS entry that says why. A unit test lists today's config keys and themes, so a new one fails until the
   list and the reason are written down (finding 17).
 
