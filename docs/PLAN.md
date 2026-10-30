@@ -4862,3 +4862,32 @@ All in the Studio, 0 card bytes. Every registry write is confirmed by the admin,
 - Trace on the card: the Studio's trace image under the plan, off unless the layout turns it on (it reaches every
   tablet). Under the surface freeze, a layout setting, not a card config key.
 - Save room scenes into Home Assistant, usable from Assist and automations.
+
+### Sprint 50 (outline): the scene editor in the card
+
+Diego, 2026-10-30: "a scene editor popup. lazy. that has a nice wysiwyg editor for light/cover/switches/music scenes in
+a room. then scenes are saved for the rooms." The spec answers the open points before the sprint starts.
+- One editor, two hosts: a lazy chunk the card opens from a room's Scenes section, and the Studio opens in place of the
+  S17 popup, so the two cannot drift (one draw path, finding 8; parity with the Studio).
+- The popup shows the room magnified, drawn by `renderFloor` cropped to the room. A tap on a device opens its control
+  in place: on/off, brightness, kelvin and colour for a light; position (and tilt) for a cover; on/off for a switch or
+  plug; volume and source for a speaker; mode and target for climate; speed for a fan.
+- WYSIWYG without touching the house: the plan draws the scene's states the way a replay draws past states. "Try it"
+  sends it to the real devices and "Restore" puts the room back (S17.7).
+- New per-item fields: `transition` (seconds, lights), cover `tilt`, climate fan mode; "Capture the room now" fills a
+  scene from the current states.
+- Saving: `floorplan_studio/save` is admin only. A new command writes one room's scenes with `expected_rev`, so a card
+  never overwrites a Studio edit. Non-admins see the editor read-only with Try it. Card bytes: the button and the
+  loader only.
+
+### Sprint 51 (outline): dynamic scenes
+
+- Steps: a scene is a list of steps, each a set of items, a duration and a transition (a wake-up ramp, an evening
+  dimming, a party cycle), with play once or loop.
+- Runs in Home Assistant, not in the card: Save writes it as a `script.*` (delays and transitions), so it runs with
+  the dashboard closed and Assist and automations can start it. Joins Sprint 49's scenes into HA.
+- Effects the lights already have (`effect_list`: candle, fire, colour loop) are offered first: no Zigbee traffic.
+- A traffic budget: a loop step under 2 s per light, or more than a set number of calls a minute, is refused with the
+  reason, so a scene cannot flood the Zigbee network.
+- The card shows a playing scene and stops it.
+
