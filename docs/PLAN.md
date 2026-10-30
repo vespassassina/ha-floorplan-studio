@@ -4746,7 +4746,7 @@ tap and bar code); **editor** S40.2 then S40.4 (both in the editor's panels). S4
 land, since both edit the device and trace panels' file. Every card lane reports `gzip -9` of the card before and
 after; no lane raises the cap.
 
-- [ ] S40.1 Replay button and X: the button under the plan while the bar is closed, the X in place of Live, focus going
+- [x] S40.1 Replay button and X: the button under the plan while the bar is closed, the X in place of Live, focus going
       to play and back to the button. Spec A, items 1 to 5; criteria 1 to 3.
 - [ ] S40.2 Move and turn the trace image: Move toggle, drag, arrow nudge, the Rotation field, Move off on Escape,
       Scale, Hide and Remove. Spec B, items 6 to 9; criteria 5 to 8.

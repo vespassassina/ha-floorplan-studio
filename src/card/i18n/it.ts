@@ -261,7 +261,7 @@ const c: Catalogue = {
   "Replay": "Rivedi",
   "Replay time": "Momento",
   "Play": "Riproduci",
-  "Live": "In diretta",
+  "Close replay": "Chiudi la revisione",
   "Replaying": "Riproduzione in corso",
   "Loading history…": "Caricamento della cronologia…",
   "Could not load the history: {why}": "Impossibile caricare la cronologia: {why}",

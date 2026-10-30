@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Card: a slim Replay button sits under the plan while the replay bar is closed (icon only under 640 px). A tap opens the bar and focus goes to its play button. The bar's Live button is now an X (Close replay); Escape or the X closes it and focus returns to the Replay button.
+- Card: a device with a `view` (a path such as `/lovelace/terrace`) opens that dashboard view on a tap, whatever `tap_action` says. A hold keeps its own action. Older cards ignore the key; a bad path is refused by `validate` and dropped by `migrate`.
+
 ## 0.38.2 - 2026-10-29
 
 Replay is easier to find, and its first frame is the live plan. Replay is now the first item of the ⋯ menu. At the end of the slider the plan is exactly the live one; earlier, a lamp whose colour Home Assistant did not record shows the default lamp colour.

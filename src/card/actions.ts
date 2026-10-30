@@ -1,6 +1,6 @@
 import { t } from "../core/i18n";
 import type { Device, Door, Furniture, Unlinked } from "../core";
-import { carEntities, carMain, carStatus, carText, entitiesOfDevice, entitiesOfDoor, pieceDevice, playerOf } from "../core";
+import { carEntities, carMain, carStatus, carText, entitiesOfDevice, entitiesOfDoor, isViewPath, pieceDevice, playerOf } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 import type { HoldAction, TapAction } from "./tap-action";
 
@@ -53,6 +53,13 @@ export type TapTarget = { device: Device; index: number; piece?: true } | { door
  * S10.4: a hold on a door or an appliance that names several entities opens `opts.openChooser(title, entities)` instead of
  * guessing. A hold on a device opens its own entity's more-info (the popup's More info link is the chooser's way in).
  */
+/** Home Assistant's own `navigate`: push, then tell its router. Used for the Studio link and a device's `view` (S40.3); a path that is not one (`isViewPath`) goes nowhere. */
+export function openView(path: unknown): void {
+  if (!isViewPath(path)) return;
+  history.pushState(null, "", path);
+  window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+}
+
 export function bindDeviceActions(
   svg: Element,
   host: DeviceActionsHost,
@@ -203,6 +210,9 @@ export function bindDeviceActions(
     const info = own ? () => fireEvent(host, "hass-more-info", { entityId: own }) : undefined;
     // `none` still arms a hold, doing nothing: the release of a long press must not turn into a tap.
     const onHold = holdA === "none" ? () => undefined : info;
+    // S40.3: a device with a `view` opens it on a tap, whatever the card's tap_action says; hold keeps its own. Kiosk never leaves the dashboard.
+    // Checked here and again in `openView`, because the layout is untrusted.
+    if (longPress && isViewPath(d.view)) { arm(solo(() => openView(d.view)), onHold); return; } // read again on release
     const tt: TapTarget = { device: d, index: i };
     const asPopup = popup(tt);
     if (d.type === "vacuum") {
