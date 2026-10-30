@@ -37,7 +37,8 @@ const setHass = (page: Page, language: string | undefined) =>
   );
 const zoomIn = (page: Page, name: string) => card(page).locator(`button[aria-label="${name}"]`);
 const viewBox = (page: Page) => card(page).locator("svg.fp-zoomable").getAttribute("viewBox");
-const langRequests = (seen: string[]) => seen.filter((u) => /floorplan-studio-lang-[\w-]+\.js/.test(u)).map((u) => /lang-([\w-]+?)-[A-Za-z0-9_]{6,}\.js/.exec(u)![1]);
+// The hash can hold a "-" (lang-zh-Hans-Bx-Ev8AR.js), so the code is one of the known shapes, not whatever precedes the hash.
+const langRequests = (seen: string[]) => seen.filter((u) => /floorplan-studio-lang-[\w-]+\.js/.test(u)).map((u) => /lang-(pt-BR|zh-Hans|[a-z]{2})-[\w-]{6,}\.js/.exec(u)![1]);
 
 test.describe("S37.5 the card in the user's language", () => {
   test("English loads no language file and reads English", async ({ page }) => {

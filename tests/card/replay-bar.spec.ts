@@ -896,6 +896,17 @@ test.describe("S40.3 a device with a view", () => {
     expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
   });
 
+  test("a path that goes bad between the press and the release navigates nowhere", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW) }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    const b = (await g(page, lampIdx).boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await card(page).evaluate((el, i) => { ((el as unknown as { _layout: { floors: { ground: { devices: Record<string, unknown>[] } } } })._layout.floors.ground.devices[i as number]).view = "/lovelace/a b"; }, lampIdx); // a path pushState accepts, so only our check stops it ("//x" would throw there anyway)
+    await page.mouse.up();
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
   test("a layout file with a bad view opens, and the icon taps as before", async ({ page }) => {
     await boot(page, { config: { layout: withView("//evil.com") }, live: { "light.demo_kitchen": st("off") } });
     await track(page);

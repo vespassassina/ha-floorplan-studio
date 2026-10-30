@@ -212,7 +212,7 @@ export function bindDeviceActions(
     const onHold = holdA === "none" ? () => undefined : info;
     // S40.3: a device with a `view` opens it on a tap, whatever the card's tap_action says; hold keeps its own. Kiosk never leaves the dashboard.
     // Checked here and again in `openView`, because the layout is untrusted.
-    if (longPress && isViewPath(d.view)) { const to = d.view; arm(solo(() => openView(to)), onHold); return; }
+    if (longPress && isViewPath(d.view)) { arm(solo(() => openView(d.view)), onHold); return; } // read again on release
     const tt: TapTarget = { device: d, index: i };
     const asPopup = popup(tt);
     if (d.type === "vacuum") {
