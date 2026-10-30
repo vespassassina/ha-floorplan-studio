@@ -2,6 +2,28 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-30: Sprint 40 review fixes, and the card lane's calls
+
+From the Opus review of the integrated sprint. Each defect has a test that failed first.
+
+- **The card lane's calls, not written down before.** Kiosk ignores `view`: a kiosk tap does what it did. The idle
+  Replay button is named by its `title` and has no `aria-label`; the card had 7 bytes of gzip left, and the accessible
+  name is the same. The open bar's markup lives in the lazy replay chunk; until it loads, a shell bar with the X and
+  the reason shows, so Escape and the X work even when the chunk fails. "Live" left the catalogues with the button.
+- **Enter and Space follow `view` too.** A tap on a device with a view navigates; the keyboard opened the popup and
+  had no way to the view. The key now does what the tap does, through the same check at the moment of the key.
+  Supersedes spec item C13 for keyboard users only: the popup is still reached by hold or from Attention.
+- **`view` refuses `.` and `..` segments.** `/..//evil.com` passed the `//` rule and resolved to `//evil.com`.
+  `pushState` cannot leave the origin, so it was no redirect, but a reload asked HA for that path. One rule,
+  `isViewPath`, still serves validate, migrate, the editor and the tap.
+- **The bar takes focus only when nothing else has it.** It moved focus to Play when the history arrived, even after
+  the user had moved on. Focus moves now only from inside the bar, the Replay button, or nothing.
+- **Rotation is rounded before it wraps.** -0.04 was stored as 360, which `validate` refuses, so Save failed later
+  with no link to the field (finding 12). The field now shows the stored value in -180..180.
+- **Move gives way.** Draw, Align, Place and a floor switch turn Move off; with Move on a click never placed a draw
+  point. Escape during a drag cancels it, as for devices. The Move hint sits in the Trace panel, which covered the
+  status bar.
+
 ## 2026-10-30: Sprint 40, the editor lane (trace Move, single entities)
 
 Details the spec left open. Spec: `docs/specs/quick-wins-s40.md`, items 6 to 9 and 14 to 17.

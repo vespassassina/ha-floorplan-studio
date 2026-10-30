@@ -2,9 +2,14 @@
 
 ## Unreleased
 
+Replay is one tap away: a button under the plan opens the bar, an X closes it. A device can open another dashboard view. In the Studio, the trace image moves and turns to line up with your walls, and Add device finds a single entity of a hub by its own name.
+
 - Card: a slim Replay button sits under the plan while the replay bar is closed (icon only under 640 px). A tap opens the bar and focus goes to its play button. The bar's Live button is now an X (Close replay); Escape or the X closes it and focus returns to the Replay button.
 - Card: a device with a `view` (a path such as `/lovelace/terrace`) opens that dashboard view on a tap, whatever `tap_action` says. A hold keeps its own action. Older cards ignore the key; a bad path is refused by `validate` and dropped by `migrate`.
 - Studio: the device panel has a "Dashboard view" field under the entity. A bad path shows the validator's message and is not written; empty removes the key; one undo step.
+- Card: Enter or Space on a focused device with a `view` opens that view, as a tap does.
+- Studio: the Trace image panel has Move (drag the image; arrows nudge 1 cm, Shift 10 cm) and Rotation (-180 to 180 degrees). Escape, Scale, Hide, Remove, Draw and a floor switch end Move. One undo step per drag, nudge or change.
+- Studio: while you type in Add device, an Entities group lists unplaced entities of your HA devices by their own name or id, at most 50. A pick places that entity with its type. An empty search lists what it did before.
 
 ## 0.38.2 - 2026-10-29
 
