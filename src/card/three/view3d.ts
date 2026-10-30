@@ -315,7 +315,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   // a key that starts in a control that Space activates is that control's.
   let hovered = false, spaceDown = false;
   const setSpace = (on: boolean) => { spaceDown = on; canvas.style.cursor = on ? "grab" : ""; };
-  const isSpace = (e: KeyboardEvent) => e.code === "Space" || e.key === " " || e.key === "Spacebar";
+  const isSpace = (e: KeyboardEvent) => e.code === "Space" || e.key === " ";
   const takesSpace = (t: EventTarget | undefined) => t instanceof Element && !!t.closest('button,input,select,textarea,summary,a,[contenteditable]:not([contenteditable="false"]),[role="button"],[role="menuitem"],[role="checkbox"],[role="switch"],[role="tab"],[role="option"]');
   const onKeyDown = (e: KeyboardEvent) => {
     if (!isSpace(e) || !hovered || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || e.isComposing || takesSpace(e.composedPath()[0])) return;

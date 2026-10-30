@@ -394,7 +394,9 @@ function paintBar(c: FloorplanStudioCard): void {
   // The Replay button opened the bar: focus waits on the play button, which is disabled until the history is there. Meanwhile the bar
   // itself holds it (so Escape works); a failed fetch leaves the X.
   if (!r.focus) return;
-  const st = floorHistory(c)?.status, at = c.shadowRoot!.activeElement, away = at && !wrap.contains(at); // away: the user moved on while it loaded, and that choice stays
+  // away: the user moved on while it loaded, and that choice stays: inside the card on something else, or on a field elsewhere on the page.
+  // With no focus in the card's own root, only the body is "nowhere" (no document body at all counts as away, the safe side); the card may sit in nested shadow roots, so the page's active element is a host, not the card.
+  const st = floorHistory(c)?.status, at = c.shadowRoot!.activeElement, away = at ? !wrap.contains(at) : document.activeElement !== document.body;
   if (away || st === "ready" || st === "error") r.focus = false;
   if (!away) wrap.querySelector<HTMLElement>(st === "ready" ? ".fp-rp-play" : st === "error" ? ".fp-rp-close" : ".fp-replay")?.focus();
 }
