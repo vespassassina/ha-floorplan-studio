@@ -131,6 +131,12 @@ Junk is refused with the reason.
   (default 100 cm; 30 cm when it stands free); a speaker's cabinet is a fixed
   20 x 20 x 30 cm and ignores it, but its icon rides it: 30 cm (the top of the
   cabinet) by default, or the height you set.
+- **Device**, Dashboard view — under the entity, on every device: a path inside Home
+  Assistant such as `/lovelace/terrace`. A tap on the icon in the card opens that
+  view instead of the popup. A bad path (`//x`, `javascript:x`, a space, over 200
+  characters) is not written; the validator's message shows under the box until
+  the next good edit. Empty removes the key. One undo step; an unchanged value
+  adds none.
 - **Device**, effect size (%) — on the devices that draw an effect (a light, a
   speaker, a media player, a motion or contact sensor, and any device whose
   entity is a `siren.*`): how big its aura, rings or waves are, 25 to 300, as a

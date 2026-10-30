@@ -5,7 +5,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import { CAR_MODELS, MAX_CAR_ATTACHED } from "../core/schema";
+import { CAR_MODELS, MAX_CAR_ATTACHED, validate } from "../core/schema";
 import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -938,6 +938,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     ${heading("Home Assistant")}
     ${deviceEntity(c, i)}
+    ${viewField(c, i)}
     ${d.type === "camera" ? hint("Cone: 120° field of view, 1 m deep.") : nothing}
     ${d.type === "heater" ? heaterFields(c, i) : nothing}
     ${d.type === "ac" ? acField(c, i) : nothing}
@@ -1016,6 +1017,35 @@ function areaDiffField(c: PanelCtx, i: number) {
  * ordered by device name; the tier's device-less entities keep the tier's own label, in a trailing optgroup). Within
  * a device's optgroup, a config/diagnostic entity (`cat`) sorts after the device's other entities.
  */
+/** S40.3: the refused text of the Dashboard view box and the validator's words for it. One at a time, for one device: it goes with the next valid edit or another selection. */
+let badView: { id: string; raw: string; msg: string } | null = null;
+/** What `validate` says about this path on this device, so the box never words it twice. Empty when the path is good. */
+function viewProblem(c: PanelCtx, i: number, raw: string): string {
+  const l = structuredClone(c.st.layout), d = l.floors[c.st.floor].devices[i];
+  d.view = raw;
+  const r = validate(l);
+  const at = `${d.id} view must`;
+  const e = r.ok ? undefined : r.errors.find((m) => m.includes(at));
+  return e ? e.slice(e.indexOf(at) + d.id.length + 1) : "";
+}
+/** S40.3: "Dashboard view", a path inside Home Assistant a tap opens instead of the popup. A bad path is not written; the validator's message shows under the box. Empty removes the key. */
+function viewField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const bad = badView && badView.id === d.id ? badView : null;
+  if (!bad) badView = null;
+  const on = (e: Event) => {
+    const raw = val(e), v = raw.trim();
+    if (v === "") { badView = null; c.commit((f) => { delete f.devices[i].view; }); }
+    else {
+      const msg = viewProblem(c, i, v);
+      if (msg) badView = { id: d.id, raw, msg };
+      else { badView = null; if (v !== d.view) c.commit((f) => { f.devices[i].view = v; }); }
+    }
+    c.refresh();
+  };
+  return html`<label for="vview">Dashboard view</label><input id="vview" type="text" placeholder="/lovelace/…" title="A tap opens this view instead of the popup" aria-invalid=${bad ? "true" : nothing} aria-describedby=${bad ? "vview-err" : nothing} .value=${live(bad ? bad.raw : d.view ?? "")} @change=${on}>
+    ${bad ? html`<p id="vview-err" class="warn-text" role="alert">${bad.msg}</p>` : nothing}`;
+}
 function deviceEntity(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i], ha = c.st.ha;
   const set = (v: string) => c.commit((f) => { f.devices[i].entity = v.trim(); });
