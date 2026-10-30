@@ -4790,6 +4790,7 @@ code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
 - S41.c Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
   `globalSetup` building once per shard. Done when CI on `main` is under half today's wall time with the same count of
   tests, and a deliberately failing test still turns CI red.
+  Done 2026-10-30 (PR 4): CI 22 min to 10.5 min, 2,700 tests in four shards; a planted failing test turned shard 3 red.
 - S41.d The surface freeze in `docs/WORKFLOW.md`: no new theme, no new car model, a new config key needs a removed one
   or a DECISIONS entry that says why. A unit test lists today's config keys and themes, so a new one fails until the
   list and the reason are written down (finding 17).

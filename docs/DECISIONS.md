@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-30: Playwright runs in four CI shards (S41.c)
+
+CI on main took 22 min, Playwright 20 of them, on one runner. `.github/workflows/ci.yml` now runs `web` (lint and unit
+tests), `e2e` (a matrix of four, `--shard=i/4 --reporter=blob`, `fail-fast: false`, each building `dist/` in its own
+globalSetup), and `e2e-report`, which merges the blobs into one HTML report and only reads: the shards decide red.
+Measured on PR 4: the four shards list 2,700 tests, the same as the whole suite; the run took 10.5 min; a planted
+failing test failed shard 3 and the run, then was reverted. The shards split by file and are uneven (3.4 to 10.2 min);
+shard 1 holds the slow specs. If CI grows, rebalance before adding runners.
+
 ## 2026-10-30: Brainstorm picks (S41.b)
 
 Diego picked eleven of 25 candidates (the list rated value, cost and risk; sources were the reviews, PLAN, DECISIONS and
