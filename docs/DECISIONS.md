@@ -2,6 +2,36 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-30: The build names its own target (S41.0)
+
+Room for the card. 0.39.0 shipped at 124,649 bytes gzip against a cap of 124,650.
+
+- **Cause.** Vite's default `build.target` is `modules`: `es2020, edge88, firefox78, chrome87, safari14`. esbuild counts optional
+  chaining as safe only from Chrome and Edge 91, so with chrome87 in the list it prints every `a?.b` as
+  `a==null?void 0:a.b`, with a `var _a` temp for chains. Proved by transforming `a?.b?.c` with each browser alone: edge88,
+  chrome87 and chrome80 downlevel it; es2020, firefox78, safari14, safari15.4 and firefox98 keep it. Not the minify pass
+  (`scripts/minify-output.mjs`, no target, keeps `?.`) and not a dependency (lit and three ship `?.` as written: with
+  `target: esnext` the only `==null?void 0` left in the card is `===null?void 0`, our own code). The count was 467 in the
+  card, 71 in the 3D chunk, 45 in the form, 434 in the panel, 411 in the editor; the plan's "22" was a different grep.
+- **Home Assistant's floor.** `https://raw.githubusercontent.com/home-assistant/frontend/dev/.browserslistrc` (read
+  2026-10-30). `[modern]`: `unreleased versions`, `last 2 years`, `not dead`, `not QQAndroid > 0`, `not UCAndroid > 0`.
+  `[legacy]`: `Chrome >= 67`, `ChromeAndroid >= 67`, `Edge >= 79`, `Firefox >= 98`, `FirefoxAndroid >= 98`, `iOS >= 15.4`,
+  `Safari >= 15.4`, `Samsung >= 9`. HA transpiles for its legacy floor; a custom card is not transpiled, and the card
+  already needed Chrome 80 for `??` (esbuild keeps it from chrome80). No ES2020 target can reach Chrome 67.
+- **Target.** `["es2020", "chrome91", "edge91", "firefox98", "safari15.4"]` in `vite.config.ts` (`BUILD_TARGET`), for the
+  form, card, panel and editor builds; the lazy 3D, replay and language chunks come out of the card build. Firefox and
+  Safari take HA's legacy floors (both already keep `?.`). Chrome and Edge 91 are the oldest esbuild keeps `?.` for,
+  newer than HA's 67 and 79. **Cost:** Chrome and Edge 80 to 90 (2020 to mid 2021), e.g. an Android WebView never
+  updated, lose the card (a `?.` is a syntax error there); they ran it before. Chrome 67 to 79 could not run it before either.
+- **Bytes, gzip -9 (before to after, saved).** card 124,623 to 121,511 (3,112); form 24,993 to 24,665 (328); 3D chunk
+  164,216 to 163,703 (513); panel 192,593 to 189,483 (3,110); editor.html 188,646 to 185,708 (2,938); replay and the
+  nine language chunks unchanged. Raw card 384,857 to 373,200.
+- **Test.** `tests/card/size-budget.spec.ts`, "no shipped file carries optional chaining printed out as `==null?void 0`":
+  every dist `.js` and `editor.html`, `(?<![=!])==null\?void 0` (so `===null?void 0` passes). Failed first (editor.html: 410),
+  passes now.
+- **Cap.** The card is 121,511 against 124,650: 3,139 bytes of headroom.
+  TODO (Diego): decide the cap and its comment in `tests/card/size-budget.spec.ts` (keep 124,650, or lower it so the saving is not spent unseen).
+
 ## 2026-10-30: Sprint 40 review fixes, and the card lane's calls
 
 From the Opus review of the integrated sprint. Each defect has a test that failed first.

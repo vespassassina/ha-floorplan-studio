@@ -8,6 +8,11 @@ import { minifyOutput } from "./scripts/minify-output.mjs";
 // The card names its own version in the console and in a warning when another script owns its element.
 const version = JSON.parse(readFileSync("custom_components/floorplan_studio/manifest.json", "utf8")).version as string;
 
+// S41.0: Vite's default target ("modules": chrome87, edge88, ...) makes esbuild print `a?.b` as `a==null?void 0:a.b`, because esbuild treats
+// optional chaining as safe only from Chrome and Edge 91. That cost the card 2.8 KB gzipped. Firefox 98 and Safari 15.4 are the floors of Home
+// Assistant's own legacy build (home-assistant/frontend .browserslistrc); Chrome 91 is the oldest that keeps `?.`. docs/DECISIONS.md, 2026-10-30.
+const BUILD_TARGET = ["es2020", "chrome91", "edge91", "firefox98", "safari15.4"];
+
 // The card retries a failed 3D load through the chunk's own hashed name plus a query (a browser keeps a failed `import()` of one URL
 // and never asks again). The name is only known after the build, so the card holds a placeholder and this puts the name in.
 const chunkName = () => ({
@@ -46,6 +51,7 @@ export default defineConfig(({ mode }) => {
     define: { __FP_VERSION__: JSON.stringify(version), ...(mode === "card" ? { __FP_FORM_FILE__: JSON.stringify(formFile(outDir)) } : {}), __FP3D_TEST__: process.env.FP3D_TEST === "1" ? "true" : "false" },
     build: {
       outDir,
+      target: BUILD_TARGET,
       emptyOutDir: false,
       lib: { entry, formats: ["es" as const], fileName: () => fileName },
       // The card lazy-loads its 3D code (three.js) with import(). That becomes a chunk beside the card, named by a hash of
@@ -62,6 +68,6 @@ export default defineConfig(({ mode }) => {
   return {
     root: "src/editor",
     plugins: [stripCssComments(), viteSingleFile()],
-    build: { outDir: "../../dist", emptyOutDir: false, rollupOptions: { input: "src/editor/standalone.html" } },
+    build: { target: BUILD_TARGET, outDir: "../../dist", emptyOutDir: false, rollupOptions: { input: "src/editor/standalone.html" } },
   };
 });
