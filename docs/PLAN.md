@@ -4861,7 +4861,7 @@ All in the Studio, 0 card bytes. Every registry write is confirmed by the admin,
 
 - Trace on the card: the Studio's trace image under the plan, off unless the layout turns it on (it reaches every
   tablet). Under the surface freeze, a layout setting, not a card config key.
-- Save room scenes into Home Assistant, usable from Assist and automations.
+- (Moved to Sprint 50: every scene saved is a Home Assistant scene.)
 
 ### Sprint 50 (outline): the scene editor in the card
 
@@ -4876,16 +4876,19 @@ a room. then scenes are saved for the rooms." The spec answers the open points b
   sends it to the real devices and "Restore" puts the room back (S17.7).
 - New per-item fields: `transition` (seconds, lights), cover `tilt`, climate fan mode; "Capture the room now" fills a
   scene from the current states.
-- Saving: `floorplan_studio/save` is admin only. A new command writes one room's scenes with `expected_rev`, so a card
-  never overwrites a Studio edit. Non-admins see the editor read-only with Try it. Card bytes: the button and the
-  loader only.
+- Saving makes a Home Assistant scene (Diego, 2026-10-30: "scenes need to be HA scenes. so i can run them from my
+  room screens"). Save writes a `scene.*` through HA's scene config, in the room's area, so a room screen, Assist or an
+  automation runs it; the room lists it as it lists HA scenes today. Sprint 49's "scenes into HA" moves here. The spec
+  decides what happens to the custom scenes already stored on rooms (a one-time move, offered, never silent). Writing
+  HA config is admin only; non-admins see the editor read-only with Try it. Card bytes: the button and the loader only.
 
 ### Sprint 51 (outline): dynamic scenes
 
 - Steps: a scene is a list of steps, each a set of items, a duration and a transition (a wake-up ramp, an evening
   dimming, a party cycle), with play once or loop.
-- Runs in Home Assistant, not in the card: Save writes it as a `script.*` (delays and transitions), so it runs with
-  the dashboard closed and Assist and automations can start it. Joins Sprint 49's scenes into HA.
+- Runs in Home Assistant, not in the card: an HA scene holds one state, so a dynamic scene is saved as a `script.*`
+  (delays and transitions) in the room's area. It runs with the dashboard closed, and room screens, Assist and
+  automations start it.
 - Effects the lights already have (`effect_list`: candle, fire, colour loop) are offered first: no Zigbee traffic.
 - A traffic budget: a loop step under 2 s per light, or more than a set number of calls a minute, is refused with the
   reason, so a scene cannot flood the Zigbee network.
