@@ -53,11 +53,12 @@ export type TapTarget = { device: Device; index: number; piece?: true } | { door
  * S10.4: a hold on a door or an appliance that names several entities opens `opts.openChooser(title, entities)` instead of
  * guessing. A hold on a device opens its own entity's more-info (the popup's More info link is the chooser's way in).
  */
-/** Home Assistant's own `navigate`: push, then tell its router. Used for the Studio link and a device's `view` (S40.3); a path that is not one (`isViewPath`) goes nowhere. */
-export function openView(path: unknown): void {
-  if (!isViewPath(path)) return;
+/** Home Assistant's own `navigate`: push, then tell its router. Used for the Studio link and a device's `view` (S40.3); a path that is not one (`isViewPath`) goes nowhere and says so (`false`). */
+export function openView(path: unknown): boolean {
+  if (!isViewPath(path)) return false;
   history.pushState(null, "", path);
   window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+  return true;
 }
 
 export function bindDeviceActions(

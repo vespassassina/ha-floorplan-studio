@@ -17,9 +17,12 @@ export interface BarModel {
   ready: boolean;
   failed: boolean;
   playing: boolean;
+  /** A tap landed while replaying: the line says "Replaying" for a moment. */
+  note: boolean;
   info: boolean;
   /** How many entities of the floor have no history. */
   missing: number;
+  /** What the card says of the fetch (loading, failed); empty once the history is there. The bar adds the note and the info line. */
   message: string;
 }
 /** What the card draws with: lit's `html` and `nothing`, its translators, and the X's path. */
@@ -36,6 +39,6 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
       @input=${(e: Event) => h.seek(Number((e.target as HTMLInputElement).value))}>
     ${m.ready ? html`<button type="button" class="fp-rp-info" aria-label=${none} aria-pressed=${m.info ? "true" : "false"} title=${none} @click=${h.info}>${icon(INFO)}</button>` : nothing}
     <button type="button" class="fp-rp-close" aria-label=${t("Close replay")} title=${t("Close replay")} @click=${h.close}>${icon(close)}</button>
-    <span class="fp-rp-msg" role="status">${m.message}</span>
+    <span class="fp-rp-msg" role="status">${m.message || (m.note ? t("Replaying") : m.info ? none : "")}</span>
   </div>`;
 }

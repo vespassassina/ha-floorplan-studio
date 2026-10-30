@@ -822,6 +822,8 @@ export class FloorplanStudioCard extends LitElement {
     const svg = this._stageSvg(), i = this._focusDev, t = i === null ? null : this._targetOf("x", i);
     const r = i === null ? null : svg?.querySelector(`g[data-x="${i}"]`)?.getBoundingClientRect();
     if (!svg || !t || !r) return false;
+    // Enter and Space do what a tap does: a device with a `view` opens it (kiosk ignores it; a replay leaves the key to the popup path, which says "Replaying").
+    if (!this._replay && !this._kiosk() && "device" in t && openView(t.device.view)) return true;
     this._openPopup(t, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, svg);
     return true;
   }
@@ -2018,7 +2020,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** A toolbar icon: 24x24 path from the inlined set, drawn in the button's own colour. */
-  private _icon(path: string) {
+  _icon(path: string) {
     return html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d=${path} fill="currentColor"/></svg>`;
   }
 

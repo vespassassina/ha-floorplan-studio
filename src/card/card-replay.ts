@@ -46,6 +46,8 @@ export interface ReplayState {
   info: boolean;
   /** What `overviewStates` made last, with the replayed and live states it was made from. */
   mix: { shown: States; live: Hass["states"]; out: Hass["states"] } | null;
+  /** Focus still owed to the bar: the Replay button opened it, and the user has not moved on. */
+  focus: boolean;
 }
 
 type Lib = typeof import("./replay/history");
@@ -180,23 +182,24 @@ export function canReplay(c: FloorplanStudioCard): boolean {
   return !c._kiosk() && !!c._layout && !!c._hass?.connection?.sendMessagePromise;
 }
 
-export function openReplay(c: FloorplanStudioCard): void {
+/** `focus`: the Replay button opened it, so the bar hands focus to Play once the history is there (`paintBar`). The flag lives on the bar, so a bar closed by anything leaves none behind. */
+export function openReplay(c: FloorplanStudioCard, focus = false): void {
   if (c._replay || !canReplay(c)) return;
   closePopup(c);
   const end = Date.now();
-  c._replay = { end, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null };
+  c._replay = { end, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null, focus };
   c._syncTimer(); // the motion fade follows the replayed moment now, not the clock
   c.requestUpdate();
 }
 
-/** Where focus goes after the next paint: the bar's play button after the Replay button opened it, the Replay button after the X or Escape closed it. */
-const focusNext = new WeakMap<FloorplanStudioCard, "play" | "open">();
+/** Cards whose Replay button takes focus after the next paint: the X or Escape closed the bar. */
+const focusBack = new WeakSet<FloorplanStudioCard>();
 
 /** `back`: the X and Escape give focus back to the button that opened the bar. */
 export function closeReplay(c: FloorplanStudioCard, back = false): void {
   const r = c._replay;
   if (!r) return;
-  if (back) focusNext.set(c, "open");
+  if (back) focusBack.add(c);
   stopFrames(r);
   if (r.noteTimer !== null) globalThis.clearTimeout(r.noteTimer);
   c._replay = null;
@@ -218,9 +221,8 @@ const floorHistory = (c: FloorplanStudioCard): FloorHistory | undefined => {
 export function syncReplay(c: FloorplanStudioCard): void {
   const r = c._replay, key = c._floorKey(), f = c._floor();
   paintBar(c);
-  if (focusNext.get(c) === "open") {
-    focusNext.delete(c);
-    c.shadowRoot?.querySelector<HTMLElement>(".fp-rp-open")?.focus();
+  if (focusBack.delete(c)) {
+    c.shadowRoot!.querySelector<HTMLElement>(".fp-rp-open")?.focus();
   }
   if (!r || !key || !f || r.floors.has(key)) return;
   const fh: FloorHistory = { status: "loading", missing: 0 };
@@ -357,7 +359,7 @@ function onKey(c: FloorplanStudioCard, ev: KeyboardEvent): void {
   const stop = () => { ev.preventDefault(); ev.stopPropagation(); };
   if (ev.key === "Escape") { stop(); closeReplay(c, true); return; }
   if (onButton) return; // Space and Enter on a button are the button's own
-  if (ev.key === " " || ev.key === "Spacebar") { stop(); togglePlay(c, r); return; }
+  if (ev.key === " ") { stop(); togglePlay(c, r); return; }
   if (floorHistory(c)?.status !== "ready") return;
   const m = keyMinute(ev.key, minuteOf(r, r.drawnT));
   if (m === null) return;
@@ -376,39 +378,37 @@ export function replayTap(c: FloorplanStudioCard): void {
 }
 
 const HISTORY = `${UI_ICONS.reset}M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8Z`; // the restore ring (already in the card) and MDI history's hand
-const icon = (path: string) => html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d=${path} fill="currentColor"/></svg>`;
 
 /** The place of the bar in the card's template. Its contents are painted by `paintBar`, on their own, so a minute of play need not draw the plan. */
 export function replayBar(c: FloorplanStudioCard) {
   if (c._replay) return html`<div class="fp-rp-wrap"></div>`;
   // S40.1: while the bar is closed, a slim button where it will sit. The label is the icon's name under 640 px (CSS hides the word).
-  return canReplay(c) ? html`<div class="fp-rp-wrap fp-rp-idle"><button type="button" class="fp-rp-open" title=${t("Replay")} @click=${() => { focusNext.set(c, "play"); openReplay(c); }}>${icon(HISTORY)}<span class="fp-rp-word">${t("Replay")}</span></button></div>` : nothing;
+  return canReplay(c) ? html`<div class="fp-rp-wrap fp-rp-idle"><button type="button" class="fp-rp-open" title=${t("Replay")} @click=${() => openReplay(c, true)}>${c._icon(HISTORY)}<span class="fp-rp-word">${t("Replay")}</span></button></div>` : nothing;
 }
 
 function paintBar(c: FloorplanStudioCard): void {
   const wrap = c.shadowRoot?.querySelector<HTMLElement>(".fp-rp-wrap");
-  if (!wrap || !c._replay) return;
-  render(barView(c, c._replay), wrap);
+  const r = c._replay;
+  if (!wrap || !r) return;
+  render(barView(c, r), wrap);
   // The Replay button opened the bar: focus waits on the play button, which is disabled until the history is there. Meanwhile the bar
   // itself holds it (so Escape works); a failed fetch leaves the X.
-  if (focusNext.get(c) !== "play") return;
-  const st = floorHistory(c)?.status;
-  if (st === "ready" || st === "error") focusNext.delete(c);
-  wrap.querySelector<HTMLElement>(st === "ready" ? ".fp-rp-play" : st === "error" ? ".fp-rp-close" : ".fp-replay")?.focus();
+  if (!r.focus) return;
+  const st = floorHistory(c)?.status, at = c.shadowRoot!.activeElement, away = at && !wrap.contains(at); // away: the user moved on while it loaded, and that choice stays
+  if (away || st === "ready" || st === "error") r.focus = false;
+  if (!away) wrap.querySelector<HTMLElement>(st === "ready" ? ".fp-rp-play" : st === "error" ? ".fp-rp-close" : ".fp-replay")?.focus();
 }
 
 function barView(c: FloorplanStudioCard, r: ReplayState) {
-  const fh = floorHistory(c), ready = fh?.status === "ready";
+  const fh = floorHistory(c), ready = fh?.status === "ready", failed = fh?.status === "error";
   const shown = replayTime(r.drawnT, c._hass);
-  const message = fh?.status === "error" ? t(FETCH_FAILED, { why: fh.why ?? t(NO_ANSWER) })
+  const message = failed ? t(FETCH_FAILED, { why: fh.why ?? t(NO_ANSWER) })
     : !ready ? t("Loading history…")
-    : r.note ? t("Replaying")
-    : r.info ? tn("{n} entity on this floor has no history", "{n} entities on this floor have no history", fh!.missing)
     : "";
   const close = () => closeReplay(c, true), key = (e: KeyboardEvent) => onKey(c, e);
   // The full bar is drawn by the replay chunk (replay/bar.ts). Until it is there, a shell with the way out and the message.
-  if (!lib) return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} @keydown=${key}><button type="button" class="fp-rp-close" aria-label=${t("Close replay")} @click=${close}>${icon(UI_ICONS.close)}</button><span class="fp-rp-msg" role="status">${message}</span></div>`;
-  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: DAY_MINUTES, ready, failed: fh?.status === "error", playing: r.playing, info: r.info, missing: fh?.missing ?? 0, message },
+  if (!lib) return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} @keydown=${key}><button type="button" class="fp-rp-close" aria-label=${t("Close replay")} @click=${close}>${c._icon(UI_ICONS.close)}</button><span class="fp-rp-msg" role="status">${message}</span></div>`;
+  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: DAY_MINUTES, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message },
     { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), info: () => { r.info = !r.info; paintBar(c); } });
 }
 
