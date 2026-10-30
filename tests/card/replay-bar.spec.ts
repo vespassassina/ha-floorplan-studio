@@ -121,7 +121,7 @@ test.describe("S39.2 the bar and the fetch", () => {
     await expect(range(page)).toHaveAttribute("aria-valuetext", "12:00");
     await expect(card(page).locator("css=.fp-rp-time")).toHaveText("12:00");
     await expect(playBtn(page)).toHaveAttribute("aria-label", "Play");
-    await expect(card(page).locator("css=button.fp-rp-live")).toHaveText("Live");
+    await expect(card(page).locator("css=button.fp-rp-close")).toHaveAttribute("aria-label", "Close replay");
     await expect(menuButton(page)).toBeVisible();
   });
 
@@ -174,7 +174,7 @@ test.describe("S39.2 the bar and the fetch", () => {
     await expect(range(page)).toBeDisabled();
     await expect(playBtn(page)).toBeDisabled();
     await expect(g(page, lampIdx)).toHaveClass(/\bon\b/); // still live
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await expect(bar(page)).toHaveCount(0);
   });
 
@@ -248,7 +248,7 @@ test.describe("S39.3 one draw path for the past", () => {
     await expect(night()).toHaveCount(1); // S39 polish: the end of the slider is the live plan, and live is night now
     await page.keyboard.press("ArrowLeft");
     await expect(night()).toHaveCount(0); // 11:55 as the recorder had it: day
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await expect(night()).toHaveCount(1); // Live shows the newest
   });
 
@@ -264,7 +264,7 @@ test.describe("S39.3 one draw path for the past", () => {
     await expect(g(page, lampIdx)).not.toHaveClass(/\bon\b/);
     await expect(range(page)).toHaveValue(String(23 * 60));
     expect(await viewBox(page)).toBe(zoomed);
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await expect(g(page, lampIdx)).toHaveClass(/\bon\b/);
     expect(await viewBox(page)).toBe(zoomed);
     await expect(card(page).locator("css=svg.fp-zoomable")).toHaveAttribute("aria-label", whole);
@@ -282,7 +282,7 @@ test.describe("S39.3 one draw path for the past", () => {
     expect(before, "a room is selected before the bar opens, so the comparison below means something").not.toBeNull();
     await openBar(page);
     await to(page, 9);
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await expect(bar(page)).toHaveCount(0);
     await expect(card(page).locator("css=.fp-floors button", { hasText: "First" })).toHaveAttribute("aria-pressed", "true");
     expect(await viewBox(page)).toBe(zoomed);
@@ -301,7 +301,7 @@ test.describe("S39.3 one draw path for the past", () => {
     await expect(msg(page)).toHaveText("Replaying");
     await expect(card(page).locator("css=.fp-pop")).toHaveCount(0);
     expect(await calls(page)).toEqual([]);
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await g(page, lampIdx).click();
     await expect(card(page).locator("css=.fp-pop")).toHaveCount(1);
   });
@@ -343,7 +343,7 @@ test.describe("Opus review B1: nothing acts or opens while replaying, whatever t
     await noPopup(page);
     expect(await calls(page)).toEqual([]);
     // Live gives the acts back: the same button now calls the service (the control: the paths above were reachable).
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await update(page, { "light.demo_kitchen": st("on") });
     await off.click();
     expect(await calls(page)).toEqual(["light.turn_off light.demo_kitchen"]);
@@ -434,7 +434,7 @@ test.describe("Opus review S4: the floors that are not on show keep their alerts
     await to(page, 9);
     await expect(pill("Ground")).toHaveCount(0); // the shown floor, as it was at 09:00
     await expect(pill("First")).toHaveText("1"); // another floor: now, not absent
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await expect(pill("Ground")).toHaveText("1");
   });
 });
@@ -518,10 +518,11 @@ test.describe("Opus review N2: the replay chunk loads like the 3D and form chunk
     await openMenu(page);
     await menuItem(page, "replay").click();
     await expect(msg(page)).toHaveText("Could not load the history: Floorplan Studio was updated. Reload this page.");
-    await expect(range(page)).toBeDisabled();
+    await expect(range(page), "no chunk, no slider: the shell offers the X and the reason").toHaveCount(0);
+    await expect(card(page).locator("css=button.fp-rp-close")).toBeVisible();
     expect(asked).toHaveLength(1);
     await page.unroute("**/floorplan-studio-replay-*.js*"); // the network is back (or the page was reloaded under a new build)
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await openBar(page); // expects the slider enabled: the history has come
     expect(await sent(page)).toHaveLength(1);
   });
@@ -702,4 +703,121 @@ test.describe("S39 polish: Replay on top, and the end of the slider is the live 
     await page.keyboard.press("End");
     await expect.poll(() => lampFill(page)).toBe(PURPLE);
   });
+});
+
+// Sprint 40.1 (docs/specs/quick-wins-s40.md, A1 to A5; criteria 1 to 3): a Replay button where the bar will sit, an X in place of Live.
+test.describe("S40.1 the Replay button and the X", () => {
+  const open = (page: Page) => card(page).locator("css=button.fp-rp-open");
+  const close = (page: Page) => card(page).locator("css=button.fp-rp-close");
+  /** The harness holds the card in a 900 px column (tests/card/harness-static.html); the card's width is that column's, not the viewport's. */
+  const widthOf = (page: Page, w: number) => page.evaluate((w) => { document.getElementById("wrap")!.style.width = `${w}px`; return document.getElementById("card")!.getBoundingClientRect().width; }, w);
+  /** The centre of an element, for a real mouse click (CLAUDE.md finding 3). */
+  const clickAt = async (page: Page, loc: ReturnType<typeof open>) => {
+    const b = (await loc.boundingBox())!;
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+  };
+
+  test("criterion 1: the button sits under the plan, a real click opens the bar, and the play button has focus", async ({ page }) => {
+    await boot(page, { size: { width: 1280, height: 900 } });
+    await widthOf(page, 1280);
+    await expect(open(page)).toBeVisible();
+    await expect(open(page)).toHaveAccessibleName("Replay");
+    await expect(open(page)).toContainText("Replay");
+    await expect(bar(page)).toHaveCount(0);
+    const plan = (await card(page).locator("css=svg.fp-zoomable").boundingBox())!, b = (await open(page).boundingBox())!;
+    expect(b.y, "under the plan").toBeGreaterThanOrEqual(plan.y + plan.height - 1);
+    expect(b.height, "slim").toBeLessThanOrEqual(32);
+    await clickAt(page, open(page));
+    await expect(bar(page)).toBeVisible();
+    await expect(open(page)).toHaveCount(0);
+    await expect(range(page)).toBeEnabled();
+    await expect(playBtn(page)).toBeFocused();
+    expect(await sent(page)).toHaveLength(1); // the same open as the menu's: one fetch
+  });
+
+  test("criterion 1: no button in kiosk or without a connection; with one it is there", async ({ page }) => {
+    await boot(page, { connection: false });
+    await expect(card(page).locator("css=svg.fp-zoomable")).toBeVisible();
+    await expect(open(page)).toHaveCount(0);
+    await boot(page, { config: { kiosk: true } });
+    await expect(open(page)).toHaveCount(0);
+    await boot(page); // control: with a connection it is there, so the absences above are not a broken locator
+    await expect(open(page)).toHaveCount(1);
+    expect(readFileSync("dist/editor.html", "utf8")).not.toMatch(/fp-rp-open/); // the Studio draws none
+  });
+
+  test("criterion 1: under 640 px the button is the icon alone with the same name; wide, the word shows", async ({ page }) => {
+    await boot(page, { size: { width: 1280, height: 800 } });
+    await widthOf(page, 380);
+    await expect(open(page)).toBeVisible();
+    await expect(open(page)).toHaveAccessibleName("Replay");
+    await expect(open(page).locator("css=.fp-rp-word")).toBeHidden();
+    await expect(open(page).locator("css=svg")).toBeVisible();
+    await widthOf(page, 1280);
+    await expect(open(page).locator("css=.fp-rp-word")).toBeVisible();
+  });
+
+  test("criterion 1: the words are the card's language", async ({ page }) => {
+    await boot(page, { language: "de" });
+    await expect(open(page)).toHaveAccessibleName("Rückblick");
+    await open(page).click();
+    await expect(close(page)).toHaveAttribute("aria-label", "Rückblick schließen");
+    await expect(close(page)).toHaveAttribute("title", "Rückblick schließen");
+  });
+
+  test("criterion 2: the X closes the bar to the live plan and the button is back with focus; again, it opens once more", async ({ page }) => {
+    await boot(page, { live: { "light.demo_kitchen": st("on") } });
+    await openBar(page);
+    await expect(close(page)).toHaveAttribute("aria-label", "Close replay");
+    await expect(close(page)).toHaveAttribute("title", "Close replay");
+    await expect(close(page)).not.toContainText("Live");
+    await range(page).focus();
+    await page.keyboard.press("ArrowLeft"); // into the past: the lamp was off at 11:55
+    await expect(g(page, lampIdx)).not.toHaveClass(/\bon\b/);
+    await clickAt(page, close(page));
+    await expect(bar(page)).toHaveCount(0);
+    await expect(g(page, lampIdx)).toHaveClass(/\bon\b/); // live again
+    await expect(open(page)).toBeVisible();
+    await expect(open(page)).toBeFocused();
+    await clickAt(page, open(page));
+    await expect(bar(page)).toBeVisible();
+  });
+
+  test("criterion 2: Escape closes the bar, and the button is back with focus", async ({ page }) => {
+    await boot(page);
+    await openBar(page);
+    await range(page).focus();
+    await page.keyboard.press("Escape");
+    await expect(bar(page)).toHaveCount(0);
+    await expect(open(page)).toBeFocused();
+  });
+
+  test("criterion 2: the menu's Replay is still the first item, and it opens the same bar", async ({ page }) => {
+    await boot(page);
+    await openMenu(page);
+    expect(await menuPanel(page).locator("css=[data-value]").first().getAttribute("data-value")).toBe("replay");
+    await menuItem(page, "replay").click();
+    await expect(bar(page)).toBeVisible();
+    await expect(open(page)).toHaveCount(0);
+  });
+
+  // The card fits the window's height (card-fit-height), so a row under the plan may shrink the plan instead of growing the card: the cost is both.
+  for (const width of [1280, 380]) {
+    test(`criterion 3: the button costs the card and its plan at most 32 px of height together at ${width} wide`, async ({ page }) => {
+      const measure = async (connection: boolean) => {
+        await boot(page, { size: { width: 1280, height: 800 }, connection });
+        await widthOf(page, width);
+        if (connection) await expect(open(page)).toBeVisible();
+        await expect(card(page).locator("css=svg.fp-zoomable")).toBeVisible();
+        return page.evaluate(() => {
+          const el = document.getElementById("card")!;
+          return { card: el.getBoundingClientRect().height, plan: el.shadowRoot!.querySelector("svg.fp-zoomable")!.getBoundingClientRect().height };
+        });
+      };
+      const without = await measure(false), withIt = await measure(true);
+      const cost = (withIt.card - without.card) + (without.plan - withIt.plan);
+      expect(cost, `without ${JSON.stringify(without)}, with ${JSON.stringify(withIt)}`).toBeGreaterThan(0); // the row exists
+      expect(cost).toBeLessThanOrEqual(32);
+    });
+  }
 });

@@ -261,7 +261,7 @@ const c: Catalogue = {
   "Replay": "Terugspelen",
   "Replay time": "Tijdstip",
   "Play": "Afspelen",
-  "Live": "Nu",
+  "Close replay": "Terugspelen sluiten",
   "Replaying": "Terugspelen actief",
   "Loading history…": "Geschiedenis laden…",
   "Could not load the history: {why}": "Geschiedenis kon niet worden geladen: {why}",
