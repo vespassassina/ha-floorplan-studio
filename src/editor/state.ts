@@ -284,6 +284,8 @@ export class EditorState {
 
   get f(): Floor { return this.layout.floors[this.floor]; }
   get canUndo() { return this.hist.length > 0; }
+  /** How many steps Undo has. A panel that must forget what an Undo or Load leaves behind compares this. */
+  get undoDepth() { return this.hist.length; }
   get canRedo() { return this.fut.length > 0; }
 
   /** Replace the whole layout. A host that sets it starts fresh; Open and Reset keep the history so Undo works. */

@@ -110,8 +110,10 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * contact sensor's ring and a siren's rings (`FX_TYPES`, `isSiren`); on a device that draws none it is ignored. Not a schema bump:
  * an old card ignores the field, and a layout without it draws as before.
  * `locked` (S26.1): the device does not move when dragged, alone or in a group; it can still be edited and deleted. Absent is false.
+ * `view` (S40.3): a path inside Home Assistant, such as `/lovelace/terrace` (`isViewPath`). A tap on the icon opens that dashboard view, whatever the
+ * card's `tap_action`; hold keeps its own action. An older card ignores it.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /**
  * S35.1: the car models, in the order the Studio lists them. `model`, `color` (`#rrggbb`) and `attached` (at most
  * `MAX_CAR_ATTACHED` entity ids) exist on a furniture piece with symbol `car` only; `entity` is then the car's main
@@ -179,6 +181,10 @@ const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" &&
 const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");
 /** A strict Home Assistant entity id (`domain.object_id`, letters, digits and underscores). The car reads its entities with this one check in `validate`, `migrate` and `carEntities`, so none of them keeps an id the others ignore. */
 export const isEntityId = (x: unknown): x is string => typeof x === "string" && /^[a-z0-9_]+\.[a-z0-9_]+$/i.test(x);
+/** S40.3: the longest `view` path. */
+export const VIEW_MAX = 200;
+/** S40.3: a `view` is a path inside Home Assistant: one leading `/` and not `//` (or `/\`, which a browser reads as `//`), no scheme, no whitespace or control character, at most `VIEW_MAX`, and no `.` or `..` segment (a browser folds `/..//evil.com` into `//evil.com`; `%2e` counts as a dot). The card checks it again at tap time. */
+export const isViewPath = (x: unknown): x is string => typeof x === "string" && x.length <= VIEW_MAX && /^(?![^?#]*\/(?:\.|%2e){1,2}(?:[/?#]|$))\/(?![/\\])[^\s\\\0-\x1f\x7f-\x9f]*$/i.test(x);
 const isPt = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === "number" && Number.isFinite(n));
 
 /** cm. No coordinate of a plan lies further than this from the origin (100 km). Past it, a finite number such as 1.7e308 overflows the maths of the 3D camera and draws nothing (S12 review). */
@@ -443,6 +449,9 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       optText(d, "name");
       optHeight(d, "z");
       if (d.locked !== undefined && typeof d.locked !== "boolean") errors.push(`${at} ${d.id} locked must be true or false`);
+      let view: unknown;
+      try { view = d.view; } catch { view = null; } // a getter that throws is a bad view, not a crash
+      if (view !== undefined && !isViewPath(view)) errors.push(`${at} ${d.id} view must be a path inside Home Assistant that starts with one /, like /lovelace/terrace (no //, no spaces, 200 at most)`);
       if (d.entity !== "" && !isEntity(d.entity)) errors.push(`${at} ${d.id} entity must be an entity id like light.name`);
       if (!(typeof d.x === "number" && Number.isFinite(d.x) && typeof d.y === "number" && Number.isFinite(d.y)) && !(isPt(d.a) && isPt(d.b)))
         errors.push(`${at} ${d.id} needs x and y, or a and b`);

@@ -96,7 +96,8 @@ test("the test build does carry it (so the grep above can fail)", () => {
 // for `hass.language`. A user who reads English downloads none of them.
 const LANG_CODES = ["it", "es", "pt", "pt-BR", "fr", "de", "nl", "zh-Hans", "pl"];
 const langChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-lang-.+-.+\.js$/.test(f));
-const codeOf = (f: string) => f.replace(/^floorplan-studio-lang-/, "").replace(/-[^-]+\.js$/, "");
+// The hash may itself hold a "-" (lang-de-dK--_IPn.js), so the code is read from the front, not trimmed from the back.
+const codeOf = (f: string) => f.match(/^floorplan-studio-lang-(pt-BR|zh-Hans|[a-z]{2})-/)?.[1] ?? f;
 
 test("there is one language chunk for each language the card speaks, and no other", () => {
   expect(langChunks().map(codeOf).sort()).toEqual([...LANG_CODES].sort());

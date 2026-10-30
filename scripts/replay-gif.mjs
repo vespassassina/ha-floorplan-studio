@@ -137,7 +137,7 @@ await page.waitForTimeout(600);
 await drag(minuteOf(8, 20), minuteOf(22, 20), 4000);
 await page.waitForTimeout(1500);
 
-await card("button.fp-rp-live").click();
+await card("button.fp-rp-close").click();
 await page.waitForTimeout(1500);
 
 const left = await page.evaluate(() => !!document.getElementById("card")._replay);

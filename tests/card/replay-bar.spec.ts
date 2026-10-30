@@ -68,6 +68,8 @@ async function boot(page: Page, o: Opts = {}) {
           if (extra.fail) return Promise.reject(extra.fail);
           const out: Record<string, unknown[]> = {};
           for (const id of m.entity_ids ?? []) if (extra.rows?.[id]) out[id] = extra.rows[id];
+          // A test that sets __hold keeps the reply back until it calls __release: the history is "still loading".
+          if (w.__hold) return new Promise((resolve) => { w.__release = () => resolve(out); });
           return Promise.resolve(out);
         },
       },
@@ -121,7 +123,7 @@ test.describe("S39.2 the bar and the fetch", () => {
     await expect(range(page)).toHaveAttribute("aria-valuetext", "12:00");
     await expect(card(page).locator("css=.fp-rp-time")).toHaveText("12:00");
     await expect(playBtn(page)).toHaveAttribute("aria-label", "Play");
-    await expect(card(page).locator("css=button.fp-rp-live")).toHaveText("Live");
+    await expect(card(page).locator("css=button.fp-rp-close")).toHaveAttribute("aria-label", "Close replay");
     await expect(menuButton(page)).toBeVisible();
   });
 
@@ -174,7 +176,7 @@ test.describe("S39.2 the bar and the fetch", () => {
     await expect(range(page)).toBeDisabled();
     await expect(playBtn(page)).toBeDisabled();
     await expect(g(page, lampIdx)).toHaveClass(/\bon\b/); // still live
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await expect(bar(page)).toHaveCount(0);
   });
 
@@ -248,7 +250,7 @@ test.describe("S39.3 one draw path for the past", () => {
     await expect(night()).toHaveCount(1); // S39 polish: the end of the slider is the live plan, and live is night now
     await page.keyboard.press("ArrowLeft");
     await expect(night()).toHaveCount(0); // 11:55 as the recorder had it: day
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await expect(night()).toHaveCount(1); // Live shows the newest
   });
 
@@ -264,7 +266,7 @@ test.describe("S39.3 one draw path for the past", () => {
     await expect(g(page, lampIdx)).not.toHaveClass(/\bon\b/);
     await expect(range(page)).toHaveValue(String(23 * 60));
     expect(await viewBox(page)).toBe(zoomed);
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await expect(g(page, lampIdx)).toHaveClass(/\bon\b/);
     expect(await viewBox(page)).toBe(zoomed);
     await expect(card(page).locator("css=svg.fp-zoomable")).toHaveAttribute("aria-label", whole);
@@ -282,7 +284,7 @@ test.describe("S39.3 one draw path for the past", () => {
     expect(before, "a room is selected before the bar opens, so the comparison below means something").not.toBeNull();
     await openBar(page);
     await to(page, 9);
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await expect(bar(page)).toHaveCount(0);
     await expect(card(page).locator("css=.fp-floors button", { hasText: "First" })).toHaveAttribute("aria-pressed", "true");
     expect(await viewBox(page)).toBe(zoomed);
@@ -301,7 +303,7 @@ test.describe("S39.3 one draw path for the past", () => {
     await expect(msg(page)).toHaveText("Replaying");
     await expect(card(page).locator("css=.fp-pop")).toHaveCount(0);
     expect(await calls(page)).toEqual([]);
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await g(page, lampIdx).click();
     await expect(card(page).locator("css=.fp-pop")).toHaveCount(1);
   });
@@ -343,7 +345,7 @@ test.describe("Opus review B1: nothing acts or opens while replaying, whatever t
     await noPopup(page);
     expect(await calls(page)).toEqual([]);
     // Live gives the acts back: the same button now calls the service (the control: the paths above were reachable).
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await update(page, { "light.demo_kitchen": st("on") });
     await off.click();
     expect(await calls(page)).toEqual(["light.turn_off light.demo_kitchen"]);
@@ -434,7 +436,7 @@ test.describe("Opus review S4: the floors that are not on show keep their alerts
     await to(page, 9);
     await expect(pill("Ground")).toHaveCount(0); // the shown floor, as it was at 09:00
     await expect(pill("First")).toHaveText("1"); // another floor: now, not absent
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await expect(pill("Ground")).toHaveText("1");
   });
 });
@@ -518,10 +520,11 @@ test.describe("Opus review N2: the replay chunk loads like the 3D and form chunk
     await openMenu(page);
     await menuItem(page, "replay").click();
     await expect(msg(page)).toHaveText("Could not load the history: Floorplan Studio was updated. Reload this page.");
-    await expect(range(page)).toBeDisabled();
+    await expect(range(page), "no chunk, no slider: the shell offers the X and the reason").toHaveCount(0);
+    await expect(card(page).locator("css=button.fp-rp-close")).toBeVisible();
     expect(asked).toHaveLength(1);
     await page.unroute("**/floorplan-studio-replay-*.js*"); // the network is back (or the page was reloaded under a new build)
-    await card(page).locator("css=button.fp-rp-live").click();
+    await card(page).locator("css=button.fp-rp-close").click();
     await openBar(page); // expects the slider enabled: the history has come
     expect(await sent(page)).toHaveLength(1);
   });
@@ -701,5 +704,415 @@ test.describe("S39 polish: Replay on top, and the end of the slider is the live 
     await expect.poll(() => lampFill(page), "the past borrows no colour from today").toBe(DEFAULT_ON);
     await page.keyboard.press("End");
     await expect.poll(() => lampFill(page)).toBe(PURPLE);
+  });
+});
+
+// Sprint 40.1 (docs/specs/quick-wins-s40.md, A1 to A5; criteria 1 to 3): a Replay button where the bar will sit, an X in place of Live.
+test.describe("S40.1 the Replay button and the X", () => {
+  const open = (page: Page) => card(page).locator("css=button.fp-rp-open");
+  const close = (page: Page) => card(page).locator("css=button.fp-rp-close");
+  /** The harness holds the card in a 900 px column (tests/card/harness-static.html); the card's width is that column's, not the viewport's. */
+  const widthOf = (page: Page, w: number) => page.evaluate((w) => { document.getElementById("wrap")!.style.width = `${w}px`; return document.getElementById("card")!.getBoundingClientRect().width; }, w);
+  /** The centre of an element, for a real mouse click (CLAUDE.md finding 3). */
+  const clickAt = async (page: Page, loc: ReturnType<typeof open>) => {
+    const b = (await loc.boundingBox())!;
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+  };
+
+  test("criterion 1: the button sits under the plan, a real click opens the bar, and the play button has focus", async ({ page }) => {
+    await boot(page, { size: { width: 1280, height: 900 } });
+    await widthOf(page, 1280);
+    await expect(open(page)).toBeVisible();
+    await expect(open(page)).toHaveAccessibleName("Replay");
+    await expect(open(page)).toContainText("Replay");
+    await expect(bar(page)).toHaveCount(0);
+    const plan = (await card(page).locator("css=svg.fp-zoomable").boundingBox())!, b = (await open(page).boundingBox())!;
+    expect(b.y, "under the plan").toBeGreaterThanOrEqual(plan.y + plan.height - 1);
+    expect(b.height, "slim").toBeLessThanOrEqual(32);
+    await clickAt(page, open(page));
+    await expect(bar(page)).toBeVisible();
+    await expect(open(page)).toHaveCount(0);
+    await expect(range(page)).toBeEnabled();
+    await expect(playBtn(page)).toBeFocused();
+    expect(await sent(page)).toHaveLength(1); // the same open as the menu's: one fetch
+  });
+
+  // Opus review of S40 (A2): the bar's focus handover must not steal focus the user moved on purpose while the history loads.
+  const hold = (page: Page, on = true) => page.evaluate((on) => { (window as unknown as { __hold: boolean }).__hold = on; }, on);
+  const release = (page: Page) => page.evaluate(() => (window as unknown as { __release(): void }).__release());
+  const menuBtn = (page: Page) => card(page).locator("css=button[aria-label='View options']");
+
+  test("review A2: focus moved to the menu button while the history loads stays there when the reply comes", async ({ page }) => {
+    await boot(page);
+    await hold(page);
+    await clickAt(page, open(page));
+    await expect(bar(page)).toBeVisible();
+    await menuBtn(page).focus();
+    await release(page);
+    await expect(range(page)).toBeEnabled();
+    await expect(menuBtn(page)).toBeFocused();
+    await expect(playBtn(page)).not.toBeFocused();
+  });
+
+  test("review A2: a hass update while the history loads does not pull focus back into the bar", async ({ page }) => {
+    await boot(page);
+    await hold(page);
+    await clickAt(page, open(page));
+    await expect(bar(page)).toBeVisible();
+    await expect(bar(page)).toBeFocused(); // control: until the user moves, the bar itself holds it
+    await menuBtn(page).focus();
+    await update(page, { "light.demo_kitchen": st("on") });
+    await expect(menuBtn(page)).toBeFocused();
+    await update(page, { "light.demo_kitchen": st("off") });
+    await expect(menuBtn(page)).toBeFocused();
+  });
+
+  test("review A2: a bar closed by a new config leaves no pending focus: the menu's Replay later does not pull focus to Play", async ({ page }) => {
+    await boot(page);
+    await hold(page);
+    await clickAt(page, open(page));
+    await expect(bar(page)).toBeVisible();
+    await card(page).evaluate((el) => { const e = el as unknown as { setConfig(c: unknown): void; _config: object }; e.setConfig({ ...e._config }); });
+    await expect(bar(page)).toHaveCount(0);
+    // Opus re-check N6: the focus must be inside the card or nowhere, or the `away` rule hides a flag that survived the close. Nowhere: body.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await openMenu(page);
+    await menuItem(page, "replay").click(); // the menu sets no focus mark of its own
+    await expect(bar(page)).toBeVisible();
+    // The menu left focus on itself, and the `away` rule would clear a leaked flag on the first paint. Put focus nowhere, so a flag that survived shows.
+    await card(page).evaluate((el) => (el.shadowRoot!.activeElement as HTMLElement | null)?.blur());
+    await release(page);
+    await expect(range(page)).toBeEnabled();
+    await expect(playBtn(page)).not.toBeFocused();
+  });
+
+  // Opus re-check of S40 (B2): focus in a field elsewhere on the page is not "nothing focused". The bar takes focus only from the card or from nowhere.
+  const outsideInput = (page: Page) => page.evaluate(() => {
+    const i = document.createElement("input");
+    i.id = "outside"; i.setAttribute("aria-label", "outside");
+    document.body.append(i);
+  });
+
+  test("review B2: focus in a field outside the card stays there through renders and the reply", async ({ page }) => {
+    await boot(page);
+    await outsideInput(page);
+    await hold(page);
+    await clickAt(page, open(page));
+    await expect(bar(page)).toBeVisible();
+    await expect(bar(page)).toBeFocused(); // control: until the user moves, the bar itself holds it
+    await page.locator("#outside").focus();
+    await update(page, { "light.demo_kitchen": st("on") });
+    await update(page, { "light.demo_kitchen": st("off") });
+    await expect(page.locator("#outside")).toBeFocused();
+    await release(page);
+    await expect(range(page)).toBeEnabled();
+    await expect(page.locator("#outside")).toBeFocused();
+    await expect(playBtn(page)).not.toBeFocused();
+  });
+
+  test("review B2: the card inside another element's shadow root (as in Home Assistant): a click on Replay still ends on Play", async ({ page }) => {
+    await boot(page);
+    await outsideInput(page);
+    await page.evaluate(() => {
+      const host = document.createElement("div"), c = document.getElementById("card")!;
+      c.parentElement!.append(host);
+      host.attachShadow({ mode: "open" }).append(c);
+      (window as unknown as { __c: unknown }).__c = c; // getElementById no longer finds it
+    });
+    await expect(card(page).locator("css=svg.fp-zoomable")).toBeVisible();
+    await hold(page);
+    await clickAt(page, open(page)); // focus is inside the card, on the Replay button
+    await expect(bar(page)).toBeVisible();
+    await page.evaluate(() => { const el = (window as unknown as { __c: { hass: object } }).__c; el.hass = { ...el.hass }; }); // a render while it loads
+    await release(page);
+    await expect(range(page)).toBeEnabled();
+    await expect(playBtn(page)).toBeFocused();
+  });
+
+  test("criterion 1: no button in kiosk or without a connection; with one it is there", async ({ page }) => {
+    await boot(page, { connection: false });
+    await expect(card(page).locator("css=svg.fp-zoomable")).toBeVisible();
+    await expect(open(page)).toHaveCount(0);
+    await boot(page, { config: { kiosk: true } });
+    await expect(open(page)).toHaveCount(0);
+    await boot(page); // control: with a connection it is there, so the absences above are not a broken locator
+    await expect(open(page)).toHaveCount(1);
+  });
+
+  test("criterion 1: under 640 px the button is the icon alone with the same name; wide, the word shows", async ({ page }) => {
+    await boot(page, { size: { width: 1280, height: 800 } });
+    await widthOf(page, 380);
+    await expect(open(page)).toBeVisible();
+    await expect(open(page)).toHaveAccessibleName("Replay");
+    await expect(open(page).locator("css=.fp-rp-word")).toBeHidden();
+    await expect(open(page).locator("css=svg")).toBeVisible();
+    await widthOf(page, 1280);
+    await expect(open(page).locator("css=.fp-rp-word")).toBeVisible();
+  });
+
+  test("criterion 1: the words are the card's language", async ({ page }) => {
+    await boot(page, { language: "de" });
+    await expect(open(page)).toHaveAccessibleName("Rückblick");
+    await open(page).click();
+    await expect(close(page)).toHaveAttribute("aria-label", "Rückblick schließen");
+    await expect(close(page)).toHaveAttribute("title", "Rückblick schließen");
+  });
+
+  test("criterion 2: the X closes the bar to the live plan and the button is back with focus; again, it opens once more", async ({ page }) => {
+    await boot(page, { live: { "light.demo_kitchen": st("on") } });
+    await openBar(page);
+    await expect(close(page)).toHaveAttribute("aria-label", "Close replay");
+    await expect(close(page)).toHaveAttribute("title", "Close replay");
+    await expect(close(page)).not.toContainText("Live");
+    await range(page).focus();
+    await page.keyboard.press("ArrowLeft"); // into the past: the lamp was off at 11:55
+    await expect(g(page, lampIdx)).not.toHaveClass(/\bon\b/);
+    await clickAt(page, close(page));
+    await expect(bar(page)).toHaveCount(0);
+    await expect(g(page, lampIdx)).toHaveClass(/\bon\b/); // live again
+    await expect(open(page)).toBeVisible();
+    await expect(open(page)).toBeFocused();
+    await clickAt(page, open(page));
+    await expect(bar(page)).toBeVisible();
+  });
+
+  test("criterion 2: Escape closes the bar, and the button is back with focus", async ({ page }) => {
+    await boot(page);
+    await openBar(page);
+    await range(page).focus();
+    await page.keyboard.press("Escape");
+    await expect(bar(page)).toHaveCount(0);
+    await expect(open(page)).toBeFocused();
+  });
+
+  test("criterion 2: the menu's Replay is still the first item, and it opens the same bar", async ({ page }) => {
+    await boot(page);
+    await openMenu(page);
+    expect(await menuPanel(page).locator("css=[data-value]").first().getAttribute("data-value")).toBe("replay");
+    await menuItem(page, "replay").click();
+    await expect(bar(page)).toBeVisible();
+    await expect(open(page)).toHaveCount(0);
+  });
+
+  // The card fits the window's height (card-fit-height), so a row under the plan may shrink the plan instead of growing the card: the cost is both.
+  for (const width of [1280, 380]) {
+    test(`criterion 3: the button costs the card and its plan at most 32 px of height together at ${width} wide`, async ({ page }) => {
+      const measure = async (connection: boolean) => {
+        await boot(page, { size: { width: 1280, height: 800 }, connection });
+        await widthOf(page, width);
+        if (connection) await expect(open(page)).toBeVisible();
+        await expect(card(page).locator("css=svg.fp-zoomable")).toBeVisible();
+        return page.evaluate(() => {
+          const el = document.getElementById("card")!;
+          return { card: el.getBoundingClientRect().height, plan: el.shadowRoot!.querySelector("svg.fp-zoomable")!.getBoundingClientRect().height };
+        });
+      };
+      const without = await measure(false), withIt = await measure(true);
+      const cost = (withIt.card - without.card) + (without.plan - withIt.plan);
+      expect(cost, `without ${JSON.stringify(without)}, with ${JSON.stringify(withIt)}`).toBeGreaterThan(0); // the row exists
+      expect(cost).toBeLessThanOrEqual(32);
+    });
+  }
+});
+
+// Sprint 40.3 (docs/specs/quick-wins-s40.md, C10 and C11; criterion 10): a tap on a device with `view` opens that dashboard view, the way Home Assistant's
+// own `navigate` does (history.pushState, then a `location-changed` event on window). Real page.mouse at real coordinates (CLAUDE.md finding 3).
+// Where the shape comes from (finding 21): Home Assistant's frontend `navigate()` in `src/common/navigate.ts` is `history.pushState(null, "", path)`
+// followed by `fireEvent(window, "location-changed", { replace })`; `replace` is false for a push.
+test.describe("S40.3 a device with a view", () => {
+  const VIEW = "/lovelace/terrace";
+  const withView = (view: unknown, i = lampIdx) => { const l = structuredClone(demo); (l.floors.ground.devices[i] as Record<string, unknown>).view = view; return l; };
+  const track = (page: Page) => page.evaluate(() => {
+    const w = window as unknown as { __loc: { replace: unknown; path: string }[]; __info: string[] };
+    w.__loc = []; w.__info = [];
+    window.addEventListener("location-changed", (e) => w.__loc.push({ replace: (e as CustomEvent).detail?.replace, path: location.pathname }));
+    document.getElementById("card")!.addEventListener("hass-more-info", (e) => w.__info.push((e as CustomEvent).detail.entityId));
+  });
+  const seen = (page: Page) => page.evaluate(() => ({ loc: (window as unknown as { __loc: unknown[] }).__loc, info: (window as unknown as { __info: string[] }).__info, path: location.pathname }));
+  const pop = (page: Page) => card(page).locator("css=.fp-pop");
+  const START = "/harness.html";
+
+  test("a tap pushes the path and fires one location-changed, whatever tap_action says, and opens no popup and calls no service", async ({ page }) => {
+    for (const tap_action of [undefined, "none", "toggle", "more-info"]) {
+      await boot(page, { config: { layout: withView(VIEW), ...(tap_action ? { tap_action } : {}) }, live: { "light.demo_kitchen": st("off") } });
+      await track(page);
+      await g(page, lampIdx).click();
+      await expect.poll(async () => (await seen(page)).path, String(tap_action)).toBe(VIEW);
+      expect((await seen(page)).loc, String(tap_action)).toEqual([{ replace: false, path: VIEW }]);
+      expect((await seen(page)).info).toEqual([]);
+      await expect(pop(page)).toHaveCount(0);
+      expect(await calls(page)).toEqual([]);
+    }
+  });
+
+  test("a device without a view still opens the popup and leaves the address alone", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW) }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    await g(page, motionIdx).click();
+    await expect(pop(page)).toHaveCount(1);
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  test("a hold keeps its own action: more-info for the entity, no navigation", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW) }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    const b = (await g(page, lampIdx).boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650); // a real hold: HOLD_MS is 500
+    await page.mouse.up();
+    expect(await seen(page)).toEqual({ loc: [], info: ["light.demo_kitchen"], path: START });
+  });
+
+  test("while replaying a tap does nothing but say so; after the X it navigates", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW) }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    await openBar(page);
+    await g(page, lampIdx).click();
+    await expect(msg(page)).toHaveText("Replaying");
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+    await card(page).locator("css=button.fp-rp-close").click();
+    await g(page, lampIdx).click();
+    await expect.poll(async () => (await seen(page)).path).toBe(VIEW);
+  });
+
+  test("the path is checked again at tap time: one that went bad after the layout loaded navigates nowhere", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW) }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    for (const bad of ["//evil.com", "javascript:alert(1)", "/a b", 5]) {
+      await card(page).evaluate((el, [i, v]) => { ((el as unknown as { _layout: { floors: { ground: { devices: Record<string, unknown>[] } } } })._layout.floors.ground.devices[i as number]).view = v; }, [lampIdx, bad] as const);
+      await g(page, lampIdx).click();
+      await expect(pop(page), String(bad)).toHaveCount(1); // the icon does what it did before the view existed
+      await page.keyboard.press("Escape");
+      await expect(pop(page)).toHaveCount(0);
+    }
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  test("a path that goes bad between the press and the release navigates nowhere", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW) }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    const b = (await g(page, lampIdx).boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await card(page).evaluate((el, i) => { ((el as unknown as { _layout: { floors: { ground: { devices: Record<string, unknown>[] } } } })._layout.floors.ground.devices[i as number]).view = "/lovelace/a b"; }, lampIdx); // a path pushState accepts, so only our check stops it ("//x" would throw there anyway)
+    await page.mouse.up();
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  /** Tab into the plan so the keys have a device (the ring shows), and say which one. */
+  const keyFocus = async (page: Page) => {
+    await card(page).locator("css=button[aria-label='View options']").focus();
+    await page.keyboard.press("Tab");
+    await expect(card(page).locator("css=.fp-focus")).toBeVisible();
+    return card(page).evaluate((el) => (el as unknown as { _focusDev: number })._focusDev);
+  };
+  const setView = (page: Page, i: number, v: unknown) => card(page).evaluate((el, [i, v]) => { ((el as unknown as { _layout: { floors: { ground: { devices: Record<string, unknown>[] } } } })._layout.floors.ground.devices[i as number]).view = v; }, [i, v] as const);
+
+  test("Enter and Space on a focused device with a view do what the tap does: one push, one location-changed, no popup, no service", async ({ page }) => {
+    for (const key of ["Enter", " "]) {
+      await boot(page, { config: { active_list: true }, live: { "light.demo_kitchen": st("off") } });
+      await track(page);
+      const i = await keyFocus(page);
+      await setView(page, i, VIEW);
+      await page.keyboard.press(key);
+      await expect.poll(async () => (await seen(page)).path, key).toBe(VIEW);
+      expect((await seen(page)).loc, key).toEqual([{ replace: false, path: VIEW }]);
+      await expect(pop(page)).toHaveCount(0);
+      expect(await calls(page)).toEqual([]);
+    }
+  });
+
+  test("Enter on a focused device without a view still opens the popup; a view gone bad by the key press opens it too", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    const i = await keyFocus(page);
+    await page.keyboard.press("Enter");
+    await expect(pop(page)).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(pop(page)).toHaveCount(0);
+    await keyFocus(page);
+    await setView(page, i, "/..//evil.com"); // checked at the key, not when the layout loaded
+    await page.keyboard.press("Enter");
+    await expect(pop(page)).toHaveCount(1);
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  test("Enter on a device with a view: while replaying it does nothing but say so, in kiosk it is ignored", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    const i = await keyFocus(page);
+    await setView(page, i, VIEW);
+    await openBar(page);
+    await keyFocus(page);
+    await page.keyboard.press("Enter");
+    await expect(msg(page)).toHaveText("Replaying");
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+    await boot(page, { config: { active_list: true, kiosk: true }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    await card(page).evaluate((el) => { (el as unknown as { _focusDev: number | null })._focusDev = 0; });
+    await setView(page, 0, VIEW);
+    await card(page).locator("css=svg.fp-zoomable").focus();
+    await page.keyboard.press("Enter");
+    expect((await seen(page)).loc).toEqual([]);
+  });
+
+  test("a room row's keyboard press on a device with a view navigates, as the tap on the row does", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live: { "light.demo_kitchen": st("on") } });
+    await track(page);
+    await setView(page, lampIdx, VIEW);
+    await card(page).evaluate((el, r) => (el as unknown as { _pickRoom(i: number): void })._pickRoom(r), demo.floors.ground.rooms.findIndex((r: { name: string }) => r.name === "Kitchen"));
+    const row = card(page).locator(`css=button.fp-active-row[data-x="${lampIdx}"]`);
+    await expect(row).toBeVisible();
+    await row.focus();
+    await page.keyboard.press("Enter");
+    await expect.poll(async () => (await seen(page)).path).toBe(VIEW);
+    expect((await seen(page)).loc).toHaveLength(1);
+  });
+
+  // Opus re-check of S40 (B5c): the room row's key press has the same replay and kiosk guard as the plan's keys (keyToggle in card-overview.ts).
+  const rowFocus = async (page: Page) => {
+    await card(page).evaluate((el, r) => (el as unknown as { _pickRoom(i: number): void })._pickRoom(r), demo.floors.ground.rooms.findIndex((r: { name: string }) => r.name === "Kitchen"));
+    const row = card(page).locator(`css=button.fp-active-row[data-x="${lampIdx}"]`);
+    await expect(row).toBeVisible();
+    await row.focus();
+  };
+
+  test("a room row's keyboard press on a device with a view does not navigate while replaying", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live: { "light.demo_kitchen": st("on") } });
+    await track(page);
+    await setView(page, lampIdx, VIEW);
+    await openBar(page);
+    await rowFocus(page);
+    await page.keyboard.press("Enter");
+    await expect(pop(page)).toHaveCount(0); // the popup's own replay guard says "Replaying" and acts on nothing
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  // The list is not drawn in kiosk, so no real press reaches the row there; the config flips under a focused row, the one way the guard is reached.
+  test("a room row's keyboard press on a device with a view does not navigate once the card is a kiosk", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live: { "light.demo_kitchen": st("on") } });
+    await track(page);
+    await setView(page, lampIdx, VIEW);
+    await rowFocus(page);
+    await card(page).evaluate((el) => { (el as unknown as { _config: { kiosk: boolean } })._config.kiosk = true; });
+    await page.keyboard.press("Enter");
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  test("a layout file with a bad view opens, and the icon taps as before", async ({ page }) => {
+    await boot(page, { config: { layout: withView("//evil.com") }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    await g(page, lampIdx).click();
+    await expect(pop(page)).toHaveCount(1);
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  test("kiosk never leaves the dashboard: the view is ignored there", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW), kiosk: true }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    await g(page, lampIdx).click();
+    await expect(pop(page)).toHaveCount(1);
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
   });
 });

@@ -1,7 +1,7 @@
 import { type ActiveDevice, activeDevices, ALL_OFF_TITLE, allOffTitle, type Attention, attention, type AttentionItem, type AttentionKind, type CategoryId, customCalls, customScene, DEVICE_ICONS, deviceCentre, type DeviceType, filterToRoom, floorSummary, formatAge, formatChanged, groupByCategory, type LayerId, layerOfType, layerWord, layoutEntries, pieceDevice, plugThreshold, presetCalls, type RoomDeviceRow, roomHeat, roomScenes, type RoomSensorRow, roomSummary, type RoomSummary, sceneNeedsConfirm, type SearchEntry, stateText, type ThingRef } from "../core";
 import { colorVarFor } from "../core/active";
 import { t, tn } from "../core/i18n";
-import { fireEvent } from "./actions";
+import { fireEvent, openView } from "./actions";
 import { favouriteRefs } from "./favourites";
 import type { PopupOp } from "./popup";
 import type { PopupSubject } from "./popup-ui";
@@ -218,6 +218,7 @@ export function restorePick(c: FloorplanStudioCard, before: PickMemo): void {
 export function keyToggle(c: FloorplanStudioCard, r: RoomDeviceRow, row: Element | null): void {
   const d = c._floor()?.devices[r.index];
   const b = row?.getBoundingClientRect();
+  if (!c._replay && !c._kiosk() && openView(d?.view)) return; // as its tap does (the replay guard of the popup says "Replaying")
   if (d?.type === "vacuum") { openVacuumDialog(c, d); return; } // as its tap on the plan does
   if (d) openPopup(c, { device: d, index: r.index }, { x: b ? b.left + b.width / 2 : 0, y: b ? b.bottom : 0 }, row);
 }

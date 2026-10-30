@@ -6,7 +6,7 @@ import type { Attention, ThingRef, PowerCandidate, Theme, WallsMode } from "../c
 import type { Device, Door, Floor, Layout } from "../core";
 import { tapActionOf, holdActionOf } from "./tap-action";
 import { favouritesOf, type FavouritesRead } from "./favourites";
-import { bindDeviceActions, type TapTarget } from "./actions";
+import { bindDeviceActions, openView, type TapTarget } from "./actions";
 import { SCENES_CSS } from "./room-scenes-ui";
 import { TOUCH_CSS } from "./touch-css";
 import { POPUP_CSS, type PopupSubject, type SliderKind } from "./popup-ui";
@@ -822,6 +822,8 @@ export class FloorplanStudioCard extends LitElement {
     const svg = this._stageSvg(), i = this._focusDev, t = i === null ? null : this._targetOf("x", i);
     const r = i === null ? null : svg?.querySelector(`g[data-x="${i}"]`)?.getBoundingClientRect();
     if (!svg || !t || !r) return false;
+    // Enter and Space do what a tap does: a device with a `view` opens it (kiosk ignores it; a replay leaves the key to the popup path, which says "Replaying").
+    if (!this._replay && !this._kiosk() && "device" in t && openView(t.device.view)) return true;
     this._openPopup(t, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, svg);
     return true;
   }
@@ -1265,8 +1267,7 @@ export class FloorplanStudioCard extends LitElement {
 
   private _openStudio = (e: Event): void => {
     e.preventDefault();
-    history.pushState(null, "", "/floorplan-studio"); // HA's own `navigate`: push, then tell the router
-    window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+    openView("/floorplan-studio");
   };
 
   /** The turn the plan is drawn at: the layout's own rotate plus the user's. Turned into the `{ deg, pivot }`
@@ -2019,7 +2020,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** A toolbar icon: 24x24 path from the inlined set, drawn in the button's own colour. */
-  private _icon(path: string) {
+  _icon(path: string) {
     return html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d=${path} fill="currentColor"/></svg>`;
   }
 

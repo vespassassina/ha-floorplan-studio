@@ -15,7 +15,7 @@ import type { FpSearch } from "../card/search-box";
 import { layoutEntries, type SearchEntry } from "../core/search";
 import { buildOutline, deviceNodeId, filterOutline, outlineKey, outlineView, visibleRows, type OutlineNode, type OutlineRow } from "./outline";
 import { readViewMemory, writeViewMemory } from "./view-memory";
-import { traceImage } from "./trace";
+import { traceImage, traceRotStored, traceRotShown } from "./trace";
 import { furnitureNear, roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, rayPoint, snapRay, type AreaPreset, type DrawKind } from "./draw";
 import { restoreScene, tryScene } from "./scene-try";
@@ -72,7 +72,9 @@ type Drag =
   | { type: "furn"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "unl"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "fscale"; base: Floor; i: number; corner: Corner; moved: boolean }
-  | { type: "room"; base: Floor; list: "rooms" | "stairs"; i: number; start: Pt; moved: boolean; alt?: boolean };
+  | { type: "room"; base: Floor; list: "rooms" | "stairs"; i: number; start: Pt; moved: boolean; alt?: boolean }
+  /** S40.2: Move is on and the plan was pressed: the trace image follows the pointer. `from`: its place at the press; `before`: the layout as the first real move found it. */
+  | { type: "trace"; start: Pt; from: Pt; moved: boolean; before: Layout | null };
 
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
@@ -266,6 +268,8 @@ export class FloorplanStudioEditor extends LitElement {
   /** S7.11: Edit, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
   traceOpen = false;
   private traceScale: Pt[] | null = null;
+  /** S40.2: Move is on, so a drag on the plan moves the trace image and the arrows nudge it. Off on Hide, Remove, Scale, a closed panel and Escape. */
+  traceMove = false;
   exportTrace = false;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
@@ -493,6 +497,8 @@ export class FloorplanStudioEditor extends LitElement {
     .trace-panel{position:absolute;left:8px;bottom:8px;z-index:3;width:260px;max-width:calc(100% - 16px);display:flex;flex-direction:column;gap:6px;padding:0 10px 10px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .trace-panel .installcode-head{margin:0 -10px}
     .trace-panel .row .btn{flex:1}
+    .trace-panel .rotrow{display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .trace-panel .hint{margin:0}
     .trace-panel input[type=number]{width:6em}
     .stepper{display:flex;gap:2px;align-items:stretch} .stepper input{flex:1;min-width:0} .btn.step{padding:0 6px;min-width:26px}
     .controls{border-collapse:collapse;width:100%;margin:8px 0}
@@ -911,6 +917,13 @@ export class FloorplanStudioEditor extends LitElement {
     const p = this.toSvg(ev);
     // S7.11: a Scale step takes the next two clicks as its points, raw (no snap: they sit on the image, not the plan), and nothing else.
     if (this.traceScale) { if (this.traceScale.length < 2) { this.traceScale.push(p); this.traceStep(); } return; }
+    // S40.2: with Move on, the press is the image's alone: no wall, room or device under it takes it.
+    if (this.moving) {
+      const t = f.trace;
+      if (st.planLocked) { this.planFixed(); return; }
+      if (t) { this.drag = { type: "trace", start: p, from: [t.x, t.y], moved: false, before: null }; capture(); }
+      return;
+    }
     if (this.draw) { this.drawClick(p, ev.altKey, ev); return; }
     // Review 29: Align is read-only. A press on the plan only pans (the wheel still zooms); nothing is selected, dragged or marqueed, so no invisible selection can be deleted.
     if (this.aligning) { this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: 0, moved: false }; capture(); return; }
@@ -1059,6 +1072,15 @@ export class FloorplanStudioEditor extends LitElement {
     this.drag = null;
     this.requestUpdate();
   }
+  /** S40 review: Escape in a Move drag puts the image back where the press found it, writes no undo step and ends Move. */
+  private cancelTraceDrag() {
+    const d = this.drag, t = this.st.f.trace;
+    if (d?.type !== "trace") return;
+    if (t && d.moved) this.st.replaceFloor({ ...this.st.f, trace: { ...t, x: d.from[0], y: d.from[1] } });
+    this.drag = null;
+    this.traceMove = false;
+    this.requestUpdate();
+  }
   private begin(d: { moved: boolean }) {
     if (!d.moved) { d.moved = true; this.st.snapshot(); }
   }
@@ -1081,6 +1103,17 @@ export class FloorplanStudioEditor extends LitElement {
       d.cur = [ev.clientX, ev.clientY];
       if (!d.moved && Math.hypot(d.cur[0] - d.a[0], d.cur[1] - d.a[1]) >= 4) d.moved = true;
       if (d.moved) d.quad = this.marqueeQuad(d.a, d.cur);
+      this.requestUpdate();
+      return;
+    }
+    if (d.type === "trace") {
+      const t = st.f.trace;
+      if (!t) return;
+      const p = this.toSvg(ev), tenth = (n: number) => Math.round(n * 10) / 10;
+      const x = tenth(d.from[0] + p[0] - d.start[0]), y = tenth(d.from[1] + p[1] - d.start[1]);
+      if (!d.before) { if (x === t.x && y === t.y) return; d.before = structuredClone(st.layout); }
+      d.moved = true;
+      st.replaceFloor({ ...st.f, trace: { ...t, x, y } });
       this.requestUpdate();
       return;
     }
@@ -1216,6 +1249,11 @@ export class FloorplanStudioEditor extends LitElement {
       return;
     }
     if (d.type === "marquee") { this.endMarquee(d, ev); return; }
+    if (d.type === "trace") {
+      if (d.before && st.commitLiveEdit(d.before)) this.changed("Image moved");
+      else this.requestUpdate();
+      return;
+    }
     if (d.type === "devs") {
       if (!d.moved) { st.sel = { t: "dev", i: d.i }; this.requestUpdate(); } // a click, not a drag: the group gives way to the one pressed
       else if (d.before && st.commitLiveEdit(d.before)) this.changed(`Moved ${d.is.length} devices`);
@@ -1348,6 +1386,7 @@ export class FloorplanStudioEditor extends LitElement {
   openPlace(i: number) {
     const r = this.st.f.rooms[i];
     if (!r) return;
+    this.traceMove = false;
     this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.asideMode = "place";
     this.requestUpdate();
   }
@@ -1470,12 +1509,49 @@ export class FloorplanStudioEditor extends LitElement {
   toggleTrace() {
     this.traceOpen = !this.traceOpen;
     this.traceScale = null;
+    this.traceMove = false;
     this.requestUpdate();
   }
   /** Changes this floor's trace: one undo step, none when nothing changed. */
   private setTrace(t: Trace | null, status: string) {
+    if (!t || !t.on) this.traceMove = false; // S40.2: nothing shown, nothing to move
     if (this.st.setTrace(t)) this.changed(status);
-    else this.requestUpdate();
+    else this.refused();
+  }
+  /** S40.2: Move is on and there is an image to move. */
+  private get moving(): boolean { return this.traceMove && this.traceOpen && this.st.f.trace?.on === true; }
+  private setTraceMove(on: boolean) {
+    this.traceMove = on;
+    if (on) { this.stopDraw(); this.traceScale = null; }
+    this.requestUpdate();
+    this.focus({ preventScroll: true });
+  }
+  /** S40.2: the arrows move the image 1 cm, Shift 10 cm; one undo step per press. A text field keeps its keys. */
+  private traceKeyDo(ev: KeyboardEvent): boolean {
+    if (!this.moving || this.draw) return false;
+    if (ev.defaultPrevented || ev.isComposing || ev.ctrlKey || ev.metaKey || ev.altKey) return false;
+    const dir: Record<string, Pt> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const d = dir[ev.key], t = this.st.f.trace;
+    if (!d || !t || takesTyping(ev.composedPath()[0] as HTMLElement | undefined)) return false;
+    ev.preventDefault();
+    if (ev.repeat) return true;
+    const n = ev.shiftKey ? 10 : 1;
+    this.setTrace({ ...t, x: t.x + d[0] * n, y: t.y + d[1] * n }, `Image moved ${n} cm`);
+    return true;
+  }
+  /** S40.2: Rotation field, degrees -180..180 (a comma works). `rot` is stored in [0, 360) about the image's top-left corner. Junk or out of range is refused and the box shows the layout again. */
+  private setTraceRot(ev: Event) {
+    const input = ev.target as HTMLInputElement, t = this.st.f.trace;
+    if (!t) return;
+    const n = Number(input.value.trim().replace(",", "."));
+    if (input.value.trim() === "" || !Number.isFinite(n) || n < -180 || n > 180) {
+      this.status = "Type a rotation from -180 to 180 degrees";
+      input.value = String(traceRotShown(t.rot));
+      this.requestUpdate();
+      return;
+    }
+    this.setTrace({ ...t, rot: traceRotStored(n) }, "Image turned");
+    input.value = String(traceRotShown(this.st.f.trace?.rot ?? 0)); // the box shows what was stored, not what was typed
   }
   /** Load: downscale, then place the image over the outline (or the view, on a blank floor), fitted inside it. Load again resets the placement. */
   private async loadTrace(ev: Event) {
@@ -1501,6 +1577,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private startTraceScale() {
     this.stopDraw();
+    this.traceMove = false;
     this.traceScale = [];
     this.status = "Click two points on the image a known distance apart. Esc cancels.";
     this.requestUpdate();
@@ -1546,6 +1623,10 @@ export class FloorplanStudioEditor extends LitElement {
             <div class="row"><input id="traceDist" type="number" min="1" step="1" @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); this.applyTraceScale(); } else if (e.key === "Escape") { e.preventDefault(); this.cancelTraceScale(); } }}>
               <button class="btn" id="traceApply" @click=${() => this.applyTraceScale()}>Apply</button></div>`
           : html`<button class="btn" id="traceScale" aria-pressed=${sc ? "true" : "false"} @click=${() => (sc ? this.cancelTraceScale() : this.startTraceScale())}>${sc ? `Click point ${sc.length + 1} of 2…` : "Scale…"}</button>`}
+        ${t.on ? html`<button class="btn" id="traceMove" aria-pressed=${this.moving ? "true" : "false"} title="Drag the image, or nudge it with the arrow keys (Shift: 10 cm). Esc ends it" @click=${() => this.setTraceMove(!this.moving)}>Move</button>` : nothing}
+        ${this.moving ? html`<p class="hint" id="traceMoveHint">Move: drag the image, arrows nudge it</p>` : nothing}
+        <div class="rotrow"><label for="traceRot">Rotation (°)</label>
+        <input id="traceRot" type="number" min="-180" max="180" step="0.1" .value=${live(String(traceRotShown(t.rot)))} @change=${(e: Event) => this.setTraceRot(e)} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); this.setTraceRot(e); } }}></div>
         <label for="traceAlpha">Opacity</label>
         <div class="rangerow"><input id="traceAlpha" type="range" min="0" max="1" step="0.05" .value=${live(String(t.alpha))} @change=${(e: Event) => { const a = Number((e.target as HTMLInputElement).value); if (Number.isFinite(a)) this.setTrace({ ...t, alpha: Math.min(1, Math.max(0, a)) }, "Image opacity changed"); }}><span class="rot-val">${Math.round(t.alpha * 100)}%</span></div>
         <label><input id="traceOn" type="checkbox" .checked=${live(t.on)} @change=${(e: Event) => this.setTrace({ ...t, on: (e.target as HTMLInputElement).checked }, (e.target as HTMLInputElement).checked ? "Image shown" : "Image hidden")}> Show</label>
@@ -1809,6 +1890,7 @@ export class FloorplanStudioEditor extends LitElement {
     // S24.5: Cmd/Ctrl+K from anywhere in the editor, "/" from anywhere but a text field, goes to the search box.
     if (isSearchChord(ev)) { ev.preventDefault(); this.renderRoot.querySelector<FpSearch>("#search")?.focus(); return; }
     if (this.alignKeyDo(ev)) return;
+    if (this.traceKeyDo(ev)) return; // S40.2
     const vk = viewKeyFor(ev);
     if (vk) { this.doViewKey(vk, ev); return; }
     // S22.5: Escape closes an open toolbar menu first, and does nothing else on that press. Ahead of the input check,
@@ -1828,6 +1910,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "?" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !takesTyping(t)) { ev.preventDefault(); this.toggleHelp(); return; }
     // Escape cancels a drag of devices before anything else: Help, Place and the rest must not swallow it while the plan is being dragged.
     if (ev.key === "Escape" && (this.drag?.type === "devs" || this.drag?.type === "dev")) { ev.preventDefault(); this.cancelDeviceDrag(); return; }
+    if (ev.key === "Escape" && this.drag?.type === "trace") { ev.preventDefault(); this.cancelTraceDrag(); return; }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
@@ -1839,6 +1922,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.asideMode === "add") { ev.preventDefault(); this.closeAddDev(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
     if (ev.key === "Escape" && this.traceScale) { ev.preventDefault(); this.cancelTraceScale(); return; }
+    if (ev.key === "Escape" && this.traceMove) { ev.preventDefault(); this.traceMove = false; this.requestUpdate(); return; } // S40.2: ends Move first
     if (ev.key === "Escape" && this.traceOpen) { ev.preventDefault(); this.toggleTrace(); return; }
     if (this.draw) {
       // Draw mode owns these keys: Delete must not remove the item that was selected before.
@@ -2261,6 +2345,7 @@ export class FloorplanStudioEditor extends LitElement {
   startDraw(kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
     if (this.st.planLocked) { this.planFixed(); return; }
     this.closeAlign(false); // review 29: a draw and Align never run together
+    this.traceMove = false; // S40 review: Move takes the press before Draw sees it, so Draw would be dead
     this.draw = new Draw(kind, wall, area);
     this.hover = this.aim = this.rayAim = null;
     this.st.sel = null;
@@ -2737,7 +2822,7 @@ export class FloorplanStudioEditor extends LitElement {
   openAlign() {
     this.closeMenus();
     if (floorBelow(this.st.layout, this.st.floor) === null) return;
-    this.stopDraw(); this.st.sel = null; this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
+    this.stopDraw(); this.traceMove = false; this.st.sel = null; this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
     if (this.st.helpOpen) this.st.setHelp(false);
     this.requestUpdate();
     this.focus({ preventScroll: true }); // S29.10: the keys are heard on the host, so the menu click must leave focus there
@@ -2951,7 +3036,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.setFloorNow(name);
     this.switchDir = floorSwitch(Object.keys(this.st.layout.floors), from, this.st.floor, reduced)?.dir ?? null; // S27.12: null for the same floor and for reduced motion
   }
-  private setFloorNow(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.closeAlign(false); this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
+  private setFloorNow(name: string) { this.stopDraw(); this.traceMove = false; /* S40 review: Move belongs to the floor's image; it must not resume on another floor */ this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.closeAlign(false); this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
 
   /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
   private saveByKey() {
@@ -3245,7 +3330,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   /** S26.22: the facts under the canvas (selection, room, snap, floor, zoom); messages and refusals keep the banner. */
   private statusBarView() {
-    const s = statusFacts(this.st, { alt: this.altDown, drawing: !!this.draw, heat: this.heatText() });
+    const s = statusFacts(this.st, { alt: this.altDown, drawing: !!this.draw, heat: this.heatText(), move: this.moving });
     const legend = heatLegend(this.st.heat);
     const ramp = legend ? `linear-gradient(to right in oklch,${legend.stops.map((t) => `var(${t.token}) ${t.at * 100}%`).join(",")})` : "";
     return html`<div class="statusbar" id="statusBar" aria-label="Status"><span class="sb-text">${s.text}</span>${legend ? html`<span class="sb-ramp" aria-hidden="true" style=${`background:${ramp}`}></span>` : nothing}${s.locked ? html`<button class="btn" id="statusUnlock" @click=${() => this.setPlanLocked(false)}>Unlock</button>` : nothing}</div>`;

@@ -283,6 +283,7 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   blue through amber to red between the card's `plug_heat_from` (default 0 W)
   and `plug_heat_to` (2000 W), in 2D, 2.5D and 3D; no sensor, no tint.
 - `device.locked` (optional, S26.1): `true` stops the device being dragged, alone or in a group; it can still be edited and deleted. Absent is `false`. `validate` refuses anything but a boolean; `migrate` leaves it as written. Same name as on a wall, door, opening, furniture piece and unlinked object.
+- `device.view` (optional, S40.3): a path inside Home Assistant, such as `/lovelace/terrace`. One leading `/` and not `//` (or `/\`), no scheme, no whitespace, backslash or control character, 200 characters at most (`isViewPath`). `validate` refuses anything else with a message that names the device and never throws; `migrate` drops a bad one, so the file still opens and the icon taps as before. The card, on a tap on the icon, does what Home Assistant's `navigate` does (`history.pushState`, then a `location-changed` event on `window`), whatever `tap_action` says; a hold keeps its own action. During a replay a tap does nothing, and the path is checked again at tap time. Kiosk ignores it. An older card ignores the key. The device panel has a "Dashboard view" text field under the entity (`#vview`, placeholder `/lovelace/…`, a tooltip saying a tap opens the view instead of the popup), for every device type and one device at a time (the multi-selection panel has no per-device fields). It commits on change: a good path is written trimmed, empty removes the key, an unchanged value adds no undo step, and a bad one is not written; `validate`'s own words show under the box (`#vview-err`) with the refused text kept, until the next valid edit or another selection.
 - `device.fx` (optional, S14.3): the size of the effect the device draws, in percent of its
   type's own size: 25 to 300, absent is 100. A lit light's aura (and its floor pool and wall
   light in 3D), a playing speaker's or media device's two waves, a triggered motion or contact
@@ -976,10 +977,27 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
   PNG under 1 MB, else JPEG at 0.85, lower if needed to fit 4 MB) and places
   it over the outline's box, or the view on a blank floor. Scale takes two
   clicks on the image and the real distance between them in cm, and sets `w`;
-  the aspect ratio follows. Opacity is a slider, Show a checkbox, Remove drops
-  it. Each is one undo step. While it is shown, room fills are see-through in
+  the aspect ratio follows. Move (S40.2, only while the image is shown) makes a
+  drag on the plan move the image (`x`, `y`, 0.1 cm) and the arrow keys nudge it
+  1 cm, Shift 10 cm; walls, rooms and devices take no press meanwhile. A drag is
+  one undo step (none if it ends where it began), each arrow press is one. Move
+  ends on Escape, Scale, Hide, Remove and a closed panel; the status bar says
+  "Move: drag the image, arrows nudge it". Rotation is a field, -180 to 180 in
+  0.1 steps, that sets `rot` (stored 0 to 360) about the image's top-left
+  corner; the same value is no step. Opacity is a slider, Show a checkbox,
+  Remove drops it. Each is one undo step. While it is shown, room fills are see-through in
   the editor so traced rooms do not hide the scan. File, Export has an
   Include trace image tick, off by default and not remembered.
+- Add > Device (S8.5, S40.4): one row per HA device (its main entity), plus
+  device-less entities and unplaced catalog entries, grouped by type. While the
+  search box has text it also lists, in a last group "Entities", every unplaced,
+  unattached entity of an HA device whose own name or entity id matches (not one
+  already a row, not one in the catalog), under its own name; its small line is
+  its type and the device's name. A pick places that one entity, typed by
+  `typeForEntity`; its device then leaves the device rows as before, and its
+  other entities stay findable by search. At most 50 rows show, then the line
+  "50 of N. Type more to narrow it." An empty search lists exactly what it
+  did. The listing is `entityCandidates` in `src/core/ha.ts`.
 - Selection panel per kind: corner, edge and wall (length, angle, kind, and on
   a free wall the conversion to an opening), door (name, kind, length, sensor,
   cover), room (name or area, kind, colour, unsnap, rotation; the colour

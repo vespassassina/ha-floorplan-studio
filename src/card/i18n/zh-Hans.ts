@@ -261,7 +261,7 @@ const c: Catalogue = {
   "Replay": "回放",
   "Replay time": "回放时间",
   "Play": "播放",
-  "Live": "实时",
+  "Close replay": "关闭回放",
   "Replaying": "正在回放",
   "Loading history…": "正在加载历史记录…",
   "Could not load the history: {why}": "无法加载历史记录：{why}",

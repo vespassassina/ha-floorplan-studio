@@ -261,7 +261,7 @@ const c: Catalogue = {
   "Replay": "Rückblick",
   "Replay time": "Zeitpunkt",
   "Play": "Abspielen",
-  "Live": "Aktuell",
+  "Close replay": "Rückblick schließen",
   "Replaying": "Rückblick läuft",
   "Loading history…": "Verlauf wird geladen…",
   "Could not load the history: {why}": "Der Verlauf konnte nicht geladen werden: {why}",

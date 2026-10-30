@@ -100,4 +100,11 @@ describe("statusFacts", () => {
     st.sel = { t: "dev", i: 0 };
     expect(statusFacts(st, idle).text.startsWith('"><script> · ')).toBe(true);
   });
+
+  it("S40.2: while trace Move is on it says what the mouse and the arrows do, and only then", () => {
+    const st = make();
+    expect(statusFacts(st, { ...idle, move: true }).text).toBe("Move: drag the image, arrows nudge it · Snap 10 cm · Ground · 100 %");
+    expect(statusFacts(st, { ...idle, move: false }).text).not.toContain("Move:");
+    expect(statusFacts(st, idle).text).not.toContain("Move:");
+  });
 });

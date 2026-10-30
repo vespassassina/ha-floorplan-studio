@@ -4735,18 +4735,43 @@ chunk only, starts at once); **card** S39.2, S39.3, S39.4 after S39.0 lands (one
 
 Not in this sprint: CI shards, the surface freeze, the editor-app split (Sprints 40 and 41); vacuum position.
 
-## Sprint 40 (outline): CI shards and the surface freeze
+## Sprint 40: Release 0.39.0, quick wins from a field report
+
+Branch `task/s40-quick-wins`. Diego, 2026-10-29: "Quick wins first", and "can we have a replay button at the bottom
+(where the replay bar would be) if i click the button replay bar shows and i can use it. then a X button to close the
+replay bar." Spec: `docs/specs/quick-wins-s40.md` (items 1 to 17, criteria 1 to 15).
+
+Lanes, each in its own worktree and `PW_PORT`, one Sonnet coder each: **card** S40.1 then S40.3 (both touch the card's
+tap and bar code); **editor** S40.2 then S40.4 (both in the editor's panels). S40.3's editor field waits for S40.2 to
+land, since both edit the device and trace panels' file. Every card lane reports `gzip -9` of the card before and
+after; no lane raises the cap.
+
+- [x] S40.1 Replay button and X: the button under the plan while the bar is closed, the X in place of Live, focus going
+      to play and back to the button. Spec A, items 1 to 5; criteria 1 to 3.
+- [x] S40.2 Move and turn the trace image: Move toggle, drag, arrow nudge, the Rotation field, Move off on Escape,
+      Scale, Hide and Remove. Spec B, items 6 to 9; criteria 5 to 8.
+- [x] S40.3 A device's `view`: schema and `validate` (unit first, the hostile list of criterion 9), the card's tap,
+      then the device panel's field. Spec C, items 10 to 13; criteria 9 to 11. Docs: `docs/schema.md`, `docs/SPEC.md`.
+- [x] S40.4 Single entities in Add device: the Entities group while searching, the 50-row cap, the pick placing one
+      entity. Spec D, items 14 to 17; criteria 12 to 14.
+- [ ] S40.5 Words and pictures, integrate, review: the strings in all ten catalogues and the lint (criterion 4), the
+      shots of criterion 15 looked at, the full suite on the merge, the Opus review, release 0.39.0 after Diego's yes.
+
+Not in this sprint: the trace image on the card, a combined history chart in the popup, temperature range warnings, a
+generic value sensor with its own icon. Each needs its own design; they are next after this one.
+
+## Sprint 41 (outline): CI shards and the surface freeze
 
 Plan D, items 16 and 17, beside the next feature sprint. Detailed when Sprint 39 closes.
 
-- S40.a Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
+- S41.a Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
   `globalSetup` building once per shard. Done when CI on `main` is under half today's wall time with the same count of
   tests, and a deliberately failing test still turns CI red.
-- S40.b The surface freeze in `docs/WORKFLOW.md`: no new theme, no new car model, a new config key needs a removed one
+- S41.b The surface freeze in `docs/WORKFLOW.md`: no new theme, no new car model, a new config key needs a removed one
   or a DECISIONS entry that says why. A unit test lists today's config keys and themes, so a new one fails until the
   list and the reason are written down (finding 17).
 
-## Sprint 41 (outline): split editor-app
+## Sprint 42 (outline): split editor-app
 
 Plan D, item 15, second half. `src/editor/editor-app.ts` (220 KB of source) split as S39.0 split the card: whole
 concerns into modules, no behaviour change, the full suite as the test.
