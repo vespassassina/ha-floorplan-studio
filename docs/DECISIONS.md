@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-30: Brainstorm picks (S41.b)
+
+Diego picked eleven of 25 candidates (the list rated value, cost and risk; sources were the reviews, PLAN, DECISIONS and
+the four deferred field requests). Order, by Claude, from cost and dependency: Sprints 46 (follow renames, area check,
+HA floors, the Studio at small sizes), 47 (Attention to notify, Attention snooze), 48 (history chart, a value icon on
+`other`, a plan legend), 49 (trace on the card, scenes into HA). History chart after replay 2, because it shares its
+fetch. Card bytes: reclaimed only when a picked feature does not fit, not as a sprint of its own. Dropped: vacuum
+position, several houses, the 2D sun wedge, the car card popover, SVG import, an Attention sensor in Python. Studio
+translations wait for the editor split.
+
 ## 2026-10-30: Replay 2 approved (S41.r)
 
 Diego approved `docs/specs/replay-2.md` with its defaults.

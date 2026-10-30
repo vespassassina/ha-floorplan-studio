@@ -4785,6 +4785,7 @@ code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
   Prepared beforehand: a list of candidates from the field reports, open DECISIONS items and the four deferred field
   requests (trace on the card, a combined history chart, temperature range warnings, a generic value sensor), each
   with value, cost and risk. Output: a ranked list in `docs/ROADMAP.md` or PLAN outlines, and Diego's picks.
+  Done 2026-10-30: Diego picked eleven items; they are Sprints 46 to 49 below.
 
 - S41.c Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
   `globalSetup` building once per shard. Done when CI on `main` is under half today's wall time with the same count of
@@ -4825,3 +4826,39 @@ the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
 
 Plan D, item 15, second half. `src/editor/editor-app.ts` (220 KB of source) split as S39.0 split the card: whole
 concerns into modules, no behaviour change, the full suite as the test.
+
+## After the 2026-10-30 brainstorm (S41.b): Sprints 46 to 49
+
+Diego's picks from 25 candidates, each rated for value, cost and risk. Not picked: vacuum position (the research said
+no), several houses, a 2D sun wedge, the car card popover, ha-floorplan SVG import, Studio translations (after the
+split), an Attention sensor in Python (the rules would exist twice, finding 8). Card bytes: no sprint of its own; the
+first picked feature that does not fit the cap moves the popup, dialogs or overview into lazy chunks first. Each sprint
+gets its spec before it starts.
+
+### Sprint 46 (outline): the plan and Home Assistant agree
+
+All in the Studio, 0 card bytes. Every registry write is confirmed by the admin, one click per change.
+- Follow renames: when HA renames or removes an entity, the layout follows the new id, or the Studio lists the
+  orphans with a fix for each.
+- Area check: devices whose HA area differs from their plan room, rooms with no area; fix each in one click.
+- Plan floors to HA floors: create or assign HA floors from the plan's floors.
+- Studio at 1024 wide and under 800 high: the toolbar does not wrap, the Align panel fits.
+
+### Sprint 47 (outline): Attention acts
+
+- Attention to notify: from an Attention row, create an automation that sends a notification, built by
+  `src/editor/automations.ts`.
+- Attention snooze: mark an item as meant (a window open on purpose) so Attention stops listing it until it changes.
+  Lives in core so the Overview and the plan agree (finding 8); the spec decides where the snooze is stored.
+
+### Sprint 48 (outline): history and readability on the card
+
+- History chart: one popup chart for a room's or a device's sensors, in a lazy chunk that shares replay 2's fetch.
+- Value icon on `other`: the generic value sensor request, as an icon choice on the existing type, not a new type.
+- Plan legend: what rings, glow and Attention colours mean, lazy.
+
+### Sprint 49 (outline): trace on the card, scenes into HA
+
+- Trace on the card: the Studio's trace image under the plan, off unless the layout turns it on (it reaches every
+  tablet). Under the surface freeze, a layout setting, not a card config key.
+- Save room scenes into Home Assistant, usable from Assist and automations.
