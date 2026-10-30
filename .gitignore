@@ -17,3 +17,5 @@ dist-test/
 # loose screenshots in the repo root (one leaked into a merge on 2026-10-18)
 /screenshot-*.png
 /Screenshot*.png
+blob-report/
+all-blob-reports/

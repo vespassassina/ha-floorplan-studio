@@ -14,8 +14,48 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+  # S41.c: Playwright took 20 of the 22 minutes on one runner. Four shards run side by side; each builds dist/ in
+  # its own globalSetup, so no shard leans on another's files. A failing shard fails the workflow on its own.
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npx playwright test --shard=${{ matrix.shard }}/4 --reporter=blob
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report
+          retention-days: 7
+  # One report for the four shards. It only reads; the shards decide red or green.
+  e2e-report:
+    if: ${{ !cancelled() }}
+    needs: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: blob-report-*
+          path: all-blob-reports
+          merge-multiple: true
+      - run: npx playwright merge-reports --reporter=html,list ./all-blob-reports
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 14
   python:
     runs-on: ubuntu-latest
     steps:
