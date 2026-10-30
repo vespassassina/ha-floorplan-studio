@@ -142,7 +142,8 @@ Each of these was a real defect. Do not repeat them.
     can move a control under the finger before the tap's click arrives, and
     on a slow machine it lands there. The room pick raised the phone sheet and
     the late click hit the risen handle, which took it back to peek (PR 5, CI
-    only). A control that acts on `click` checks its press began on it. To
+    only). The sheet drops a pointer click whose pointer id did not press in
+    it; a flag set on press and cleared on click goes stale after a drag. To
     reproduce a CI-only failure, throttle the CPU through CDP
     (`Emulation.setCPUThrottlingRate`, 8x) and report what covers the target.
 

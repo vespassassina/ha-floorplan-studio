@@ -162,7 +162,6 @@ export function fitHeight(c: FloorplanStudioCard): void {
 
 export function onHandleDown(c: FloorplanStudioCard, e: PointerEvent): void {
   if ((e.pointerType === "mouse" && e.button !== 0) || c._sheetDrag) return;
-  c._handlePressed = true;
   const stops = stopsNow(c);
   if (!stops) return;
   const h0 = stops[c._sheetStop];
@@ -205,22 +204,33 @@ export function onHandleCancel(c: FloorplanStudioCard, e: PointerEvent): void {
   const d = c._sheetDrag;
   if (!d || e.pointerId !== d.id) return;
   c._sheetDrag = null; // the browser took the gesture: the sheet goes back to its stop
-  c._handlePressed = false;
   const sheet = c.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
   if (sheet) { sheet.classList.remove("fp-dragging"); sheet.style.removeProperty("height"); }
   c.requestUpdate();
 }
 
-/** A tap on the handle. A pointer click counts only when the press began on the handle: a finger that picked a room on pointerup
- *  raised the sheet, and the tap's click, hit-tested later where the finger was, lands on the risen handle on a slow machine
- *  (CI, PR 5). A keyboard click (detail 0) has no press. */
-export function onHandleClick(c: FloorplanStudioCard, e: MouseEvent): void {
-  const pressed = c._handlePressed;
-  c._handlePressed = false;
+export function onHandleClick(c: FloorplanStudioCard): void {
   if (c._dragEnded) { c._dragEnded = false; return; }
-  if (e.detail !== 0 && !pressed) return;
   c._sheetStop = nextOnHandleTap(c._sheetStop);
   c.requestUpdate();
+}
+
+/** The pointer that last pressed inside the phone's sheet, read in the capture phase so no control's own handler can hide it. */
+export function onSheetDown(c: FloorplanStudioCard, e: PointerEvent): void {
+  c._sheetPointer = e.pointerId;
+}
+
+/** A finger that picks a room on pointerup raises the sheet, and Chromium hit-tests the tap's click later, where the finger was: on
+ *  a slow machine the risen sheet is there and the click pressed the handle or a control in it (CI, PR 5; Opus review, S41). A pointer
+ *  click counts in the sheet only when its pointer pressed in the sheet. A touch gets a new pointer id each time, so nothing goes
+ *  stale. A keyboard click (detail 0) has no press and always counts; so does a click with no pointer id (Safari before 17.4 sends
+ *  a plain MouseEvent), where the guard cannot tell and must not drop every tap. */
+export function onSheetClick(c: FloorplanStudioCard, e: MouseEvent): void {
+  if (e.detail === 0) return;
+  const id = (e as Partial<PointerEvent>).pointerId;
+  if (id === undefined || id === c._sheetPointer) return;
+  e.stopPropagation();
+  e.preventDefault();
 }
 
 /** Arrow keys on the handle move one stop, so the sheet is reachable without a tap or a drag. */

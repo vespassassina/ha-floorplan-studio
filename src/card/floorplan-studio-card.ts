@@ -34,7 +34,7 @@ import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
 import { closeReplay, REPLAY_CSS, replayBar, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
-import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
+import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, onSheetClick, onSheetDown, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
 import { loadActiveState, loadViewState, saveViewNow, scheduleSave } from "./card-view-state";
 import { bindZoom, fitView, measurePx, onViewKey, qpx, qstrip, rotatedCenter, scale, viewStack, zoomLevel } from "./card-zoom";
 
@@ -652,7 +652,7 @@ export class FloorplanStudioCard extends LitElement {
   _sheetDrag: { id: number; y0: number; h0: number; h: number; moved: boolean; stops: Stops; trail: { t: number; h: number }[] } | null = null;
   /** S31.8: a drag just ended on the handle; the click the browser sends after it is not a tap. */
   _dragEnded = false;
-  _handlePressed = false; // a pointer press began on the sheet's handle (card-sheet.ts, onHandleClick)
+  _sheetPointer: number | null = null; // the pointer that last pressed in the phone's sheet (card-sheet.ts, onSheetClick)
   /** S31.8: the selector of what the sheet just opened for; the next `updated()` pans it above the sheet. */
   _panTarget: string | null = null;
   /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
@@ -1832,7 +1832,8 @@ export class FloorplanStudioCard extends LitElement {
 
   _onHandleCancel = (e: PointerEvent): void => onHandleCancel(this, e); // card-sheet.ts
 
-  _onHandleClick = (e: MouseEvent): void => onHandleClick(this, e); // card-sheet.ts
+  _onHandleClick = (): void => onHandleClick(this); // card-sheet.ts
+  _sheetGuard = { down: { handleEvent: (e: PointerEvent) => onSheetDown(this, e), capture: true }, click: { handleEvent: (e: MouseEvent) => onSheetClick(this, e), capture: true } };
 
   _onHandleKey = (e: KeyboardEvent): void => onHandleKey(this, e); // card-sheet.ts
 
