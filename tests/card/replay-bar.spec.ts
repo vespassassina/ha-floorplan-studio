@@ -739,7 +739,12 @@ test.describe("S40.1 the Replay button and the X", () => {
 
   // Opus review of S40 (A2): the bar's focus handover must not steal focus the user moved on purpose while the history loads.
   const hold = (page: Page, on = true) => page.evaluate((on) => { (window as unknown as { __hold: boolean }).__hold = on; }, on);
-  const release = (page: Page) => page.evaluate(() => (window as unknown as { __release(): void }).__release());
+  // The bar shows before the lazy chunk has sent its history call, so `__release` exists only once that call is out. Waiting
+  // for it is waiting for the request, not for time: releasing earlier answered nothing (CI, PR 5, shard 2).
+  const release = async (page: Page) => {
+    await page.waitForFunction(() => typeof (window as unknown as { __release?: unknown }).__release === "function");
+    await page.evaluate(() => (window as unknown as { __release(): void }).__release());
+  };
   const menuBtn = (page: Page) => card(page).locator("css=button[aria-label='View options']");
 
   test("review A2: focus moved to the menu button while the history loads stays there when the reply comes", async ({ page }) => {

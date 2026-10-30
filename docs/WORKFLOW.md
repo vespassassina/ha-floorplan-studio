@@ -120,6 +120,17 @@ Output: confirmed defects, most severe first, each with file:line, a
 concrete failure scenario, a fix, and how it was confirmed. Nits come
 separately. End with a release verdict.
 
+## Surface freeze
+
+Since 2026-10-30 (S41.d, Plan D item 17). The surface a user must learn is big enough.
+- No new theme and no new car model.
+- A new card config key needs a removed one in the same change, or a DECISIONS entry that says why no existing key or
+  layout setting can carry it.
+- `tests/card/surface-freeze.test.ts` lists today's keys, themes and car models; a new one fails it until the list and
+  the reason are written down.
+- Layout settings made in the Studio (a room, a device, a floor) are not config keys and are not frozen, but a new one
+  still needs its validate test (finding 1).
+
 ## Release
 
 Only after Diego's yes. Once the push and the tag are approved, finish every

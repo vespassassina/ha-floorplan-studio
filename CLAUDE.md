@@ -138,6 +138,14 @@ Each of these was a real defect. Do not repeat them.
     2026-10-28 the replay's sun stub carried azimuth and elevation that HA's
     recorder never stores, and the 3D sun was dead in every real replay.
 
+22. **A click is hit-tested later than its pointerup.** Work done on pointerup
+    can move a control under the finger before the tap's click arrives, and
+    on a slow machine it lands there. The room pick raised the phone sheet and
+    the late click hit the risen handle, which took it back to peek (PR 5, CI
+    only). A control that acts on `click` checks its press began on it. To
+    reproduce a CI-only failure, throttle the CPU through CDP
+    (`Emulation.setCPUThrottlingRate`, 8x) and report what covers the target.
+
 ## Domain notes
 
 - Schema v2 is in `docs/SPEC.md`. A `light` device may have `bound`, the

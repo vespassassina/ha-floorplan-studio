@@ -652,6 +652,7 @@ export class FloorplanStudioCard extends LitElement {
   _sheetDrag: { id: number; y0: number; h0: number; h: number; moved: boolean; stops: Stops; trail: { t: number; h: number }[] } | null = null;
   /** S31.8: a drag just ended on the handle; the click the browser sends after it is not a tap. */
   _dragEnded = false;
+  _handlePressed = false; // a pointer press began on the sheet's handle (card-sheet.ts, onHandleClick)
   /** S31.8: the selector of what the sheet just opened for; the next `updated()` pans it above the sheet. */
   _panTarget: string | null = null;
   /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
@@ -1831,7 +1832,7 @@ export class FloorplanStudioCard extends LitElement {
 
   _onHandleCancel = (e: PointerEvent): void => onHandleCancel(this, e); // card-sheet.ts
 
-  _onHandleClick = (): void => onHandleClick(this); // card-sheet.ts
+  _onHandleClick = (e: MouseEvent): void => onHandleClick(this, e); // card-sheet.ts
 
   _onHandleKey = (e: KeyboardEvent): void => onHandleKey(this, e); // card-sheet.ts
 

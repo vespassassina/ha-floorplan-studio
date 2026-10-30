@@ -120,6 +120,29 @@ test.describe("S31.8 the phone bottom sheet", () => {
     expect(await settled(page), "the click after the drag did not take it back to half").toBeCloseTo(st.full, 0);
   });
 
+  // PR 5, CI shard 3: a finger on a room picks it on pointerup, and the sheet rises. Chromium sends the tap's click later, hit-tested
+  // where the finger was, and on a slow machine the risen sheet's handle is there by then: the click took the sheet back to peek. On
+  // a fast machine the click lands first, so the test sends that click itself: a click with no press on the handle, at the
+  // handle's real top element. Enter on the handle (a click with detail 0) still moves it.
+  test("the click a room tap sends after the sheet rose is not a tap on the handle; Enter still is", async ({ page }) => {
+    await bootTouch(page, phone);
+    const st = await stops(page);
+    await tapPlan(page, `svg polygon[data-r="${roomIndex("ground", "Kitchen")}"]`);
+    expect(await settled(page)).toBeCloseTo(st.half, 0);
+    const h = centre((await boxOf(page, HANDLE))!);
+    const hit = await page.evaluate(({ x, y }) => {
+      let top = document.elementFromPoint(x, y);
+      while (top?.shadowRoot) { const inner = top.shadowRoot.elementFromPoint(x, y); if (!inner || inner === top) break; top = inner; }
+      top?.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true, cancelable: true, detail: 1, clientX: x, clientY: y }));
+      return top?.closest(".fp-handle") !== null;
+    }, h);
+    expect(hit, "the click reached the handle").toBe(true);
+    expect(await settled(page), "the late click left the sheet at half").toBeCloseTo(st.half, 0);
+    await page.evaluate(() => document.getElementById("card")!.shadowRoot!.querySelector<HTMLElement>(".fp-handle")!.focus());
+    await page.keyboard.press("Enter");
+    expect(await settled(page), "Enter on the handle goes half to peek").toBeCloseTo(st.peek, 0);
+  });
+
   test("a room opens the Room level at half; Back goes to Floor, then Overview, then peek", async ({ page }) => {
     await bootTouch(page, phone);
     const st = await stops(page);

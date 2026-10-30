@@ -4794,6 +4794,7 @@ code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
 - S41.d The surface freeze in `docs/WORKFLOW.md`: no new theme, no new car model, a new config key needs a removed one
   or a DECISIONS entry that says why. A unit test lists today's config keys and themes, so a new one fails until the
   list and the reason are written down (finding 17).
+  Done 2026-10-30: `docs/WORKFLOW.md` "Surface freeze", `tests/card/surface-freeze.test.ts` (37 keys, 13 themes, 9 cars).
 
 ## Sprint 42 (outline): temperature range warnings
 

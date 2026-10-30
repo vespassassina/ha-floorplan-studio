@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-30: The sheet's handle takes only a click it was pressed for
+
+A finger on a room picks it on pointerup and the phone's sheet rises to half. Chromium sends the tap's click afterwards,
+hit-tested where the finger was; on a slow machine the risen handle is there by then, and the click took the sheet back
+to peek. CI shard 3 caught it twice in `touch-targets.spec.ts`; an 8x CPU throttle reproduced it in 6 of 20 runs. The
+handle now acts on a pointer click only when the press began on it; a keyboard click (detail 0) still acts. Fixed in the
+card, not the test: a slow phone does the same.
+
+## 2026-10-30: The surface freeze (S41.d)
+
+No new theme, no new car model; a new card config key needs a removed one or an entry here saying why. Frozen as of
+today: 37 config keys, 13 themes, 9 car models, listed in `tests/card/surface-freeze.test.ts`, which reads the keys
+from `FloorplanStudioCardConfig` itself. A probe key and a probe theme each failed it; removed, it passed. Studio layout
+settings are not frozen. Sprint 49's trace on the card is a layout setting for this reason.
+
 ## 2026-10-30: The 2D update budget is a ratio to the machine's speed
 
 Supersedes "Time is a ceiling against a `renderFloor` slowdown" in "2026-10-27: S38.5, the performance budget".
