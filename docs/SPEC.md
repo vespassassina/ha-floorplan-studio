@@ -987,6 +987,16 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
   Remove drops it. Each is one undo step. While it is shown, room fills are see-through in
   the editor so traced rooms do not hide the scan. File, Export has an
   Include trace image tick, off by default and not remembered.
+- Add > Device (S8.5, S40.4): one row per HA device (its main entity), plus
+  device-less entities and unplaced catalog entries, grouped by type. While the
+  search box has text it also lists, in a last group "Entities", every unplaced,
+  unattached entity of an HA device whose own name or entity id matches (not one
+  already a row, not one in the catalog), under its own name; its small line is
+  its type and the device's name. A pick places that one entity, typed by
+  `typeForEntity`; its device then leaves the device rows as before, and its
+  other entities stay findable by search. At most 50 rows show, then the line
+  "50 of N. Type more to narrow it." An empty search lists exactly what it
+  did. The listing is `entityCandidates` in `src/core/ha.ts`.
 - Selection panel per kind: corner, edge and wall (length, angle, kind, and on
   a free wall the conversion to an opening), door (name, kind, length, sensor,
   cover), room (name or area, kind, colour, unsnap, rotation; the colour

@@ -279,6 +279,18 @@ A plain drag still pans.
 A drag on a member moves every unlocked member by the same delta, in one undo
 step; **Delete** removes them all, in one. A locked device does not follow.
 
+### Add device finds one entity of a hub
+
+Add, Device… lists one row per Home Assistant device, so a gateway with 172
+entities is one row. Type in its search box and a last group, **Entities**,
+lists every entity whose own name or id matches ("innen", "gateway_a_7"), each
+under its own name with its type and its device's name on the small line.
+Pick one and that single entity is placed, typed by its kind (a temperature
+sensor becomes a temperature device). The hub's own row goes, as it always did
+once something of it is on the plan; its other entities stay findable by
+search. Up to 50 rows show, then "50 of N. Type more to narrow it." With the
+search box empty nothing changes.
+
 ### The Inspector
 
 The side panel (the Inspector) has tabs: **Selection** follows what is
