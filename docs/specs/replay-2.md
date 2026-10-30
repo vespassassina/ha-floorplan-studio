@@ -32,8 +32,8 @@ configured in YAML). The oldest state row in the recorder was 10 days and 14 hou
 | 93 entities | 7 d | 180,981 | 2,972 ms | 27.2 MiB | 1.6 MiB |
 | 21 entities | 24 h | 10,667 | 99 ms | 1.6 MiB | 99 KiB |
 
-Every row of this reply carries the full attributes (15,458 of 15,458): HA leaves `a` out only with
-`minimal_response`. The parser's carry-forward is right but never used today.
+Every row of this reply carries the full attributes (15,458 of 15,458): HA leaves `a` out of the later rows only
+with `minimal_response`, and out of every row with `no_attributes`. The parser's carry-forward is right but never used today.
 
 **What fills it.** On the 134-entity floor, cameras are 77 % of the bytes (2.8 of 3.6 MiB) with 6 state changes in
 24 h: their attributes change every few minutes, and the card cannot draw a recorded camera picture anyway. On the
@@ -152,8 +152,10 @@ the chunk's limit must rise.
 11. **Keys and play.** Arrows move 5 minutes at 24 h, 10 at 48 h, 30 at 7 days; Page Up and Down move one hour at 24
     and 48 h, six hours at 7 days. Play keeps today's speed, 24 hours per minute, at every length.
 12. **7 days has a gate.** 7 days ships only if, on a fixture of the measured worst floor (180,000 rows over 93
-    entities, the shape of (A) + (B)), parse and index take under 1.5 s in Chromium at 4x CPU throttling, and the
-    index adds under 60 MB to the heap. If not, the 7-day choice is left out and DECISIONS says so with the figures.
+    entities, the shape of (A) + (B)), parse and index take under 1.5 s in Chromium at 4x CPU throttling on Diego's
+    Mac, measured once and recorded, and the index adds under 60 MB to the heap. In CI the same test holds parse and
+    index to a ratio of the S41.c `calibrate` workload, fixed from the Mac figure, never an absolute time: CI runs 3 to
+    6x slower and absolute ceilings failed there by chance (S41.c). If not, the 7-day choice is left out and DECISIONS says so with the figures.
 13. **Purge.** If the reply starts later than the window (the recorder had purged it), the strip greys the part with
     no history and the info line says from when history is kept.
 
@@ -211,14 +213,15 @@ where: `homeassistant/components/history/websocket_api.py`, `homeassistant/compo
    the ends, pause play, and the value text names the event. (C9)
 8. The window: 48 h asks a 48-hour range; arrows and Page keys move by the item 11 steps; play covers 24 h of replay
    per 60 s of clock (half of 48 h after 60 s). Switching length keeps the moment on show. (D10, D11)
-9. The gate: a generated fixture of 180,000 rows is parsed and indexed under the item 12 limits in Chromium with 4x
-   CPU throttling, measured in a Playwright test; the figures go into DECISIONS. (D12)
+9. The gate: a generated fixture of 180,000 rows is parsed and indexed under the item 12 limits: once on Diego's Mac in
+   Chromium with 4x CPU throttling, figures into DECISIONS, and in CI as a ratio to `calibrate` in a Playwright test,
+   so the test fails on a 2x slowdown and not on a slow runner. (D12)
 10. Purge: a reply that starts 12 hours into a 48-hour window greys that part of the strip; the info line says from
     when. (D13)
 11. Filters: turning off "lamp" removes lamp ticks and lamp jumps; a room filter keeps a door between two rooms when
     either is on; the plan's computed styles are unchanged by any filter. (E14, E15)
 12. Escaping: a room named `"><script>` in the filter list and the tooltip is text, not markup (finding 2).
-13. Every new string is in all ten catalogues; the raw-English lint passes.
+13. Every new string is in all nine catalogues (ten languages with English); the raw-English lint passes.
 14. Bytes: the card stays under its cap and within +600 of 121,511 for the whole spec; the replay chunk is under its new
     limit; the card does not contain the event table (a marker string only the chunk has). (G20, G21)
 15. Shots: `npm run shots` gains the demo replayed with markers, a cluster's tooltip, the filter list and the 48 h bar,

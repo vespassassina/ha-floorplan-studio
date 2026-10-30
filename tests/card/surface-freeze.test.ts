@@ -23,7 +23,7 @@ export function configKeys(src: string): string[] {
   const start = src.indexOf("export interface FloorplanStudioCardConfig {");
   if (start < 0) throw new Error("FloorplanStudioCardConfig not found in floorplan-studio-card.ts");
   const body = src.slice(start, src.indexOf("\n}\n", start));
-  return [...body.matchAll(/^ {2}(\w+)\?:/gm)].map((m) => m[1]!);
+  return [...body.matchAll(/^ {2}(?:readonly\s+)?["']?([\w-]+)["']?\??:/gm)].map((m) => m[1]!);
 }
 
 describe("surface freeze", () => {
@@ -38,8 +38,12 @@ describe("surface freeze", () => {
   test("the car models are the frozen list", () => {
     expect([...CAR_MODELS].sort(), "no new car model (docs/WORKFLOW.md)").toEqual([...FROZEN_CARS].sort());
   });
-  test("the parser sees a key added to the interface", () => {
-    const src = "export interface FloorplanStudioCardConfig {\n  type?: string;\n  /** doc */\n  new_key?: boolean;\n}\n";
-    expect(configKeys(src)).toEqual(["type", "new_key"]);
+  test("the parser sees a key added to the interface, in every form TypeScript allows", () => {
+    // Opus review of S41: a required key, a readonly one and a quoted one each slipped past the first parser.
+    const src = [
+      "export interface FloorplanStudioCardConfig {", "  type?: string;", "  /** doc */", "  new_key?: boolean;", "  required: number;",
+      "  readonly frozen?: string;", '  "quoted-key"?: boolean;', "  'single'?: boolean;", "  nested?: {", "    inner?: number;", "  };", "}", "",
+    ].join("\n");
+    expect(configKeys(src)).toEqual(["type", "new_key", "required", "frozen", "quoted-key", "single", "nested"]);
   });
 });
