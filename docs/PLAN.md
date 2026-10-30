@@ -4760,11 +4760,19 @@ after; no lane raises the cap.
 Not in this sprint: the trace image on the card, a combined history chart in the popup, temperature range warnings, a
 generic value sensor with its own icon. Each needs its own design; they are next after this one.
 
-## Sprint 41 (outline): replay review, a brainstorm, CI shards and the surface freeze
+## Sprint 41 (outline): room for the card, replay review, a brainstorm, CI shards and the surface freeze
 
-Two discovery tasks first, asked by Diego on 2026-10-30; their output is a spec and a plan for Sprint 42 on, not
+S41.0 first. Then two discovery tasks, asked by Diego on 2026-10-30; their output is a spec and a plan for Sprint 42 on, not
 code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
 
+- S41.0 Room for the card, first (Diego, 2026-10-30, after 0.39.0). The card ships at 124,649 bytes gzip against a cap of
+  124,650, so no card feature fits. Find what turns `?.` into `==null?void 0:` in `dist/floorplan-studio-card.js`
+  (22 places in 0.39.0: Vite's lib default, the esbuild pass in `scripts/minify-output.mjs`, or a dependency's own
+  output); set the target to the oldest that Home Assistant's frontend itself requires (read its browserslist, cite it
+  in DECISIONS) for the card, form, replay, language and 3D chunks. Done when the saving is measured in DECISIONS, the
+  full suite passes, the cap's headroom is a written decision, and a test fails if a shipped chunk carries
+  `==null?void 0` from our own source. If the saving is under 1 KB gzip, the task lists the three next-largest savings
+  with sizes and Diego picks. Alone: every other task runs the build.
 - S41.r Review the replay to widen it. Read the S39 and S40 replay code and DECISIONS, use it on Diego's HA, and
   answer with evidence: event markers on the slider (lamps, motion, doors, alarms), clustered when they crowd;
   a longer window (48 h, 7 days: what HA's recorder keeps, `purge_keep_days`, the cost of one history call per floor,
@@ -4784,7 +4792,15 @@ code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
   or a DECISIONS entry that says why. A unit test lists today's config keys and themes, so a new one fails until the
   list and the reason are written down (finding 17).
 
-## Sprint 42 (outline): split editor-app
+## Sprint 42 (outline): temperature range warnings
+
+From the 2026-10-29 field report; Diego picked it as the next feature on 2026-10-30, so the S41.b brainstorm takes it as
+given. A `temp` device (and a room's temperature) may carry a range; outside it the plan shows it and Attention lists
+it. The spec, written when S41.0 has made room: where the range lives (device, room, a layout default), hysteresis so a
+reading on the bound does not flicker, °C and °F from HA, the colour and the Attention line, the editor fields, and the
+bytes it may cost against the cap.
+
+## Sprint 43 (outline): split editor-app
 
 Plan D, item 15, second half. `src/editor/editor-app.ts` (220 KB of source) split as S39.0 split the card: whole
 concerns into modules, no behaviour change, the full suite as the test.
