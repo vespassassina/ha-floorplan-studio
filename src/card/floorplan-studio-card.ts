@@ -6,7 +6,7 @@ import type { Attention, ThingRef, PowerCandidate, Theme, WallsMode } from "../c
 import type { Device, Door, Floor, Layout } from "../core";
 import { tapActionOf, holdActionOf } from "./tap-action";
 import { favouritesOf, type FavouritesRead } from "./favourites";
-import { bindDeviceActions, type TapTarget } from "./actions";
+import { bindDeviceActions, openView, type TapTarget } from "./actions";
 import { SCENES_CSS } from "./room-scenes-ui";
 import { TOUCH_CSS } from "./touch-css";
 import { POPUP_CSS, type PopupSubject, type SliderKind } from "./popup-ui";
@@ -1265,8 +1265,7 @@ export class FloorplanStudioCard extends LitElement {
 
   private _openStudio = (e: Event): void => {
     e.preventDefault();
-    history.pushState(null, "", "/floorplan-studio"); // HA's own `navigate`: push, then tell the router
-    window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+    openView("/floorplan-studio");
   };
 
   /** The turn the plan is drawn at: the layout's own rotate plus the user's. Turned into the `{ deg, pivot }`

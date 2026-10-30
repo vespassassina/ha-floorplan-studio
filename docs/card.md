@@ -921,6 +921,8 @@ second tap of the same icon. Tapping another icon moves it. It is a non-modal `r
 focus goes to its primary button and comes back to what opened it. A **hold** (long press) still opens more-info
 directly, as before.
 
+A device that names a `view` (a path such as `/lovelace/terrace`, set in the editor) does not open the popup: a tap goes to that dashboard view, whatever `tap_action` says, and a hold keeps its own action. During a replay a tap does nothing; in kiosk the view is ignored.
+
 - **Turning something OFF asks first**, for every type except a light (a lock and a cover act at once; a media player or speaker has no on/off button): the button turns into **Confirm turn off**
   next to Cancel. Turning ON is immediate. A light's OFF is immediate too. A lock and a cover keep their own
   wording. A door with a `cover` keeps its confirm dialog, opened from the popup's button.

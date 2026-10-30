@@ -1,5 +1,5 @@
 import { stairSteps } from "./geometry";
-import { isEntityId, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
+import { isEntityId, isViewPath, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"], ["unlinked", "unlinked"]];
@@ -70,6 +70,11 @@ function dropBadFx(f: any) {
   for (const d of f.devices) if ("fx" in d && !(typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX)) delete d.fx;
 }
 
+/** S40.3: a device's `view` that `validate` would refuse is dropped, so the file opens and the icon taps as before. */
+function dropBadView(f: any) {
+  for (const d of f.devices) if (d.view !== undefined && !isViewPath(d.view)) delete d.view;
+}
+
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 
 /** S33.6: the saved views that `validate` would accept, in order, first of a duplicate id, at most MAX_VIEWS. */
@@ -125,7 +130,7 @@ export function migrate(x: unknown): Layout {
       d.id = d.id ?? `${d.type}-${fname}-${i + 1}`;
       return d;
     });
-    dropBadHeights(f); dropBadFx(f); dropBadOffset(f); dropBadRotation(f); dropBadCar(f);
+    dropBadHeights(f); dropBadFx(f); dropBadView(f); dropBadOffset(f); dropBadRotation(f); dropBadCar(f);
     Object.defineProperty(floors, fname, { value: f, enumerable: true, writable: true, configurable: true });
   }
   const out: any = { version: 2, unit: "cm", north: src.north ?? 0, rotate: src.rotate ?? 0, floors, catalog: src.catalog };

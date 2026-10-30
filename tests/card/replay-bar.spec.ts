@@ -821,3 +821,94 @@ test.describe("S40.1 the Replay button and the X", () => {
     });
   }
 });
+
+// Sprint 40.3 (docs/specs/quick-wins-s40.md, C10 and C11; criterion 10): a tap on a device with `view` opens that dashboard view, the way Home Assistant's
+// own `navigate` does (history.pushState, then a `location-changed` event on window). Real page.mouse at real coordinates (CLAUDE.md finding 3).
+// Where the shape comes from (finding 21): Home Assistant's frontend `navigate()` in `src/common/navigate.ts` is `history.pushState(null, "", path)`
+// followed by `fireEvent(window, "location-changed", { replace })`; `replace` is false for a push.
+test.describe("S40.3 a device with a view", () => {
+  const VIEW = "/lovelace/terrace";
+  const withView = (view: unknown, i = lampIdx) => { const l = structuredClone(demo); (l.floors.ground.devices[i] as Record<string, unknown>).view = view; return l; };
+  const track = (page: Page) => page.evaluate(() => {
+    const w = window as unknown as { __loc: { replace: unknown; path: string }[]; __info: string[] };
+    w.__loc = []; w.__info = [];
+    window.addEventListener("location-changed", (e) => w.__loc.push({ replace: (e as CustomEvent).detail?.replace, path: location.pathname }));
+    document.getElementById("card")!.addEventListener("hass-more-info", (e) => w.__info.push((e as CustomEvent).detail.entityId));
+  });
+  const seen = (page: Page) => page.evaluate(() => ({ loc: (window as unknown as { __loc: unknown[] }).__loc, info: (window as unknown as { __info: string[] }).__info, path: location.pathname }));
+  const pop = (page: Page) => card(page).locator("css=.fp-pop");
+  const START = "/harness.html";
+
+  test("a tap pushes the path and fires one location-changed, whatever tap_action says, and opens no popup and calls no service", async ({ page }) => {
+    for (const tap_action of [undefined, "none", "toggle", "more-info"]) {
+      await boot(page, { config: { layout: withView(VIEW), ...(tap_action ? { tap_action } : {}) }, live: { "light.demo_kitchen": st("off") } });
+      await track(page);
+      await g(page, lampIdx).click();
+      await expect.poll(async () => (await seen(page)).path, String(tap_action)).toBe(VIEW);
+      expect((await seen(page)).loc, String(tap_action)).toEqual([{ replace: false, path: VIEW }]);
+      expect((await seen(page)).info).toEqual([]);
+      await expect(pop(page)).toHaveCount(0);
+      expect(await calls(page)).toEqual([]);
+    }
+  });
+
+  test("a device without a view still opens the popup and leaves the address alone", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW) }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    await g(page, motionIdx).click();
+    await expect(pop(page)).toHaveCount(1);
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  test("a hold keeps its own action: more-info for the entity, no navigation", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW) }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    const b = (await g(page, lampIdx).boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650); // a real hold: HOLD_MS is 500
+    await page.mouse.up();
+    expect(await seen(page)).toEqual({ loc: [], info: ["light.demo_kitchen"], path: START });
+  });
+
+  test("while replaying a tap does nothing but say so; after the X it navigates", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW) }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    await openBar(page);
+    await g(page, lampIdx).click();
+    await expect(msg(page)).toHaveText("Replaying");
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+    await card(page).locator("css=button.fp-rp-close").click();
+    await g(page, lampIdx).click();
+    await expect.poll(async () => (await seen(page)).path).toBe(VIEW);
+  });
+
+  test("the path is checked again at tap time: one that went bad after the layout loaded navigates nowhere", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW) }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    for (const bad of ["//evil.com", "javascript:alert(1)", "/a b", 5]) {
+      await card(page).evaluate((el, [i, v]) => { ((el as unknown as { _layout: { floors: { ground: { devices: Record<string, unknown>[] } } } })._layout.floors.ground.devices[i as number]).view = v; }, [lampIdx, bad] as const);
+      await g(page, lampIdx).click();
+      await expect(pop(page), String(bad)).toHaveCount(1); // the icon does what it did before the view existed
+      await page.keyboard.press("Escape");
+      await expect(pop(page)).toHaveCount(0);
+    }
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  test("a layout file with a bad view opens, and the icon taps as before", async ({ page }) => {
+    await boot(page, { config: { layout: withView("//evil.com") }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    await g(page, lampIdx).click();
+    await expect(pop(page)).toHaveCount(1);
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  test("kiosk never leaves the dashboard: the view is ignored there", async ({ page }) => {
+    await boot(page, { config: { layout: withView(VIEW), kiosk: true }, live: { "light.demo_kitchen": st("off") } });
+    await track(page);
+    await g(page, lampIdx).click();
+    await expect(pop(page)).toHaveCount(1);
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+});
