@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-30: Sprint 40, the editor lane (trace Move, single entities)
+
+Details the spec left open. Spec: `docs/specs/quick-wins-s40.md`, items 6 to 9 and 14 to 17.
+
+- **Move takes the whole plan, not only the image's pixels.** With Move on, any left press on the plan drags the image:
+  the image sits under rooms drawn see-through, so asking "is the pointer on the image" would make the drag miss
+  where the user is lining up walls. Middle button, right button and Ctrl/Cmd still pan. A fixed plan refuses Move
+  with the usual "plan is fixed" message, since `trace` is part of the plan.
+- **Rotation is shown -180..180 and stored 0..360.** `validate` refuses a negative `rot`, so the field normalises
+  (-90 is stored 270). Values outside the range, or an empty box, are refused with a message and the box shows the
+  layout again. The schema is unchanged.
+- **Positions round to 0.1 cm** (a drag), nudges are whole centimetres.
+- **The Entities group skips catalogued entities.** `addHaEntity` refuses an entity already in the catalog, and a
+  catalogued device is placed from its catalog row, so listing it would offer a pick that does nothing.
+- **Only entities of an HA device.** A device-less entity is a plain row of Add device already; listing it again
+  would be a second row for the same thing.
+
 ## 2026-10-29: Sprint 40, quick wins from a field report
 
 A user asked for five things; Diego took the four small ones first, and asked for a replay button. Spec:

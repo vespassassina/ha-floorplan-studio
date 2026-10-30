@@ -1,6 +1,6 @@
 import { css, html, nothing } from "lit";
 import { live } from "./live-keep";
-import { addCandidates, typeForEntity } from "../core";
+import { addCandidates, capEntityRows, entityCandidates, typeForEntity } from "../core";
 import type { AddCandidate, HaData, Pt } from "../core";
 import { TYPE_LABELS, helpPanel, selectionPanel, typeOptions } from "./panels";
 import type { EditorState } from "./state";
@@ -134,10 +134,14 @@ export function addDevView(h: FloorplanStudioEditor, st: EditorState) {
     (skip === "area" || !h.addDevArea || (h.addDevArea === "__none__" ? !c.area : c.area === h.addDevArea)) &&
     (skip === "type" || !h.addDevType || c.type === h.addDevType);
   const shown = bySearch.filter((c) => passes(c));
+  // S40.4: while there is search text, the single entities of an HA device whose own name or id matches, after the device rows.
+  const entAll = q ? entityCandidates(st.layout, st.ha ?? null, q, all) : [];
+  const ents = capEntityRows(entAll.filter((c) => passes(c)));
+  const pool = (skip?: "floor" | "room" | "area" | "type") => [...bySearch, ...entAll].filter((c) => passes(c, skip));
   const selectFor = (field: "floor" | "room" | "area", current: string) => {
-    const pool = bySearch.filter((c) => passes(c, field));
-    let values = [...new Set(pool.map((c) => c[field]).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b));
-    let none = pool.some((c) => !c[field]);
+    const pooled = pool(field);
+    let values = [...new Set(pooled.map((c) => c[field]).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b));
+    let none = pooled.some((c) => !c[field]);
     if (current && current !== "__none__" && !values.includes(current)) values = [...values, current].sort((a, b) => a.localeCompare(b));
     if (current === "__none__") none = true;
     return { values, none };
@@ -151,7 +155,7 @@ export function addDevView(h: FloorplanStudioEditor, st: EditorState) {
       ${none ? html`<option value="__none__">None</option>` : nothing}
     </select>`;
   };
-  const typePool = bySearch.filter((c) => passes(c, "type"));
+  const typePool = pool("type");
   let typeOpts = TYPE_LABELS.filter(([t]) => typePool.some((c) => c.type === t));
   if (h.addDevType && !typeOpts.some(([t]) => t === h.addDevType)) {
     const found = TYPE_LABELS.find(([t]) => t === h.addDevType);
@@ -175,8 +179,8 @@ export function addDevView(h: FloorplanStudioEditor, st: EditorState) {
       </select>` : nothing}
     </div>
     ${all.length === 0 ? html`<span class="grp" id="addDevNone">Everything is on the plan</span>`
-      : shown.length === 0 ? html`<span class="grp" id="addDevNone">Nothing matches</span>`
-      : html`<div class="rows">${TYPE_LABELS.map(([t, label]) => { const g = shown.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-add=${c.key} title=${c.name} @click=${() => h.pickAddDev(c)}><span class="devrow-name">${c.name}</span><small>${label}${c.room || c.area ? ` · ${c.room || c.area}` : ""}</small></button>`)}` : nothing; })}</div>`}
+      : shown.length === 0 && ents.total === 0 ? html`<span class="grp" id="addDevNone">Nothing matches</span>`
+      : html`<div class="rows">${TYPE_LABELS.map(([t, label]) => { const g = shown.filter((c) => c.type === t); return g.length ? html`<span class="grp">${label}</span>${g.map((c) => html`<button class="btn" data-add=${c.key} title=${c.name} @click=${() => h.pickAddDev(c)}><span class="devrow-name">${c.name}</span><small>${label}${c.room || c.area ? ` · ${c.room || c.area}` : ""}</small></button>`)}` : nothing; })}${ents.total ? html`<span class="grp" id="addDevEntities">Entities</span>${ents.rows.map((c) => html`<button class="btn" data-add=${c.key} title=${c.entity} @click=${() => h.pickAddDev(c)}><span class="devrow-name">${c.name}</span><small>${TYPE_LABELS.find(([t]) => t === c.type)?.[1] ?? c.type}${c.device ? ` · ${c.device}` : ""}</small></button>`)}${ents.note ? html`<span class="grp" id="addDevMore">${ents.note}</span>` : nothing}` : nothing}</div>`}
   </div>`;
 }
 

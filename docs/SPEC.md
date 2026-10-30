@@ -977,10 +977,27 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
   PNG under 1 MB, else JPEG at 0.85, lower if needed to fit 4 MB) and places
   it over the outline's box, or the view on a blank floor. Scale takes two
   clicks on the image and the real distance between them in cm, and sets `w`;
-  the aspect ratio follows. Opacity is a slider, Show a checkbox, Remove drops
-  it. Each is one undo step. While it is shown, room fills are see-through in
+  the aspect ratio follows. Move (S40.2, only while the image is shown) makes a
+  drag on the plan move the image (`x`, `y`, 0.1 cm) and the arrow keys nudge it
+  1 cm, Shift 10 cm; walls, rooms and devices take no press meanwhile. A drag is
+  one undo step (none if it ends where it began), each arrow press is one. Move
+  ends on Escape, Scale, Hide, Remove and a closed panel; the status bar says
+  "Move: drag the image, arrows nudge it". Rotation is a field, -180 to 180 in
+  0.1 steps, that sets `rot` (stored 0 to 360) about the image's top-left
+  corner; the same value is no step. Opacity is a slider, Show a checkbox,
+  Remove drops it. Each is one undo step. While it is shown, room fills are see-through in
   the editor so traced rooms do not hide the scan. File, Export has an
   Include trace image tick, off by default and not remembered.
+- Add > Device (S8.5, S40.4): one row per HA device (its main entity), plus
+  device-less entities and unplaced catalog entries, grouped by type. While the
+  search box has text it also lists, in a last group "Entities", every unplaced,
+  unattached entity of an HA device whose own name or entity id matches (not one
+  already a row, not one in the catalog), under its own name; its small line is
+  its type and the device's name. A pick places that one entity, typed by
+  `typeForEntity`; its device then leaves the device rows as before, and its
+  other entities stay findable by search. At most 50 rows show, then the line
+  "50 of N. Type more to narrow it." An empty search lists exactly what it
+  did. The listing is `entityCandidates` in `src/core/ha.ts`.
 - Selection panel per kind: corner, edge and wall (length, angle, kind, and on
   a free wall the conversion to an opening), door (name, kind, length, sensor,
   cover), room (name or area, kind, colour, unsnap, rotation; the colour

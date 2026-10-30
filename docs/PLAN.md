@@ -4748,11 +4748,11 @@ after; no lane raises the cap.
 
 - [x] S40.1 Replay button and X: the button under the plan while the bar is closed, the X in place of Live, focus going
       to play and back to the button. Spec A, items 1 to 5; criteria 1 to 3.
-- [ ] S40.2 Move and turn the trace image: Move toggle, drag, arrow nudge, the Rotation field, Move off on Escape,
+- [x] S40.2 Move and turn the trace image: Move toggle, drag, arrow nudge, the Rotation field, Move off on Escape,
       Scale, Hide and Remove. Spec B, items 6 to 9; criteria 5 to 8.
 - [ ] S40.3 A device's `view`: schema and `validate` (unit first, the hostile list of criterion 9), the card's tap,
       then the device panel's field. Spec C, items 10 to 13; criteria 9 to 11. Docs: `docs/schema.md`, `docs/SPEC.md`.
-- [ ] S40.4 Single entities in Add device: the Entities group while searching, the 50-row cap, the pick placing one
+- [x] S40.4 Single entities in Add device: the Entities group while searching, the 50-row cap, the pick placing one
       entity. Spec D, items 14 to 17; criteria 12 to 14.
 - [ ] S40.5 Words and pictures, integrate, review: the strings in all ten catalogues and the lint (criterion 4), the
       shots of criterion 15 looked at, the full suite on the merge, the Opus review, release 0.39.0 after Diego's yes.

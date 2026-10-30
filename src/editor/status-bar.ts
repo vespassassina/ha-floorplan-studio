@@ -3,7 +3,7 @@ import type { Pt } from "../core";
 import type { EditorState } from "./state";
 
 /** What the host knows that the state does not: Alt is held, a shape is being drawn. */
-export interface StatusView { alt: boolean; drawing: boolean; /** S34.10: the heat map's words ("Heat map: 16 °C to 26 °C", or "no readings"), absent when the map is off. */ heat?: string }
+export interface StatusView { alt: boolean; drawing: boolean; /** S34.10: the heat map's words ("Heat map: 16 °C to 26 °C", or "no readings"), absent when the map is off. */ heat?: string; /** S40.2: trace Move is on. */ move?: boolean }
 
 export interface StatusFacts {
   /** The facts in order, without the lock. */
@@ -40,6 +40,7 @@ export function statusFacts(st: EditorState, v: StatusView): StatusFacts {
   } else if (s) {
     parts.push(KIND_NAMES[s.t] ?? "Selected");
   }
+  if (v.move) parts.push("Move: drag the image, arrows nudge it");
   parts.push(v.alt || !st.snapGrid ? "Snap off" : `Snap ${st.snapGrid} cm`);
   if (v.drawing && !v.alt) parts.push("15°");
   const turn = ((Math.round(st.turnDeg) % 360) + 360) % 360;
