@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-30: The sheet's handle takes only a click it was pressed for
+
+A finger on a room picks it on pointerup and the phone's sheet rises to half. Chromium sends the tap's click afterwards,
+hit-tested where the finger was; on a slow machine the risen handle is there by then, and the click took the sheet back
+to peek. CI shard 3 caught it twice in `touch-targets.spec.ts`; an 8x CPU throttle reproduced it in 6 of 20 runs. The
+handle now acts on a pointer click only when the press began on it; a keyboard click (detail 0) still acts. Fixed in the
+card, not the test: a slow phone does the same.
+
 ## 2026-10-30: The surface freeze (S41.d)
 
 No new theme, no new car model; a new card config key needs a removed one or an entry here saying why. Frozen as of

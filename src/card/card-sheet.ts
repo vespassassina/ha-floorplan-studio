@@ -162,6 +162,7 @@ export function fitHeight(c: FloorplanStudioCard): void {
 
 export function onHandleDown(c: FloorplanStudioCard, e: PointerEvent): void {
   if ((e.pointerType === "mouse" && e.button !== 0) || c._sheetDrag) return;
+  c._handlePressed = true;
   const stops = stopsNow(c);
   if (!stops) return;
   const h0 = stops[c._sheetStop];
@@ -204,13 +205,20 @@ export function onHandleCancel(c: FloorplanStudioCard, e: PointerEvent): void {
   const d = c._sheetDrag;
   if (!d || e.pointerId !== d.id) return;
   c._sheetDrag = null; // the browser took the gesture: the sheet goes back to its stop
+  c._handlePressed = false;
   const sheet = c.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
   if (sheet) { sheet.classList.remove("fp-dragging"); sheet.style.removeProperty("height"); }
   c.requestUpdate();
 }
 
-export function onHandleClick(c: FloorplanStudioCard): void {
+/** A tap on the handle. A pointer click counts only when the press began on the handle: a finger that picked a room on pointerup
+ *  raised the sheet, and the tap's click, hit-tested later where the finger was, lands on the risen handle on a slow machine
+ *  (CI, PR 5). A keyboard click (detail 0) has no press. */
+export function onHandleClick(c: FloorplanStudioCard, e: MouseEvent): void {
+  const pressed = c._handlePressed;
+  c._handlePressed = false;
   if (c._dragEnded) { c._dragEnded = false; return; }
+  if (e.detail !== 0 && !pressed) return;
   c._sheetStop = nextOnHandleTap(c._sheetStop);
   c.requestUpdate();
 }
