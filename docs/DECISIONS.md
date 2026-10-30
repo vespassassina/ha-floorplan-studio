@@ -21,8 +21,11 @@ Room for the card. 0.39.0 shipped at 124,649 bytes gzip against a cap of 124,650
 - **Target.** `["es2020", "chrome91", "edge91", "firefox98", "safari15.4"]` in `vite.config.ts` (`BUILD_TARGET`), for the
   form, card, panel and editor builds; the lazy 3D, replay and language chunks come out of the card build. Firefox and
   Safari take HA's legacy floors (both already keep `?.`). Chrome and Edge 91 are the oldest esbuild keeps `?.` for,
-  newer than HA's 67 and 79. **Cost:** Chrome and Edge 80 to 90 (2020 to mid 2021), e.g. an Android WebView never
-  updated, lose the card (a `?.` is a syntax error there); they ran it before. Chrome 67 to 79 could not run it before either.
+  newer than HA's 67 and 79. **Cost: none found.** Chrome 80 parses `?.`; esbuild waits for 91 because of one V8 bug
+  (issue 11558, fixed in Chrome 91: spread arguments in an optional call, `a?.b(...c)`, the case Babel's
+  `bugfix-v8-spread-parameters-in-optional-chaining` handles). Our source has no such call (grep, 2026-10-30), and lit
+  and three already shipped `?.` as written. So Chrome and Edge 80 to 90 run the card as before. Chrome 67 to 79 could
+  not run it before either (`??`). A new `?.(...x)` in our source would bring the bug back for those versions.
 - **Bytes, gzip -9 (before to after, saved).** card 124,623 to 121,511 (3,112); form 24,993 to 24,665 (328); 3D chunk
   164,216 to 163,703 (513); panel 192,593 to 189,483 (3,110); editor.html 188,646 to 185,708 (2,938); replay and the
   nine language chunks unchanged. Raw card 384,857 to 373,200.
