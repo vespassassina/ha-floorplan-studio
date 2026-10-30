@@ -774,12 +774,59 @@ test.describe("S40.1 the Replay button and the X", () => {
     await expect(bar(page)).toBeVisible();
     await card(page).evaluate((el) => { const e = el as unknown as { setConfig(c: unknown): void; _config: object }; e.setConfig({ ...e._config }); });
     await expect(bar(page)).toHaveCount(0);
+    // Opus re-check N6: the focus must be inside the card or nowhere, or the `away` rule hides a flag that survived the close. Nowhere: body.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await openMenu(page);
     await menuItem(page, "replay").click(); // the menu sets no focus mark of its own
     await expect(bar(page)).toBeVisible();
+    // The menu left focus on itself, and the `away` rule would clear a leaked flag on the first paint. Put focus nowhere, so a flag that survived shows.
+    await card(page).evaluate((el) => (el.shadowRoot!.activeElement as HTMLElement | null)?.blur());
     await release(page);
     await expect(range(page)).toBeEnabled();
     await expect(playBtn(page)).not.toBeFocused();
+  });
+
+  // Opus re-check of S40 (B2): focus in a field elsewhere on the page is not "nothing focused". The bar takes focus only from the card or from nowhere.
+  const outsideInput = (page: Page) => page.evaluate(() => {
+    const i = document.createElement("input");
+    i.id = "outside"; i.setAttribute("aria-label", "outside");
+    document.body.append(i);
+  });
+
+  test("review B2: focus in a field outside the card stays there through renders and the reply", async ({ page }) => {
+    await boot(page);
+    await outsideInput(page);
+    await hold(page);
+    await clickAt(page, open(page));
+    await expect(bar(page)).toBeVisible();
+    await expect(bar(page)).toBeFocused(); // control: until the user moves, the bar itself holds it
+    await page.locator("#outside").focus();
+    await update(page, { "light.demo_kitchen": st("on") });
+    await update(page, { "light.demo_kitchen": st("off") });
+    await expect(page.locator("#outside")).toBeFocused();
+    await release(page);
+    await expect(range(page)).toBeEnabled();
+    await expect(page.locator("#outside")).toBeFocused();
+    await expect(playBtn(page)).not.toBeFocused();
+  });
+
+  test("review B2: the card inside another element's shadow root (as in Home Assistant): a click on Replay still ends on Play", async ({ page }) => {
+    await boot(page);
+    await outsideInput(page);
+    await page.evaluate(() => {
+      const host = document.createElement("div"), c = document.getElementById("card")!;
+      c.parentElement!.append(host);
+      host.attachShadow({ mode: "open" }).append(c);
+      (window as unknown as { __c: unknown }).__c = c; // getElementById no longer finds it
+    });
+    await expect(card(page).locator("css=svg.fp-zoomable")).toBeVisible();
+    await hold(page);
+    await clickAt(page, open(page)); // focus is inside the card, on the Replay button
+    await expect(bar(page)).toBeVisible();
+    await page.evaluate(() => { const el = (window as unknown as { __c: { hass: object } }).__c; el.hass = { ...el.hass }; }); // a render while it loads
+    await release(page);
+    await expect(range(page)).toBeEnabled();
+    await expect(playBtn(page)).toBeFocused();
   });
 
   test("criterion 1: no button in kiosk or without a connection; with one it is there", async ({ page }) => {
@@ -1021,6 +1068,36 @@ test.describe("S40.3 a device with a view", () => {
     await page.keyboard.press("Enter");
     await expect.poll(async () => (await seen(page)).path).toBe(VIEW);
     expect((await seen(page)).loc).toHaveLength(1);
+  });
+
+  // Opus re-check of S40 (B5c): the room row's key press has the same replay and kiosk guard as the plan's keys (keyToggle in card-overview.ts).
+  const rowFocus = async (page: Page) => {
+    await card(page).evaluate((el, r) => (el as unknown as { _pickRoom(i: number): void })._pickRoom(r), demo.floors.ground.rooms.findIndex((r: { name: string }) => r.name === "Kitchen"));
+    const row = card(page).locator(`css=button.fp-active-row[data-x="${lampIdx}"]`);
+    await expect(row).toBeVisible();
+    await row.focus();
+  };
+
+  test("a room row's keyboard press on a device with a view does not navigate while replaying", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live: { "light.demo_kitchen": st("on") } });
+    await track(page);
+    await setView(page, lampIdx, VIEW);
+    await openBar(page);
+    await rowFocus(page);
+    await page.keyboard.press("Enter");
+    await expect(pop(page)).toHaveCount(0); // the popup's own replay guard says "Replaying" and acts on nothing
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
+  });
+
+  // The list is not drawn in kiosk, so no real press reaches the row there; the config flips under a focused row, the one way the guard is reached.
+  test("a room row's keyboard press on a device with a view does not navigate once the card is a kiosk", async ({ page }) => {
+    await boot(page, { config: { active_list: true }, live: { "light.demo_kitchen": st("on") } });
+    await track(page);
+    await setView(page, lampIdx, VIEW);
+    await rowFocus(page);
+    await card(page).evaluate((el) => { (el as unknown as { _config: { kiosk: boolean } })._config.kiosk = true; });
+    await page.keyboard.press("Enter");
+    expect(await seen(page)).toEqual({ loc: [], info: [], path: START });
   });
 
   test("a layout file with a bad view opens, and the icon taps as before", async ({ page }) => {

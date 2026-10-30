@@ -104,7 +104,6 @@ test("S40 review 3: the Move hint sits in the Trace panel and is really seen", a
   }, [EDITOR, h.x + h.width / 2, h.y + h.height / 2] as const);
   expect(top).toBe("hint");
   await page.locator(EDITOR).focus();
-  await page.screenshot({ path: "/private/tmp/claude-501/trace-move-on.png" });
   await page.keyboard.press("Escape");
   await expect(hint).toHaveCount(0);
 });
@@ -141,4 +140,27 @@ test("S40 review 5: a floor switch turns Move off, and coming back does not resu
   await page.locator('.chip[data-f="ground"]').click();
   expect(await moving(page)).toBe(false);
   await expect(page.locator("#traceMove")).toHaveAttribute("aria-pressed", "false");
+});
+
+// Opus re-check of S40: Align and Place are Inspector modes with their own mouse handling; Move must not stay armed under them.
+test("S40 re-check: opening Align turns Move off", async ({ page }) => {
+  await page.evaluate(([tag, x]) => { (document.querySelector(tag as string) as any).layout = x; }, [EDITOR, JSON.parse(readFileSync("tests/fixtures/align-house.json", "utf8"))] as const);
+  await page.locator('.chip[data-f="first"]').click();
+  await load(page);
+  await page.locator("#traceMove").click();
+  expect(await moving(page)).toBe(true); // control: it was on
+  await page.locator("#mFloors > summary").click();
+  await page.locator("#alignFloor").click();
+  await expect(page.locator('aside [role=tab][data-mode="align"]')).toHaveAttribute("aria-selected", "true");
+  expect(await moving(page)).toBe(false);
+});
+
+test("S40 re-check: opening Place turns Move off", async ({ page }) => {
+  await load(page);
+  await page.locator("#traceMove").click();
+  expect(await moving(page)).toBe(true); // control: it was on
+  // The Place button needs Home Assistant data for a room; the method is what the button calls (as tests/editor/help-key.spec.ts does).
+  await page.evaluate((tag) => { const ed = document.querySelector(tag) as any; ed.ha = { floors: [], areas: [], entities: [] }; ed.openPlace(0); }, EDITOR);
+  await expect(page.locator('aside [role=tab][data-mode="place"]')).toHaveAttribute("aria-selected", "true");
+  expect(await moving(page)).toBe(false);
 });
