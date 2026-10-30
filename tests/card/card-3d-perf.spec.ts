@@ -115,7 +115,7 @@ test.describe("3D view: hostile layouts, in a real browser (S12.6)", () => {
   ];
   for (const [name, mutate] of cases) {
     test(`${name}: the view draws or the card falls back, with no error`, async ({ page }) => {
-      const seen = trouble(page), t0 = Date.now();
+      const seen = trouble(page);
       const layout = hostile(mutate);
       // `null` for NaN and the long literal for Infinity cannot survive JSON, so the layout goes in as the browser's own object
       if (name.startsWith("a NaN")) { const g = layout.floors.ground; g.furniture[g.furniture.length - 2].w = NaN; g.furniture[g.furniture.length - 1].x = Infinity; }
@@ -123,18 +123,27 @@ test.describe("3D view: hostile layouts, in a real browser (S12.6)", () => {
       await page.goto(`${ORIGIN}/harness.html`);
       await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
       await page.evaluate(async (layout) => {
-        const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+        const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown>; shadowRoot: ShadowRoot };
+        const w = window as unknown as { __built: { t0: number; first: number; shown: number } };
+        w.__built = { t0: performance.now(), first: 0, shown: 0 };
+        // The first frame, stamped in the page: the budget below is the view's own, not Playwright's round trips and the other workers' queue.
+        new MutationObserver(() => { if (!w.__built.first && el.shadowRoot!.querySelector<HTMLElement>(".fp-3d")?.dataset.drawn) w.__built.first = performance.now(); }).observe(el.shadowRoot!, { attributes: true, subtree: true, childList: true });
         el.setConfig({ layout, floor: "ground", view: "3d" });
         el.hass = { states: {}, callService: () => undefined };
         await el.updateComplete;
+        // The canvas or the fallback line, waited for in the page: a poll from outside queues behind the frames the other workers' software GL makes slow.
+        const there = () => !!el.shadowRoot!.querySelector("canvas, .fp-3d-note, p.msg");
+        await new Promise<void>((done) => { if (there()) return done(); const o = new MutationObserver(() => { if (there()) { o.disconnect(); done(); } }); o.observe(el.shadowRoot!, { subtree: true, childList: true }); });
+        w.__built.shown = performance.now();
       }, layout);
-      await expect.poll(async () => (await canvas(page).count()) + (await card(page).locator("css=.fp-3d-note, p.msg").count()), { timeout: 10000 }).toBeGreaterThan(0);
       // a layout the validator accepts must draw; one it refuses (NaN) falls back to its line
       if (!name.startsWith("a NaN")) expect(await canvas(page).count()).toBe(1);
       if (name === "2000 trees") { await drawn(page); expect((await page.evaluate(() => (window as unknown as { __fp3d: { crowns(): { own: { count: number }[] } } }).__fp3d.crowns().own[0]?.count))).toBe(2000); }
       if (await canvas(page).count()) await drawn(page);
       else expect(await card(page).locator("css=.fp-3d-note, p.msg").first().textContent()).toMatch(/3D|plan could not be used/i); // the fallback says why, in its one line
-      expect(Date.now() - t0).toBeLessThan(10000);
+      const built = await page.evaluate(() => (window as unknown as { __built: { t0: number; first: number; shown: number } }).__built);
+      expect(built.shown - built.t0, "ms from the config to the canvas or its fallback line, in the page").toBeLessThan(10000);
+      if (built.first) expect(built.first - built.t0, "ms from the config to the first frame, in the page").toBeLessThan(10000);
       expect(seen).toEqual([]);
     });
   }

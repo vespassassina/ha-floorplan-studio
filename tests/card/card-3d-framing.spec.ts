@@ -712,9 +712,12 @@ test.describe("S32.1 criterion 9: hostile cases", () => {
 
   test("1024x768: a floor switch mid-glide frames the new floor", async ({ page }) => {
     await boot(page, WIDE, { floor: "all" });
+    const glideMs = (ms: number) => page.evaluate((ms) => (window as unknown as { __fp3d: { glideMs(ms: number): void } }).__fp3d.glideMs(ms), ms);
+    await glideMs(20000); // slow, so the switch lands mid-glide however loaded the machine: a 400 ms glide can end between two polls
     await searchKitchen(page);
     await expect.poll(() => holder(page).getAttribute("data-easing"), { timeout: 3000, message: "the glide shows data-easing" }).not.toBeNull();
     await card(page).locator("css=.fp-floors button", { hasText: "First" }).click();
+    await glideMs(400); // the new floor's own framing glides at the usual pace
     await expect(card(page).locator("css=.fp-floors button", { hasText: "First" })).toHaveAttribute("aria-pressed", "true");
     await settled(page);
     await expectFloorFitted(page, "the First floor");
