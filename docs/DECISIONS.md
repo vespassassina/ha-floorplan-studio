@@ -7,7 +7,7 @@ Newest first. A change supersedes; nothing is edited.
 From the Opus review of the integrated sprint. Each defect has a test that failed first.
 
 - **The card lane's calls, not written down before.** Kiosk ignores `view`: a kiosk tap does what it did. The idle
-  Replay button is named by its `title` and has no `aria-label`; the card had 7 bytes of gzip left, and the accessible
+  Replay button is named by its `title` and has no `aria-label`; the card had a few bytes of gzip left, and the accessible
   name is the same. The open bar's markup lives in the lazy replay chunk; until it loads, a shell bar with the X and
   the reason shows, so Escape and the X work even when the chunk fails. "Live" left the catalogues with the button.
 - **Enter and Space follow `view` too.** A tap on a device with a view navigates; the keyboard opened the popup and
@@ -17,7 +17,9 @@ From the Opus review of the integrated sprint. Each defect has a test that faile
   `pushState` cannot leave the origin, so it was no redirect, but a reload asked HA for that path. One rule,
   `isViewPath`, still serves validate, migrate, the editor and the tap.
 - **The bar takes focus only when nothing else has it.** It moved focus to Play when the history arrived, even after
-  the user had moved on. Focus moves now only from inside the bar, the Replay button, or nothing.
+  the user had moved on. Focus moves now only when it is inside the bar (the Replay button turns into it) or on the page's body;
+  focus anywhere else, inside the card or in another card, the sidebar or a search box, stays. "Spacebar", a key
+  name only old Edge sent, is gone from the card's key handlers; it paid for the check.
 - **Rotation is rounded before it wraps.** -0.04 was stored as 360, which `validate` refuses, so Save failed later
   with no link to the field (finding 12). The field now shows the stored value in -180..180.
 - **Move gives way.** Draw, Align, Place and a floor switch turn Move off; with Move on a click never placed a draw
