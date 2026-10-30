@@ -2,6 +2,85 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-30: The 2D update budget is a ratio to the machine's speed
+
+Supersedes "Time is a ceiling against a `renderFloor` slowdown" in "2026-10-27: S38.5, the performance budget".
+The ms ceilings failed on CI by chance: the 400-device all off ran 102 to 150 ms over eight CI runs against 130 (PR 4,
+shard 2, 135.5), because GitHub's runners are 3 to 6x slower than the Mac, not the 2 to 3x the ceiling assumed. Not a
+sharding effect: two runs on main had failed the same way. Now `calibrate` (tests/card/plan-incremental.spec.ts) times a
+fixed 2,000-group SVG string set as innerHTML and laid out, none of our code in it, and the ceiling is the update's time
+over that. Mac ratios 1.4 to 3.0, up to 5.4 under ten parallel repeats; ceilings 2.5x the quiet Mac ratios (400 devices
+4 / 7.5 / 5.5, stress ground 4 / 5 / 5). A 60 ms busy loop in `renderFloor` failed both tests (ratios 5.7 to 9.7);
+removed, they passed 30 of 30. S25.6 stays pinned by structure.
+
+## 2026-10-30: Playwright runs in four CI shards (S41.c)
+
+CI on main took 22 min, Playwright 20 of them, on one runner. `.github/workflows/ci.yml` now runs `web` (lint and unit
+tests), `e2e` (a matrix of four, `--shard=i/4 --reporter=blob`, `fail-fast: false`, each building `dist/` in its own
+globalSetup), and `e2e-report`, which merges the blobs into one HTML report and only reads: the shards decide red.
+Measured on PR 4: the four shards list 2,700 tests, the same as the whole suite; the run took 10.5 min; a planted
+failing test failed shard 3 and the run, then was reverted. The shards split by file and are uneven (3.4 to 10.2 min);
+shard 1 holds the slow specs. If CI grows, rebalance before adding runners.
+
+## 2026-10-30: Brainstorm picks (S41.b)
+
+Diego picked eleven of 25 candidates (the list rated value, cost and risk; sources were the reviews, PLAN, DECISIONS and
+the four deferred field requests). Order, by Claude, from cost and dependency: Sprints 46 (follow renames, area check,
+HA floors, the Studio at small sizes), 47 (Attention to notify, Attention snooze), 48 (history chart, a value icon on
+`other`, a plan legend), 49 (trace on the card, scenes into HA). History chart after replay 2, because it shares its
+fetch. Card bytes: reclaimed only when a picked feature does not fit, not as a sprint of its own. Dropped: vacuum
+position, several houses, the 2D sun wedge, the car card popover, SVG import, an Attention sensor in Python. Studio
+translations wait for the editor split.
+
+## 2026-10-30: Replay 2 approved (S41.r)
+
+Diego approved `docs/specs/replay-2.md` with its defaults.
+
+- **Fetch.** Today's history call carries every attribute on every row; on Diego's largest floor cameras are 77 % of the
+  bytes. Two calls per floor, attributes only where the card draws them, cut 24 h from 298 to 53 KiB on the wire.
+- **Range.** HA keeps 10 days by default; statistics hold numbers, not events, so the replay never reaches past the
+  purge. 48 h ships; 7 days ships only if the R2.7 gate passes.
+- **Events.** Motion is too dense for marks (about 2,500 a day on one floor) and becomes a band; lamps, openings and
+  alarms are clustered marks. A lamp's event is its turning on; arming and disarming are alarm events. Play speed stays
+  24 hours per minute at any length.
+- **Bytes.** The replay chunk limit rises from 1,500 to 6,000 gzip in R2.1; the card spends at most 600 bytes of its
+  3.1 KB room on replay 2. Temperature warnings (Sprint 42) come first.
+- **Cut.** Statistics past the purge, a busy-room tint, separate live cues for open doors and recent motion (both exist).
+
+## 2026-10-30: The build names its own target (S41.0)
+
+Room for the card. 0.39.0 shipped at 124,649 bytes gzip against a cap of 124,650.
+
+- **Cause.** Vite's default `build.target` is `modules`: `es2020, edge88, firefox78, chrome87, safari14`. esbuild counts optional
+  chaining as safe only from Chrome and Edge 91, so with chrome87 in the list it prints every `a?.b` as
+  `a==null?void 0:a.b`, with a `var _a` temp for chains. Proved by transforming `a?.b?.c` with each browser alone: edge88,
+  chrome87 and chrome80 downlevel it; es2020, firefox78, safari14, safari15.4 and firefox98 keep it. Not the minify pass
+  (`scripts/minify-output.mjs`, no target, keeps `?.`) and not a dependency (lit and three ship `?.` as written: with
+  `target: esnext` the only `==null?void 0` left in the card is `===null?void 0`, our own code). The count was 467 in the
+  card, 71 in the 3D chunk, 45 in the form, 434 in the panel, 411 in the editor; the plan's "22" was a different grep.
+- **Home Assistant's floor.** `https://raw.githubusercontent.com/home-assistant/frontend/dev/.browserslistrc` (read
+  2026-10-30). `[modern]`: `unreleased versions`, `last 2 years`, `not dead`, `not QQAndroid > 0`, `not UCAndroid > 0`.
+  `[legacy]`: `Chrome >= 67`, `ChromeAndroid >= 67`, `Edge >= 79`, `Firefox >= 98`, `FirefoxAndroid >= 98`, `iOS >= 15.4`,
+  `Safari >= 15.4`, `Samsung >= 9`. HA transpiles for its legacy floor; a custom card is not transpiled, and the card
+  already needed Chrome 80 for `??` (esbuild keeps it from chrome80). No ES2020 target can reach Chrome 67.
+- **Target.** `["es2020", "chrome91", "edge91", "firefox98", "safari15.4"]` in `vite.config.ts` (`BUILD_TARGET`), for the
+  form, card, panel and editor builds; the lazy 3D, replay and language chunks come out of the card build. Firefox and
+  Safari take HA's legacy floors (both already keep `?.`). Chrome and Edge 91 are the oldest esbuild keeps `?.` for,
+  newer than HA's 67 and 79. **Cost: none found.** Chrome 80 parses `?.`; esbuild waits for 91 because of one V8 bug
+  (issue 11558, fixed in Chrome 91: spread arguments in an optional call, `a?.b(...c)`, the case Babel's
+  `bugfix-v8-spread-parameters-in-optional-chaining` handles). Our source has no such call (grep, 2026-10-30), and lit
+  and three already shipped `?.` as written. So Chrome and Edge 80 to 90 run the card as before. Chrome 67 to 79 could
+  not run it before either (`??`). A new `?.(...x)` in our source would bring the bug back for those versions.
+- **Bytes, gzip -9 (before to after, saved).** card 124,623 to 121,511 (3,112); form 24,993 to 24,665 (328); 3D chunk
+  164,216 to 163,703 (513); panel 192,593 to 189,483 (3,110); editor.html 188,646 to 185,708 (2,938); replay and the
+  nine language chunks unchanged. Raw card 384,857 to 373,200.
+- **Test.** `tests/card/size-budget.spec.ts`, "no shipped file carries optional chaining printed out as `==null?void 0`":
+  every dist `.js` and `editor.html`, `(?<![=!])==null\?void 0` (so `===null?void 0` passes). Failed first (editor.html: 410),
+  passes now.
+- **Cap.** The card is 121,511 against 124,650: 3,139 bytes of headroom.
+  Diego, 2026-10-30: the cap stays 124,650. The 3.1 KB is room for temperature warnings and the next card features;
+  each sprint states what it spends in its own entry.
+
 ## 2026-10-30: Sprint 40 review fixes, and the card lane's calls
 
 From the Opus review of the integrated sprint. Each defect has a test that failed first.

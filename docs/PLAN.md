@@ -4760,18 +4760,138 @@ after; no lane raises the cap.
 Not in this sprint: the trace image on the card, a combined history chart in the popup, temperature range warnings, a
 generic value sensor with its own icon. Each needs its own design; they are next after this one.
 
-## Sprint 41 (outline): CI shards and the surface freeze
+## Sprint 41 (outline): room for the card, replay review, a brainstorm, CI shards and the surface freeze
 
-Plan D, items 16 and 17, beside the next feature sprint. Detailed when Sprint 39 closes.
+S41.0 first. Then two discovery tasks, asked by Diego on 2026-10-30; their output is a spec and a plan for Sprint 42 on, not
+code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
 
-- S41.a Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
+- S41.0 Room for the card, first (Diego, 2026-10-30, after 0.39.0). The card ships at 124,649 bytes gzip against a cap of
+  124,650, so no card feature fits. Find what turns `?.` into `==null?void 0:` in `dist/floorplan-studio-card.js`
+  (22 places in 0.39.0: Vite's lib default, the esbuild pass in `scripts/minify-output.mjs`, or a dependency's own
+  output); set the target to the oldest that Home Assistant's frontend itself requires (read its browserslist, cite it
+  in DECISIONS) for the card, form, replay, language and 3D chunks. Done when the saving is measured in DECISIONS, the
+  full suite passes, the cap's headroom is a written decision, and a test fails if a shipped chunk carries
+  `==null?void 0` from our own source. If the saving is under 1 KB gzip, the task lists the three next-largest savings
+  with sizes and Diego picks. Alone: every other task runs the build.
+- S41.r Review the replay to widen it. Read the S39 and S40 replay code and DECISIONS, use it on Diego's HA, and
+  answer with evidence: event markers on the slider (lamps, motion, doors, alarms), clustered when they crowd;
+  a longer window (48 h, 7 days: what HA's recorder keeps, `purge_keep_days`, the cost of one history call per floor,
+  and statistics for long ranges); jump to the next event; filters by type or room. Also more cues on the live plan
+  that a replay can then show: open doors and windows, recent motion trails, a room that was busy, a value out of its
+  range. Output: `docs/specs/replay-2.md` with criteria, sizes measured against the card's gzip cap, and the order.
+  Done 2026-10-30: `docs/specs/replay-2.md`, approved by Diego with its defaults; tasks in Sprints 43 and 44.
+- S41.b Brainstorm with Diego (build-flow design interview), from what is built: new features, and improvements to
+  usability, readability and integration with Home Assistant (areas, labels, the dashboard, Assist, notifications).
+  Prepared beforehand: a list of candidates from the field reports, open DECISIONS items and the four deferred field
+  requests (trace on the card, a combined history chart, temperature range warnings, a generic value sensor), each
+  with value, cost and risk. Output: a ranked list in `docs/ROADMAP.md` or PLAN outlines, and Diego's picks.
+  Done 2026-10-30: Diego picked eleven items; they are Sprints 46 to 49 below.
+
+- S41.c Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
   `globalSetup` building once per shard. Done when CI on `main` is under half today's wall time with the same count of
   tests, and a deliberately failing test still turns CI red.
-- S41.b The surface freeze in `docs/WORKFLOW.md`: no new theme, no new car model, a new config key needs a removed one
+  Done 2026-10-30 (PR 4): CI 22 min to 10.5 min, 2,700 tests in four shards; a planted failing test turned shard 3 red.
+- S41.d The surface freeze in `docs/WORKFLOW.md`: no new theme, no new car model, a new config key needs a removed one
   or a DECISIONS entry that says why. A unit test lists today's config keys and themes, so a new one fails until the
   list and the reason are written down (finding 17).
 
-## Sprint 42 (outline): split editor-app
+## Sprint 42 (outline): temperature range warnings
+
+From the 2026-10-29 field report; Diego picked it as the next feature on 2026-10-30, so the S41.b brainstorm takes it as
+given. A `temp` device (and a room's temperature) may carry a range; outside it the plan shows it and Attention lists
+it. The spec, written when S41.0 has made room: where the range lives (device, room, a layout default), hysteresis so a
+reading on the bound does not flicker, °C and °F from HA, the colour and the Attention line, the editor fields, and the
+bytes it may cost against the cap.
+
+## Sprint 43 (outline): replay 2, part 1
+
+Spec: `docs/specs/replay-2.md`, approved by Diego on 2026-10-30 with its defaults (24 h per minute at any length, arming
+and disarming are alarm events, a lamp's event is its turning on, 7 days behind the gate). After Sprint 42, so the card's
+room serves temperature warnings first. The card spends at most +600 bytes gzip across both sprints; the rest goes into
+the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
+
+- R2.1 Leaner fetch: two history calls per floor (attribute domains in full, the rest with `significant_changes_only`
+  and `minimal_response`), the request moved into the chunk, the chunk limit raised.
+- R2.2 The event table per device type and the onsets, no UI; a test iterates `DEVICE_TYPES` (finding 17).
+- R2.3 Markers on the slider, the motion band, clusters, a tap on a marker.
+- R2.4 Jump to the previous and next event: buttons and Shift+arrows.
+
+## Sprint 44 (outline): replay 2, part 2
+
+- R2.5 48 h and the length selector.
+- R2.6 Filters by group and room; they change markers and jumps, never the plan.
+- R2.7 The 7-day gate: a 180k-row fixture parsed and indexed in under 1.5 s at 4x CPU throttle and under 60 MB of heap,
+  or 7 days is cut and the reason goes into DECISIONS.
+
+## Sprint 45 (outline): split editor-app
 
 Plan D, item 15, second half. `src/editor/editor-app.ts` (220 KB of source) split as S39.0 split the card: whole
 concerns into modules, no behaviour change, the full suite as the test.
+
+## After the 2026-10-30 brainstorm (S41.b): Sprints 46 to 49
+
+Diego's picks from 25 candidates, each rated for value, cost and risk. Not picked: vacuum position (the research said
+no), several houses, a 2D sun wedge, the car card popover, ha-floorplan SVG import, Studio translations (after the
+split), an Attention sensor in Python (the rules would exist twice, finding 8). Card bytes: no sprint of its own; the
+first picked feature that does not fit the cap moves the popup, dialogs or overview into lazy chunks first. Each sprint
+gets its spec before it starts.
+
+### Sprint 46 (outline): the plan and Home Assistant agree
+
+All in the Studio, 0 card bytes. Every registry write is confirmed by the admin, one click per change.
+- Follow renames: when HA renames or removes an entity, the layout follows the new id, or the Studio lists the
+  orphans with a fix for each.
+- Area check: devices whose HA area differs from their plan room, rooms with no area; fix each in one click.
+- Plan floors to HA floors: create or assign HA floors from the plan's floors.
+- Studio at 1024 wide and under 800 high: the toolbar does not wrap, the Align panel fits.
+
+### Sprint 47 (outline): Attention acts
+
+- Attention to notify: from an Attention row, create an automation that sends a notification, built by
+  `src/editor/automations.ts`.
+- Attention snooze: mark an item as meant (a window open on purpose) so Attention stops listing it until it changes.
+  Lives in core so the Overview and the plan agree (finding 8); the spec decides where the snooze is stored.
+
+### Sprint 48 (outline): history and readability on the card
+
+- History chart: one popup chart for a room's or a device's sensors, in a lazy chunk that shares replay 2's fetch.
+- Value icon on `other`: the generic value sensor request, as an icon choice on the existing type, not a new type.
+- Plan legend: what rings, glow and Attention colours mean, lazy.
+
+### Sprint 49 (outline): trace on the card, scenes into HA
+
+- Trace on the card: the Studio's trace image under the plan, off unless the layout turns it on (it reaches every
+  tablet). Under the surface freeze, a layout setting, not a card config key.
+- (Moved to Sprint 50: every scene saved is a Home Assistant scene.)
+
+### Sprint 50 (outline): the scene editor in the card
+
+Diego, 2026-10-30: "a scene editor popup. lazy. that has a nice wysiwyg editor for light/cover/switches/music scenes in
+a room. then scenes are saved for the rooms." The spec answers the open points before the sprint starts.
+- One editor, two hosts: a lazy chunk the card opens from a room's Scenes section, and the Studio opens in place of the
+  S17 popup, so the two cannot drift (one draw path, finding 8; parity with the Studio).
+- The popup shows the room magnified, drawn by `renderFloor` cropped to the room. A tap on a device opens its control
+  in place: on/off, brightness, kelvin and colour for a light; position (and tilt) for a cover; on/off for a switch or
+  plug; volume and source for a speaker; mode and target for climate; speed for a fan.
+- WYSIWYG without touching the house: the plan draws the scene's states the way a replay draws past states. "Try it"
+  sends it to the real devices and "Restore" puts the room back (S17.7).
+- New per-item fields: `transition` (seconds, lights), cover `tilt`, climate fan mode; "Capture the room now" fills a
+  scene from the current states.
+- Saving makes a Home Assistant scene (Diego, 2026-10-30: "scenes need to be HA scenes. so i can run them from my
+  room screens"). Save writes a `scene.*` through HA's scene config, in the room's area, so a room screen, Assist or an
+  automation runs it; the room lists it as it lists HA scenes today. Sprint 49's "scenes into HA" moves here. The spec
+  decides what happens to the custom scenes already stored on rooms (a one-time move, offered, never silent). Writing
+  HA config is admin only; non-admins see the editor read-only with Try it. Card bytes: the button and the loader only.
+
+### Sprint 51 (outline): dynamic scenes
+
+- Steps: a scene is a list of steps, each a set of items, a duration and a transition (a wake-up ramp, an evening
+  dimming, a party cycle), with play once or loop.
+- Runs in Home Assistant, not in the card: an HA scene holds one state, so a dynamic scene is saved as a `script.*`
+  (delays and transitions) in the room's area. It runs with the dashboard closed, and room screens, Assist and
+  automations start it.
+- Effects the lights already have (`effect_list`: candle, fire, colour loop) are offered first: no Zigbee traffic.
+- A traffic budget: a loop step under 2 s per light, or more than a set number of calls a minute, is refused with the
+  reason, so a scene cannot flood the Zigbee network.
+- The card shows a playing scene and stops it.
+
