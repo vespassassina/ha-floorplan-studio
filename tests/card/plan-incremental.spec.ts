@@ -75,6 +75,27 @@ async function measure(page: Page, one: [Record<string, unknown>, Record<string,
   }
   return { one: median(o), on: median(on), off: median(off) };
 }
+/**
+ * The machine's speed, in ms: median of 5 builds of a fixed 2,000-group SVG string set as innerHTML and laid out. None of
+ * our code runs in it, so a renderFloor slowdown moves the plan's time and not this one.
+ */
+async function calibrate(page: Page) {
+  return page.evaluate(() => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const xs: number[] = [];
+    for (let r = 0; r < 5; r++) {
+      const t0 = performance.now();
+      let s = '<svg xmlns="http://www.w3.org/2000/svg">';
+      for (let i = 0; i < 2000; i++) s += `<g data-x="${i}" transform="translate(${(i % 50) * 10},${Math.floor(i / 50) * 10})"><circle r="4" fill="#${((i * 2654435761) >>> 8 & 0xffffff).toString(16).padStart(6, "0")}"/><text>${i}</text></g>`;
+      host.innerHTML = s + "</svg>";
+      host.firstElementChild!.getBoundingClientRect();
+      xs.push(performance.now() - t0);
+    }
+    host.remove();
+    return xs.sort((a, b) => a - b)[2]!;
+  });
+}
 // NODE WRITES in an "all on" update, counted by a MutationObserver (2026-10-27): 400 devices 2461, stress ground 421.
 const WRITES = { big: 2710, stress: 465 };
 // S38.5 time ceiling, ms per step, median of 5, built Chromium, about 5x today's incremental time on Diego's Mac (2026-10-27):
@@ -82,7 +103,11 @@ const WRITES = { big: 2710, stress: 465 };
 //   stress ground  incremental one 17.1 / on 21.1 / off 19.3    full render one 18.3 / on 21.1 / off 19.0
 // The full render (the plan replaced, S25.6 off) costs the same: renderFloor's markup dominates. So time cannot pin S25.6; it is a
 // ceiling against a renderFloor slowdown, wide for CI (2-3x slower). The node identity and write ceilings above pin S25.6.
-const BUDGET = { big: { one: 100, on: 200, off: 130 }, stress: { one: 90, on: 110, off: 100 } };
+// S41.c: CI runners run 3 to 6x slower than the Mac and the old ms ceilings failed there by chance (all off 135.5 against
+// 130). The ceiling is now a ratio to `calibrate`, which moves with the machine. Mac ratios, 2026-10-30, three runs:
+//   400 devices    one 1.5-1.6 / on 2.8-3.0 / off 2.0-2.2       stress ground  one 1.4-1.6 / on 1.8-2.0 / off 1.6-1.9
+// Ceilings are 2.5x those: a renderFloor 2.5x slower fails anywhere.
+const BUDGET = { big: { one: 4, on: 7.5, off: 5.5 }, stress: { one: 4, on: 5, off: 5 } };
 
 test.describe("S25.6 incremental render, demo", () => {
   test("one lamp changing writes its own group and its dependents, nothing else", async ({ page }) => {
@@ -147,10 +172,12 @@ test.describe("S25.6 incremental render, 400 devices", () => {
   test("budget: 400 devices, one change, all on, all off", async ({ page }) => {
     await boot(page, big(), key, states());
     const m = await measure(page, [states([5]), states()], states([], "on"), states([], "off"));
+    const cal = await calibrate(page);
+    console.log(`CAL 400 devices: ${cal.toFixed(1)} ms, ratios ${(m.one / cal).toFixed(2)} / ${(m.on / cal).toFixed(2)} / ${(m.off / cal).toFixed(2)}`);
     console.log(`BUDGET 400 devices: one ${m.one.toFixed(1)}, on ${m.on.toFixed(1)}, off ${m.off.toFixed(1)} ms`);
-    expect(m.one, "one change").toBeLessThan(BUDGET.big.one);
-    expect(m.on, "all on").toBeLessThan(BUDGET.big.on);
-    expect(m.off, "all off").toBeLessThan(BUDGET.big.off);
+    expect(m.one / cal, "one change").toBeLessThan(BUDGET.big.one);
+    expect(m.on / cal, "all on").toBeLessThan(BUDGET.big.on);
+    expect(m.off / cal, "all off").toBeLessThan(BUDGET.big.off);
   });
 });
 
@@ -175,9 +202,11 @@ test.describe("S38.5 performance budget, stress house", () => {
     await boot(page, structuredClone(stress), floor, states());
     expect(await page.evaluate(() => document.getElementById("card")!.shadowRoot!.querySelectorAll("svg g[data-x]").length)).toBeGreaterThanOrEqual(150);
     const m = await measure(page, [states({ temp: "21" }), states()], states({ lights: "on" }), states());
+    const cal = await calibrate(page);
+    console.log(`CAL stress ground: ${cal.toFixed(1)} ms, ratios ${(m.one / cal).toFixed(2)} / ${(m.on / cal).toFixed(2)} / ${(m.off / cal).toFixed(2)}`);
     console.log(`BUDGET stress ground: one ${m.one.toFixed(1)}, on ${m.on.toFixed(1)}, off ${m.off.toFixed(1)} ms`);
-    expect(m.one, "one sensor").toBeLessThan(BUDGET.stress.one);
-    expect(m.on, "all lights on").toBeLessThan(BUDGET.stress.on);
-    expect(m.off, "all lights off").toBeLessThan(BUDGET.stress.off);
+    expect(m.one / cal, "one sensor").toBeLessThan(BUDGET.stress.one);
+    expect(m.on / cal, "all lights on").toBeLessThan(BUDGET.stress.on);
+    expect(m.off / cal, "all lights off").toBeLessThan(BUDGET.stress.off);
   });
 });

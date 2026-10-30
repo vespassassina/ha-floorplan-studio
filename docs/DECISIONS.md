@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-30: The 2D update budget is a ratio to the machine's speed
+
+Supersedes "Time is a ceiling against a `renderFloor` slowdown" in "2026-10-27: S38.5, the performance budget".
+The ms ceilings failed on CI by chance: the 400-device all off ran 102 to 150 ms over eight CI runs against 130 (PR 4,
+shard 2, 135.5), because GitHub's runners are 3 to 6x slower than the Mac, not the 2 to 3x the ceiling assumed. Not a
+sharding effect: two runs on main had failed the same way. Now `calibrate` (tests/card/plan-incremental.spec.ts) times a
+fixed 2,000-group SVG string set as innerHTML and laid out, none of our code in it, and the ceiling is the update's time
+over that. Mac ratios 1.4 to 3.0, up to 5.4 under ten parallel repeats; ceilings 2.5x the quiet Mac ratios (400 devices
+4 / 7.5 / 5.5, stress ground 4 / 5 / 5). A 60 ms busy loop in `renderFloor` failed both tests (ratios 5.7 to 9.7);
+removed, they passed 30 of 30. S25.6 stays pinned by structure.
+
 ## 2026-10-30: Playwright runs in four CI shards (S41.c)
 
 CI on main took 22 min, Playwright 20 of them, on one runner. `.github/workflows/ci.yml` now runs `web` (lint and unit
