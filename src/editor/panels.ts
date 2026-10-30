@@ -1005,6 +1005,38 @@ function areaDiffField(c: PanelCtx, i: number) {
   return diff && c.moveArea ? html`${hint(`Home Assistant has it in another area than ${diff.name}.`, true)}<p>${button("vmovearea", `Move it to ${diff.name} in Home Assistant`, () => c.moveArea!(i))}</p>` : nothing;
 }
 
+/** S40.3: the refused text of the Dashboard view box and the validator's words for it. One at a time, for one device: it goes with the next valid edit or another selection. */
+let badView: { id: string; raw: string; msg: string; stamp: string } | null = null;
+/** Where the layout stood when the text was refused: the undo depth and the device itself. Undo, redo or Load change one of them; a refused write changes neither. */
+const viewStamp = (c: PanelCtx, i: number): string => `${c.st.undoDepth}:${JSON.stringify(c.st.f.devices[i])}`;
+/** What `validate` says about this path on this device, so the box never words it twice. Empty when the path is good. */
+export function viewProblem(c: PanelCtx, i: number, raw: string): string {
+  const l = structuredClone(c.st.layout), d = l.floors[c.st.floor].devices[i];
+  d.view = raw;
+  const r = validate(l);
+  // The validator words it `floor <key>: <id> view must ...`; match that whole prefix so id `a` never takes the message of id `aa` (or `x a`).
+  const at = `floor ${c.st.floor}: ${d.id} view must`;
+  const e = r.ok ? undefined : r.errors.find((m) => m.startsWith(at));
+  return e ? e.slice(at.length - "view must".length) : "";
+}
+/** S40.3: "Dashboard view", a path inside Home Assistant a tap opens instead of the popup. A bad path is not written; the validator's message shows under the box. Empty removes the key. */
+function viewField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const bad = badView && badView.id === d.id && badView.stamp === viewStamp(c, i) ? badView : null;
+  if (!bad) badView = null;
+  const on = (e: Event) => {
+    const raw = val(e), v = raw.trim();
+    if (v === "") { badView = null; c.commit((f) => { delete f.devices[i].view; }); }
+    else {
+      const msg = viewProblem(c, i, v);
+      if (msg) badView = { id: d.id, raw, msg, stamp: viewStamp(c, i) };
+      else { badView = null; if (v !== d.view) c.commit((f) => { f.devices[i].view = v; }); }
+    }
+    c.refresh();
+  };
+  return html`<label for="vview">Dashboard view</label><input id="vview" type="text" placeholder="/lovelace/…" title="A tap opens this view instead of the popup" aria-invalid=${bad ? "true" : nothing} aria-describedby=${bad ? "vview-err" : nothing} .value=${live(bad ? bad.raw : d.view ?? "")} @change=${on}>
+    ${bad ? html`<p id="vview-err" class="warn-text" role="alert">${bad.msg}</p>` : nothing}`;
+}
 /**
  * The device's Home Assistant entity. With HA data it is a select: the entities that suit the device's type, those in the room's area first,
  * then everything else, so nothing is out of reach. Entities already placed on the plan are left out. It can attach an unbound device, switch a bound one to another, and go back to
@@ -1017,35 +1049,6 @@ function areaDiffField(c: PanelCtx, i: number) {
  * ordered by device name; the tier's device-less entities keep the tier's own label, in a trailing optgroup). Within
  * a device's optgroup, a config/diagnostic entity (`cat`) sorts after the device's other entities.
  */
-/** S40.3: the refused text of the Dashboard view box and the validator's words for it. One at a time, for one device: it goes with the next valid edit or another selection. */
-let badView: { id: string; raw: string; msg: string } | null = null;
-/** What `validate` says about this path on this device, so the box never words it twice. Empty when the path is good. */
-function viewProblem(c: PanelCtx, i: number, raw: string): string {
-  const l = structuredClone(c.st.layout), d = l.floors[c.st.floor].devices[i];
-  d.view = raw;
-  const r = validate(l);
-  const at = `${d.id} view must`;
-  const e = r.ok ? undefined : r.errors.find((m) => m.includes(at));
-  return e ? e.slice(e.indexOf(at) + d.id.length + 1) : "";
-}
-/** S40.3: "Dashboard view", a path inside Home Assistant a tap opens instead of the popup. A bad path is not written; the validator's message shows under the box. Empty removes the key. */
-function viewField(c: PanelCtx, i: number) {
-  const d = c.st.f.devices[i];
-  const bad = badView && badView.id === d.id ? badView : null;
-  if (!bad) badView = null;
-  const on = (e: Event) => {
-    const raw = val(e), v = raw.trim();
-    if (v === "") { badView = null; c.commit((f) => { delete f.devices[i].view; }); }
-    else {
-      const msg = viewProblem(c, i, v);
-      if (msg) badView = { id: d.id, raw, msg };
-      else { badView = null; if (v !== d.view) c.commit((f) => { f.devices[i].view = v; }); }
-    }
-    c.refresh();
-  };
-  return html`<label for="vview">Dashboard view</label><input id="vview" type="text" placeholder="/lovelace/…" title="A tap opens this view instead of the popup" aria-invalid=${bad ? "true" : nothing} aria-describedby=${bad ? "vview-err" : nothing} .value=${live(bad ? bad.raw : d.view ?? "")} @change=${on}>
-    ${bad ? html`<p id="vview-err" class="warn-text" role="alert">${bad.msg}</p>` : nothing}`;
-}
 function deviceEntity(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i], ha = c.st.ha;
   const set = (v: string) => c.commit((f) => { f.devices[i].entity = v.trim(); });
