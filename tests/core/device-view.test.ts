@@ -9,7 +9,7 @@ const layoutOf = (d: unknown) => ({ version: 2, unit: "cm", north: 0, rotate: 0,
 const errorsOf = (d: unknown): string[] => { const r = validate(layoutOf(d)); return r.ok ? [] : r.errors; };
 const deviceOf = (l: Layout) => l.floors.Ground.devices[0] as unknown as Record<string, unknown>;
 
-const GOOD = ["/lovelace/terrace", "/dashboard-x/0", "/lovelace", "/", "/lovelace/a?x=1#top", `/${"a".repeat(VIEW_MAX - 1)}`];
+const GOOD = ["/lovelace/terrace", "/dashboard-x/0", "/lovelace", "/", "/lovelace/a?x=1#top", "/a.b/c", "/x/..y", "/x/y.", "/a?next=/../b", "/a/.../b", `/${"a".repeat(VIEW_MAX - 1)}`];
 const BAD: [string, unknown][] = [
   ["protocol-relative //evil.com", "//evil.com"],
   ["javascript: scheme", "javascript:alert(1)"],
@@ -22,6 +22,12 @@ const BAD: [string, unknown][] = [
   ["a no-break space", "/lovelace/a b"],
   ["a backslash (a browser reads /\\ as //)", "/\\evil.com"],
   ["201 characters", `/${"a".repeat(VIEW_MAX)}`],
+  ["a dot segment that leaves //evil.com behind", "/..//evil.com"],
+  ["a dot segment /.//x", "/.//x"],
+  ["dot segments /a/../..//x", "/a/../..//x"],
+  ["a leading dot segment /./x", "/./x"],
+  ["a trailing dot segment", "/lovelace/.."],
+  ["an encoded dot segment", "/%2e%2E//evil.com"],
   ["empty", ""],
   ["a number", 5],
   ["an object", { path: "/x" }],
