@@ -425,7 +425,13 @@ Edit, Trace image… opens a small panel at the bottom left of the plan.
 3. Draw the outline and the rooms over it as usual. While the image is shown,
    room fills are see-through, so a room you have drawn does not hide the
    scan under it.
-4. **Opacity** and **Show** change how much of it you see; **Remove image**
+4. **Move** lines the image up with the walls you have drawn: while it is on,
+   drag anywhere on the plan to move the image (nothing under the pointer is
+   selected), or press the arrow keys to nudge it 1 cm, with Shift 10 cm. The
+   status bar says so. Esc, Scale, Hide, Remove or closing the panel ends it.
+   **Rotation** turns the image, in degrees from -180 to 180, about its
+   top-left corner. A drag is one undo step, and so is each key press.
+5. **Opacity** and **Show** change how much of it you see; **Remove image**
    drops it. Each change is one undo step.
 
 Only the editor shows the image. The card never draws it, though Save keeps it
