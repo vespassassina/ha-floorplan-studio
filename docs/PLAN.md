@@ -4779,6 +4779,7 @@ code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
   and statistics for long ranges); jump to the next event; filters by type or room. Also more cues on the live plan
   that a replay can then show: open doors and windows, recent motion trails, a room that was busy, a value out of its
   range. Output: `docs/specs/replay-2.md` with criteria, sizes measured against the card's gzip cap, and the order.
+  Done 2026-10-30: `docs/specs/replay-2.md`, approved by Diego with its defaults; tasks in Sprints 43 and 44.
 - S41.b Brainstorm with Diego (build-flow design interview), from what is built: new features, and improvements to
   usability, readability and integration with Home Assistant (areas, labels, the dashboard, Assist, notifications).
   Prepared beforehand: a list of candidates from the field reports, open DECISIONS items and the four deferred field
@@ -4800,7 +4801,27 @@ it. The spec, written when S41.0 has made room: where the range lives (device, r
 reading on the bound does not flicker, °C and °F from HA, the colour and the Attention line, the editor fields, and the
 bytes it may cost against the cap.
 
-## Sprint 43 (outline): split editor-app
+## Sprint 43 (outline): replay 2, part 1
+
+Spec: `docs/specs/replay-2.md`, approved by Diego on 2026-10-30 with its defaults (24 h per minute at any length, arming
+and disarming are alarm events, a lamp's event is its turning on, 7 days behind the gate). After Sprint 42, so the card's
+room serves temperature warnings first. The card spends at most +600 bytes gzip across both sprints; the rest goes into
+the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
+
+- R2.1 Leaner fetch: two history calls per floor (attribute domains in full, the rest with `significant_changes_only`
+  and `minimal_response`), the request moved into the chunk, the chunk limit raised.
+- R2.2 The event table per device type and the onsets, no UI; a test iterates `DEVICE_TYPES` (finding 17).
+- R2.3 Markers on the slider, the motion band, clusters, a tap on a marker.
+- R2.4 Jump to the previous and next event: buttons and Shift+arrows.
+
+## Sprint 44 (outline): replay 2, part 2
+
+- R2.5 48 h and the length selector.
+- R2.6 Filters by group and room; they change markers and jumps, never the plan.
+- R2.7 The 7-day gate: a 180k-row fixture parsed and indexed in under 1.5 s at 4x CPU throttle and under 60 MB of heap,
+  or 7 days is cut and the reason goes into DECISIONS.
+
+## Sprint 45 (outline): split editor-app
 
 Plan D, item 15, second half. `src/editor/editor-app.ts` (220 KB of source) split as S39.0 split the card: whole
 concerns into modules, no behaviour change, the full suite as the test.

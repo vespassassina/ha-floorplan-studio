@@ -1,6 +1,6 @@
 # Replay 2: events, a longer window, jumps and filters
 
-Status: draft, 2026-10-30, waits for Diego's yes. Plan: `docs/PLAN.md`, Sprint 41, task S41.r. Builds on
+Status: approved by Diego, 2026-10-30, with the defaults of the open questions. Plan: `docs/PLAN.md`, Sprint 41, task S41.r. Builds on
 `docs/specs/replay-s39.md` and `docs/specs/quick-wins-s40.md` section A.
 
 ## Why

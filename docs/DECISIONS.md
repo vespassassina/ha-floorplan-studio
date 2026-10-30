@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-30: Replay 2 approved (S41.r)
+
+Diego approved `docs/specs/replay-2.md` with its defaults.
+
+- **Fetch.** Today's history call carries every attribute on every row; on Diego's largest floor cameras are 77 % of the
+  bytes. Two calls per floor, attributes only where the card draws them, cut 24 h from 298 to 53 KiB on the wire.
+- **Range.** HA keeps 10 days by default; statistics hold numbers, not events, so the replay never reaches past the
+  purge. 48 h ships; 7 days ships only if the R2.7 gate passes.
+- **Events.** Motion is too dense for marks (about 2,500 a day on one floor) and becomes a band; lamps, openings and
+  alarms are clustered marks. A lamp's event is its turning on; arming and disarming are alarm events. Play speed stays
+  24 hours per minute at any length.
+- **Bytes.** The replay chunk limit rises from 1,500 to 6,000 gzip in R2.1; the card spends at most 600 bytes of its
+  3.1 KB room on replay 2. Temperature warnings (Sprint 42) come first.
+- **Cut.** Statistics past the purge, a busy-room tint, separate live cues for open doors and recent motion (both exist).
+
 ## 2026-10-30: The build names its own target (S41.0)
 
 Room for the card. 0.39.0 shipped at 124,649 bytes gzip against a cap of 124,650.
