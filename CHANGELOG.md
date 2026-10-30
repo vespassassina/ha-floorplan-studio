@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.39.0 - 2026-10-30
 
 Replay is one tap away: a button under the plan opens the bar, an X closes it. A device can open another dashboard view. In the Studio, the trace image moves and turns to line up with your walls, and Add device finds a single entity of a hub by its own name.
 
