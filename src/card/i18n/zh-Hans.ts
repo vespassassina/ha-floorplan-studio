@@ -269,5 +269,10 @@ const c: Catalogue = {
   "Could not load the history: {why}": "无法加载历史记录：{why}",
   "no answer in 20 s": "20 秒内无响应",
   "{n} entity on this floor has no history": "此楼层有 {n} 个实体没有历史记录",
+  "{n} lamp": "{n} 盏灯",
+  "{n} door or window": "{n} 个门或窗",
+  "{n} alarm": "{n} 个警报",
+  "motion on {n} sensor": "{n} 个传感器检测到移动",
+  "No events": "无事件",
 };
 export default c;

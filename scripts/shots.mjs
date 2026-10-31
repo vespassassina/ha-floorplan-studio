@@ -631,6 +631,8 @@ try {
   const replayShots = [];
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const [when, ups] of [["morning", 21], ["night", 15]]) replayShots.push({ name: `card-replay-${when}-${t.id}`, t, ups, width: 1100 });
   for (const width of [1280, 380]) replayShots.push({ name: `card-replay-bar-${width}`, t: THEMES.find((x) => x.id === "light"), ups: 21, width, bar: true });
+  // R2.3: the slider with its markers (lamps, doors, motion band, a cluster of lamps) over a busy day, and the hovered cluster (the tooltip is the browser's own `title`, which a headless screenshot cannot draw).
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) for (const hover of [false, true]) replayShots.push({ name: `card-replay-markers-${t.id}-${width}${hover ? "-hover" : ""}`, t, ups: 21, width, bar: true, markers: true, hover });
   for (const s of replayShots) {
     const ctx = await browser.newContext({ viewport: { width: s.width, height: 800 }, colorScheme: s.t.dark ? "dark" : "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
     const page = await ctx.newPage();
@@ -647,18 +649,28 @@ try {
     });
     await page.goto(`${ORIGIN}/`);
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-    await page.evaluate(([config, hass]) => {
+    await page.evaluate(([config, hass, markers]) => {
       const el = document.getElementById("c");
       const at = (h, m = 0) => (new Date(2026, 9, 28, h, m, 0).getTime()) / 1000;
       const rows = {
         "light.demo_kitchen": [{ s: "off", a: { friendly_name: "Kitchen" }, lu: at(0) - 7200 }, { s: "on", a: { friendly_name: "Kitchen", rgb_color: [255, 170, 60] }, lu: at(8) }, { s: "off", a: { friendly_name: "Kitchen" }, lu: at(10) }],
         "sun.sun": [{ s: "below_horizon", a: { azimuth: 10, elevation: -30 }, lu: at(0) - 7200 }, { s: "above_horizon", a: { azimuth: 90, elevation: 30 }, lu: at(7) }, { s: "below_horizon", a: { azimuth: 300, elevation: -5 }, lu: at(10, 30) }],
       };
+      if (markers) {
+        // Home Assistant's shapes: the first row is the state at the start (with `a`), later rows carry `s` and `lu`.
+        const start = at(12) - 86400 - 60;
+        const cycle = (...times) => [{ s: "off", a: {}, lu: start }, ...times.flatMap(([h, m]) => [{ s: "on", lu: at(h, m) }, { s: "off", lu: at(h, m + 3) }])].sort((x, y) => x.lu - y.lu);
+        rows["light.demo_kitchen"] = cycle([17, 0], [18, 30], [6, 40], [7, 0], [7, 10], [7, 20], [19, 0], [22, 45]);
+        rows["light.demo_living"] = cycle([18, 0], [18, 15], [2, 30]);
+        rows["binary_sensor.demo_front_door"] = cycle([8, 0], [17, 55], [23, 30]);
+        rows["binary_sensor.demo_patio_door"] = cycle([18, 5]);
+        rows["binary_sensor.demo_hall_motion"] = cycle(...[6, 7, 8, 8, 9, 17, 17, 18, 18, 18, 19, 19, 20, 20, 21, 22].map((h, i) => [h, (i * 7) % 50]));
+      }
       hass.locale = { language: "en", time_format: "24" };
       hass.connection = { sendMessagePromise: (m) => Promise.resolve(Object.fromEntries((m.entity_ids ?? []).filter((id) => rows[id]).map((id) => [id, rows[id]]))) };
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout, floor: "ground", theme: s.t.theme, active_list: false }, hassFor("on", s.t.dark)]);
+    }, [{ layout, floor: "ground", theme: s.t.theme, active_list: false }, hassFor("on", s.t.dark), !!s.markers]);
     await page.locator("floorplan-studio-card svg polygon[data-r]").first().waitFor();
     await page.locator("floorplan-studio-card fp-menu button").first().click();
     await page.locator("floorplan-studio-card [data-value='replay']").click();
@@ -668,6 +680,8 @@ try {
     await page.keyboard.press("Home");
     for (let i = 0; i < s.ups; i++) await page.keyboard.press("PageUp");
     await page.mouse.move(0, 0);
+    // The hovered shot: the mouse over the last cluster, as a person would find it.
+    if (s.hover) await page.locator("floorplan-studio-card .fp-rp-tick").last().hover();
     if (s.bar) await page.locator("floorplan-studio-card .fp-replay").screenshot({ path: `${OUT}/${s.name}.png` });
     else await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
     shots.push(s.name);

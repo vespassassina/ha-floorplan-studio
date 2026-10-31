@@ -2,6 +2,30 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-31: R2.3, markers on the slider and what the spec left open
+
+Spec `docs/specs/replay-2.md`, items 5 to 8 and criteria 5, 6, 12 to 15. `src/card/replay/markers.ts` clusters lamp, opening and alarm
+onsets by pixel; `bar.ts` draws the strip (CSS in the chunk, as a `<style>` in the bar). The card computes the onsets once per floor
+when the history arrives (`doorStateOf` and `coverActive` handed over), measures the strip after each paint and draws again if its
+width moved. Card 123,557 to 123,672 gzip (+115, over the +50 to +100 estimate; replay 2 may add 600 in all), chunk 2,665 to 3,656.
+Choices the spec left open:
+
+- **A cluster joins the one before it** when its x is under 6 px from the previous tick (chained, not from the first): 0, 5, 7 and 20 px
+  give 3 and 1. Ticks 6 px apart or more are separate.
+- **The motion band is 96 buckets of 15 minutes in `--fp-text`**, opacity 0.2 to 1 by count against the busiest bucket. Not
+  `--fp-dev-motion`: in most themes that is the same red as open doors and alarms, and the band sits under them.
+- **"Motion in N rooms" is "motion on N sensors" for now.** An onset has no room yet; the room map arrives with the filters (R2.6),
+  which need it too. The strip's name then reads "12 lamps, 4 doors or windows, 1 alarm, motion on 9 sensors".
+- **Tick classes are `fp-rp-t-*`.** `.opening`, `.alarm` and `.lamp` collide with the plan's own rules: a first version had
+  `pointer-events:none` from the plan's stylesheet and no real click reached it (found by `page.mouse`, finding 3).
+- **The tooltip is the native `title`** (counts only, never a name); a headless screenshot cannot draw it, so the hover shots show only
+  the hovered cluster. The strip is 8 px high with ticks of 8, 12 or 16 px growing upward; its 8 px side margins stand for the
+  thumb's half width (exact in Chromium; Firefox's thumb is a little wider).
+- **No ResizeObserver of our own.** A resize already draws the card again, which repaints the bar and measures it; the Playwright test
+  fails if the measuring is removed.
+- **A tap on a tick seeks to the onset's exact time** (not rounded to the minute), so the stateAt row of that very moment is drawn;
+  it does not pause play (only the jumps of R2.4 do).
+
 ## 2026-10-31: R2.2, the event table and what the spec left open
 
 Spec `docs/specs/replay-2.md`, item 4 and criteria 4 and 14. `src/card/replay/events.ts` holds `EVENT_RULES` (ten device types) and

@@ -4820,6 +4820,8 @@ the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
   Done 2026-10-31: `src/card/replay/events.ts` (`EVENT_RULES`, `NO_EVENT`, `onsets`); card 123,558 to 123,557 gzip, replay
   chunk 1,653 to 2,665, limit 6,000.
 - R2.3 Markers on the slider, the motion band, clusters, a tap on a marker.
+  Done 2026-10-31: `src/card/replay/markers.ts` (`clusters`, `motionBuckets`), the strip in `bar.ts`; card 123,557 to 123,672 gzip, replay
+  chunk 2,665 to 3,656, limit 6,000.
 - R2.4 Jump to the previous and next event: buttons and Shift+arrows.
 
 ## Sprint 44 (outline): replay 2, part 2

@@ -269,5 +269,10 @@ const c: Catalogue = {
   "Could not load the history: {why}": "Impossible de charger l'historique : {why}",
   "no answer in 20 s": "pas de réponse en 20 s",
   "{n} entity on this floor has no history": { one: "{n} entité de cet étage n'a pas d'historique", other: "{n} entités de cet étage n'ont pas d'historique" },
+  "{n} lamp": { one: "{n} lampe", other: "{n} lampes" },
+  "{n} door or window": { one: "{n} porte ou fenêtre", other: "{n} portes ou fenêtres" },
+  "{n} alarm": { one: "{n} alarme", other: "{n} alarmes" },
+  "motion on {n} sensor": { one: "mouvement sur {n} capteur", other: "mouvement sur {n} capteurs" },
+  "No events": "Aucun événement",
 };
 export default c;
