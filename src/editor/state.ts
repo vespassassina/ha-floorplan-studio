@@ -1,6 +1,7 @@
 import { alignFloor, floorBelow, floorPlace, floorPose, normaliseTurn, placePoint, poseFromPlace, DETAIL_MODES, parseDetailMode, CAR_SPEC, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import { CAR_MODELS, COORD_LIMIT, MAX_CAR_ATTACHED, MAX_VIEWS, MAX_VIEW_ZOOM } from "../core/schema";
 import type { SavedView } from "../core/schema";
+import { compact, rangeProblem, type HouseRange } from "./temp-range-ops";
 import { camThumbOf } from "../core/camera-thumb";
 import type { CamThumb } from "../core/camera-thumb";
 import type { DetailMode, HeatKind, CatalogEntry, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
@@ -334,7 +335,7 @@ export class EditorState {
     const paint = ["name", "color", "texture", "textureRot", "textureScale"];
     return JSON.stringify({
       ...drop(f, ["title", "ha", "devices", "unlinked"]),
-      rooms: f.rooms.map((r) => drop(r, [...paint, "area", "entity", "temps", "humidity", "motion", "scenes", "haScenes"])),
+      rooms: f.rooms.map((r) => drop(r, [...paint, "area", "entity", "temps", "humidity", "motion", "scenes", "haScenes", "tempRange"])),
       stairs: f.stairs.map((t) => drop(t, paint)),
       doors: f.doors.map((d) => drop(d, ["name", "sensors", "vibration", "locks", "cover"])),
       extras: f.extras.map((x) => drop(x, ["name"])),
@@ -940,6 +941,32 @@ export class EditorState {
     const next = { ...cur };
     if (hex === null) delete next[type]; else next[type] = hex;
     if (Object.keys(next).length) this.layout.colors = next; else delete this.layout.colors;
+    return true;
+  }
+  /**
+   * S42.5: sets the house temperature range (°C, `hold` in minutes). `patch` names the fields that change; a key whose value is undefined clears it,
+   * a key left out stays. One undo step; none when nothing changes. `tempRange` is removed when it empties. A result `validate` would refuse is
+   * not written (this is the one guard, since `edit` does not validate): false, nothing recorded.
+   */
+  setHouseRange(patch: HouseRange): boolean {
+    const next = compact({ ...(this.layout.tempRange ?? {}), ...patch });
+    if (rangeProblem(next, true)) return false;
+    if (JSON.stringify(next) === JSON.stringify(this.layout.tempRange ?? {})) return false;
+    this.snapshot();
+    if (Object.keys(next).length) this.layout.tempRange = next; else delete this.layout.tempRange;
+    return true;
+  }
+  /**
+   * S42.5: a room's own range. `null` returns the room to the house range (removes the key); `{}` is "never warns"; `{ min, max }` is its own.
+   * One undo step, none when unchanged, nothing written when `validate` would refuse it. A setting, not geometry, so the plan lock lets it through.
+   */
+  setRoomRange(i: number, range: { min?: number; max?: number } | null): boolean {
+    const room = this.f.rooms[i];
+    const next = range === null ? null : compact(range);
+    if (!room || (next && rangeProblem(next, false))) return false;
+    if (JSON.stringify(next) === JSON.stringify(room.tempRange ?? null)) return false;
+    this.snapshot();
+    if (next) room.tempRange = next; else delete room.tempRange;
     return true;
   }
   /** Removes every device colour: one undo step, none when there are none. */

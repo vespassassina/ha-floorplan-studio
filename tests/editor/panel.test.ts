@@ -190,6 +190,17 @@ describe("<floorplan-studio-panel>", () => {
     expect(editorOf(el)!.haDark).toBe(false);
   });
 
+  it("S42.5: the temperature fields follow HA's unit system, Celsius when it says nothing", async () => {
+    // Shape from HA's frontend `HassConfig`: config.unit_system.temperature is the string "°C" or "°F".
+    const hass = stubHass(() => ({ layout: L }));
+    const el = await mount({ ...hass, config: { unit_system: { temperature: "°F" } } } as never);
+    expect(editorOf(el)!.tempUnit).toBe("°F");
+    el.hass = { ...hass, config: { unit_system: { temperature: "°C" } } } as never;
+    await settle(el);
+    expect(editorOf(el)!.tempUnit).toBe("°C");
+    expect(editorOf(await mount(hass))!.tempUnit).toBe("°C");
+  });
+
   describe("update banner", () => {
     const withUpdate = (states: Record<string, State>, install?: () => unknown) => stubHass(() => ({ layout: L }), false, states, install);
 

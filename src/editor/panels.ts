@@ -17,6 +17,8 @@ import "./combo";
 import type { ComboOption } from "./combo";
 import { groupSensorChoices, type GroupedChoice } from "./sensor-order";
 import { CAR_LABELS } from "./car-ops";
+import { houseRangePanel, roomRangePanel } from "./temp-range-panel";
+import type { TempUnit } from "./temp-range-ops";
 
 /** Selection panels: one function per kind of selection, all pure views over the state. */
 
@@ -58,6 +60,8 @@ export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", bo
 
 export interface PanelCtx {
   st: EditorState;
+  /** S42.5: the unit the temperature range fields show and take (HA's `unit_system`); the layout holds °C. Absent: °C. */
+  tempUnit?: TempUnit;
   /** One undoable edit of the current floor; autosaves and notifies the host. */
   commit(fn: (f: Floor) => Floor | void): void;
   select(s: Sel): void;
@@ -399,6 +403,8 @@ function floorPanel(c: PanelCtx) {
     </div>
     ${heightField(c, "floor height (cm)", "fht", st.f.height, DEFAULT_FLOOR_HEIGHT, (n) => c.commit((f) => { setHeight(f, "height", n); }))}
     ${heightField(c, "slab (cm)", "fslab", st.f.slab, DEFAULT_SLAB, (n) => c.commit((f) => { setHeight(f, "slab", n); }))}
+    ${heading("Temperature range")}
+    ${houseRangePanel(c)}
     ${st.ha ? heading("Home Assistant") : nothing}
     ${st.ha ? floorLink(c, st.ha) : nothing}
     ${st.ha ? unplacedAreas(c, st.ha) : nothing}
@@ -680,6 +686,7 @@ function roomPanel(c: PanelCtx, i: number) {
     <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>`)}
     ${c.st.ha ? heading("Home Assistant") : nothing}
     ${roomSensors(c, i)}
+    ${ROOM_OWNS[r.kind] ? section(c, "room:temprange", "Temperature range", roomRangePanel(c, i)) : nothing}
     ${roomScenesPanel(c, i)}
     ${c.st.ha ? section(c, "room:ha", "In this area (Home Assistant)", haBox(c, i)) : nothing}
     ${section(c, "room:appearance", "Appearance", html`
