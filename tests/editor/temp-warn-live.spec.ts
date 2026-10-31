@@ -23,3 +23,18 @@ test("a hot room is tinted in the live view and clears when the reading is back 
   await feed(page, "23.5");
   await expect(page.locator(`${EDITOR} svg polygon.temp-wash`)).toHaveCount(0);
 });
+
+// Opus review of Sprint 42, item 2: a range edit mutates the layout in place, so the watch must decide again without a new HA state.
+test("editing the range decides again with no new reading", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/standalone.html");
+  await page.locator("#fixPlan").uncheck();
+  await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  await type(page, "#hrmin", "17"); await type(page, "#hrmax", "30"); await type(page, "#hrhold", "0");
+  await feed(page, "29");
+  await expect(page.locator(`${EDITOR} svg polygon.temp-wash`)).toHaveCount(0);
+  await type(page, "#hrmax", "26"); // no feed after this
+  await expect(page.locator(`${EDITOR} svg polygon.temp-wash-hot`)).toHaveCount(1);
+  await type(page, "#hrmax", "30");
+  await expect(page.locator(`${EDITOR} svg polygon.temp-wash`)).toHaveCount(0);
+});

@@ -682,8 +682,8 @@ export class FloorplanStudioCard extends LitElement {
   _attnMemo: { layout: Layout; states: unknown; reg: unknown; warn: unknown; a: Attention } | null = null;
   /** S42.4: the onset memory behind `_tempWarn`, on live states. Its timer wakes the card when a room's hold elapses with no new state. */
   private _temps = new TempWatch(() => this.requestUpdate());
-  /** S42.3: the rooms out of range by id, as `tempWarn` decided (`_temps`); the plan tints them and Attention lists them. */
-  get _tempWarn(): Readonly<Record<string, "hot" | "cold">> | undefined { return this._temps.warn; }
+  /** S42.3: the rooms out of range by floor, then id, as `tempWarn` decided (`_temps`); the plan tints them and Attention lists them. */
+  get _tempWarn(): TempWatch["warn"] { return this._temps.warn; }
   private _actionsPanel: HTMLElement | null = null;
   private _unbindPanel: (() => void) | null = null;
   /** S12.4: the 3D host the taps are bound on, and what unbinds them. */
@@ -1521,7 +1521,7 @@ export class FloorplanStudioCard extends LitElement {
 
   protected willUpdate(changed: PropertyValues): void {
     super.willUpdate(changed);
-    this._temps.sync(this._layout, this._hass?.states, Date.now());
+    if (this.isConnected) this._temps.sync(this._layout, this._hass?.states, Date.now()); // Lit updates a detached card: a timer then would outlive disconnectedCallback; connecting requests an update
     this._peopleWere = new Map();
     const devices = this._floor()?.devices;
     this.shadowRoot?.querySelectorAll<SVGGElement>("g.dev-person[data-x]").forEach((g) => {
@@ -1948,7 +1948,7 @@ export class FloorplanStudioCard extends LitElement {
       zoom: box.w > 0 ? fit.w / box.w : undefined, // S25.4: labels keep their on-screen size at any zoom
       bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - qstrip(this._strip, fit.w)) } : undefined, // S23 review S3: names stay off the control stack
       state: this._stateForRender(),
-      tempWarn: replayStates(this) ? undefined : this._tempWarn, // the warning is of live states; a replay frame has none (Sprint 43)
+      tempWarn: replayStates(this) ? undefined : this._temps.warnFor(this._floorKey()), // the warning is of live states; a replay frame has none (Sprint 43)
       formatState: this._format,
       now: this._now(),
       fade: this._config.fade,

@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-31: Sprint 42 review fixes
+
+An Opus review of Sprint 42 found four defects. Each was fixed test-first. The fixes cost 131 bytes gzip (123,437 to 123,568), so
+the sprint spends +1,883 over cc59805, not the 1,752 recorded below; the cap holds with 1,082 to spare.
+
+- **The warning is per floor.** Room ids are unique only within a floor, so `TempWatch.warn` is now floor key, then room id, and the
+  onset memory is keyed the same way. `RenderOpts.tempWarn` stays one floor's record (`TempWatch.warnFor(floor)`, own keys only);
+  `attention` takes the whole map and reads each floor's own entry. This changes the shape of `_tempWarn` and of the fourth
+  argument of `attention`; the tests that pinned the flat shape were updated to the nested one, claims unchanged.
+- **A range edit decides at once in the studio.** The editor's writers mutate the layout in place, so the watch's memo saw the same
+  reference. `changed()` now calls `TempWatch.stop()`, which forgets the memo and keeps the onsets: an edit does not restart a hold.
+- **No heat read without a range.** `tempRangeOf` (`src/core/temp-range.ts`) resolves the range that applies to a room; `tempWarn` and
+  `TempWatch` both use it, and the watch skips `roomHeat` when it is undefined (no range, `{}`, or no finite bound).
+- **A detached card arms no timer.** `willUpdate` syncs only when `isConnected`; connecting already requests an update.
+
 ## 2026-10-31: Sprint 42 spends 1,752 bytes, not 1,000 (Diego)
 
 Supersedes spec decision 4 (`docs/specs/temp-range.md`). `gzip -9` of `dist/floorplan-studio-card.js`: 121,685 at cc59805,

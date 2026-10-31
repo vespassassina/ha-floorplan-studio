@@ -22,41 +22,51 @@ describe("too-hot and too-cold", () => {
   });
 
   it("lists a hot room with its name, the reading as roomHeat prints it, and the bound", () => {
-    const a = attention(lay(), temp("27.4"), undefined, { k: "hot" });
+    const a = attention(lay(), temp("27.4"), undefined, { g: { k: "hot" } });
     expect(a.items).toHaveLength(1);
     expect(a.items[0]).toMatchObject({ kind: "too-hot", floor: "g", name: "Kitchen", state: `27.4${NB}°C`, bound: 26, at: { what: "room", index: 0, id: "k" } });
     expect(a.floors.g!.count).toBe(1);
   });
 
   it("lists a cold room against min; a room's own range replaces the house bound", () => {
-    expect(attention(lay(), temp("15.5"), undefined, { k: "cold" }).items[0]).toMatchObject({ kind: "too-cold", bound: 17, state: `15.5${NB}°C` });
-    expect(attention(lay({ tempRange: { min: 19 } }), temp("15.5"), undefined, { k: "cold" }).items[0]).toMatchObject({ bound: 19 });
+    expect(attention(lay(), temp("15.5"), undefined, { g: { k: "cold" } }).items[0]).toMatchObject({ kind: "too-cold", bound: 17, state: `15.5${NB}°C` });
+    expect(attention(lay({ tempRange: { min: 19 } }), temp("15.5"), undefined, { g: { k: "cold" } }).items[0]).toMatchObject({ bound: 19 });
   });
 
   it("converts the bound to the sensors' unit and rounds it to 0.5", () => {
     // 26 °C = 78.8 °F -> 79; 17 °C = 62.6 °F -> 62.5
-    expect(attention(lay(), temp("82", "°F"), undefined, { k: "hot" }).items[0]).toMatchObject({ bound: 79, state: `82${NB}°F` });
-    expect(attention(lay(), temp("58", "°F"), undefined, { k: "cold" }).items[0]).toMatchObject({ bound: 62.5 });
+    expect(attention(lay(), temp("82", "°F"), undefined, { g: { k: "hot" } }).items[0]).toMatchObject({ bound: 79, state: `82${NB}°F` });
+    expect(attention(lay(), temp("58", "°F"), undefined, { g: { k: "cold" } }).items[0]).toMatchObject({ bound: 62.5 });
   });
 
   it("lists nothing without warnings, for an unknown room, for junk, or with no reading", () => {
     expect(attention(lay(), temp("27.4")).items).toEqual([]);
     expect(attention(lay(), temp("27.4"), undefined, {}).items).toEqual([]);
-    expect(attention(lay(), temp("27.4"), undefined, { nope: "hot" }).items).toEqual([]);
-    expect(attention(lay(), temp("27.4"), undefined, { k: "warm" } as never).items).toEqual([]);
+    expect(attention(lay(), temp("27.4"), undefined, { g: { nope: "hot" } }).items).toEqual([]);
+    expect(attention(lay(), temp("27.4"), undefined, { g: { k: "warm" } } as never).items).toEqual([]);
     expect(attention(lay(), temp("27.4"), undefined, null as never).items).toEqual([]);
     expect(attention(lay(), temp("27.4"), undefined, [] as never).items).toEqual([]);
-    expect(attention(lay(), {}, undefined, { k: "hot" }).items).toEqual([]);
+    expect(attention(lay(), {}, undefined, { g: { k: "hot" } }).items).toEqual([]);
   });
 
   it("a room id of __proto__ or an inherited warning does not throw or leak", () => {
-    expect(() => attention(lay({ id: "__proto__", name: "__proto__" }), temp("27.4"), undefined, JSON.parse('{"__proto__":"hot"}'))).not.toThrow();
-    expect(attention(lay(), temp("27.4"), undefined, Object.create({ k: "hot" })).items).toEqual([]);
+    expect(() => attention(lay({ id: "__proto__", name: "__proto__" }), temp("27.4"), undefined, JSON.parse('{"g":{"__proto__":"hot"}}'))).not.toThrow();
+    expect(attention(lay(), temp("27.4"), undefined, { g: Object.create({ k: "hot" }) }).items).toEqual([]);
   });
 
   it("sorts after smoke and before battery-low", () => {
     const l = lay({}, [dev("other", "binary_sensor.smoke", { name: "Smoke" }), dev("motion", "binary_sensor.m", { name: "Remote" })]);
-    const a = attention(l, { ...temp("27.4"), "binary_sensor.smoke": st("on", { device_class: "smoke" }), "binary_sensor.m": st("off", { battery: 3 }) }, undefined, { k: "hot" });
+    const a = attention(l, { ...temp("27.4"), "binary_sensor.smoke": st("on", { device_class: "smoke" }), "binary_sensor.m": st("off", { battery: 3 }) }, undefined, { g: { k: "hot" } });
     expect(a.items.map((i) => i.kind)).toEqual(["smoke", "too-hot", "battery-low"]);
+  });
+
+  it("reads each floor's own entry: the same room id on two floors, one hot, lists one room (Opus review, item 1)", () => {
+    const l = lay() as any;
+    l.floors.up = { ...structuredClone(l.floors.g), title: "Up", rooms: [room({ name: "Upstairs" })] };
+    const s = temp("27.4");
+    const a = attention(l, s, undefined, { up: { k: "hot" } });
+    expect(a.items.map((i) => [i.kind, i.floor, i.name])).toEqual([["too-hot", "up", "Upstairs"]]);
+    expect(a.floors.up!.count).toBe(1);
+    expect(a.floors.g!.count).toBe(0);
   });
 });

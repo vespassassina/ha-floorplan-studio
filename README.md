@@ -112,6 +112,10 @@ One key, `theme:`. Every plan below is the same ground floor.
   its own.
 - **Heat map.** A card key `heat_map` (and View, Heat map in the editor, and the card's ⋯ menu) fills each room by its
   temperature or humidity on a fixed scale, with the value and a legend. Live readings, no history.
+- **Temperature range.** Set a house min and max in the floor panel's Temperature range, and a room may override it in its
+  own panel (both fields empty with "Use house range" off: the room never warns). A room out of range for the hold
+  (default 5 minutes) gets a cold or hot tint and an Attention line, such as "Kitchen 27.4 °C, above 26". It comes back
+  in 0.5 °C inside the bound. Under the heat map the tint becomes a border. The studio's live view shows the same.
 - **Favourites.** A card key `favourites` lists entities at the top of the Overview, each with its button.
 - **View → Saved views** keeps a named view (floor, mode, turn, zoom) in the
   layout; every card offers it in its ⋯ menu.

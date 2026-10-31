@@ -24,6 +24,14 @@ const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object
 const own = (o: Record<string, unknown>, k: string): unknown => (Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined);
 const num = (x: unknown): number | undefined => (typeof x === "number" && Number.isFinite(x) ? x : undefined);
 
+/** The range that applies to a room (its own replaces the house's whole), or undefined when none can warn: absent, `{}`, no finite bound. */
+export function tempRangeOf(room: Room, layout: Layout): Record<string, unknown> | undefined {
+  const house = isObj(layout) && isObj(layout.tempRange) ? layout.tempRange : undefined;
+  const mine = isObj(room) && isObj(room.tempRange) ? room.tempRange : undefined;
+  const range = mine ?? house;
+  return range && (num(own(range, "min")) !== undefined || num(own(range, "max")) !== undefined) ? range : undefined;
+}
+
 /**
  * `reading` is the room's mean in °C (null when it has none). `prev` is what this returned last time, `now` is ms.
  * The room's `tempRange` replaces the house range whole; `{}` means never. A room kind the heat map does not read
@@ -32,9 +40,7 @@ const num = (x: unknown): number | undefined => (typeof x === "number" && Number
  * Back in, or no reading, clears at once and forgets the onset.
  */
 export function tempWarn(room: Room, layout: Layout, reading: number | null, prev: TempWarnState, now: number): TempWarnResult {
-  const house = isObj(layout) && isObj(layout.tempRange) ? layout.tempRange : undefined;
-  const mine = isObj(room) && isObj(room.tempRange) ? room.tempRange : undefined;
-  const range = mine ?? house;
+  const range = tempRangeOf(room, layout);
   const t = num(reading);
   if (!range || t === undefined || !isObj(room) || !ROOM_OWNS[room.kind] || !Number.isFinite(now)) return CLEAR;
   const min = num(own(range, "min")), max = num(own(range, "max"));
