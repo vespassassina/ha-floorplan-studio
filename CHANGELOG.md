@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.40.0 - 2026-10-31
+
+A room that is too cold or too hot now shows it: a cold or hot tint on the plan and a line in Attention. Set one range for the house in the Studio; a room may have its own.
+
+- Card: a room whose temperature stays under its min or over its max for the hold (default 5 minutes) gets a cold or hot tint and an Attention line, such as "Kitchen 27.4 °C, above 26"; the row taps to the room. It clears at once 0.5 °C back inside the bound. Under the heat map the tint is a 2 px border instead. The reading is the heat map's own. Not in 3D, and not yet in a replay. After a page load a room already out waits the hold again.
+- Studio: the floor panel has Temperature range (house min, max and hold). A room's panel has "Use house range", or its own min and max; off with both empty, the room never warns. Values are shown in your Home Assistant unit and stored in °C. One undo step each. The live view shows the warning too.
+- Layout: `tempRange` on the layout (`min`, `max`, `hold`) and on a room (`min`, `max`). Older cards ignore it; `validate` refuses junk with the room's name.
+- Card: on a phone, a late click from a tap outside the room sheet no longer presses a control inside it (such as Lights off).
+- Card: about 3 KB smaller (gzip). The build targets Chrome and Edge 91, Firefox 98 and Safari 15.4, so optional chaining ships as written; Chrome and Edge 80 to 90 still run it.
+
 ## 0.39.0 - 2026-10-30
 
 Replay is one tap away: a button under the plan opens the bar, an X closes it. A device can open another dashboard view. In the Studio, the trace image moves and turns to line up with your walls, and Add device finds a single entity of a hub by its own name.
