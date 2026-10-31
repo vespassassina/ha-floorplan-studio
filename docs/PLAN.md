@@ -4798,7 +4798,7 @@ code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
 
 ## Sprint 42: temperature range warnings
 
-Spec: `docs/specs/temp-range.md` (draft, 2026-10-31: Diego's four answers in it, the rest defaults). A room too cold or too
+Spec: `docs/specs/temp-range.md`, approved by Diego on 2026-10-31 with its defaults. A room too cold or too
 hot gets a tint and an Attention line; one house range in the layout, a room may override it; a 0.5 °C band and a hold,
 default 5 minutes; at most 1,000 bytes gzip on the card. Tasks S42.1 to S42.6 are in the spec. S42.1 first; S42.2, S42.3
 and S42.5 in parallel after it; S42.4 after S42.1 to S42.3.

@@ -1,6 +1,6 @@
 # Temperature range warnings (Sprint 42)
 
-Status: draft, 2026-10-31. Diego's answers are under Decided; the rest are defaults, open to his change.
+Status: approved by Diego, 2026-10-31, with its defaults. Decisions 1 to 4 are his answers; 5 to 15 are the defaults he approved.
 
 ## Goal
 
