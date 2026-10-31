@@ -139,11 +139,13 @@ test.describe("3D view: hostile layouts, in a real browser (S12.6)", () => {
       // a layout the validator accepts must draw; one it refuses (NaN) falls back to its line
       if (!name.startsWith("a NaN")) expect(await canvas(page).count()).toBe(1);
       if (name === "2000 trees") { await drawn(page); expect((await page.evaluate(() => (window as unknown as { __fp3d: { crowns(): { own: { count: number }[] } } }).__fp3d.crowns().own[0]?.count))).toBe(2000); }
-      if (await canvas(page).count()) await drawn(page);
+      const drew = (await canvas(page).count()) > 0;
+      if (drew) await drawn(page);
       else expect(await card(page).locator("css=.fp-3d-note, p.msg").first().textContent()).toMatch(/3D|plan could not be used/i); // the fallback says why, in its one line
       const built = await page.evaluate(() => (window as unknown as { __built: { t0: number; first: number; shown: number } }).__built);
       expect(built.shown - built.t0, "ms from the config to the canvas or its fallback line, in the page").toBeLessThan(10000);
-      if (built.first) expect(built.first - built.t0, "ms from the config to the first frame, in the page").toBeLessThan(10000);
+      // A canvas must have stamped its first frame: without this a missed stamp would skip the budget (Opus review of PR 12).
+      if (drew) { expect(built.first, "the first frame was stamped in the page").toBeGreaterThan(0); expect(built.first - built.t0, "ms from the config to the first frame, in the page").toBeLessThan(10000); }
       expect(seen).toEqual([]);
     });
   }

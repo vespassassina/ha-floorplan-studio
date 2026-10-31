@@ -221,18 +221,19 @@ test.describe("3D view: 5000 furniture pieces (spec criterion 10)", () => {
     const p = (await where(page, "furniture", 4999))!;
     const timed = await page.evaluate((p) => { const t = performance.now(); (window as unknown as { __fp3d: { pick(x: number, y: number): unknown } }).__fp3d.pick(p.x, p.y); return performance.now() - t; }, p);
     expect(timed).toBeLessThan(500);
-    // The one second is the page's own: from the release of the button to the ring on the room, both stamped in the page. A budget
+    // The one second is the page's own: from the press (the ray is cast on pointerdown) to the ring on the room, both stamped in the page. A budget
     // taken across Playwright's round trips also counts the other workers' load (CLAUDE.md finding 13: no budget that depends on it).
     await page.evaluate(() => {
       const w = window as unknown as { __tap: { up: number; ring: number } }, el = document.getElementById("card")!.shadowRoot!.querySelector<HTMLElement>(".fp-3d")!;
       w.__tap = { up: 0, ring: 0 };
-      window.addEventListener("pointerup", () => { w.__tap.up = performance.now(); }, { capture: true, once: true });
+      window.addEventListener("pointerdown", () => { w.__tap.up = performance.now(); }, { capture: true, once: true });
       new MutationObserver(() => { if (!w.__tap.ring && el.dataset.ring) w.__tap.ring = performance.now(); }).observe(el, { attributes: true, attributeFilter: ["data-ring"] });
     });
     await page.mouse.click(p.x, p.y);
     await expect.poll(() => ring(page), { timeout: 15000 }).not.toBe("");
     const tap = await page.evaluate(() => (window as unknown as { __tap: { up: number; ring: number } }).__tap);
-    expect(tap.up, "the release was seen").toBeGreaterThan(0);
-    expect(tap.ring - tap.up, "ms from the release to the ring, in the page").toBeLessThan(1000);
+    expect(tap.up, "the press was seen").toBeGreaterThan(0);
+    expect(tap.ring, "the ring changed after the press, not before").toBeGreaterThan(tap.up);
+    expect(tap.ring - tap.up, "ms from the press to the ring, in the page").toBeLessThan(1000);
   });
 });
