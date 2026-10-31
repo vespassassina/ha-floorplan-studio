@@ -25,6 +25,7 @@ import { layerHides } from "../core/layers";
 import { newDraft, sceneDesigner, type SceneDraft } from "./scene-designer";
 import { roomSceneTargets, saveScene } from "./room-scenes-ops";
 import { TYPE_LABELS, typeNoun, type PanelCtx } from "./panels";
+import type { TempUnit } from "./temp-range-ops";
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
@@ -162,6 +163,7 @@ export class FloorplanStudioEditor extends LitElement {
     dashboardHref: { type: String, attribute: "dashboard-href" },
     narrow: { state: true },
     haDark: { attribute: false },
+    tempUnit: { attribute: false },
     demo: { attribute: false },
     firstRun: { type: Boolean, attribute: false },
     errors: { state: true },
@@ -179,6 +181,8 @@ export class FloorplanStudioEditor extends LitElement {
   declare narrow: boolean;
   /** Home Assistant's dark mode, set by the panel host from `hass.themes.darkMode`. Read only by the `ha` theme; undefined (standalone) follows the OS instead. */
   declare haDark: boolean | undefined;
+  /** S42.5: the unit of the temperature range fields, set by the panel host from `hass.config.unit_system.temperature`. Standalone: °C. */
+  declare tempUnit: TempUnit | undefined;
   declare demo: Layout | undefined;
   /** S37.1: set by the host when nothing is stored (the panel, on `{ layout: null }`). The standalone page never sets it: it always opens on a plan. Any choice, or drawing anything, ends it. */
   declare firstRun: boolean;
@@ -837,7 +841,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); else this.refused(); }, edited: (ok) => { if (ok) this.changed(); else this.refused(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), designScene: (i, id) => this.openScene(i, id), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, tempUnit: this.tempUnit, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); else this.refused(); }, edited: (ok) => { if (ok) this.changed(); else this.refused(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => this.startDraw("room", "wall", a), placeArea: (i) => this.openPlace(i), designScene: (i, id) => this.openScene(i, id), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
