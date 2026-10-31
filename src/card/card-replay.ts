@@ -3,6 +3,8 @@ import { mark, t, tn } from "../core/i18n";
 import { DEFAULT_MOTION_FADE_S } from "../core";
 import { entitiesOfDevice, entitiesOfDoor, moreInfoEntities } from "../core/attachments";
 import { carEntities } from "../core/car-status";
+import { coverActive } from "../core/cover";
+import { doorStateOf } from "../core/door-state";
 import { UI_ICONS } from "../core/icons";
 import type { Floor } from "../core/schema";
 import { NO_ANSWER, STALE_PAGE } from "./load";
@@ -10,6 +12,7 @@ import { closePopup } from "./card-popup";
 import { attentionOf } from "./card-overview";
 import type { FloorplanStudioCard, Hass, HassEntity } from "./floorplan-studio-card";
 import type { HistoryIndex } from "./replay/history";
+import type { Onset } from "./replay/events";
 
 // S39.2/S39.3: the history replay. The bar, the fetch and the clock live here; the parser and `stateAt` are a chunk of their own
 // (replay/history.ts), loaded on the first Replay. The card draws the past through its one path: `_stateForRender()` and `_now()`
@@ -28,7 +31,7 @@ const FETCH_FAILED = mark("Could not load the history: {why}");
 const TIMED_OUT = mark("no answer in 20 s");
 
 type States = Record<string, HassEntity>;
-interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; missing: number; why?: string; ids?: string[] }
+interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; onsets?: Onset[]; missing: number; why?: string; ids?: string[] }
 export interface ReplayState {
   /** The moment the bar opened: the end of the slider. */
   end: number;
@@ -48,6 +51,8 @@ export interface ReplayState {
   mix: { shown: States; live: Hass["states"]; out: Hass["states"] } | null;
   /** Focus still owed to the bar: the Replay button opened it, and the user has not moved on. */
   focus: boolean;
+  /** R2.3: the strip's width in px, as last measured; the markers are clustered over it.  */
+  width: number;
 }
 
 type Lib = typeof import("./replay/history");
@@ -187,7 +192,7 @@ export function openReplay(c: FloorplanStudioCard, focus = false): void {
   if (c._replay || !canReplay(c)) return;
   closePopup(c);
   const end = Date.now();
-  c._replay = { end, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null, focus };
+  c._replay = { end, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null, focus, width: 0 };
   c._syncTimer(); // the motion fade follows the replayed moment now, not the clock
   c.requestUpdate();
 }
@@ -241,6 +246,7 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
     // Each call has its own timeout: a second call that never answers fails the floor though the first did.
     fh.index = await h.fetchHistory((m) => withTimeout(conn.sendMessagePromise<unknown>(m), FETCH_TIMEOUT_MS), ids, startOf(r), r.end);
     fh.ids = ids;
+    fh.onsets = h.onsets(fh.index, f, { doorStateOf, coverActive });
     const sun = c._sunId();
     fh.missing = ids.filter((id) => id !== sun && !fh.index!.has(id)).length;
     fh.status = "ready";
@@ -391,6 +397,9 @@ function paintBar(c: FloorplanStudioCard): void {
   const r = c._replay;
   if (!wrap || !r) return;
   render(barView(c, r), wrap);
+  // The markers are clustered over the strip's width, which only the page knows: measure, and draw again if it moved. A resize draws the card again, which comes here.
+  const width = wrap.querySelector<HTMLElement>(".fp-rp-strip")?.clientWidth ?? 0;
+  if (width !== r.width) { r.width = width; render(barView(c, r), wrap); }
   // The Replay button opened the bar: focus waits on the play button, which is disabled until the history is there. Meanwhile the bar
   // itself holds it (so Escape works); a failed fetch leaves the X.
   if (!r.focus) return;
@@ -410,8 +419,8 @@ function barView(c: FloorplanStudioCard, r: ReplayState) {
   const close = () => closeReplay(c, true), key = (e: KeyboardEvent) => onKey(c, e);
   // The full bar is drawn by the replay chunk (replay/bar.ts). Until it is there, a shell with the way out and the message.
   if (!lib) return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} @keydown=${key}><button type="button" class="fp-rp-close" aria-label=${t("Close replay")} @click=${close}>${c._icon(UI_ICONS.close)}</button><span class="fp-rp-msg" role="status">${message}</span></div>`;
-  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: DAY_MINUTES, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message },
-    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), info: () => { r.info = !r.info; paintBar(c); } });
+  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: DAY_MINUTES, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, end: r.end, width: r.width },
+    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), info: () => { r.info = !r.info; paintBar(c); } });
 }
 
 /** The stylesheet of the bar. Colours only through `--fp-*`. Under 640 px of card the time sits above the slider. */
@@ -419,7 +428,7 @@ export const REPLAY_CSS = `
     .fp-rp-wrap { grid-area: bar; container-type: inline-size; min-width: 0; z-index: 3; }
     .fp-replay { box-sizing: border-box; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; grid-template-areas: "time play range info close" "msg msg msg msg msg"; align-items: center; column-gap: 8px; padding: 6px 8px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border-top: 1px solid var(--fp-idle); }
     .fp-rp-time { grid-area: time; min-width: 4.5em; font-variant-numeric: tabular-nums; font-weight: 600; }
-    .fp-rp-play { grid-area: play; } .fp-rp-range { grid-area: range; min-width: 0; width: 100%; } .fp-rp-info { grid-area: info; } .fp-rp-close { grid-area: close; }
+    .fp-rp-play { grid-area: play; } .fp-rp-range { min-width: 0; width: 100%; } .fp-rp-info { grid-area: info; } .fp-rp-close { grid-area: close; }
     .fp-rp-msg { grid-area: msg; min-height: 0; color: var(--fp-text); }
     .fp-rp-msg:empty { display: none; }
     .fp-replay button, .fp-rp-open { font: inherit; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; min-width: 32px; min-height: 32px; padding: 0 10px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
