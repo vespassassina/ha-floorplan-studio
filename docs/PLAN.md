@@ -4796,13 +4796,12 @@ code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
   list and the reason are written down (finding 17).
   Done 2026-10-30: `docs/WORKFLOW.md` "Surface freeze", `tests/card/surface-freeze.test.ts` (37 keys, 13 themes, 9 cars).
 
-## Sprint 42 (outline): temperature range warnings
+## Sprint 42: temperature range warnings
 
-From the 2026-10-29 field report; Diego picked it as the next feature on 2026-10-30, so the S41.b brainstorm takes it as
-given. A `temp` device (and a room's temperature) may carry a range; outside it the plan shows it and Attention lists
-it. The spec, written when S41.0 has made room: where the range lives (device, room, a layout default), hysteresis so a
-reading on the bound does not flicker, °C and °F from HA, the colour and the Attention line, the editor fields, and the
-bytes it may cost against the cap.
+Spec: `docs/specs/temp-range.md` (draft, 2026-10-31: Diego's four answers in it, the rest defaults). A room too cold or too
+hot gets a tint and an Attention line; one house range in the layout, a room may override it; a 0.5 °C band and a hold,
+default 5 minutes; at most 1,000 bytes gzip on the card. Tasks S42.1 to S42.6 are in the spec. S42.1 first; S42.2, S42.3
+and S42.5 in parallel after it; S42.4 after S42.1 to S42.3.
 
 ## Sprint 43 (outline): replay 2, part 1
 
