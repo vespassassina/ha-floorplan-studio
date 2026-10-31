@@ -22,8 +22,8 @@ const html = (theme: string, dark: boolean, heat: "temperature" | "humidity" | "
 
 const read = (page: Page) => page.evaluate(() => {
   const cs = (e: Element) => getComputedStyle(e);
-  const wash = [...document.querySelectorAll("polygon.tw")].map((e) => ({ i: (e as SVGElement).dataset.tw, fill: cs(e).fill, op: cs(e).fillOpacity, pe: cs(e).pointerEvents, stroke: cs(e).stroke }));
-  const ring = [...document.querySelectorAll("polygon.tr")].map((e) => ({ i: (e as SVGElement).dataset.tr, stroke: cs(e).stroke, w: cs(e).strokeWidth, fill: cs(e).fill, pe: cs(e).pointerEvents }));
+  const wash = [...document.querySelectorAll("polygon.temp-wash")].map((e) => ({ i: (e as SVGElement).dataset.tw, fill: cs(e).fill, op: cs(e).fillOpacity, pe: cs(e).pointerEvents, stroke: cs(e).stroke }));
+  const ring = [...document.querySelectorAll("polygon.temp-edge")].map((e) => ({ i: (e as SVGElement).dataset.tr, stroke: cs(e).stroke, w: cs(e).strokeWidth, fill: cs(e).fill, pe: cs(e).pointerEvents }));
   const probes = [...document.querySelectorAll("path.probe")].map((e) => ({ fill: cs(e).fill, stroke: cs(e).stroke }));
   const rooms = [...document.querySelectorAll("polygon[data-r]")].map((e) => cs(e).fill);
   const svg = document.querySelector("svg")!.getBoundingClientRect();
@@ -72,7 +72,7 @@ for (const [theme, dark] of THEMES_TESTED) {
 
 test("temp warn pair: the ring is steady, with no animation", async ({ page }) => {
   await page.setContent(html("light", false, "temperature", true));
-  const names = await page.evaluate(() => [...document.querySelectorAll("polygon.tr, polygon.tw")].map((e) => getComputedStyle(e).animationName));
+  const names = await page.evaluate(() => [...document.querySelectorAll("polygon.temp-edge, polygon.temp-wash")].map((e) => getComputedStyle(e).animationName));
   expect(names.length).toBeGreaterThan(0);
   for (const n of names) expect(n).toBe("none");
 });

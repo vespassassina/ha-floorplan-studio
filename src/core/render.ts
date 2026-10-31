@@ -358,9 +358,10 @@ ${THEME_EXTRAS}
    tinted from the room itself), at low opacity, in the theme's --fp-hot or --fp-cold. Under the temperature heat map the room is
    already coloured by its reading, so the wash is not drawn; a steady 2 px border is, after the walls (a stroke on the room itself
    sits under the wall halo, finding 16). Not the motion border: that one is red and pulses. Both take pointer-events from a class
-   rule (finding 18): an attribute would lose to any author rule. */
-.tw{pointer-events:none;stroke:none;fill-opacity:.3} .tw-hot{fill:var(--fp-hot)} .tw-cold{fill:var(--fp-cold)}
-.tr{pointer-events:none;fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round} .tr-hot{stroke:var(--fp-hot)} .tr-cold{stroke:var(--fp-cold)}
+   rule (finding 18): an attribute would lose to any author rule. Not .tw: the studio's outline twisty owns that
+   name in the same shadow root (finding 8). */
+.temp-wash{pointer-events:none;stroke:none;fill-opacity:.3} .temp-wash-hot{fill:var(--fp-hot)} .temp-wash-cold{fill:var(--fp-cold)}
+.temp-edge{pointer-events:none;fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round} .temp-edge-hot{stroke:var(--fp-hot)} .temp-edge-cold{stroke:var(--fp-cold)}
 /* A room with a triggered motion sensor in it: one thin line inside its walls, in the sensor's own colour (a radar in
    the radar colour), for as long as the sensor is on. renderFloor masks the wide stroke down to the line; the editor's
    .room{pointer-events:all} does not touch it, being a different class, and a class rule beats the attribute (finding 18). */
@@ -1404,7 +1405,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const h = heated.get(i), heat = h ? ` heat heat-${heatKind}` : "", heatStyle = h ? ` style="--fp-heat:${num(h.t)}"` : "";
     out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}${heat}${warned.has(i) ? ` temp-${warned.get(i)}` : ""}"${own}${heatStyle} points="${pts(r.pts)}"/>`);
     // S42.2: the wash, unless the temperature heat map already colours the room by its reading (the border below says it then).
-    if (warned.has(i) && heatKind !== "temperature") out.push(`<polygon class="tw tw-${warned.get(i)}" data-tw="${i}" points="${pts(r.pts)}"/>`);
+    if (warned.has(i) && heatKind !== "temperature") out.push(`<polygon class="temp-wash temp-wash-${warned.get(i)}" data-tw="${i}" points="${pts(r.pts)}"/>`);
   });
 
   f.stairs.forEach((t, i) => out.push(stairsGroup(t, i, o.around)));
@@ -1510,7 +1511,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
   // S42.2: under the temperature heat map, a steady border in the warning colour, after the walls like the ring above. No data-r: never a pick target.
-  if (heatKind === "temperature") warned.forEach((w, i) => out.push(`<polygon class="tr tr-${w}" data-tr="${i}" points="${pts(f.rooms[i]!.pts)}"/>`));
+  if (heatKind === "temperature") warned.forEach((w, i) => out.push(`<polygon class="temp-edge temp-edge-${w}" data-tr="${i}" points="${pts(f.rooms[i]!.pts)}"/>`));
   // S11.3: the room the card has picked, a dashed line just inside its walls (the motion perimeter's band, under its own class),
   // drawn after the wall lines: a stroke on the room's own polygon sits under the wall halo and is not seen (finding 16).
   // No data-r: it is never a pick target.

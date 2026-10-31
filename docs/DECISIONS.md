@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-31: Review fixes for S42.2, S42.3 and S42.5
+
+From the Opus re-check of PRs 9 to 11. Each has a test that failed first.
+
+- **A room's warning is badged on its own room.** `floorRollups` read every item that was not a door or a device as furniture, so a `room` item landed on the room holding furniture piece *i*, or nowhere.
+- **The wash and border classes are `temp-wash` and `temp-edge`.** `.tw` was already the studio outline's twisty (`opacity:.75`) in the same shadow root, so the studio's wash would have been fainter than the card's (finding 8). A test checks every class the warning adds against the editor's stylesheet.
+- **A range write clears a stale plan-lock refusal**, like every other setter: an unchanged value after a refused drag no longer shows "The plan is locked".
+- **Not changed:** a range typed in °F is stored in °C rounded to 0.1, so 78 °F reads back as 78.1. Kept: the layout stays readable, and the error is under 0.1 °F.
+
 ## 2026-10-31: Sprint 41 review fixes
 
 - **The sheet drops the click of a press made outside it** (supersedes the handle-only entry below). The handle-only flag

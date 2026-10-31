@@ -949,6 +949,7 @@ export class EditorState {
    * not written (this is the one guard, since `edit` does not validate): false, nothing recorded.
    */
   setHouseRange(patch: HouseRange): boolean {
+    this.fresh();
     const next = compact({ ...(this.layout.tempRange ?? {}), ...patch });
     if (rangeProblem(next, true)) return false;
     if (JSON.stringify(next) === JSON.stringify(this.layout.tempRange ?? {})) return false;
@@ -961,6 +962,7 @@ export class EditorState {
    * One undo step, none when unchanged, nothing written when `validate` would refuse it. A setting, not geometry, so the plan lock lets it through.
    */
   setRoomRange(i: number, range: { min?: number; max?: number } | null): boolean {
+    this.fresh();
     const room = this.f.rooms[i];
     const next = range === null ? null : compact(range);
     if (!room || (next && rangeProblem(next, false))) return false;
