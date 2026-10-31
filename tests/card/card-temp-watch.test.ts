@@ -39,14 +39,14 @@ describe("S42.4 the card's onset memory", () => {
     const el = mount();
     await push(el, "27.4");
     await vi.advanceTimersByTimeAsync(5 * MIN + 100);
-    expect(el._tempWarn).toEqual({ [ROOM]: "hot" });
+    expect(el._tempWarn).toEqual({ ground: { [ROOM]: "hot" } });
     expect(el.shadowRoot!.querySelector(`svg polygon.temp-wash-hot`)).not.toBeNull();
   });
 
   it("clears at once when the reading is back inside the band", async () => {
     const el = mount(0);
     await push(el, "27.4");
-    expect(el._tempWarn).toEqual({ [ROOM]: "hot" });
+    expect(el._tempWarn).toEqual({ ground: { [ROOM]: "hot" } });
     await push(el, "25.4");
     expect(el._tempWarn).toBeUndefined();
     expect(el.shadowRoot!.querySelector("svg .temp-wash-hot")).toBeNull();
@@ -58,7 +58,7 @@ describe("S42.4 the card's onset memory", () => {
     await vi.advanceTimersByTimeAsync(3 * MIN);
     await push(el, "27.9"); // not a new onset
     await vi.advanceTimersByTimeAsync(2 * MIN + 100);
-    expect(el._tempWarn).toEqual({ [ROOM]: "hot" });
+    expect(el._tempWarn).toEqual({ ground: { [ROOM]: "hot" } });
   });
 
   it("a reading back in for one sample resets the onset", async () => {
@@ -78,5 +78,36 @@ describe("S42.4 the card's onset memory", () => {
     el.remove();
     await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  // Opus review of Sprint 42, item 4: Lit updates a detached element, so a hass set after removal must not arm a timer.
+  it("a card removed from the page arms no timer when hass arrives with a room out but not yet held", async () => {
+    const el = mount();
+    el.remove();
+    await vi.advanceTimersByTimeAsync(0);
+    await push(el, "27.4"); // out, hold 5 min, so a connected card would now hold a timer
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  // Opus review of Sprint 42, item 1: room ids repeat across floors. The same Kitchen id on `up` is in range and stays plain.
+  it("the same room id on another floor: only the floor that is out is washed", async () => {
+    const layout = structuredClone(demo) as any;
+    layout.tempRange = { min: 17, max: 26, hold: 0 };
+    layout.floors.up = structuredClone(layout.floors.ground);
+    layout.floors.up.devices = []; // device ids are unique across floors; room ids are not
+    Object.assign(layout.floors.ground.rooms[1], { temps: ["sensor.k"] });
+    Object.assign(layout.floors.up.rooms[1], { temps: ["sensor.k2"] });
+    const card = (floor: string) => {
+      const el = document.createElement("floorplan-studio-card") as FloorplanStudioCard;
+      document.body.appendChild(el);
+      el.setConfig({ layout, floor } as never);
+      return el;
+    };
+    const ground = card("ground"), up = card("up");
+    for (const el of [ground, up]) el.hass = { states: { "sensor.k": st("29"), "sensor.k2": st("22") }, themes: { darkMode: false } } as never;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ground.shadowRoot!.querySelectorAll("svg polygon.temp-wash-hot")).toHaveLength(1);
+    expect(up.shadowRoot!.querySelectorAll("svg polygon.temp-wash")).toHaveLength(0);
+    expect(up._tempWarn).toEqual({ ground: { [ROOM]: "hot" } });
   });
 });

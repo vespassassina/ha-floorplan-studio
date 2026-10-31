@@ -215,8 +215,8 @@ function roomItem(layout: Layout, key: string, f: Floor, i: number, warn: "hot" 
 
 /** Everything that needs attention across every floor of `layout`. `reg` is HA's entity registry (`hass.entities`), for
  *  the battery sensor of a placed device's own HA device; without it a device's battery is only what its state says.
- *  `tempWarn` (S42; the shape of `RenderOpts.tempWarn`) names the rooms out of range by id; omitted, no temperature items. */
-export function attention(layout: Layout, state: StateOverlay | undefined, reg?: AttentionRegistry, tempWarn?: Readonly<Record<string, "hot" | "cold">>): Attention {
+ *  `tempWarn` (S42; floor key, then room id, each floor's entry the shape of `RenderOpts.tempWarn`) names the rooms out of range; omitted, no temperature items. */
+export function attention(layout: Layout, state: StateOverlay | undefined, reg?: AttentionRegistry, tempWarn?: Readonly<Record<string, Readonly<Record<string, "hot" | "cold">>>>): Attention {
   // A floor key is layout data: `__proto__` must be a floor, not the object's prototype (finding 1, S24.R9).
   const items: AttentionItem[] = [], unavailable: AttentionItem[] = [], floors: Record<string, FloorAttention> = Object.create(null);
   const floorList = layout && typeof layout.floors === "object" && layout.floors ? Object.entries(layout.floors) : [];
@@ -285,9 +285,10 @@ export function attention(layout: Layout, state: StateOverlay | undefined, reg?:
       }
     });
 
-    if (tempWarn && typeof tempWarn === "object" && !Array.isArray(tempWarn)) {
+    const warnHere = tempWarn && typeof tempWarn === "object" && !Array.isArray(tempWarn) ? own<unknown>(tempWarn, key) : undefined;
+    if (warnHere && typeof warnHere === "object" && !Array.isArray(warnHere)) {
       list<Floor["rooms"][number]>(f.rooms).forEach((r, i) => {
-        const w = r && typeof r === "object" ? own<unknown>(tempWarn, String(r.id)) : undefined;
+        const w = r && typeof r === "object" ? own<unknown>(warnHere, String(r.id)) : undefined;
         const item = w === "hot" || w === "cold" ? roomItem(layout, key, f, i, w, state) : null;
         if (item) add(item);
       });
