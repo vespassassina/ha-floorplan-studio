@@ -4802,6 +4802,8 @@ Spec: `docs/specs/temp-range.md`, approved by Diego on 2026-10-31 with its defau
 hot gets a tint and an Attention line; one house range in the layout, a room may override it; a 0.5 °C band and a hold,
 default 5 minutes; at most 1,000 bytes gzip on the card. Tasks S42.1 to S42.6 are in the spec. S42.1 first; S42.2, S42.3
 and S42.5 in parallel after it; S42.4 after S42.1 to S42.3.
+Done 2026-10-31: S42.1 to S42.5 merged (PRs 8 to 15). The sprint spends +1,752 bytes gzip, accepted by Diego over the
+1,000 set (DECISIONS). S42.6: README, then the Opus review.
 
 ## Sprint 43 (outline): replay 2, part 1
 
