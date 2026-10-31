@@ -109,3 +109,17 @@ describe("room override", () => {
     expect(st.setRoomRange(0, { min: 18 })).toBe(true);
   });
 });
+
+describe("S42 review: a range write clears a stale plan-lock refusal", () => {
+  it("an unchanged house or room range after a refused geometry edit does not leave planBlocked set", () => {
+    for (const write of [(st: EditorState) => st.setHouseRange({}), (st: EditorState) => st.setRoomRange(0, null)]) {
+      const st = new EditorState(fresh());
+      st.planLocked = true;
+      const key = Object.keys(st.layout.floors)[0]!;
+      expect(st.setPose(key, { rot: 45, off: [10, 0] })).toBe(false);
+      expect(st.planBlocked).toBe(true);
+      expect(write(st)).toBe(false); // unchanged: no step
+      expect(st.planBlocked, "the banner would say the plan is locked for a write the lock allows").toBe(false);
+    }
+  });
+});

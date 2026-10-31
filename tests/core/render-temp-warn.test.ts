@@ -8,8 +8,8 @@ import type { Layout } from "../../src/core/schema";
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8")) as Layout;
 const ground = demo.floors.ground!;
 const id0 = ground.rooms[0]!.id, id1 = ground.rooms[1]!.id;
-const wash = (html: string) => [...html.matchAll(/<polygon class="tw tw-(hot|cold)" data-tw="(\d+)"[^>]*\/>/g)].map((m) => [m[2], m[1]]);
-const ring = (html: string) => [...html.matchAll(/<polygon class="tr tr-(hot|cold)" data-tr="(\d+)"[^>]*\/>/g)].map((m) => [m[2], m[1]]);
+const wash = (html: string) => [...html.matchAll(/<polygon class="temp-wash temp-wash-(hot|cold)" data-tw="(\d+)"[^>]*\/>/g)].map((m) => [m[2], m[1]]);
+const ring = (html: string) => [...html.matchAll(/<polygon class="temp-edge temp-edge-(hot|cold)" data-tr="(\d+)"[^>]*\/>/g)].map((m) => [m[2], m[1]]);
 const roomClass = (html: string, i: number) => new RegExp(`<polygon data-r="${i}" class="([^"]*)"`).exec(html)?.[1] ?? "";
 
 describe("the wash", () => {

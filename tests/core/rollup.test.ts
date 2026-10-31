@@ -149,3 +149,14 @@ describe("S25 fix C: a badge keeps its screen size when the view zooms", () => {
     expect(size(4)).toBeCloseTo(size(1) / 4, 1);
   });
 });
+
+describe("S42.3 review: a room's own Attention item", () => {
+  it("is counted on that room, not on the room holding the furniture piece of the same index", () => {
+    // Three rooms; furniture[1] stands in room 2, so a room item read as furniture lands there instead of room 1.
+    const f = floorOf([], [box("r0", "A", 0, 0, 300, 300), box("r1", "B", 400, 0, 300, 300), box("r2", "C", 800, 0, 300, 300)]);
+    f.furniture = [{ x: 100, y: 100 }, { x: 900, y: 100 }] as unknown as Floor["furniture"];
+    const item = { kind: "too-hot", floor: "g", at: { what: "room", index: 1, id: "r1" }, entity: "", name: "B", state: "28 °C", lastChanged: "", bound: 26 };
+    const out = floorRollups(f, {}, { floor: "g", result: { items: [item], unavailable: [], floors: {} } } as never);
+    expect(out.map((r) => r.alerts)).toEqual([0, 1, 0]);
+  });
+});
