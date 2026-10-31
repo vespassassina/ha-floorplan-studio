@@ -65,16 +65,30 @@ export function stateAt(index: HistoryIndex, tMs: number): Record<string, HassEn
   return out;
 }
 
-/** The websocket message for one floor's entities. Flags are fixed: the replay wants every change, with attributes. */
-export function historyRequest(entityIds: readonly string[], startMs: number, endMs: number) {
-  return {
-    type: "history/history_during_period" as const,
-    start_time: new Date(startMs).toISOString(),
-    end_time: new Date(endMs).toISOString(),
-    entity_ids: [...new Set(entityIds)].sort(),
-    include_start_time_state: true,
-    significant_changes_only: false,
-    minimal_response: false,
-    no_attributes: false,
-  };
+/** Domains whose changing attributes the plan draws (a lamp's colour, a cover's position): their rows keep every attribute. */
+const ATTRIBUTE_DOMAINS = new Set(["light", "climate", "media_player", "cover", "fan", "vacuum", "water_heater", "humidifier"]);
+
+/**
+ * The messages for one floor's entities, each entity in exactly one (spec replay-2, item 1). The attribute domains ask for every change
+ * with attributes; the rest ask for significant changes only and minimal rows (HA keeps `a` on the first row, so unit and device class
+ * survive, and drops it from the later ones, which the parser carries forward). An empty group sends nothing.
+ */
+export function historyRequests(entityIds: readonly string[], startMs: number, endMs: number) {
+  const ids = [...new Set(entityIds)].sort();
+  const base = { type: "history/history_during_period" as const, start_time: new Date(startMs).toISOString(), end_time: new Date(endMs).toISOString(), include_start_time_state: true, no_attributes: false };
+  const full = ids.filter((id) => ATTRIBUTE_DOMAINS.has(id.split(".")[0]));
+  const lean = ids.filter((id) => !ATTRIBUTE_DOMAINS.has(id.split(".")[0]));
+  return [
+    { ...base, entity_ids: full, significant_changes_only: false, minimal_response: false },
+    { ...base, entity_ids: lean, significant_changes_only: true, minimal_response: true },
+  ].filter((m) => m.entity_ids.length);
+}
+
+/**
+ * Asks for a floor's history and parses it. Both calls start together; one failing fails the floor. `send` is the caller's: it owns the
+ * connection and the timeout of each call, so a call that never answers rejects on its own.
+ */
+export async function fetchHistory(send: (m: ReturnType<typeof historyRequests>[number]) => Promise<unknown>, entityIds: readonly string[], startMs: number, endMs: number): Promise<HistoryIndex> {
+  const parts = await Promise.all(historyRequests(entityIds, startMs, endMs).map(async (m) => parseHistory(await send(m), m.entity_ids)));
+  return new Map(parts.flatMap((p) => [...p]));
 }

@@ -238,8 +238,8 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
     // A chunk that will not load is a page older than the server, or a lost network: the words of the 3D and form chunks, not the browser's.
     const h = await loadLib().catch(() => { throw { message: t(STALE_PAGE) }; });
     if (c._replay === r) paintBar(c); // the chunk is here: the bar's full markup replaces its shell
-    const reply = await withTimeout(conn.sendMessagePromise<unknown>(h.historyRequest(ids, startOf(r), r.end)), FETCH_TIMEOUT_MS);
-    fh.index = h.parseHistory(reply, ids);
+    // Each call has its own timeout: a second call that never answers fails the floor though the first did.
+    fh.index = await h.fetchHistory((m) => withTimeout(conn.sendMessagePromise<unknown>(m), FETCH_TIMEOUT_MS), ids, startOf(r), r.end);
     fh.ids = ids;
     const sun = c._sunId();
     fh.missing = ids.filter((id) => id !== sun && !fh.index!.has(id)).length;

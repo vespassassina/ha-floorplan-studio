@@ -4814,6 +4814,8 @@ the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
 
 - R2.1 Leaner fetch: two history calls per floor (attribute domains in full, the rest with `significant_changes_only`
   and `minimal_response`), the request moved into the chunk, the chunk limit raised.
+  Done 2026-10-31: `fetchHistory` and `historyRequests` in `src/card/replay/history.ts`; card 123,568 to 123,558 gzip, replay
+  chunk 1,455 to 1,653, limit 6,000.
 - R2.2 The event table per device type and the onsets, no UI; a test iterates `DEVICE_TYPES` (finding 17).
 - R2.3 Markers on the slider, the motion band, clusters, a tap on a marker.
 - R2.4 Jump to the previous and next event: buttons and Shift+arrows.

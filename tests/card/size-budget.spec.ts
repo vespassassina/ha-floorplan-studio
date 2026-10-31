@@ -157,7 +157,7 @@ test(`the form chunk is at most ${FORM_CHUNK_LIMIT} bytes gzipped, and it is not
 });
 
 // S39.2: the history parser is a lazy chunk (src/card/replay/history.ts), loaded the first time Replay opens. Nobody who never opens it pays for it.
-const REPLAY_CHUNK_LIMIT = 1500; // gzip; 728 when written (a parser and an index), with room for what follows
+const REPLAY_CHUNK_LIMIT = 6000; // gzip; 728 when written, 1,455 before replay 2 (docs/specs/replay-2.md item 21 raises it for the events, the filters and the request)
 const replayChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-replay-.+\.js$/.test(f));
 
 test(`there is exactly one replay chunk, it is at most ${REPLAY_CHUNK_LIMIT} bytes gzipped, and the card names it by import() only`, () => {

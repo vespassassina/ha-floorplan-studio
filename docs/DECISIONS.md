@@ -2,6 +2,22 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-31: R2.1, the leaner fetch and what its byte rule means
+
+Spec `docs/specs/replay-2.md`, item 1 and criteria 1 to 3. A floor asks for its history in two calls: `light`, `climate`,
+`media_player`, `cover`, `fan`, `vacuum`, `water_heater` and `humidifier` in full, every other entity with
+`significant_changes_only` and `minimal_response`; each entity is in one call, a floor with only one kind sends one, none sends none.
+The request and the split live in the replay chunk (`fetchHistory`); the card passes a `send` that times each call out on its own, so
+the second call going silent fails the floor though the first answered. The websocket command is unchanged
+(`history/history_during_period`).
+
+- **Criterion 14 read against today's card.** The spec says "within +600 of 121,511". Sprint 42 already moved the card to 123,568
+  (entry below), so replay 2 may add at most +600 over 123,568, and the card stays under the 124,650 cap. R2.1 moved the card
+  to 123,558 (-10).
+- **Chunk limit 6,000** (was 1,500; spec item 21), in `tests/card/size-budget.spec.ts`. The chunk is 1,653 gzip (was 1,455, +198).
+- **Tests that pinned one call.** Four Playwright claims in `replay-bar.spec.ts` counted one history message per open; they now count
+  two (the demo floors hold lights and sensors) and check the split. The `historyRequest` unit test became `historyRequests`.
+
 ## 2026-10-31: Sprint 42 review fixes
 
 An Opus review of Sprint 42 found four defects. Each was fixed test-first. The fixes cost 131 bytes gzip (123,437 to 123,568), so
