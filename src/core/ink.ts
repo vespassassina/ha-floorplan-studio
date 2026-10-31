@@ -97,5 +97,7 @@ export function themeExtras(tokens: string, dark: boolean, idle?: string): strin
   out.push(`--fp-glow-blend:${dark ? "screen" : "multiply"}`);
   // S28.1: how strong the baked contact shadow is. A dark plan needs more to show at all. Tuned by looking; the tests pin the order and a step.
   out.push(`--fp-shade-alpha:${dark ? SHADE_ALPHA.dark : SHADE_ALPHA.light}`);
+  // S42.2: the out-of-range tint. One pair per light or dark theme, picked by looking at a lit room fill in each (npm run shots).
+  out.push(`--fp-hot:${dark ? "#ff6a3d" : "#d9480f"}`, `--fp-cold:${dark ? "#3ad0f0" : "#1971c2"}`);
   return out.join(";");
 }
