@@ -857,6 +857,16 @@ try {
     heatShots.push({ name: `heat-first-humidity-bathroom-wet-4x-${t.id}`, floor: "first", kind: "humidity", st: extremes(null, true), t, room: 1, dpr: 4 });
     heatShots.push({ name: `heat-first-humidity-bathroom-dry-4x-${t.id}`, floor: "first", kind: "humidity", st: extremes(null, false), t, room: 1, dpr: 4 });
   }
+  // S42.2: the temperature-range tint. The card passes `tempWarn` from S42.4; until then this harness does what the card will. The range
+  // (17 to 26 degrees) is not written into demo/layout.json, which migrate.test.ts compares with its v1 twin: the extremes state puts
+  // Living (27.5) over it and Bedroom (14) under it, and the harness hands renderFloor the room ids that `tempWarn` would flag.
+  // Each, with and without the temperature heat map, at 1x and as a 4x crop.
+  const TINT = { ground: { cls: "hot", room: 0 }, first: { cls: "cold", room: 0 } };
+  for (const [floor, w] of Object.entries(TINT)) for (const kind of ["off", "temperature"]) for (const t of HEAT_THEMES) {
+    const warn = { [layout.floors[floor].rooms[w.room].id]: w.cls };
+    heatShots.push({ name: `tint-${floor}-${w.cls}-${kind}-${t.id}`, floor, kind, st: extremes(), warn, t, dpr: 1 });
+    heatShots.push({ name: `tint-${floor}-${w.cls}-${kind}-4x-${t.id}`, floor, kind, st: extremes(), warn, t, room: w.room, dpr: 4 });
+  }
   for (const s of heatShots) {
     const f = layout.floors[s.floor];
     const ctx = await browser.newContext({ viewport: { width: 940, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: s.dpr });
@@ -865,11 +875,11 @@ try {
     await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${s.t.page};${s.t.vars}"><svg id="p" width="900" viewBox="-20 -20 940 690"></svg></body>`);
     await page.addScriptTag({ content: planJs });
     const states = s.st ?? STATES[s.which];
-    await page.evaluate(([floor, kind, states, theme, dark, night, ratio]) => {
+    await page.evaluate(([floor, kind, states, theme, dark, night, ratio, tempWarn]) => {
       const st = {}; for (const [id, v] of Object.entries(states)) { const a = Array.isArray(v) ? v : [v]; st[id] = { state: a[0], attributes: a[1] ?? {}, last_changed: new Date().toISOString() }; }
       const sty = document.createElement("style"); sty.textContent = FPR.FLOORPLAN_CSS; document.head.append(sty);
-      document.getElementById("p").innerHTML = FPR.renderFloor(floor, { scale: ratio, px: ratio, state: st, theme, dark, night, roomGlow: true, heat: kind });
-    }, [f, s.kind, states, s.t.theme, s.t.dark, !!s.night, 900 / 940]);
+      document.getElementById("p").innerHTML = FPR.renderFloor(floor, { scale: ratio, px: ratio, state: st, theme, dark, night, roomGlow: true, heat: kind, tempWarn });
+    }, [f, s.kind, states, s.t.theme, s.t.dark, !!s.night, 900 / 940, s.warn]);
     if (s.room !== undefined) {
       const box = await page.evaluate((i) => { const r = document.querySelector(`#p polygon[data-r="${i}"]`).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }, s.room);
       await page.screenshot({ path: `${OUT}/${s.name}.png`, clip: { x: Math.max(0, box.x - 6), y: Math.max(0, box.y - 6), width: box.width + 12, height: box.height + 12 } });
