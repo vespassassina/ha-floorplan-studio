@@ -99,6 +99,9 @@ export interface RenderOpts {
   plugHeat?: [number, number];
   /** S34.7: the heat map. `temperature` or `humidity` fills every room that reads that kind (`roomHeat`) by its place on the fixed scale: class `heat heat-<kind>` and `--fp-heat` (0..1) on the polygon, the value in the room's readout line (also under `labels: false`), and no night veil. Omitted, `off` or junk, the markup is byte for byte as before. */
   heat?: HeatKind;
+  /** S42 (docs/specs/temp-range.md): rooms that warn, by room id, as `tempWarn` decided. The plan tints them (S42.2); Attention lists them
+   *  (S42.3). The card and the studio compute it; omitted, the markup is byte for byte as before. */
+  tempWarn?: Readonly<Record<string, "hot" | "cold">>;
   /** S16.3: the camera thumbnail. With `on`, a camera whose state has an `entity_picture` draws that picture beside its icon (`size`, `pos`), in class `fp-cam-thumb` (a tap target `data-cam`, not in the editor); `bust` is the cache buster, `failed` the cameras whose picture did not load. A camera that is unavailable, has no picture or failed draws nothing. Omitted, off or junk, the markup is byte for byte as before. */
   camThumb?: CamThumbOpts;
   /** S25.5: a stack of devices fanned out. Each entry moves device `i`'s icon to `at` (plan units), with a leader line to its true

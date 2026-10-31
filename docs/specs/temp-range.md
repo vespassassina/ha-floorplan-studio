@@ -92,6 +92,8 @@ error with the room's name in it, never a throw. `migrate` copies neither shape 
   CSS pairs, demo rooms, shots (criteria 5 and 7).
 - S42.3 Attention: the two kinds, the lines in ten languages, the tap (criterion 6).
 - S42.4 The card: the onset memory, passing the flag to the plan and Attention; the studio's live view the same.
+  `roomHeat` gains `c`, the mean in °C, which `tempWarn` takes (S42.1 left the °F conversion to the caller: `roomHeat`
+  returned only `text` and `t`).
 - S42.5 The editor: house range, hold and the room override, °F in and out (criterion 8).
 - S42.6 Bytes measured, DECISIONS, README; then the Opus review of the sprint.
 

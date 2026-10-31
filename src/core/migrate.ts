@@ -1,5 +1,5 @@
 import { stairSteps } from "./geometry";
-import { isEntityId, isViewPath, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
+import { isEntityId, isViewPath, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, tempRangeProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"], ["unlinked", "unlinked"]];
@@ -121,7 +121,7 @@ export function migrate(x: unknown): Layout {
     if (f.outline !== undefined && !Array.isArray(f.outline)) throw new Error(`Floor "${fname}": outline must be an array`);
     outlineKinds(f);
     // `label` (S4.29): dropped from the schema, an old file's stray value with it — the editor never had a way to set it.
-    for (const r of f.rooms) { if (r.kind === "outdoor") r.kind = "garden"; r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; delete r.label; edgeKinds(r); }
+    for (const r of f.rooms) { if (r.kind === "outdoor") r.kind = "garden"; r.area = r.area ?? (r.kind === "water" ? "" : slug(String(r.name ?? ""))); r.name = r.name ?? ""; delete r.label; edgeKinds(r); if (r.tempRange !== undefined && tempRangeProblems(r.tempRange, false).length) delete r.tempRange; }
     // S4.24: a door's single `sensor` becomes `sensors`, a list. Always drop the old key, whether or not a new
     // list is already present, so a half-migrated file never keeps both.
     for (const d of f.doors) { if (typeof d.sensor === "string" && d.sensor && !Array.isArray(d.sensors)) d.sensors = [d.sensor]; delete d.sensor; }
@@ -136,6 +136,7 @@ export function migrate(x: unknown): Layout {
   const out: any = { version: 2, unit: "cm", north: src.north ?? 0, rotate: src.rotate ?? 0, floors, catalog: src.catalog };
   if (src.palette !== undefined) out.palette = src.palette;
   if (src.colors !== undefined) out.colors = src.colors; // passed through; validate judges it. Never invented.
+  if (src.tempRange !== undefined && !tempRangeProblems(src.tempRange, true).length) out.tempRange = src.tempRange; // S42.1: a range is a convenience; a bad one is dropped, never the plan
   if (Array.isArray(src.views)) out.views = keepViews(src.views, floors); // S33.6: a view is a convenience; a bad one is dropped, never the plan
   if (Array.isArray(out.catalog) && v === 1) for (const c of out.catalog) c.type = RENAME[c.type] ?? c.type;
   if (!Array.isArray(out.catalog)) out.catalog = buildCatalog(out);
