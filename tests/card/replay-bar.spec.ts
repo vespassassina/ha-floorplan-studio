@@ -132,20 +132,27 @@ test.describe("S39.2 the bar and the fetch", () => {
     Object.assign(layout.floors.ground.rooms[0], { temps: ["sensor.room_t"], humidity: ["sensor.room_h"], motion: ["binary_sensor.room_m"] });
     await boot(page, { config: { layout, floor: "all" }, live: {} });
     await openBar(page);
-    const first = await sent(page);
-    expect(first).toHaveLength(1);
-    const m = first[0] as { entity_ids: string[]; start_time: string; end_time: string } & Record<string, unknown>;
-    expect(m.entity_ids).toEqual(expect.arrayContaining(["light.demo_living", "switch.demo_living_relay", "sun.sun", "sensor.room_t", "sensor.room_h", "binary_sensor.room_m", "binary_sensor.demo_hall_motion"]));
-    expect(m.entity_ids).not.toContain("light.demo_bedroom"); // that is on the other floor
-    expect([...m.entity_ids].sort()).toEqual(m.entity_ids);
-    expect(m).toMatchObject({ include_start_time_state: true, significant_changes_only: false, minimal_response: false, no_attributes: false, start_time: iso(NOW / 1000 - 86400), end_time: iso(NOW / 1000) });
+    // R2.1 (replay-2 item 1): two calls per floor, each entity in one: the attribute domains in full, the rest lean.
+    const first = await sent(page) as ({ entity_ids: string[]; start_time: string; end_time: string } & Record<string, unknown>)[];
+    expect(first).toHaveLength(2);
+    const [full, lean] = [first.find((m) => m.minimal_response === false)!, first.find((m) => m.minimal_response === true)!];
+    const all = [...full.entity_ids, ...lean.entity_ids];
+    expect(all).toEqual(expect.arrayContaining(["light.demo_living", "switch.demo_living_relay", "sun.sun", "sensor.room_t", "sensor.room_h", "binary_sensor.room_m", "binary_sensor.demo_hall_motion"]));
+    expect(new Set(all).size, "each entity in exactly one call").toBe(all.length);
+    expect(full.entity_ids.every((id) => /^(light|climate|media_player|cover|fan|vacuum|water_heater|humidifier)\./.test(id))).toBe(true);
+    expect(full.entity_ids).toContain("light.demo_living");
+    expect(lean.entity_ids).toEqual(expect.arrayContaining(["switch.demo_living_relay", "sun.sun", "sensor.room_t"]));
+    expect(all).not.toContain("light.demo_bedroom"); // that is on the other floor
+    for (const m of first) expect([...m.entity_ids].sort()).toEqual(m.entity_ids);
+    expect(full).toMatchObject({ include_start_time_state: true, significant_changes_only: false, minimal_response: false, no_attributes: false, start_time: iso(NOW / 1000 - 86400), end_time: iso(NOW / 1000) });
+    expect(lean).toMatchObject({ include_start_time_state: true, significant_changes_only: true, minimal_response: true, no_attributes: false, start_time: iso(NOW / 1000 - 86400), end_time: iso(NOW / 1000) });
     await card(page).locator("css=.fp-floors button", { hasText: "First" }).click();
-    await expect.poll(async () => (await sent(page)).length).toBe(2);
-    expect(((await sent(page))[1] as { entity_ids: string[] }).entity_ids).toEqual(expect.arrayContaining(["light.demo_bedroom", "sun.sun"]));
+    await expect.poll(async () => (await sent(page)).length).toBe(4);
+    expect((await sent(page) as { entity_ids: string[] }[]).slice(2).flatMap((m) => m.entity_ids)).toEqual(expect.arrayContaining(["light.demo_bedroom", "sun.sun"]));
     await card(page).locator("css=.fp-floors button", { hasText: "Ground" }).click();
     await expect(card(page).locator("css=.fp-floors button", { hasText: "Ground" })).toHaveAttribute("aria-pressed", "true");
     await expect(range(page)).toBeEnabled();
-    expect(await sent(page)).toHaveLength(2);
+    expect(await sent(page)).toHaveLength(4);
   });
 
   test("criterion 13: no Replay item in kiosk, without a connection, and none in the Studio", async ({ page }) => {
@@ -456,6 +463,39 @@ test.describe("Opus review S5: the timeout reason is translated", () => {
   });
 });
 
+// R2.1, criterion 3: the floor is ready when both calls have answered; either failing, or the second alone going silent, shows the error line
+// and leaves the plan live. The stub keeps its own shape (see the top of this file); only the one call named by `which` is changed.
+test.describe("R2.1 either call failing fails the floor", () => {
+  const MSG = "Could not load the history: ";
+  async function open(page: Page, which: "full" | "lean", how: "reject" | "silent") {
+    await boot(page, { clock: "install", live: { "light.demo_kitchen": st("on") } });
+    await page.evaluate(([which, how]) => {
+      const el = document.getElementById("card") as unknown as { hass: { connection: { sendMessagePromise: (m: { minimal_response?: boolean }) => Promise<unknown> } } };
+      const real = el.hass.connection.sendMessagePromise;
+      el.hass.connection.sendMessagePromise = (m) => (m.minimal_response === (which === "lean")
+        ? (how === "reject" ? Promise.reject({ code: "unknown_error", message: "Recorder is not running" }) : new Promise(() => undefined))
+        : real(m));
+    }, [which, how] as const);
+    await openMenu(page);
+    await menuItem(page, "replay").click();
+  }
+  for (const which of ["full", "lean"] as const) {
+    test(`the ${which} call rejecting shows the reason and the plan stays live`, async ({ page }) => {
+      await open(page, which, "reject");
+      await expect(msg(page)).toHaveText(`${MSG}Recorder is not running`);
+      await expect(g(page, lampIdx)).toHaveClass(/\bon\b/);
+      await expect(range(page)).toBeDisabled();
+    });
+  }
+  test("the second call alone never answering times out after 20 s and the plan stays live", async ({ page }) => {
+    await open(page, "lean", "silent");
+    await expect(bar(page)).toHaveAttribute("aria-busy", "true"); // the first call has answered; the floor still waits
+    await page.clock.runFor(20001);
+    await expect(msg(page)).toHaveText(`${MSG}no answer in 20 s`);
+    await expect(g(page, lampIdx)).toHaveClass(/\bon\b/);
+  });
+});
+
 test.describe("Opus review S6, N5: the bar does not outlive its card's config or its place in the page", () => {
   test("setConfig with kiosk: true while replaying closes the bar", async ({ page }) => {
     await boot(page);
@@ -526,7 +566,7 @@ test.describe("Opus review N2: the replay chunk loads like the 3D and form chunk
     await page.unroute("**/floorplan-studio-replay-*.js*"); // the network is back (or the page was reloaded under a new build)
     await card(page).locator("css=button.fp-rp-close").click();
     await openBar(page); // expects the slider enabled: the history has come
-    expect(await sent(page)).toHaveLength(1);
+    expect(await sent(page)).toHaveLength(2); // one open, two calls (R2.1)
   });
 });
 
@@ -734,7 +774,7 @@ test.describe("S40.1 the Replay button and the X", () => {
     await expect(open(page)).toHaveCount(0);
     await expect(range(page)).toBeEnabled();
     await expect(playBtn(page)).toBeFocused();
-    expect(await sent(page)).toHaveLength(1); // the same open as the menu's: one fetch
+    expect(await sent(page)).toHaveLength(2); // the same open as the menu's: one fetch, two calls (R2.1)
   });
 
   // Opus review of S40 (A2): the bar's focus handover must not steal focus the user moved on purpose while the history loads.
