@@ -28,7 +28,7 @@ export const MAX_ROOM_SENSORS = 20;
  *  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The
  *  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border
  *  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each. */
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[] }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
 /** Most custom scenes one room may keep, and most lights or switches one scene may set. */
 export const MAX_ROOM_SCENES = 12;
 export const MAX_SCENE_ITEMS = 40;
@@ -166,7 +166,7 @@ export const MAX_VIEW_ZOOM = 8;
 /** A named way of looking at the plan, saved in the Studio and offered by every card. `floor` is a key of `floors`; `mode` is how it opens (left out: the viewer's choice); `rotation` is the turn in degrees, a multiple of 45 from 0 to 315; `zoom` (1 to 8) and `center` (cm) come together or not at all. No 3D camera. */
 export interface SavedView { id: string; name: string; floor: string; mode?: "2d" | "2.5d" | "3d"; rotation?: number; zoom?: number; center?: Pt }
 /** `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned. */
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 
 /** S7.11: the most characters a floor's `trace.src` may hold, the whole data URL: 4 MB. */
 export const MAX_TRACE_BYTES = 4 * 1024 * 1024;
@@ -239,6 +239,25 @@ export function viewProblems(v: unknown, floors: unknown): string[] {
   return out;
 }
 
+/** S42.1: what is wrong with a `tempRange`, as short phrases; empty when it is good. Never throws. `house` is the layout's own (it may carry `hold`); a room's is only `min` and `max`, and `{}` is allowed: it turns the warning off for that room. All in °C, `hold` in minutes. Shared by `validate` and `migrate`, so a range that migrate keeps is a range validate accepts. */
+export function tempRangeProblems(v: unknown, house: boolean): string[] {
+  if (!isObj(v)) return ["must be an object like { min: 17, max: 26 } (°C)"];
+  const out: string[] = [], keys = house ? ["min", "max", "hold"] : ["min", "max"];
+  for (const k of Object.keys(v)) if (!keys.includes(k)) out.push(`has an unknown key ${JSON.stringify(k)}; allowed: ${keys.join(", ")}`);
+  const get = (k: string) => (Object.prototype.hasOwnProperty.call(v, k) ? v[k] : undefined);
+  const bound = (k: "min" | "max") => {
+    const n = get(k);
+    if (n === undefined) return;
+    if (!(typeof n === "number" && Number.isFinite(n) && n >= -50 && n <= 100)) out.push(`${k} must be a number from -50 to 100 (°C)`);
+  };
+  bound("min"); bound("max");
+  const lo = get("min"), hi = get("max");
+  if (typeof lo === "number" && typeof hi === "number" && Number.isFinite(lo) && Number.isFinite(hi) && hi - lo < 1) out.push("max must be at least 1 °C above min");
+  const hold = get("hold");
+  if (house && hold !== undefined && !(typeof hold === "number" && Number.isInteger(hold) && hold >= 0 && hold <= 120)) out.push("hold must be a whole number of minutes from 0 to 120");
+  return out;
+}
+
 /** Checks a v2 layout. Never throws; returns every problem it finds. */
 export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false; errors: string[] } {
   const errors: string[] = [];
@@ -260,6 +279,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     }
   }
   if (!isObj(x.floors)) errors.push("floors must be an object");
+  if (x.tempRange !== undefined) for (const p of tempRangeProblems(x.tempRange, true)) errors.push(`tempRange ${p}`);
   if (x.views !== undefined) {
     if (!Array.isArray(x.views)) errors.push("views must be a list");
     else if (x.views.length > MAX_VIEWS) errors.push(`views holds at most ${MAX_VIEWS}, found ${x.views.length}; delete some`);
@@ -344,6 +364,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       name(r); // migrate turns a missing name into "", so a name that is still not text is a bad file
       oneOf(`${r.id} kind`, r.kind, ROOM_KINDS);
       optHeight(r, "height");
+      if (r.tempRange !== undefined) for (const p of tempRangeProblems(r.tempRange, false)) errors.push(`${at} ${r.id}${typeof r.name === "string" && r.name ? ` (${r.name})` : ""} tempRange ${p}`);
       if (r.color !== undefined && !(typeof r.color === "string" && /^#[0-9a-fA-F]{6}$/.test(r.color)))
         errors.push(`${at} ${r.id} color must be a colour like #aabbcc`);
       if (r.texture !== undefined && !TEXTURE_IDS.includes(r.texture as string)) errors.push(`${at} ${r.id} texture must be one of ${TEXTURE_IDS.join(", ")}`);

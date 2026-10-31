@@ -41,7 +41,7 @@ export const MAX_ROOM_SENSORS = 20;
 `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each.
 
 ```ts
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[] }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
 ```
 
 ## MAX_ROOM_SCENES
@@ -238,7 +238,7 @@ export interface SavedView { id: string; name: string; floor: string; mode?: "2d
 `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned.
 
 ```ts
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 ```
 
 ## MAX_TRACE_BYTES
@@ -265,6 +265,14 @@ S7.11: a raster data URL and nothing else. SVG is left out (it is a document), a
 export const TRACE_SRC = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
 ```
 
+## isEntityId
+
+A strict Home Assistant entity id (`domain.object_id`, letters, digits and underscores). The car reads its entities with this one check in `validate`, `migrate` and `carEntities`, so none of them keeps an id the others ignore.
+
+```ts
+export const isEntityId = (x: unknown): x is string => typeof x === "string" && /^[a-z0-9_]+\.[a-z0-9_]+$/i.test(x);
+```
+
 ## VIEW_MAX
 
 S40.3: the longest `view` path.
@@ -275,10 +283,10 @@ export const VIEW_MAX = 200;
 
 ## isViewPath
 
-S40.3: a `view` is a path inside Home Assistant: one leading `/` and not `//` (or `/\`, which a browser reads as `//`), no scheme, no whitespace or control character, at most `VIEW_MAX`. The card checks it again at tap time.
+S40.3: a `view` is a path inside Home Assistant: one leading `/` and not `//` (or `/\`, which a browser reads as `//`), no scheme, no whitespace or control character, at most `VIEW_MAX`, and no `.` or `..` segment (a browser folds `/..//evil.com` into `//evil.com`; `%2e` counts as a dot). The card checks it again at tap time.
 
 ```ts
-export const isViewPath = (x: unknown): x is string => typeof x === "string" && x.length <= VIEW_MAX && /^\/(?![/\\])[^\s\\\0-\x1f\x7f-\x9f]*$/.test(x);
+export const isViewPath = (x: unknown): x is string => typeof x === "string" && x.length <= VIEW_MAX && /^(?![^?#]*\/(?:\.|%2e){1,2}(?:[/?#]|$))\/(?![/\\])[^\s\\\0-\x1f\x7f-\x9f]*$/i.test(x);
 ```
 
 ## COORD_LIMIT
