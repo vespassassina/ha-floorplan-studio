@@ -4,7 +4,8 @@ Newest first. A change supersedes; nothing is edited.
 
 ## 2026-10-31: Sprint 42 review fixes
 
-An Opus review of Sprint 42 found four defects. Each was fixed test-first.
+An Opus review of Sprint 42 found four defects. Each was fixed test-first. The fixes cost 131 bytes gzip (123,437 to 123,568), so
+the sprint spends +1,883 over cc59805, not the 1,752 recorded below; the cap holds with 1,082 to spare.
 
 - **The warning is per floor.** Room ids are unique only within a floor, so `TempWatch.warn` is now floor key, then room id, and the
   onset memory is keyed the same way. `RenderOpts.tempWarn` stays one floor's record (`TempWatch.warnFor(floor)`, own keys only);
