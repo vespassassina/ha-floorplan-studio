@@ -5,6 +5,7 @@ import { doorStateOf } from "./door-state";
 import { doorRoomName as doorRoom, nameFor, roomNameAt as roomName } from "./active";
 import { stateOf } from "./readings";
 import { pieceDevice } from "./solids";
+import { roomHeat } from "./heat";
 
 /**
  * S24.3 (G1, G2, G3): what is wrong in the house, before what is on. Pure: the layout and the live state in, a list out,
@@ -13,7 +14,7 @@ import { pieceDevice } from "./solids";
  */
 
 /** The kinds, most severe first: the order the Overview lists them in. `unavailable` is last and folded into one row. */
-export const ATTENTION_KINDS = ["alarm-triggered", "alarm-armed", "open", "jammed", "unlocked", "leak", "smoke", "battery-low", "unavailable"] as const;
+export const ATTENTION_KINDS = ["alarm-triggered", "alarm-armed", "open", "jammed", "unlocked", "leak", "smoke", "too-hot", "too-cold", "battery-low", "unavailable"] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
 /**
@@ -54,8 +55,8 @@ const LEAK_CLASSES = new Set(["moisture"]);
 const SMOKE_CLASSES = new Set(["smoke", "carbon_monoxide", "gas"]);
 const DECIMAL = /^-?\d+(\.\d+)?$/;
 
-/** Where the thing is in the layout: `index` into the floor's `devices`, `furniture` (a linked piece) or `doors`. */
-export interface AttentionRef { what: "device" | "piece" | "door"; index: number; id: string }
+/** Where the thing is in the layout: `index` into the floor's `devices`, `furniture` (a linked piece), `doors` or `rooms`. */
+export interface AttentionRef { what: "device" | "piece" | "door" | "room"; index: number; id: string }
 
 export interface AttentionItem {
   kind: AttentionKind;
@@ -76,6 +77,9 @@ export interface AttentionItem {
   lastChanged: string;
   /** battery-low only: the level in percent, when HA gave a number (a battery binary_sensor gives none). */
   level?: number;
+  /** too-hot and too-cold only: the bound the room broke, in the unit the sensors read, rounded to 0.5. For these `name`
+   *  is the room's, `entity` is "" (a room has none) and `state` is the reading as `roomHeat` prints it ("27.4 °C"). */
+  bound?: number;
   /** battery-low only: the battery entity of the same HA device that reported it, when it is not `entity` itself.
    *  `state` and `lastChanged` are then that entity's. */
   source?: string;
@@ -194,9 +198,25 @@ function ruleKind(d: Device, s: StateOverlay[string]): AttentionKind | null {
   }
 }
 
+/** The bound in the unit the sensors read (`roomHeat` text ends with it, "27.4 °F"): °F when it says so, rounded to 0.5. */
+const boundIn = (celsius: number, reading: string): number => Math.round((/f$/i.test(reading) ? (celsius * 9) / 5 + 32 : celsius) * 2) / 2;
+
+/** S42.3: the item for room `i` of floor `f` that `warn` says is out of range, or null: no range for that side, no
+ *  reading (nothing to print) or a room kind the heat map does not read. The room's own `tempRange` replaces the house's
+ *  whole, as `tempWarn` reads it. */
+function roomItem(layout: Layout, key: string, f: Floor, i: number, warn: "hot" | "cold", state: StateOverlay | undefined): AttentionItem | null {
+  const r = f.rooms[i];
+  const range = r && typeof r.tempRange === "object" && r.tempRange ? r.tempRange : layout.tempRange;
+  const c = range && typeof range === "object" ? (warn === "hot" ? range.max : range.min) : undefined;
+  const heat = typeof c === "number" && Number.isFinite(c) ? roomHeat(f, i, "temperature", state) : null;
+  if (!r || !heat || typeof c !== "number") return null;
+  return { kind: warn === "hot" ? "too-hot" : "too-cold", floor: key, at: { what: "room", index: i, id: String(r.id) }, entity: "", name: typeof r.name === "string" ? r.name : "", state: heat.text, lastChanged: "", bound: boundIn(c, heat.text) };
+}
+
 /** Everything that needs attention across every floor of `layout`. `reg` is HA's entity registry (`hass.entities`), for
- *  the battery sensor of a placed device's own HA device; without it a device's battery is only what its state says. */
-export function attention(layout: Layout, state: StateOverlay | undefined, reg?: AttentionRegistry): Attention {
+ *  the battery sensor of a placed device's own HA device; without it a device's battery is only what its state says.
+ *  `tempWarn` (S42; the shape of `RenderOpts.tempWarn`) names the rooms out of range by id; omitted, no temperature items. */
+export function attention(layout: Layout, state: StateOverlay | undefined, reg?: AttentionRegistry, tempWarn?: Readonly<Record<string, "hot" | "cold">>): Attention {
   // A floor key is layout data: `__proto__` must be a floor, not the object's prototype (finding 1, S24.R9).
   const items: AttentionItem[] = [], unavailable: AttentionItem[] = [], floors: Record<string, FloorAttention> = Object.create(null);
   const floorList = layout && typeof layout.floors === "object" && layout.floors ? Object.entries(layout.floors) : [];
@@ -264,6 +284,14 @@ export function attention(layout: Layout, state: StateOverlay | undefined, reg?:
         if (bat) add({ kind: "battery-low", at, name, ...(room ? { room } : {}), ...base(s!, e), ...bat });
       }
     });
+
+    if (tempWarn && typeof tempWarn === "object" && !Array.isArray(tempWarn)) {
+      list<Floor["rooms"][number]>(f.rooms).forEach((r, i) => {
+        const w = r && typeof r === "object" ? own<unknown>(tempWarn, String(r.id)) : undefined;
+        const item = w === "hot" || w === "cold" ? roomItem(layout, key, f, i, w, state) : null;
+        if (item) add(item);
+      });
+    }
   }
 
   const rank = (k: AttentionKind) => ATTENTION_KINDS.indexOf(k);

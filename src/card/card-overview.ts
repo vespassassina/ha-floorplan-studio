@@ -35,7 +35,7 @@ const LOCATE_ZOOM = 2;
 const PULSE_MS = 2400;
 
 /** S24.7: one Overview row, an Attention item or an active device, with where it is (`at`) so a tap can go there. */
-interface OverviewRow { entity: string; name: string; floor: string; at: ThingRef; room?: string; state: string; age?: string; type?: DeviceType; colorVar: string; attn: boolean }
+interface OverviewRow { entity: string; name: string; floor: string; at: ThingRef | { what: "room"; index: number }; room?: string; state: string; age?: string; type?: DeviceType; colorVar: string; attn: boolean }
 /** What an Attention row says after its name. Every kind is a decision (finding 17): a new kind fails to compile here. */
 const ATTENTION_TEXT: Record<AttentionKind, (it: AttentionItem, level: string) => string> = {
   "alarm-triggered": () => t("triggered"),
@@ -45,6 +45,8 @@ const ATTENTION_TEXT: Record<AttentionKind, (it: AttentionItem, level: string) =
   unlocked: () => t("unlocked"),
   leak: () => t("leak"),
   smoke: () => t("smoke"),
+  "too-hot": (it) => t("{reading}, above {bound}", { reading: it.state, bound: String(it.bound ?? "") }), // the name is the room's
+  "too-cold": (it) => t("{reading}, below {bound}", { reading: it.state, bound: String(it.bound ?? "") }),
   "battery-low": (_it, level) => (level ? t("battery {level} %", { level }) : t("battery low")),
   unavailable: () => t("unavailable"),
 };
@@ -77,8 +79,17 @@ export function catGroup(c: FloorplanStudioCard, list: "a" | "r" | "f", id: stri
 
 /** S24.7 (F2): a tap on an Overview row goes to its thing; the popup opens beside the row. */
 export function tapOverviewRow(c: FloorplanStudioCard, o: OverviewRow, e: MouseEvent): void {
+  if (o.at.what === "room") return goToRoom(c, o.floor, o.at.index);
   const row = e.currentTarget as Element, b = row.getBoundingClientRect();
   locate(c, { floor: o.floor, ...o.at }, row, e.detail > 0 ? { x: e.clientX, y: e.clientY } : { x: b.left + b.width / 2, y: b.bottom });
+}
+
+/** S42.3: a tap on a temperature row does what a tap on the room does on the plan: the floor, then the room picked (the
+ *  sheet rises on a phone). A floor the card cannot show does nothing. */
+function goToRoom(c: FloorplanStudioCard, floor: string, index: number): void {
+  if (!(floor === c._floorKey() || c._floorList()?.some(([k]) => k === floor))) return;
+  c._selectFloor(floor); // a no-op on the floor already shown
+  pickRoom(c, index);
 }
 
 /**
@@ -331,11 +342,11 @@ export function roomSection(c: FloorplanStudioCard, s: RoomSummary, active: unkn
 export function attentionOf(c: FloorplanStudioCard): Attention | null {
   const layout = c._layout, states = overviewStates(c), reg = c._hass?.entities; // S39 review S4: other floors stay live while replaying
   if (!layout) return null;
-  const m = c._attnMemo;
-  if (m && m.layout === layout && m.states === states && m.reg === reg) return m.a;
+  const m = c._attnMemo, warn = c._tempWarn;
+  if (m && m.layout === layout && m.states === states && m.reg === reg && m.warn === warn) return m.a;
   // The registry finds a placed device's battery sensor on its own HA device (S24.R1).
-  const a = attention(layout, states, reg);
-  c._attnMemo = { layout, states, reg, a };
+  const a = attention(layout, states, reg, warn);
+  c._attnMemo = { layout, states, reg, warn, a };
   return a;
 }
 
@@ -464,7 +475,9 @@ export function activePanel(c: FloorplanStudioCard) {
   const all = summary ? !c._roomFilter : c._overviewAll || !many;
   const a = attentionOf(c) ?? { items: [], unavailable: [], floors: {} };
   const inScope = <T extends { floor: string; entity: string }>(list: T[]): T[] => (summary && c._roomFilter ? filterToRoom(list.filter((x) => x.floor === shown), summary) : all ? list : list.filter((x) => x.floor === shown));
-  const attn: Attention = { items: inScope(a.items), unavailable: inScope(a.unavailable), floors: a.floors };
+  // S42.3: a room's own warning has no entity, so `filterToRoom` cannot see it; the picked room keeps it.
+  const own = (it: AttentionItem) => at !== null && it.floor === shown && it.at.what === "room" && it.at.index === at;
+  const attn: Attention = { items: summary && c._roomFilter ? a.items.filter((it) => own(it) || inScope([it]).length > 0) : inScope(a.items), unavailable: inScope(a.unavailable), floors: a.floors };
   // Only what Attention says about the same fact leaves Active (an open door, an unlocked lock). A low battery says
   // nothing about on or off: a lamp that is on and low is in both (S24.R6).
   const flagged = new Set(attn.items.filter((it) => it.kind !== "battery-low").map((it) => it.entity));
