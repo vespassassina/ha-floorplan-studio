@@ -178,6 +178,12 @@ test("the card file does not carry the parser: REPLAY_CHUNK's marker and the his
   expect(readFileSync(`dist/${replayChunks()[0]}`, "utf8")).toContain("fp-replay-v1"); // so the two checks above can fail
 });
 
+// R2.2 (docs/specs/replay-2.md, criterion 14): the event table is the replay chunk's, not the card's.
+test("the card file does not carry the event table: EVENTS_MARKER is only in the replay chunk", () => {
+  expect(readFileSync("dist/floorplan-studio-card.js", "utf8")).not.toContain("fp-events-v1");
+  expect(readFileSync(`dist/${replayChunks()[0]}`, "utf8")).toContain("fp-events-v1"); // so the check above can fail
+});
+
 // S41.0 (docs/DECISIONS.md, 2026-10-30): Vite's default build target ("modules", with chrome87 and edge88) makes esbuild print every `a?.b` as
 // `a==null?void 0:a.b`, which cost the card 2.8 KB gzipped. The build now names its own target (vite.config.ts, BUILD_TARGET). Lit and three ship
 // `?.` as written, so a match in any shipped file is our target slipping back, not a dependency. `===null?void 0` is a different thing (our own

@@ -3,6 +3,7 @@ import type { HassEntity } from "../floorplan-studio-card";
 // S39.1: reading Home Assistant's history for the replay. Loaded lazily (`import("./replay/history")`), so the card file
 // does not carry it. The parser is pure: no DOM, no hass. The open bar's markup (bar.ts, S40.1) rides in the same chunk.
 export { barView } from "./bar";
+export { EVENTS_MARKER, EVENT_RULES, NO_EVENT, onsets } from "./events";
 
 /** Only this module holds it, so a test can prove the card file does not contain the parser. */
 export const REPLAY_CHUNK = "fp-replay-v1";

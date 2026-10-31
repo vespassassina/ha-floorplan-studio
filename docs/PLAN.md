@@ -4817,6 +4817,8 @@ the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
   Done 2026-10-31: `fetchHistory` and `historyRequests` in `src/card/replay/history.ts`; card 123,568 to 123,558 gzip, replay
   chunk 1,455 to 1,653, limit 6,000.
 - R2.2 The event table per device type and the onsets, no UI; a test iterates `DEVICE_TYPES` (finding 17).
+  Done 2026-10-31: `src/card/replay/events.ts` (`EVENT_RULES`, `NO_EVENT`, `onsets`); card 123,558 to 123,557 gzip, replay
+  chunk 1,653 to 2,665, limit 6,000.
 - R2.3 Markers on the slider, the motion band, clusters, a tap on a marker.
 - R2.4 Jump to the previous and next event: buttons and Shift+arrows.
 
