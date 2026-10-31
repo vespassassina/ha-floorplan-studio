@@ -68,8 +68,8 @@ async function boot(page: Page, o: Opts = {}) {
           if (extra.fail) return Promise.reject(extra.fail);
           const out: Record<string, unknown[]> = {};
           for (const id of m.entity_ids ?? []) if (extra.rows?.[id]) out[id] = extra.rows[id];
-          // A test that sets __hold keeps the reply back until it calls __release: the history is "still loading".
-          if (w.__hold) return new Promise((resolve) => { w.__release = () => resolve(out); });
+          // A test that sets __hold keeps each reply back, in order, until `release` answers it: the history is "still loading".
+          if (w.__hold) return new Promise((resolve) => { ((w.__held ??= []) as (() => void)[]).push(() => resolve(out)); });
           return Promise.resolve(out);
         },
       },
@@ -739,11 +739,17 @@ test.describe("S40.1 the Replay button and the X", () => {
 
   // Opus review of S40 (A2): the bar's focus handover must not steal focus the user moved on purpose while the history loads.
   const hold = (page: Page, on = true) => page.evaluate((on) => { (window as unknown as { __hold: boolean }).__hold = on; }, on);
-  // The bar shows before the lazy chunk has sent its history call, so `__release` exists only once that call is out. Waiting
-  // for it is waiting for the request, not for time: releasing earlier answered nothing (CI, PR 5, shard 2).
-  const release = async (page: Page) => {
-    await page.waitForFunction(() => typeof (window as unknown as { __release?: unknown }).__release === "function");
-    await page.evaluate(() => (window as unknown as { __release(): void }).__release());
+  // The bar shows before the lazy chunk has sent its history call, so a held reply exists only once that call is out. `release`
+  // waits for the `upTo`-th held call of the test, then answers every held call not yet answered: waiting on the request, not on
+  // time. Releasing earlier answered nothing (CI, PR 5, shard 2); with a single hook, a second open could be answered by the
+  // first open's release (Opus review, S41).
+  const release = async (page: Page, upTo = 1) => {
+    await page.waitForFunction((n) => (((window as unknown as { __held?: unknown[] }).__held) ?? []).length >= n, upTo);
+    await page.evaluate(() => {
+      const w = window as unknown as { __held: (() => void)[]; __answered?: number };
+      for (let i = w.__answered ?? 0; i < w.__held.length; i++) w.__held[i]!();
+      w.__answered = w.__held.length;
+    });
   };
   const menuBtn = (page: Page) => card(page).locator("css=button[aria-label='View options']");
 
@@ -786,7 +792,8 @@ test.describe("S40.1 the Replay button and the X", () => {
     await expect(bar(page)).toBeVisible();
     // The menu left focus on itself, and the `away` rule would clear a leaked flag on the first paint. Put focus nowhere, so a flag that survived shows.
     await card(page).evaluate((el) => (el.shadowRoot!.activeElement as HTMLElement | null)?.blur());
-    await release(page);
+    await release(page, 2); // the closed bar's call, then this bar's own
+
     await expect(range(page)).toBeEnabled();
     await expect(playBtn(page)).not.toBeFocused();
   });

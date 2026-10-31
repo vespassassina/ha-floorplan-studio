@@ -162,7 +162,6 @@ export function fitHeight(c: FloorplanStudioCard): void {
 
 export function onHandleDown(c: FloorplanStudioCard, e: PointerEvent): void {
   if ((e.pointerType === "mouse" && e.button !== 0) || c._sheetDrag) return;
-  c._handlePressed = true;
   const stops = stopsNow(c);
   if (!stops) return;
   const h0 = stops[c._sheetStop];
@@ -205,22 +204,39 @@ export function onHandleCancel(c: FloorplanStudioCard, e: PointerEvent): void {
   const d = c._sheetDrag;
   if (!d || e.pointerId !== d.id) return;
   c._sheetDrag = null; // the browser took the gesture: the sheet goes back to its stop
-  c._handlePressed = false;
   const sheet = c.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
   if (sheet) { sheet.classList.remove("fp-dragging"); sheet.style.removeProperty("height"); }
   c.requestUpdate();
 }
 
-/** A tap on the handle. A pointer click counts only when the press began on the handle: a finger that picked a room on pointerup
- *  raised the sheet, and the tap's click, hit-tested later where the finger was, lands on the risen handle on a slow machine
- *  (CI, PR 5). A keyboard click (detail 0) has no press. */
-export function onHandleClick(c: FloorplanStudioCard, e: MouseEvent): void {
-  const pressed = c._handlePressed;
-  c._handlePressed = false;
+export function onHandleClick(c: FloorplanStudioCard): void {
   if (c._dragEnded) { c._dragEnded = false; return; }
-  if (e.detail !== 0 && !pressed) return;
   c._sheetStop = nextOnHandleTap(c._sheetStop);
   c.requestUpdate();
+}
+
+/** The pointer that last pressed in the card, on the host in the capture phase, so it runs before any listener inside. */
+export function onCardDown(c: FloorplanStudioCard, e: PointerEvent): void {
+  c._outsidePress = e.pointerId;
+}
+
+/** A press inside the phone's sheet runs after the host's, and clears it: that press was not outside. */
+export function onSheetDown(c: FloorplanStudioCard): void {
+  c._outsidePress = null;
+}
+
+/** A finger that picks a room on pointerup raises the sheet, and Chromium hit-tests the tap's click later, where the finger was: on
+ *  a slow machine the risen sheet is there and the click pressed the handle or a control in it (CI, PR 5; Opus review, S41). The
+ *  sheet drops a pointer click only when its id is that of the last press, and that press was outside the sheet. The rule fails
+ *  open: WebKit's tap is a touch press with id 0 and a mouse click with id 1, and a guard that required a matching press in the
+ *  sheet dropped every tap on iOS (Opus re-check, S41). Firefox gives every touch id 0, which this still catches. A keyboard click
+ *  (detail 0) and a click with no pointer id (Safari before 17.4) always count. */
+export function onSheetClick(c: FloorplanStudioCard, e: MouseEvent): void {
+  if (e.detail === 0) return;
+  const id = (e as Partial<PointerEvent>).pointerId;
+  if (id === undefined || id !== c._outsidePress) return;
+  e.stopPropagation();
+  e.preventDefault();
 }
 
 /** Arrow keys on the handle move one stop, so the sheet is reachable without a tap or a drag. */

@@ -523,7 +523,8 @@ export function bottomSheet(c: FloorplanStudioCard, name: string, crumb: string,
   const peek = c._sheetStop === "peek" && !c._sheetDrag;
   const level = pop ? pop.name : name;
   const drag = c._sheetDrag;
-  return html`<div class=${drag ? "fp-active fp-bottom fp-dragging" : "fp-active fp-bottom"} data-stop=${c._sheetStop} role="region" aria-label=${level} style=${drag ? `height:${drag.h}px` : ""}>
+  return html`<div class=${drag ? "fp-active fp-bottom fp-dragging" : "fp-active fp-bottom"} data-stop=${c._sheetStop} role="region" aria-label=${level} style=${drag ? `height:${drag.h}px` : ""}
+      @pointerdown=${c._sheetGuard.down} @click=${c._sheetGuard.click}>
       <div class="fp-sheet-top">
         ${deeper || pop || c._sheetStop !== "peek" ? html`<button type="button" class="fp-back" aria-label=${t("Back")} title=${t("Back")} @click=${() => back(c)}>←</button>` : nothing}
         <button type="button" class="fp-handle" aria-label=${t("Overview")} aria-expanded=${c._sheetStop === "peek" ? "false" : "true"}

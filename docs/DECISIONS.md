@@ -2,6 +2,25 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-31: Sprint 41 review fixes
+
+- **The sheet drops the click of a press made outside it** (supersedes the handle-only entry below). The handle-only flag
+  went stale after a finger drag, which sends no click, and the late click also pressed controls inside the sheet: Lights
+  off is a service call. The card records, on its host in the capture phase, the pointer id of the last press; a press
+  inside the sheet clears it. The sheet drops a pointer click whose id equals a press made outside it. The rule fails open:
+  the first version required a matching press in the sheet, and WebKit's tap is a touch press with id 0 and a mouse click
+  with id 1, so every tap in the sheet would have been dropped on iOS (Opus re-check, seen in Playwright WebKit). Firefox
+  gives every touch id 0, which the new rule still catches. A keyboard click (detail 0) and a click with no pointer id
+  (Safari before 17.4) count. `tests/card/sheet-guard.test.ts` feeds each engine's event shapes.
+- **Held history replies are a queue.** `release` in `replay-bar.spec.ts` waits for the n-th held call and answers all
+  unanswered; one hook could let a closed bar's release answer the next open.
+- **The freeze parser reads required, readonly, quoted and `$` keys**, and refuses mismatched quotes.
+- **The budget times the machine before and after the steps** and uses the mean; CI ratios recorded next to the Mac's.
+  The comment no longer claims a renderFloor 2.5x slower fails: the node checks pin S25.6, the time is a gross ceiling.
+- **Replay 2's 7-day gate** is an absolute figure once on the Mac and a `calibrate` ratio in CI.
+- **Scenes are Home Assistant scenes** (Diego, 2026-10-30, f5364fd): Sprint 50 saves `scene.*` through HA's scene config
+  instead of a room field in the layout. This changes where scenes live, so it is recorded here.
+
 ## 2026-10-30: The sheet's handle takes only a click it was pressed for
 
 A finger on a room picks it on pointerup and the phone's sheet rises to half. Chromium sends the tap's click afterwards,

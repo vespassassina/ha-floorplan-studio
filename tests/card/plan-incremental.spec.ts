@@ -106,7 +106,11 @@ const WRITES = { big: 2710, stress: 465 };
 // S41.c: CI runners run 3 to 6x slower than the Mac and the old ms ceilings failed there by chance (all off 135.5 against
 // 130). The ceiling is now a ratio to `calibrate`, which moves with the machine. Mac ratios, 2026-10-30, three runs:
 //   400 devices    one 1.5-1.6 / on 2.8-3.0 / off 2.0-2.2       stress ground  one 1.4-1.6 / on 1.8-2.0 / off 1.6-1.9
-// Ceilings are 2.5x those: a renderFloor 2.5x slower fails anywhere.
+// CI ratios, 2026-10-30, two runs: 400 devices one 1.06-1.16 / on 2.56-2.74 / off 2.03-2.52; stress one 1.12-1.22 / on 1.76-1.77
+// / off 1.58-1.60. Ceilings are 2.5x the quiet Mac ratios. The step includes work outside renderFloor, so a renderFloor 2.5x slower
+// can still pass: this is a ceiling against a gross slowdown (a 60 ms busy loop in renderFloor failed both, ratios 5.7 to 9.7), and
+// the node checks above are what pin S25.6. The machine is timed before and after the steps and the mean is used, so a load that
+// comes or goes during the run weighs on both sides (Opus review, S41).
 const BUDGET = { big: { one: 4, on: 7.5, off: 5.5 }, stress: { one: 4, on: 5, off: 5 } };
 
 test.describe("S25.6 incremental render, demo", () => {
@@ -171,8 +175,9 @@ test.describe("S25.6 incremental render, 400 devices", () => {
   });
   test("budget: 400 devices, one change, all on, all off", async ({ page }) => {
     await boot(page, big(), key, states());
+    const cal0 = await calibrate(page);
     const m = await measure(page, [states([5]), states()], states([], "on"), states([], "off"));
-    const cal = await calibrate(page);
+    const cal = (cal0 + (await calibrate(page))) / 2;
     console.log(`CAL 400 devices: ${cal.toFixed(1)} ms, ratios ${(m.one / cal).toFixed(2)} / ${(m.on / cal).toFixed(2)} / ${(m.off / cal).toFixed(2)}`);
     console.log(`BUDGET 400 devices: one ${m.one.toFixed(1)}, on ${m.on.toFixed(1)}, off ${m.off.toFixed(1)} ms`);
     expect(m.one / cal, "one change").toBeLessThan(BUDGET.big.one);
@@ -201,8 +206,9 @@ test.describe("S38.5 performance budget, stress house", () => {
   test("one sensor, all lights on, all lights off", async ({ page }) => {
     await boot(page, structuredClone(stress), floor, states());
     expect(await page.evaluate(() => document.getElementById("card")!.shadowRoot!.querySelectorAll("svg g[data-x]").length)).toBeGreaterThanOrEqual(150);
+    const cal0 = await calibrate(page);
     const m = await measure(page, [states({ temp: "21" }), states()], states({ lights: "on" }), states());
-    const cal = await calibrate(page);
+    const cal = (cal0 + (await calibrate(page))) / 2;
     console.log(`CAL stress ground: ${cal.toFixed(1)} ms, ratios ${(m.one / cal).toFixed(2)} / ${(m.on / cal).toFixed(2)} / ${(m.off / cal).toFixed(2)}`);
     console.log(`BUDGET stress ground: one ${m.one.toFixed(1)}, on ${m.on.toFixed(1)}, off ${m.off.toFixed(1)} ms`);
     expect(m.one / cal, "one sensor").toBeLessThan(BUDGET.stress.one);

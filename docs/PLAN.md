@@ -4785,7 +4785,7 @@ code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
   Prepared beforehand: a list of candidates from the field reports, open DECISIONS items and the four deferred field
   requests (trace on the card, a combined history chart, temperature range warnings, a generic value sensor), each
   with value, cost and risk. Output: a ranked list in `docs/ROADMAP.md` or PLAN outlines, and Diego's picks.
-  Done 2026-10-30: Diego picked eleven items; they are Sprints 46 to 49 below.
+  Done 2026-10-30: Diego picked eleven items; they are Sprints 46 to 49 below; the scene editor Diego added the same day is Sprints 50 and 51.
 
 - S41.c Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
   `globalSetup` building once per shard. Done when CI on `main` is under half today's wall time with the same count of
@@ -4829,7 +4829,7 @@ the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
 Plan D, item 15, second half. `src/editor/editor-app.ts` (220 KB of source) split as S39.0 split the card: whole
 concerns into modules, no behaviour change, the full suite as the test.
 
-## After the 2026-10-30 brainstorm (S41.b): Sprints 46 to 49
+## After the 2026-10-30 brainstorm (S41.b): Sprints 46 to 51
 
 Diego's picks from 25 candidates, each rated for value, cost and risk. Not picked: vacuum position (the research said
 no), several houses, a 2D sun wedge, the car card popover, ha-floorplan SVG import, Studio translations (after the
@@ -4859,7 +4859,7 @@ All in the Studio, 0 card bytes. Every registry write is confirmed by the admin,
 - Value icon on `other`: the generic value sensor request, as an icon choice on the existing type, not a new type.
 - Plan legend: what rings, glow and Attention colours mean, lazy.
 
-### Sprint 49 (outline): trace on the card, scenes into HA
+### Sprint 49 (outline): trace on the card
 
 - Trace on the card: the Studio's trace image under the plan, off unless the layout turns it on (it reaches every
   tablet). Under the surface freeze, a layout setting, not a card config key.
@@ -4882,7 +4882,9 @@ a room. then scenes are saved for the rooms." The spec answers the open points b
   room screens"). Save writes a `scene.*` through HA's scene config, in the room's area, so a room screen, Assist or an
   automation runs it; the room lists it as it lists HA scenes today. Sprint 49's "scenes into HA" moves here. The spec
   decides what happens to the custom scenes already stored on rooms (a one-time move, offered, never silent). Writing
-  HA config is admin only; non-admins see the editor read-only with Try it. Card bytes: the button and the loader only.
+  HA config is admin only; non-admins see the editor read-only with Try it. HA's scene config writes to `scenes.yaml`
+  and works only where `configuration.yaml` has `scene: !include scenes.yaml` (a default install has it); the spec says
+  what the editor shows when it is missing. Card bytes: the button and the loader only.
 
 ### Sprint 51 (outline): dynamic scenes
 

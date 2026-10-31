@@ -142,9 +142,14 @@ Each of these was a real defect. Do not repeat them.
     can move a control under the finger before the tap's click arrives, and
     on a slow machine it lands there. The room pick raised the phone sheet and
     the late click hit the risen handle, which took it back to peek (PR 5, CI
-    only). A control that acts on `click` checks its press began on it. To
-    reproduce a CI-only failure, throttle the CPU through CDP
-    (`Emulation.setCPUThrottlingRate`, 8x) and report what covers the target.
+    only). The sheet drops a pointer click whose id is that of a press made
+    outside it; a flag set on press and cleared on click goes stale after a
+    drag. A guard must fail open: pointer ids differ by engine (WebKit's tap
+    clicks with the mouse id, Firefox's touches are all 0), and the first
+    version would have dropped every tap on iOS. Test a guard with each
+    engine's event shapes. To reproduce a CI-only failure, throttle the CPU
+    through CDP (`Emulation.setCPUThrottlingRate`, 8x) and report what covers
+    the target.
 
 ## Domain notes
 
