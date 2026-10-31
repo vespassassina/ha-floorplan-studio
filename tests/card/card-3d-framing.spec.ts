@@ -527,6 +527,9 @@ test.describe("S32.1 criterion 7: the glide", () => {
           if (!on && w.__ease.began !== null && w.__ease.ended === null) w.__ease.ended = d;
         }).observe(el, { attributes: true, attributeFilter: ["data-easing", "data-drawn"] });
       });
+      // 2 s, not 400 ms: a software-GL frame at eight workers takes over 130 ms, so 400 ms held two (25 of 40 runs on
+      // 2026-10-31). A glide that jumps still draws at most one frame.
+      await page.evaluate(() => (window as unknown as { __fp3d: { glideMs(ms: number): void } }).__fp3d.glideMs(2000));
       await searchKitchen(page);
       await settled(page);
       const e = await page.evaluate(() => (window as unknown as { __ease: { began: number | null; ended: number | null } }).__ease);
