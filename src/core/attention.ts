@@ -294,7 +294,7 @@ export function attention(layout: Layout, state: StateOverlay | undefined, reg?:
     }
   }
 
-  const rank =(k: AttentionKind) => ATTENTION_KINDS.indexOf(k);
+  const rank = (k: AttentionKind) => ATTENTION_KINDS.indexOf(k);
   const byName = (a: AttentionItem, b: AttentionItem) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
   items.sort((a, b) => rank(a.kind) - rank(b.kind) || byName(a, b) || (a.entity < b.entity ? -1 : a.entity > b.entity ? 1 : 0));
   unavailable.sort(byName);

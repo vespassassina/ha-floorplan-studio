@@ -475,7 +475,9 @@ export function activePanel(c: FloorplanStudioCard) {
   const all = summary ? !c._roomFilter : c._overviewAll || !many;
   const a = attentionOf(c) ?? { items: [], unavailable: [], floors: {} };
   const inScope = <T extends { floor: string; entity: string }>(list: T[]): T[] => (summary && c._roomFilter ? filterToRoom(list.filter((x) => x.floor === shown), summary) : all ? list : list.filter((x) => x.floor === shown));
-  const attn: Attention = { items: inScope(a.items), unavailable: inScope(a.unavailable), floors: a.floors };
+  // S42.3: a room's own warning has no entity, so `filterToRoom` cannot see it; the picked room keeps it.
+  const own = (it: AttentionItem) => at !== null && it.floor === shown && it.at.what === "room" && it.at.index === at;
+  const attn: Attention = { items: summary && c._roomFilter ? a.items.filter((it) => own(it) || inScope([it]).length > 0) : inScope(a.items), unavailable: inScope(a.unavailable), floors: a.floors };
   // Only what Attention says about the same fact leaves Active (an open door, an unlocked lock). A low battery says
   // nothing about on or off: a lamp that is on and low is in both (S24.R6).
   const flagged = new Set(attn.items.filter((it) => it.kind !== "battery-low").map((it) => it.entity));

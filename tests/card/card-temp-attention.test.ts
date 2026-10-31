@@ -3,6 +3,7 @@ import demo from "../../demo/layout.json";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard } from "../../src/card/floorplan-studio-card";
 import { useLanguage } from "../../src/card/i18n";
+import { pickRoom } from "../../src/card/card-overview";
 
 // S42.3 (docs/specs/temp-range.md, decision 12): the Overview lists a room that warns, "Kitchen 27.4 °C, above 26". The card's
 // `_tempWarn` is what S42.4 will fill from the onset memory; here it is set by hand. The row's tap is in card-temp-attention.spec.ts.
@@ -40,6 +41,16 @@ describe("S42.3 the Overview lists a room that is out of range", () => {
   it("without a warning the room is not listed", async () => {
     const el = await mount("Kitchen", "en", {});
     expect(rows(el).filter((r) => r.name === "Kitchen")).toEqual([]);
+  });
+
+  it("with the room picked its own warning stays; with another room picked it goes (the room filter)", async () => {
+    const el = await mount("Kitchen", "en", { "room-ground-2": "hot" });
+    pickRoom(el, 1);
+    await settle(el);
+    expect(rows(el)).toEqual([{ name: "Kitchen", state: "27.4 °C, above 26" }]);
+    pickRoom(el, 0);
+    await settle(el);
+    expect(rows(el)).toEqual([]);
   });
 
   it("a room name is text, never markup (finding 2)", async () => {
