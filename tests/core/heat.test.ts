@@ -80,20 +80,20 @@ describe("the tables iterate their unions (findings 17, 20)", () => {
 describe("roomHeat, temperature (H2, H3)", () => {
   const f = floor([room("Living", sq(0, 0, 400, 400), { temps: ["t1", "t2"] })]);
   it("gives text and t on the fixed scale: 16 is 0, 21 is 0.5, 26 is 1", () => {
-    expect(roomHeat(f, 0, "temperature", { t1: st("16", "°C"), t2: st("16", "°C") })).toEqual({ text: `16${N}°C`, t: 0 });
-    expect(roomHeat(f, 0, "temperature", { t1: st("21", "°C"), t2: st("21", "°C") })).toEqual({ text: `21${N}°C`, t: 0.5 });
-    expect(roomHeat(f, 0, "temperature", { t1: st("26", "°C"), t2: st("26", "°C") })).toEqual({ text: `26${N}°C`, t: 1 });
-    expect(roomHeat(f, 0, "temperature", { t1: st("23", "°C"), t2: st("24", "°C") })).toEqual({ text: `23.5${N}°C`, t: 0.75 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("16", "°C"), t2: st("16", "°C") })).toMatchObject({ text: `16${N}°C`, t: 0 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("21", "°C"), t2: st("21", "°C") })).toMatchObject({ text: `21${N}°C`, t: 0.5 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("26", "°C"), t2: st("26", "°C") })).toMatchObject({ text: `26${N}°C`, t: 1 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("23", "°C"), t2: st("24", "°C") })).toMatchObject({ text: `23.5${N}°C`, t: 0.75 });
   });
   it("converts °F for t and keeps °F in the text: 75.2 is 24 degrees, t 0.8", () => {
-    expect(roomHeat(f, 0, "temperature", { t1: st("75.2", "°F"), t2: st("75.2", "°F") })).toEqual({ text: `75.2${N}°F`, t: 0.8 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("75.2", "°F"), t2: st("75.2", "°F") })).toMatchObject({ text: `75.2${N}°F`, t: 0.8 });
   });
   it("clamps t past the ends and prints the real number", () => {
-    expect(roomHeat(f, 0, "temperature", { t1: st("15", "°C"), t2: st("15", "°C") })).toEqual({ text: `15${N}°C`, t: 0 });
-    expect(roomHeat(f, 0, "temperature", { t1: st("30", "°C"), t2: st("30", "°C") })).toEqual({ text: `30${N}°C`, t: 1 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("15", "°C"), t2: st("15", "°C") })).toMatchObject({ text: `15${N}°C`, t: 0 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("30", "°C"), t2: st("30", "°C") })).toMatchObject({ text: `30${N}°C`, t: 1 });
   });
   it("a sensor with no unit is taken as °C and its text says °C", () => {
-    expect(roomHeat(f, 0, "temperature", { t1: st("23"), t2: st("23") })).toEqual({ text: `23${N}°C`, t: 0.7 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("23"), t2: st("23") })).toMatchObject({ text: `23${N}°C`, t: 0.7 });
   });
   it("a value that is not a reading is not one: out of range, another unit, text, comma, NaN, Infinity", () => {
     const one = floor([room("Living", sq(0, 0, 400, 400), { temps: ["t1"] })]);
@@ -104,13 +104,13 @@ describe("roomHeat, temperature (H2, H3)", () => {
     expect(roomHeat(one, 0, "temperature", { t1: st("-60", "°C") })?.t).toBe(0);
   });
   it("one unavailable and one readable sensor use the readable one; a faulty one is left out, not averaged in", () => {
-    expect(roomHeat(f, 0, "temperature", { t1: st("unavailable"), t2: st("23", "°C") })).toEqual({ text: `23${N}°C`, t: 0.7 });
-    expect(roomHeat(f, 0, "temperature", { t1: st("95", "°C"), t2: st("23", "°C") })).toEqual({ text: `23${N}°C`, t: 0.7 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("unavailable"), t2: st("23", "°C") })).toMatchObject({ text: `23${N}°C`, t: 0.7 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("95", "°C"), t2: st("23", "°C") })).toMatchObject({ text: `23${N}°C`, t: 0.7 });
     // a faulty first reading does not pick the unit: the °C one is read
-    expect(roomHeat(f, 0, "temperature", { t1: st("200", "°F"), t2: st("23", "°C") })).toEqual({ text: `23${N}°C`, t: 0.7 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("200", "°F"), t2: st("23", "°C") })).toMatchObject({ text: `23${N}°C`, t: 0.7 });
   });
   it("two units in one list: the first readable unit wins, as the readout does", () => {
-    expect(roomHeat(f, 0, "temperature", { t1: st("21", "°C"), t2: st("75.2", "°F") })).toEqual({ text: `21${N}°C`, t: 0.5 });
+    expect(roomHeat(f, 0, "temperature", { t1: st("21", "°C"), t2: st("75.2", "°F") })).toMatchObject({ text: `21${N}°C`, t: 0.5 });
   });
   it("never throws on untrusted shapes", () => {
     const junk = [undefined, null, 5, "x", {}, [], { rooms: 5 }, { rooms: [null] }, { rooms: [{ kind: "room" }] }, { rooms: [{ kind: "room", temps: 5 }], devices: 5 }, { rooms: [{ kind: "room", pts: [[0, 0]], temps: [3, null, "t1"] }], devices: [null, 3, { type: "temp" }] }];
@@ -150,12 +150,12 @@ describe("roomHeat, sources (Q2: own list first, else the sensors standing in th
   const f = floor(rooms, devices);
   const s = { list1: st("20", "°C"), in_living: st("26", "°C"), in_corner: st("26", "°C"), in_study: st("22", "°C"), nowhere: st("26", "°C"), h_study: st("60", "%"), c_study: st("heat", "°C") };
   it("the room's own list wins over a device in it", () => {
-    expect(roomHeat(f, 0, "temperature", s)).toEqual({ text: `20${N}°C`, t: 0.4 });
+    expect(roomHeat(f, 0, "temperature", s)).toMatchObject({ text: `20${N}°C`, t: 0.4 });
   });
   it("with no readable list, the temp devices in the room feed it; a device in a zone feeds the room under it", () => {
-    expect(roomHeat(f, 0, "temperature", { ...s, list1: st("unavailable") })).toEqual({ text: `26${N}°C`, t: 1 });
-    expect(roomHeat(f, 0, "temperature", { ...s, list1: st("unavailable"), in_living: st("unknown") })).toEqual({ text: `26${N}°C`, t: 1 }); // the corner sensor, under the zone
-    expect(roomHeat(f, 1, "temperature", s)).toEqual({ text: `22${N}°C`, t: 0.6 });
+    expect(roomHeat(f, 0, "temperature", { ...s, list1: st("unavailable") })).toMatchObject({ text: `26${N}°C`, t: 1 });
+    expect(roomHeat(f, 0, "temperature", { ...s, list1: st("unavailable"), in_living: st("unknown") })).toMatchObject({ text: `26${N}°C`, t: 1 }); // the corner sensor, under the zone
+    expect(roomHeat(f, 1, "temperature", s)).toMatchObject({ text: `22${N}°C`, t: 0.6 });
   });
   it("a device in no room feeds nothing; a zone never heats; a climate is not a source; humidity reads humidity devices", () => {
     expect(roomHeat(f, 2, "temperature", s)).toBeNull();
@@ -176,5 +176,26 @@ describe("roomHeat drops impossible readings from placed sensors (H3 bounds)", (
     const f = floor([room("A", sq(0, 0, 400, 400))], [dev("temp", "sensor.bad", 100, 100), dev("temp", "sensor.ok", 200, 200)]);
     const h = roomHeat(f, 0, "temperature", { "sensor.bad": st("120", "°C"), "sensor.ok": st("22", "°C") });
     expect(h?.text).toBe(`22${N}°C`);
+  });
+});
+
+// S42.4: `c` is the room's mean in °C, the number `tempWarn` takes. Same rule as `t` and `text`, so the readout, the heat map and the warning agree.
+describe("roomHeat().c (S42.4)", () => {
+  const f = floor([room("Living", sq(0, 0, 400, 400), { temps: ["t1", "t2"] })]);
+  it("is the mean in °C", () => {
+    expect(roomHeat(f, 0, "temperature", { t1: st("23", "°C"), t2: st("24.5", "°C") })!.c).toBe(23.75);
+  });
+  it("converts °F: 75.2 °F is 24 °C while the text keeps °F", () => {
+    const h = roomHeat(f, 0, "temperature", { t1: st("75.2", "°F"), t2: st("75.2", "°F") })!;
+    expect(h.c).toBeCloseTo(24, 9);
+    expect(h.text).toBe(`75.2${N}°F`);
+  });
+  it("a sensor with no unit is °C", () => {
+    expect(roomHeat(f, 0, "temperature", { t1: st("23"), t2: st("23") })!.c).toBe(23);
+  });
+  it("none without a reading, and humidity has no °C", () => {
+    expect(roomHeat(f, 0, "temperature", {})).toBeNull();
+    const h = floor([room("Bath", sq(0, 0, 400, 400), { humidity: ["h1"] })]);
+    expect(roomHeat(h, 0, "humidity", { h1: st("55", "%") })!.c).toBeUndefined();
   });
 });

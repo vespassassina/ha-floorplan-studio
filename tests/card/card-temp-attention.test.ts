@@ -6,20 +6,19 @@ import { useLanguage } from "../../src/card/i18n";
 import { pickRoom } from "../../src/card/card-overview";
 
 // S42.3 (docs/specs/temp-range.md, decision 12): the Overview lists a room that warns, "Kitchen 27.4 °C, above 26". The card's
-// `_tempWarn` is what S42.4 will fill from the onset memory; here it is set by hand. The row's tap is in card-temp-attention.spec.ts.
+// S42.4 fills `_tempWarn` from the onset memory; hold 0 and a reading out of range (or inside it, for no warning) make it real. The row's tap is in card-temp-attention.spec.ts.
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-31T09:30:15Z" });
 const settle = async (el: FloorplanStudioCard) => { for (let i = 0; i < 6; i++) { await el.updateComplete; await new Promise((r) => setTimeout(r, 0)); } };
 
 async function mount(roomName: string, language: string, warn: Record<string, "hot" | "cold">) {
   await useLanguage(language); // the catalogue is a lazy chunk: load it before the first draw
   const layout = structuredClone(demo) as any;
-  layout.tempRange = { min: 17, max: 26 };
+  layout.tempRange = { min: 17, max: 26, hold: 0 };
   Object.assign(layout.floors.ground.rooms[1], { name: roomName, temps: ["sensor.k"] }); // room-ground-2
   const el = document.createElement("floorplan-studio-card") as FloorplanStudioCard;
   document.body.appendChild(el);
   el.setConfig({ layout, floor: "ground" } as never);
-  el._tempWarn = warn;
-  el.hass = { states: { "sensor.k": st("27.4", { unit_of_measurement: "°C" }) }, themes: { darkMode: false }, language } as never;
+  el.hass = { states: { "sensor.k": st(Object.keys(warn).length ? "27.4" : "22", { unit_of_measurement: "°C" }) }, themes: { darkMode: false }, language } as never;
   await settle(el);
   return el;
 }

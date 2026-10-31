@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { TempWatch, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { CamThumb, HeatKind, LayerId, OffRow, SearchEntry } from "../core";
 import type { Attention, ThingRef, PowerCandidate, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -680,8 +680,10 @@ export class FloorplanStudioCard extends LitElement {
   _pulseTimer: ReturnType<typeof setTimeout> | null = null;
   /** `attention()` for the layout and states on show, computed once per pair: the pills and the Overview both read it. */
   _attnMemo: { layout: Layout; states: unknown; reg: unknown; warn: unknown; a: Attention } | null = null;
-  /** S42.3: the rooms out of range by id, as `tempWarn` decided; Attention lists them. S42.4 keeps the onset memory that fills it. */
-  _tempWarn: Readonly<Record<string, "hot" | "cold">> | undefined = undefined;
+  /** S42.4: the onset memory behind `_tempWarn`, on live states. Its timer wakes the card when a room's hold elapses with no new state. */
+  private _temps = new TempWatch(() => this.requestUpdate());
+  /** S42.3: the rooms out of range by id, as `tempWarn` decided (`_temps`); the plan tints them and Attention lists them. */
+  get _tempWarn(): Readonly<Record<string, "hot" | "cold">> | undefined { return this._temps.warn; }
   private _actionsPanel: HTMLElement | null = null;
   private _unbindPanel: (() => void) | null = null;
   /** S12.4: the 3D host the taps are bound on, and what unbinds them. */
@@ -1137,6 +1139,7 @@ export class FloorplanStudioCard extends LitElement {
     this._releaseFocus();
     closeReplay(this); // N5: a card attached again later must not show a stale window; before _stopTimer, which closeReplay's _syncTimer could restart
     this._stopTimer();
+    this._temps.stop();
     const sub = this._sub; // may still be on its way: unsubscribe when it lands
     this._sub = null;
     void sub?.then((u) => u(), () => undefined);
@@ -1518,6 +1521,7 @@ export class FloorplanStudioCard extends LitElement {
 
   protected willUpdate(changed: PropertyValues): void {
     super.willUpdate(changed);
+    this._temps.sync(this._layout, this._hass?.states, Date.now());
     this._peopleWere = new Map();
     const devices = this._floor()?.devices;
     this.shadowRoot?.querySelectorAll<SVGGElement>("g.dev-person[data-x]").forEach((g) => {
@@ -1944,6 +1948,7 @@ export class FloorplanStudioCard extends LitElement {
       zoom: box.w > 0 ? fit.w / box.w : undefined, // S25.4: labels keep their on-screen size at any zoom
       bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - qstrip(this._strip, fit.w)) } : undefined, // S23 review S3: names stay off the control stack
       state: this._stateForRender(),
+      tempWarn: replayStates(this) ? undefined : this._tempWarn, // the warning is of live states; a replay frame has none (Sprint 43)
       formatState: this._format,
       now: this._now(),
       fade: this._config.fade,

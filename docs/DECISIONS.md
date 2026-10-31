@@ -2,6 +2,35 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-31: Sprint 42 spends 1,752 bytes, not 1,000 (Diego)
+
+Supersedes spec decision 4 (`docs/specs/temp-range.md`). `gzip -9` of `dist/floorplan-studio-card.js`: 121,685 at cc59805,
+before the sprint; 123,437 after S42.4, +1,752. S42.1 to S42.3 took 1,098 of it, S42.4 654. Diego accepted the figure over a
+trim, which would have cut into code just reviewed. The 124,650 cap holds with 1,213 to spare; replay 2 needs 600 of that.
+`size-budget.spec.ts` is unchanged: its limit is the cap, and the cap did not move.
+
+## 2026-10-31: S42.4, where the onset lives and how a hold wakes the card
+
+Spec decision 8 left the mechanism open.
+
+- **One class in core, `TempWatch` (`src/core/temp-watch.ts`).** The card and the studio's live view each hold one. It keeps the
+  onset per room id in memory, calls `tempWarn` with `roomHeat(...).c` for every room of every floor, and keeps the same `warn`
+  object while nothing changed, so a host compares it by reference and a quiet hass update draws nothing new. Finding 8: one
+  code path, so the card and the studio cannot differ.
+- **It runs in `willUpdate`, memoised on the layout and the states.** Not in the `hass` setter: a layout change (a range edited in
+  the studio) must decide again too, and `willUpdate` sees both. A render for any other reason finds the same two references and
+  does nothing. `roomHeat` gains `c` (temperature only) for this; the readout, the map and the warning read one number.
+- **The hold is a timer, not a poll.** A room out but not yet held would otherwise warn only on the next state change, and a
+  sensor that reports on change may not report for an hour. `sync` returns the ms until the nearest held room warns and sets one
+  `setTimeout` for it (+1 ms); it asks the host for a render, which runs `sync` again. At most one timer, no interval, cleared
+  on disconnect (a test counts the timers). A timer that fires early finds the room not held and sets the next one.
+- **The plan is drawn without the warning while a replay shows past states** (`tempWarn: undefined`): the memory is of live
+  states, and Sprint 43 passes the flag frame to frame. Attention keeps the live warning, as it keeps live states then.
+- **Not in 3D.** The 3D view takes no heat map either; it has no render opts for the wash.
+- **Two S42.3 tests changed their set-up, not their claims.** `card-temp-attention` set `_tempWarn` by hand "until S42.4"; the card
+  now owns that field (getter only), so they use `hold: 0` and a reading out of range. Existing `roomHeat` temperature tests
+  moved from `toEqual` to `toMatchObject` for `text` and `t`; `c` has its own tests.
+
 ## 2026-10-31: Review fixes for S42.2, S42.3 and S42.5
 
 From the Opus re-check of PRs 9 to 11. Each has a test that failed first.

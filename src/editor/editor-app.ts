@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, MAX_VIEWS, alignCandidates, chooseAlign, alignSummary, alignStatus, alignKeyOf, stairPlace, stairReport, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, anyRoomHeated, heatLegend, ThumbFeed, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { TempWatch, COORD_LIMIT, DEFAULT_MOTION_FADE_S, MAX_VIEWS, alignCandidates, chooseAlign, alignSummary, alignStatus, alignKeyOf, stairPlace, stairReport, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, anyRoomHeated, heatLegend, ThumbFeed, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -325,6 +325,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.requestUpdate();
   }
   private _hassStates: StateOverlay | undefined;
+  private temps = new TempWatch(() => this.requestUpdate());
   private _fadeTimer: ReturnType<typeof setInterval> | null = null;
   /** The states the render reads: a motion sensor's own `last_changed` is when it went off, which is when its fade starts. */
   private stateForRender(): StateOverlay | undefined { return this._hassStates; }
@@ -653,6 +654,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.temps.stop();
     this.thumbs.want(false);
     this.renderRoot.removeEventListener("error", this.onThumbError, true);
     this.removeEventListener("keydown", this.onKey);
@@ -688,6 +690,7 @@ export class FloorplanStudioEditor extends LitElement {
   private closeBanner() { clearTimeout(this.bannerTimer); this.banner = null; this.status = ""; }
 
   protected willUpdate(changed: Map<string, unknown>) {
+    this.temps.sync(this.st.layout, this._hassStates, Date.now()); // S42.4: the live view's warning, the same onset memory as the card's
     if (this.linkScope && this.st.f !== this.linkFloor) { this.linkScope = null; if (this.asideMode === "link") this.asideMode = "selection"; } // R2
     if (changed.has("status") && this.banner?.text !== this.status) this.notify(this.status); // already shown by an explicit notify, with its level and action
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
@@ -3292,7 +3295,7 @@ export class FloorplanStudioEditor extends LitElement {
     const { activeGroup } = floorGroups(st);
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, handles: !(this.asideMode === "align" && this.alignKey === st.floor), trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, ghost: this.ghostOpts(), labels: st.labels, heat: st.heat, camThumb: st.cam.on ? { ...st.cam, bust: this.thumbs.bust, failed: this.thumbs.failed } : undefined, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, handles: !(this.asideMode === "align" && this.alignKey === st.floor), trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), tempWarn: this.temps.warn, now: Date.now(), roomGlow: true, ghost: this.ghostOpts(), labels: st.labels, heat: st.heat, camThumb: st.cam.on ? { ...st.cam, bust: this.thumbs.bust, failed: this.thumbs.failed } : undefined, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
     const find = this.findData();
     return html`
       <div class="narrow-note" id="narrowNote" role="status"><p>The Studio needs a wider screen.</p>${this.dashboardHref ? html`<p><a href=${this.dashboardHref}>Open the dashboard</a></p>` : nothing}</div>
