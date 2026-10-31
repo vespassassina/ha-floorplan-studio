@@ -65,7 +65,7 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
     const parts = [...counts(total), ...(sensors.size ? [tn("motion on {n} sensor", "motion on {n} sensors", sensors.size)] : [])];
     const top = Math.max(1, ...b);
     return html`<div class="fp-rp-strip" role="img" aria-label=${parts.join(", ") || t("No events")}>
-      <div class="fp-rp-band">${b.map((n) => html`<i style="opacity:${n ? (0.2 + (0.8 * n) / top).toFixed(2) : 0}"></i>`)}</div>
+      <div class="fp-rp-band">${b.map((n) => html`<i style="opacity:${n ? (0.1 + (0.4 * n) / top).toFixed(2) : 0}"></i>`)}</div>
       ${c.map((k) => html`<span class="fp-rp-tick fp-rp-t-${k.group}" style="left:${k.x.toFixed(1)}px;height:${k.height}px" title=${counts(k.n).join(", ")} @click=${() => h.jump(k.first.t)}></span>`)}
     </div>`;
   };

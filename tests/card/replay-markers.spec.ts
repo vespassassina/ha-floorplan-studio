@@ -86,7 +86,9 @@ test.describe("R2.3 markers on the slider", () => {
     // 10:00 is 22 hours into the window: the bucket of 15 minutes at index 88 is the only one drawn.
     const op = await card(page).locator("css=.fp-rp-band i").evaluateAll((els) => els.map((e) => Number(getComputedStyle(e).opacity)));
     expect(op).toHaveLength(96);
-    expect(op[88]).toBeGreaterThan(0.9);
+    // The busiest bucket is at most half strength, so the ticks above it stay readable (blueprint drew it solid white).
+    expect(op[88]).toBeGreaterThan(0.45);
+    expect(op[88]).toBeLessThanOrEqual(0.5);
     expect(op.filter((o) => o > 0)).toHaveLength(1);
   });
 
