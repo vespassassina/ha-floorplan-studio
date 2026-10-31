@@ -215,20 +215,26 @@ export function onHandleClick(c: FloorplanStudioCard): void {
   c.requestUpdate();
 }
 
-/** The pointer that last pressed inside the phone's sheet, read in the capture phase so no control's own handler can hide it. */
-export function onSheetDown(c: FloorplanStudioCard, e: PointerEvent): void {
-  c._sheetPointer = e.pointerId;
+/** The pointer that last pressed in the card, on the host in the capture phase, so it runs before any listener inside. */
+export function onCardDown(c: FloorplanStudioCard, e: PointerEvent): void {
+  c._outsidePress = e.pointerId;
+}
+
+/** A press inside the phone's sheet runs after the host's, and clears it: that press was not outside. */
+export function onSheetDown(c: FloorplanStudioCard): void {
+  c._outsidePress = null;
 }
 
 /** A finger that picks a room on pointerup raises the sheet, and Chromium hit-tests the tap's click later, where the finger was: on
- *  a slow machine the risen sheet is there and the click pressed the handle or a control in it (CI, PR 5; Opus review, S41). A pointer
- *  click counts in the sheet only when its pointer pressed in the sheet. A touch gets a new pointer id each time, so nothing goes
- *  stale. A keyboard click (detail 0) has no press and always counts; so does a click with no pointer id (Safari before 17.4 sends
- *  a plain MouseEvent), where the guard cannot tell and must not drop every tap. */
+ *  a slow machine the risen sheet is there and the click pressed the handle or a control in it (CI, PR 5; Opus review, S41). The
+ *  sheet drops a pointer click only when its id is that of the last press, and that press was outside the sheet. The rule fails
+ *  open: WebKit's tap is a touch press with id 0 and a mouse click with id 1, and a guard that required a matching press in the
+ *  sheet dropped every tap on iOS (Opus re-check, S41). Firefox gives every touch id 0, which this still catches. A keyboard click
+ *  (detail 0) and a click with no pointer id (Safari before 17.4) always count. */
 export function onSheetClick(c: FloorplanStudioCard, e: MouseEvent): void {
   if (e.detail === 0) return;
   const id = (e as Partial<PointerEvent>).pointerId;
-  if (id === undefined || id === c._sheetPointer) return;
+  if (id === undefined || id !== c._outsidePress) return;
   e.stopPropagation();
   e.preventDefault();
 }

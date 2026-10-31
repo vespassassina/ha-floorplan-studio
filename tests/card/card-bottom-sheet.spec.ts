@@ -123,18 +123,24 @@ test.describe("S31.8 the phone bottom sheet", () => {
   // PR 5, CI shard 3: a finger on a room picks it on pointerup, and the sheet rises. Chromium sends the tap's click later, hit-tested
   // where the finger was, and on a slow machine the risen sheet is there by then: the click took the sheet back to peek from the
   // handle, and the Opus review showed it pressing a control inside the sheet too. On a fast machine the click lands first, so these
-  // tests send that click themselves: a click whose pointer id no press in the sheet had (Chromium's click is a PointerEvent with
-  // the tap's id), at the real top element there.
+  // tests send that click themselves: a click with the id of the room tap's own press (Chromium's click is a PointerEvent with the
+  // tap's id), at the real top element there. `trackPress` records that id in the page.
   // A finger's own tap and Enter (a click with detail 0) still act.
+  const trackPress = (page: Page) => page.evaluate(() => {
+    window.addEventListener("pointerdown", (e) => { (window as unknown as { __press: number }).__press = e.pointerId; }, true);
+  });
   const lateClick = (page: Page, p: { x: number; y: number }) => page.evaluate(({ x, y }) => {
+    const pointerId = (window as unknown as { __press?: number }).__press;
+    if (pointerId === undefined) throw new Error("no press recorded: call trackPress first");
     let top = document.elementFromPoint(x, y);
     while (top?.shadowRoot) { const inner = top.shadowRoot.elementFromPoint(x, y); if (!inner || inner === top) break; top = inner; }
-    top?.dispatchEvent(new PointerEvent("click", { bubbles: true, composed: true, cancelable: true, detail: 1, clientX: x, clientY: y, pointerId: 9999, pointerType: "touch" }));
+    top?.dispatchEvent(new PointerEvent("click", { bubbles: true, composed: true, cancelable: true, detail: 1, clientX: x, clientY: y, pointerId, pointerType: "touch" }));
     return top?.closest("button")?.getAttribute("aria-label") ?? top?.closest("button")?.className ?? null;
   }, p);
 
   test("the click a room tap sends after the sheet rose does not move the handle; Enter still does", async ({ page }) => {
     await bootTouch(page, phone);
+    await trackPress(page);
     const st = await stops(page);
     await tapPlan(page, `svg polygon[data-r="${roomIndex("ground", "Kitchen")}"]`);
     expect(await settled(page)).toBeCloseTo(st.half, 0);
@@ -147,6 +153,7 @@ test.describe("S31.8 the phone bottom sheet", () => {
 
   test("the late click does not press a control in the sheet; a finger on it does", async ({ page }) => {
     await bootTouch(page, phone);
+    await trackPress(page);
     await tapPlan(page, `svg polygon[data-r="${roomIndex("ground", "Kitchen")}"]`);
     await settled(page);
     const before = (await calls(page)).length;
@@ -157,16 +164,25 @@ test.describe("S31.8 the phone bottom sheet", () => {
     await expect.poll(async () => (await calls(page)).length, { message: "the finger's own tap calls" }).toBeGreaterThan(before);
   });
 
-  test("after a finger drags the handle, a later late click still does not move it", async ({ page }) => {
+  test("after a finger drags the handle, a room tap's late click still does not move it", async ({ page }) => {
     await bootTouch(page, phone);
+    await trackPress(page);
     const st = await stops(page);
-    const h = centre((await boxOf(page, HANDLE))!), to = h.y - (st.half - st.peek);
-    // A touch drag sends no click afterwards; a flag set on the press and cleared on the click stayed set (Opus review, S41).
+    // A touch drag sends no click afterwards; a flag set on the press and cleared on the click stayed set (Opus review, S41). Up to
+    // half and back to peek, so the room is in sight for the tap that follows.
     const cdp = await page.context().newCDPSession(page);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: h.x, y: h.y }] });
-    for (let i = 1; i <= 10; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: h.x, y: h.y + ((to - h.y) * i) / 10 }] });
-    await frames(page, 10);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    const drag = async (dy: number) => {
+      const h = centre((await boxOf(page, HANDLE))!);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: h.x, y: h.y }] });
+      for (let i = 1; i <= 10; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: h.x, y: h.y + (dy * i) / 10 }] });
+      await frames(page, 10);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    await drag(-(st.half - st.peek));
+    expect(await settled(page)).toBeCloseTo(st.half, 0);
+    await drag(st.half - st.peek);
+    expect(await settled(page)).toBeCloseTo(st.peek, 0);
+    await tapPlan(page, `svg polygon[data-r="${roomIndex("ground", "Kitchen")}"]`);
     expect(await settled(page)).toBeCloseTo(st.half, 0);
     expect(await lateClick(page, centre((await boxOf(page, HANDLE))!))).toBe("Overview");
     expect(await settled(page), "the late click left the sheet at half").toBeCloseTo(st.half, 0);
