@@ -17,6 +17,7 @@ export type { BadgeCtx, Rollup } from "./rollup";
 export { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "./bind";
 export { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "./active";
 export type { ActiveDevice, ThingRef } from "./active";
+export { TempWatch } from "./temp-watch";
 export { ATTENTION_KINDS, ATTENTION_RULE, BATTERY_LOW, attention } from "./attention";
 export type { Attention, AttentionItem, AttentionKind, AttentionRef, AttentionRegistry, AttentionRule, FloorAttention } from "./attention";
 export { CATEGORIES, CATEGORY_OF, groupByCategory } from "./categories";

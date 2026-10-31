@@ -13,6 +13,9 @@ export const TEMP_BAND = 0.5;
 /** Minutes a room must stay out before it warns, when the house range names no `hold` (spec 2). */
 export const TEMP_HOLD_DEFAULT = 5;
 
+/** Ms a room must stay out before it warns: the house's `hold` (minutes), else the default. */
+export const tempHoldMs = (layout: Layout): number => 60_000 * (isObj(layout?.tempRange) ? num(own(layout.tempRange, "hold")) ?? TEMP_HOLD_DEFAULT : TEMP_HOLD_DEFAULT);
+
 export interface TempWarnState { out: "hot" | "cold" | null; since: number | null }
 export interface TempWarnResult extends TempWarnState { warn: "hot" | "cold" | null }
 
@@ -44,6 +47,5 @@ export function tempWarn(room: Room, layout: Layout, reading: number | null, pre
 
   // The onset survives only while the room stays out on the same side; a clock that went back restarts it.
   const since = out === was.out && num(was.since) !== undefined && (was.since as number) <= now ? (was.since as number) : now;
-  const holdMin = house ? num(own(house, "hold")) ?? TEMP_HOLD_DEFAULT : TEMP_HOLD_DEFAULT;
-  return { out, since, warn: now - since >= holdMin * 60_000 ? out : null };
+  return { out, since, warn: now - since >= tempHoldMs(layout) ? out : null };
 }
