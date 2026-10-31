@@ -115,6 +115,17 @@ Room for the card. 0.39.0 shipped at 124,649 bytes gzip against a cap of 124,650
   Diego, 2026-10-30: the cap stays 124,650. The 3.1 KB is room for temperature warnings and the next card features;
   each sprint states what it spends in its own entry.
 
+## 2026-10-30: five flaky 3D specs were budgets, not races
+
+In a full run (default workers) four 3D specs failed now and then; each passes alone. With `--repeat-each=40 --workers=8` the base reproduced seven failures in 160 runs. Nothing in the product raced: every frame is real software WebGL, so a spec's wall clock scales with how many Chromiums share the CPU (the labels drag: 4.5 s alone, 14 s at 8 workers, one run at 52 s). No wait or retry was added.
+
+- **Labels, "a drag never flips a label".** Not a race. 60 `mouse.move` steps each wait for a stress-scene frame (2 s alone, 11 s at 8 workers) and the 30 s test timeout fell on a loaded run. The drag is 12 steps now: still more than five frames, each one sampled in the page, and the assertion that the faded set never changes is untouched.
+- **Pick, 5000 pieces.** The 1 s budget ran across Playwright round trips (`Date.now()` around `mouse.click` plus a 1 s poll). It is now stamped in the page, from the `pointerup` to the `data-ring` change, still under 1 s; the poll only waits (15 s) for the ring to appear.
+- **Framing, floor switch mid-glide.** A race in the test: a 400 ms glide can end between two polls of `data-easing`, so the premise was not always there. The glide is slowed to 20 s (`__fp3d.glideMs`, as the neighbouring tests do) until the switch has landed.
+- **Perf, 2000 trees.** The 10 s budget counted `serve`, `goto` and polling. It is now the page's own time from `setConfig` to the first frame (0.1 to 1 s measured at 8 workers), asserted under 10 s. The canvas is waited for in the page too: after the first frame its main thread stalls for seconds in native software GL (profile: JS under 100 ms), and a poll from outside queued behind it.
+- **Framing, a glide draws three frames** (added 2026-10-31). The fifth: 400 ms held two frames at eight workers, 25 of 40 runs on main. The glide is 2 s in this test; a 1 ms glide still fails it, 40 of 40 pass.
+- **Not done:** a serial Playwright project. In-page timing made it unnecessary.
+
 ## 2026-10-30: Sprint 40 review fixes, and the card lane's calls
 
 From the Opus review of the integrated sprint. Each defect has a test that failed first.

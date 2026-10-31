@@ -527,6 +527,9 @@ test.describe("S32.1 criterion 7: the glide", () => {
           if (!on && w.__ease.began !== null && w.__ease.ended === null) w.__ease.ended = d;
         }).observe(el, { attributes: true, attributeFilter: ["data-easing", "data-drawn"] });
       });
+      // 2 s, not 400 ms: a software-GL frame at eight workers takes over 130 ms, so 400 ms held two (25 of 40 runs on
+      // 2026-10-31). A glide that jumps still draws at most one frame.
+      await page.evaluate(() => (window as unknown as { __fp3d: { glideMs(ms: number): void } }).__fp3d.glideMs(2000));
       await searchKitchen(page);
       await settled(page);
       const e = await page.evaluate(() => (window as unknown as { __ease: { began: number | null; ended: number | null } }).__ease);
@@ -712,9 +715,12 @@ test.describe("S32.1 criterion 9: hostile cases", () => {
 
   test("1024x768: a floor switch mid-glide frames the new floor", async ({ page }) => {
     await boot(page, WIDE, { floor: "all" });
+    const glideMs = (ms: number) => page.evaluate((ms) => (window as unknown as { __fp3d: { glideMs(ms: number): void } }).__fp3d.glideMs(ms), ms);
+    await glideMs(20000); // slow, so the switch lands mid-glide however loaded the machine: a 400 ms glide can end between two polls
     await searchKitchen(page);
     await expect.poll(() => holder(page).getAttribute("data-easing"), { timeout: 3000, message: "the glide shows data-easing" }).not.toBeNull();
     await card(page).locator("css=.fp-floors button", { hasText: "First" }).click();
+    await glideMs(400); // the new floor's own framing glides at the usual pace
     await expect(card(page).locator("css=.fp-floors button", { hasText: "First" })).toHaveAttribute("aria-pressed", "true");
     await settled(page);
     await expectFloorFitted(page, "the First floor");
