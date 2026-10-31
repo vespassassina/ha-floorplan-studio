@@ -2,6 +2,28 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-31: R2.2, the event table and what the spec left open
+
+Spec `docs/specs/replay-2.md`, item 4 and criteria 4 and 14. `src/card/replay/events.ts` holds `EVENT_RULES` (ten device types) and
+`NO_EVENT` (twenty-three, each with the spec's reason); `onsets(index, floor, tools)` returns `{entity, t (ms), group, kind}` in time
+order. Marker `fp-events-v1`; the card file lacks it, the chunk has it (`size-budget.spec.ts`). The chunk is 2,665 gzip (was 1,653),
+the card 123,557 (was 123,558). Choices the spec left open:
+
+- **The baseline is the entity's first row.** No `startMs` is passed: HA sends the start-time state as the first row, and a row
+  needs a row before it to be an onset. An entity with no state before its first change (or a dead one) gives no onset for that row.
+- **Classes, not states.** A rule sorts a state into a class and an onset is entering a class in `fires` from a different one. So
+  `armed_home` to `armed_away` is not an event, `jammed` after `unlocked` is not a second one, and a row the rule calls null
+  (`arming`, `pending`) says nothing: disarmed, arming, armed_away is one onset. Dead rows (`unavailable`, `unknown`) are skipped
+  the same way, so the state after them is compared with the last known one.
+- **A door is read through `doorStateOf` on the states its sensors, locks and cover held, dead rows left out.** Onset when
+  `open || cover` goes false to true; the entity is the one whose row changed it. A door's vibration sensor and a jammed door lock are
+  not onsets (`doorStateOf` does not call jammed open); the spec lists neither for doors.
+- **`kind`** is the device type, `door` for a door or window, `room` for a room's motion sensor. An entity placed twice (two icons, or
+  a device and a door sensor) is one onset.
+- **Handed over, not imported:** `doorStateOf` and `coverActive` come in as `EventTools` (the chunk imports nothing of the card).
+  `MOTION_TYPES` is not handed over: the table names `motion` and `radar` itself, and the all-types test keeps it honest.
+  The hazard classes are copied from `core/attention.ts` (four strings) rather than exported from the card.
+
 ## 2026-10-31: R2.1, the leaner fetch and what its byte rule means
 
 Spec `docs/specs/replay-2.md`, item 1 and criteria 1 to 3. A floor asks for its history in two calls: `light`, `climate`,
