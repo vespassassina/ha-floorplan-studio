@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-31: Sprint 42 spends 1,752 bytes, not 1,000 (Diego)
+
+Supersedes spec decision 4 (`docs/specs/temp-range.md`). `gzip -9` of `dist/floorplan-studio-card.js`: 121,685 at cc59805,
+before the sprint; 123,437 after S42.4, +1,752. S42.1 to S42.3 took 1,098 of it, S42.4 654. Diego accepted the figure over a
+trim, which would have cut into code just reviewed. The 124,650 cap holds with 1,213 to spare; replay 2 needs 600 of that.
+`size-budget.spec.ts` is unchanged: its limit is the cap, and the cap did not move.
+
 ## 2026-10-31: S42.4, where the onset lives and how a hold wakes the card
 
 Spec decision 8 left the mechanism open.
