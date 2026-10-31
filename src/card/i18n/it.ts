@@ -32,6 +32,8 @@ const c: Catalogue = {
   "unlocked": "sbloccato",
   "leak": "perdita",
   "smoke": "fumo",
+  "{reading}, above {bound}": "{reading}, sopra {bound}",
+  "{reading}, below {bound}": "{reading}, sotto {bound}",
   "battery {level} %": "batteria {level} %",
   "battery low": "batteria scarica",
   "unavailable": "non disponibile",

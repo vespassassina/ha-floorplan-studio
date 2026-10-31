@@ -679,7 +679,9 @@ export class FloorplanStudioCard extends LitElement {
   _focusDev: number | null = null;
   _pulseTimer: ReturnType<typeof setTimeout> | null = null;
   /** `attention()` for the layout and states on show, computed once per pair: the pills and the Overview both read it. */
-  _attnMemo: { layout: Layout; states: unknown; reg: unknown; a: Attention } | null = null;
+  _attnMemo: { layout: Layout; states: unknown; reg: unknown; warn: unknown; a: Attention } | null = null;
+  /** S42.3: the rooms out of range by id, as `tempWarn` decided; Attention lists them. S42.4 keeps the onset memory that fills it. */
+  _tempWarn: Readonly<Record<string, "hot" | "cold">> | undefined = undefined;
   private _actionsPanel: HTMLElement | null = null;
   private _unbindPanel: (() => void) | null = null;
   /** S12.4: the 3D host the taps are bound on, and what unbinds them. */
