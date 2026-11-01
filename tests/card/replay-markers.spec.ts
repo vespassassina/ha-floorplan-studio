@@ -17,6 +17,7 @@ const NOW = new Date(2026, 9, 28, 12, 0, 0).getTime();
 const secs = (h: number, m = 0, day = 0) => (NOW + ((h - 12) * 60 + m + day * 1440) * 60000) / 1000;
 const START = secs(12, 0, -1) - 100;
 
+// R2.4: the two jump buttons take 96 px of the strip (two 40 px buttons and two 8 px gaps), so "narrow" is 426 px here, the strip the 330 px of R2.3 had.
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const range = (page: Page) => card(page).locator("css=input.fp-rp-range");
 const strip = (page: Page) => card(page).locator("css=.fp-rp-strip");
@@ -93,7 +94,7 @@ test.describe("R2.3 markers on the slider", () => {
   });
 
   test("criterion 6: a real click on a cluster moves the thumb to its first onset and the plan draws that moment", async ({ page }) => {
-    await boot(page, { width: 330 }); // narrow: the two lamps (20 minutes apart) are one cluster
+    await boot(page, { width: 426 }); // narrow: the two lamps (20 minutes apart) are one cluster
     await expect(ticks(page)).toHaveCount(2);
     await expect(range(page)).toHaveValue("1440");
     await expect(g(page, kitchen)).not.toHaveClass(/\bon\b/);
@@ -133,7 +134,7 @@ test.describe("R2.3 markers on the slider", () => {
   test("criterion 5: a narrower bar clusters again, a wider one splits them", async ({ page }) => {
     await boot(page);
     await expect(ticks(page)).toHaveCount(3);
-    await wrapWidth(page, 330);
+    await wrapWidth(page, 426);
     await expect(ticks(page)).toHaveCount(2);
     await wrapWidth(page, 900);
     await expect(ticks(page)).toHaveCount(3);
@@ -169,9 +170,9 @@ test.describe("R2.3 markers on the slider", () => {
     // The living lamp goes on four more times (09:24, 09:28, 09:32, 09:36): with the kitchen lamp at 09:00 and the first living on at 09:20, six lamp onsets in 36 minutes.
     const rows = ROWS();
     for (let i = 0; i < 4; i++) rows["light.demo_living"].push({ s: "off", lu: secs(9, 22 + 4 * i) }, { s: "on", lu: secs(9, 24 + 4 * i) });
-    await boot(page, { width: 330, rows });
+    await boot(page, { width: 426, rows });
     expect(await ticks(page).evaluateAll((els) => els.map((e) => [e.getAttribute("title"), getComputedStyle(e).height]))).toEqual([["1 door or window", "8px"], ["6 lamps", "16px"]]);
-    await boot(page, { width: 330, rows: ROWS() });
+    await boot(page, { width: 426, rows: ROWS() });
     expect(await ticks(page).evaluateAll((els) => els.map((e) => getComputedStyle(e).height))).toEqual(["8px", "12px"]);
   });
 

@@ -357,6 +357,15 @@ function togglePlay(c: FloorplanStudioCard, r: ReplayState): void {
   paintBar(c);
 }
 
+/** R2.4: to the previous or next onset; a jump pauses play, and with none that way nothing happens, play included. */
+function jumpBy(c: FloorplanStudioCard, r: ReplayState, dir: 1 | -1): void {
+  const o = lib?.neighbour(floorHistory(c)?.onsets ?? [], r.drawnT, dir);
+  if (!o) return;
+  r.playing = false;
+  stopFrames(r);
+  seek(c, r, o.t);
+}
+
 /** The bar's keys live on the bar, not on `window` (CLAUDE.md finding 6): the host only decides what each key does. */
 function onKey(c: FloorplanStudioCard, ev: KeyboardEvent): void {
   const r = c._replay;
@@ -364,6 +373,7 @@ function onKey(c: FloorplanStudioCard, ev: KeyboardEvent): void {
   const onButton = (ev.composedPath()[0] as Element | undefined)?.tagName === "BUTTON";
   const stop = () => { ev.preventDefault(); ev.stopPropagation(); };
   if (ev.key === "Escape") { stop(); closeReplay(c, true); return; }
+  if (ev.shiftKey && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) { stop(); jumpBy(c, r, ev.key === "ArrowLeft" ? -1 : 1); return; }
   if (onButton) return; // Space and Enter on a button are the button's own
   if (ev.key === " ") { stop(); togglePlay(c, r); return; }
   if (floorHistory(c)?.status !== "ready") return;
@@ -396,7 +406,11 @@ function paintBar(c: FloorplanStudioCard): void {
   const wrap = c.shadowRoot?.querySelector<HTMLElement>(".fp-rp-wrap");
   const r = c._replay;
   if (!wrap || !r) return;
+  const held = wrap.contains(c.shadowRoot!.activeElement);
   render(barView(c, r), wrap);
+  // A jump button that reaches its end goes disabled under the finger; focus on it would leave the bar's keys (Escape, Shift+arrows) without a target.
+  const now = c.shadowRoot!.activeElement as HTMLButtonElement | null;
+  if (held && (!now || now.disabled)) wrap.querySelector<HTMLElement>(".fp-replay")?.focus();
   // The markers are clustered over the strip's width, which only the page knows: measure, and draw again if it moved. A resize draws the card again, which comes here.
   const width = wrap.querySelector<HTMLElement>(".fp-rp-strip")?.clientWidth ?? 0;
   if (width !== r.width) { r.width = width; render(barView(c, r), wrap); }
@@ -419,16 +433,16 @@ function barView(c: FloorplanStudioCard, r: ReplayState) {
   const close = () => closeReplay(c, true), key = (e: KeyboardEvent) => onKey(c, e);
   // The full bar is drawn by the replay chunk (replay/bar.ts). Until it is there, a shell with the way out and the message.
   if (!lib) return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} @keydown=${key}><button type="button" class="fp-rp-close" aria-label=${t("Close replay")} @click=${close}>${c._icon(UI_ICONS.close)}</button><span class="fp-rp-msg" role="status">${message}</span></div>`;
-  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: DAY_MINUTES, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, end: r.end, width: r.width },
-    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), info: () => { r.info = !r.info; paintBar(c); } });
+  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: DAY_MINUTES, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, end: r.end, width: r.width, at: r.drawnT },
+    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), jumpBy: (d) => jumpBy(c, r, d), info: () => { r.info = !r.info; paintBar(c); } });
 }
 
 /** The stylesheet of the bar. Colours only through `--fp-*`. Under 640 px of card the time sits above the slider. */
 export const REPLAY_CSS = `
     .fp-rp-wrap { grid-area: bar; container-type: inline-size; min-width: 0; z-index: 3; }
-    .fp-replay { box-sizing: border-box; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; grid-template-areas: "time play range info close" "msg msg msg msg msg"; align-items: center; column-gap: 8px; padding: 6px 8px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border-top: 1px solid var(--fp-idle); }
+    .fp-replay { box-sizing: border-box; display: grid; grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto; grid-template-areas: "time prev play next range info close" "msg msg msg msg msg msg msg"; align-items: center; column-gap: 8px; padding: 6px 8px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border-top: 1px solid var(--fp-idle); }
     .fp-rp-time { grid-area: time; min-width: 4.5em; font-variant-numeric: tabular-nums; font-weight: 600; }
-    .fp-rp-play { grid-area: play; } .fp-rp-range { min-width: 0; width: 100%; } .fp-rp-info { grid-area: info; } .fp-rp-close { grid-area: close; }
+    .fp-rp-prev { grid-area: prev; } .fp-rp-play { grid-area: play; } .fp-rp-next { grid-area: next; } .fp-rp-range { min-width: 0; width: 100%; } .fp-rp-info { grid-area: info; } .fp-rp-close { grid-area: close; }
     .fp-rp-msg { grid-area: msg; min-height: 0; color: var(--fp-text); }
     .fp-rp-msg:empty { display: none; }
     .fp-replay button, .fp-rp-open { font: inherit; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; min-width: 32px; min-height: 32px; padding: 0 10px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
@@ -436,5 +450,5 @@ export const REPLAY_CSS = `
     .fp-replay button svg, .fp-rp-open svg { width: 18px; height: 18px; display: block; }
     .fp-rp-idle { padding: 0 8px; } .fp-rp-open { gap: 6px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); }
     .fp-replay input[type=range] { accent-color: var(--fp-ink); }
-    @container (max-width: 640px) { .fp-rp-word { display: none; } .fp-replay { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "time time time time" "play range info close" "msg msg msg msg"; } }
+    @container (max-width: 640px) { .fp-rp-word { display: none; } .fp-replay { grid-template-columns: auto auto auto minmax(0, 1fr) auto auto; grid-template-areas: "time time time time time time" "prev play next range info close" "msg msg msg msg msg msg"; } }
 `;
