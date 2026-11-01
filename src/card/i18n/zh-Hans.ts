@@ -274,6 +274,7 @@ const c: Catalogue = {
   "{n} alarm": "{n} 个警报",
   "motion in {n} room": "{n} 个房间检测到移动",
   "Filter events": "筛选事件",
+  "Filter events, {n} off": "筛选事件，已关闭 {n} 项",
   "Doors and windows": "门和窗",
   "Rooms": "房间",
   "No events": "无事件",

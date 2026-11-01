@@ -41,7 +41,7 @@ const LAYOUT = () => {
   return l;
 };
 
-async function boot(page: Page, o: { width?: number; layout?: unknown; theme?: string } = {}) {
+async function boot(page: Page, o: { width?: number; layout?: unknown; theme?: string; rows?: Record<string, unknown[]> } = {}) {
   await page.clock.setFixedTime(NOW);
   await serve(page);
   await page.setViewportSize({ width: 1100, height: 800 });
@@ -68,7 +68,7 @@ async function boot(page: Page, o: { width?: number; layout?: unknown; theme?: s
     el.setConfig(config);
     el.hass = w.__mk(rows);
     return el.updateComplete;
-  }, [{ layout: o.layout ?? LAYOUT(), floor: "ground", theme: o.theme ?? "light", active_list: false }, ROWS()] as const);
+  }, [{ layout: o.layout ?? LAYOUT(), floor: "ground", theme: o.theme ?? "light", active_list: false }, o.rows ?? ROWS()] as const);
   await openMenu(page);
   await menuItem(page, "replay").click();
   await expect(range(page)).toBeEnabled();
@@ -121,9 +121,15 @@ test.describe("R2.6 filters by group and room", () => {
   });
 
   test("criterion 11: a door between two rooms stays while either is on; an event with no room needs every room on", async ({ page }) => {
-    await boot(page);
+    // A lamp standing in no room (far outside the plan) at 10:30: the one onset without a room.
+    const layout = LAYOUT();
+    layout.floors.ground.devices.push({ id: "light-out", type: "light", entity: "light.outside", name: "Outside", x: 5000, y: 5000 });
+    await boot(page, { layout, rows: { ...ROWS(), "light.outside": [{ s: "off", a: {}, lu: START }, { s: "on", a: {}, lu: secs(10, 30) }] } });
+    await expect(ticks(page)).toHaveCount(4);
+    await expect(strip(page)).toHaveAttribute("aria-label", "3 lamps, 1 door or window, motion in 1 room");
     await openList(page);
-    await click(room(page, 0)); // Living room off: its lamp goes, the door stays (Hall is on)
+    await expect(card(page).locator("css=.fp-rp-menu [data-r]")).toHaveCount(3); // the outside lamp adds no room to the list
+    await click(room(page, 0)); // Living room off: its lamp goes, the door stays (Hall is on); the lamp with no room goes with it
     await expect(ticks(page)).toHaveCount(2); // door, kitchen lamp
     await expect(strip(page)).toHaveAttribute("aria-label", "1 lamp, 1 door or window, motion in 1 room");
     await click(prev(page));
@@ -143,7 +149,7 @@ test.describe("R2.6 filters by group and room", () => {
     await openList(page);
     await click(room(page, 0));
     await click(room(page, 2));
-    await expect(ticks(page)).toHaveCount(3);
+    await expect(ticks(page)).toHaveCount(4); // every room on again: the lamp with no room is back
   });
 
   test("criterion 11: with every group off nothing is left, and the jumps and the name say so", async ({ page }) => {
@@ -175,6 +181,20 @@ test.describe("R2.6 filters by group and room", () => {
     await click(room(page, 0)); await click(room(page, 1)); await click(room(page, 2));
     expect(await plan()).toEqual(before);
     await expect(range(page)).toHaveValue("1320");
+  });
+
+  test("a card detached with the list open takes its click listener off the document", async ({ page }) => {
+    await boot(page);
+    await openList(page);
+    // The list added one capture-phase click listener on the document; count the ones taken off while the card goes.
+    const removed = await page.evaluate(() => {
+      const seen: string[] = [], real = document.removeEventListener.bind(document);
+      document.removeEventListener = ((type: string, fn: EventListener, opt?: unknown) => { seen.push(`${type}:${opt === true}`); real(type, fn, opt as boolean); }) as typeof document.removeEventListener;
+      document.getElementById("card")!.remove();
+      document.removeEventListener = real;
+      return seen;
+    });
+    expect(removed).toContain("click:true");
   });
 
   test("Escape closes the list first and gives focus back to the button; the next Escape closes the bar", async ({ page }) => {

@@ -4833,7 +4833,7 @@ the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
   window-aware keys in `card-replay.ts`; card 123,845 to 123,958 gzip (+113), replay chunk 4,046 to 4,725, limit 6,000.
 - R2.6 Filters by group and room; they change markers and jumps, never the plan.
   Done 2026-11-01: `replay/filters.ts` (state), `allows` and `Onset.rooms` in `replay/events.ts`, `doorRoomIndexes` in `core/active.ts`, the button and
-  list in `bar.ts`; card 123,959 to 124,047 gzip (+88), replay chunk 4,770 to 5,877, limit 6,000.
+  list in `bar.ts`; card 123,959 to 124,060 gzip (+101), replay chunk 4,770 to 5,906, limit 6,000.
 - R2.7 The 7-day gate: a 180k-row fixture parsed and indexed in under 1.5 s at 4x CPU throttle and under 60 MB of heap,
   or 7 days is cut and the reason goes into DECISIONS.
 

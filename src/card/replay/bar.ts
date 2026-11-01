@@ -112,9 +112,11 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
     </div>`;
   };
   const shown = m.hours > 24 ? `${weekday(m.at, m.hass)} ${m.shown}` : m.shown;
-  const onset = m.onsets?.find((o) => o.t === m.at), text = onset ? `${shown}, ${eventSaid(t, onset)}` : shown;
-  const go = (dir: 1 | -1, cls: string, name: string, path: string) => html`<button type="button" class=${cls} aria-label=${name} title=${name} ?disabled=${!m.ready || !neighbour(m.onsets ?? [], m.at, dir, (o) => allows(f, o))} @click=${() => h.jumpBy(dir)}>${icon(path)}</button>`;
   const f: Filters = m.filter ?? ALL_ON, fs = m.filter;
+  // Only an onset the filters let through is named: a lamp filtered away at the moment of a lock is not announced.
+  const onset = m.onsets?.find((o) => o.t === m.at && allows(f, o)), text = onset ? `${shown}, ${eventSaid(t, onset)}` : shown;
+  const go = (dir: 1 | -1, cls: string, name: string, path: string) => html`<button type="button" class=${cls} aria-label=${name} title=${name} ?disabled=${!m.ready || !neighbour(m.onsets ?? [], m.at, dir, (o) => allows(f, o))} @click=${() => h.jumpBy(dir)}>${icon(path)}</button>`;
+  const off = f.groups.size + f.rooms.size, name = off ? t("Filter events, {n} off", { n: off }) : t("Filter events");
   // R2.6: the groups, and the rooms that have an onset in the window (all groups, whatever is off now, so a room stays on the list to be switched back on).
   const menu = () => {
     const have = new Set(m.onsets?.flatMap((o) => o.rooms ?? [])), pressed = (off: boolean) => (off ? "false" : "true");
@@ -129,7 +131,7 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
   return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} aria-busy=${m.ready || m.failed ? "false" : "true"} @keydown=${h.key}>
     <div class="fp-rp-head"><span class="fp-rp-time">${shown}</span>
     <div class="fp-rp-len" role="group" aria-label=${t("Window")}>${WINDOWS.map((w) => html`<button type="button" aria-pressed=${w.hours === m.hours ? "true" : "false"} @click=${() => h.length(w.hours)}>${t("{n} h", { n: w.hours })}</button>`)}</div>
-    ${m.ready && fs ? html`<button type="button" class="fp-rp-filter ${f.groups.size + f.rooms.size ? "fp-rp-filtered" : ""}" aria-label=${t("Filter events")} title=${t("Filter events")} aria-expanded=${fs.open ? "true" : "false"} @click=${(e: Event) => { fs.button = e.currentTarget as HTMLElement; fs.show(!fs.open); }}>${icon(FILTER)}</button>` : nothing}</div>
+    ${m.ready && fs ? html`<button type="button" class="fp-rp-filter ${off ? "fp-rp-filtered" : ""}" aria-label=${name} title=${name} aria-expanded=${fs.open ? "true" : "false"} @click=${(e: Event) => { fs.button = e.currentTarget as HTMLElement; fs.show(!fs.open); }}>${icon(FILTER)}</button>` : nothing}</div>
     ${m.ready && fs?.open ? menu() : nothing}
     ${go(-1, "fp-rp-prev", t("Previous event"), PREV)}
     <button type="button" class="fp-rp-play" aria-label=${play} title=${play} ?disabled=${!m.ready} @click=${h.play}>${icon(m.playing ? PAUSE : PLAY)}</button>

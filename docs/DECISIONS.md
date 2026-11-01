@@ -4,8 +4,8 @@ Newest first. A change supersedes; nothing is edited.
 
 ## 2026-11-01: R2.6, replay filters by group and room
 
-Spec `docs/specs/replay-2.md` items 14, 15 and criteria 11, 12. Card 123,959 to 124,047 gzip (+88, over the +80 aim; the cap for the whole
-spec is 124,168, so 121 are left for R2.7), replay chunk 4,770 to 5,877 (limit 6,000, so 123 left), largest language chunk pl 4,180 (limit 5,000).
+Spec `docs/specs/replay-2.md` items 14, 15 and criteria 11, 12. Card 123,959 to 124,060 gzip (+101, over the +80 aim; the cap for the whole
+spec is 124,168, so 108 are left for R2.7), replay chunk 4,770 to 5,906 (limit 6,000, so 94 left), largest language chunk pl 4,196 (limit 5,000).
 Choices the spec left open:
 
 - **The state lives in the chunk.** `replay/filters.ts` holds `FilterState` (the sets of what is OFF, the open flag, the toggles) and the card keeps one
@@ -24,6 +24,12 @@ Choices the spec left open:
   catalogues changed; three pinned assertions in `replay-markers` followed. The Playwright bar width default went from 900 to 1000 in
   `replay-markers.spec.ts`: the filter button takes 40 px of the slider, and at 900 two clusters merged that the test counts apart.
 - **Not done:** the guard against a late click was not run under CPU throttle (nothing moves on pointerup here).
+- **Opus re-check, fixed:** the bar's close (`closeReplay`) closes each floor's open list, so a card detached or reconfigured with the list open leaves no
+  document listener; the value text names only an onset the filters let through; the filter button's name says "Filter events, N off" while anything is off
+  (a menu button takes no `aria-pressed`; one new key in the nine catalogues).
+- **Known, left:** a zone's motion sensor gets a zone toggle in the list (spec item 15 says rooms and zones are rooms of the plan); one malformed door
+  drops every door's rooms (`validate` keeps bad doors out of a loaded layout, so it is a layout the card was never given); the list is rebuilt on each
+  play frame (only while it is open, and Play keeps repainting the bar anyway).
 
 ## 2026-11-01: at 48 h the replay time names its day (Diego)
 
