@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-01: at 48 h the replay time names its day (Diego)
+
+A 48-hour window shows each clock time twice, so "09:00" did not say which day. Above 24 h the bar's time and its
+`aria-valuetext` carry the short weekday in the card's language ("Wed 09:00"); at 24 h they stay the time alone. `weekday`
+lives in `replay/window.ts`, so the card does not grow: card 123,958 to 123,959 gzip (the chunk's file name), replay chunk
+4,725 to 4,770 (limit 6,000).
+
 ## 2026-11-01: R2.5, the 48 h window and the length selector
 
 Spec `docs/specs/replay-2.md`, items 10, 11, 13 and criteria 8, 10. Card 123,845 to 123,958 gzip (+113, under the +150 aim; replay 2 may reach

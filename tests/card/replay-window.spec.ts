@@ -113,7 +113,7 @@ test.describe("R2.5 the 48 h window", () => {
       expect(Date.parse(m.end_time)).toBe(NOW);
       expect(Date.parse(m.start_time)).toBe(NOW - 48 * 3600000);
     }
-    await expect(shown(page)).toHaveText("09:00");
+    await expect(shown(page)).toHaveText("Wed 09:00"); // 28 Oct, with its day at 48 h
     await expect(range(page)).toHaveValue("2700"); // 09:00 today is 3 h before the end of 2880
   });
 
@@ -129,6 +129,20 @@ test.describe("R2.5 the 48 h window", () => {
     await expect(range(page)).toBeEnabled();
     await expect(range(page)).toHaveValue("0");
     await expect(shown(page)).toHaveText("12:00"); // the start of the 24 h window, 27 Oct 12:00
+  });
+
+  test("at 48 h the time names its day, since 09:00 happens twice; at 24 h it does not (Diego, 2026-11-01)", async ({ page }) => {
+    await boot(page);
+    await click(len(page, "48 h"));
+    await expect(range(page)).toBeEnabled();
+    await range(page).focus();
+    await page.keyboard.press("Home"); // 26 Oct 2026 12:00, a Monday
+    await expect(shown(page)).toHaveText("Mon 12:00");
+    await expect(range(page)).toHaveAttribute("aria-valuetext", "Mon 12:00");
+    await page.keyboard.press("End"); // 28 Oct 12:00, a Wednesday
+    await expect(shown(page)).toHaveText("Wed 12:00");
+    await click(len(page, "24 h"));
+    await expect(shown(page)).toHaveText("12:00");
   });
 
   test("item 11: arrows move 5 minutes at 24 h and 10 at 48 h; Page keys an hour at both", async ({ page }) => {
@@ -181,7 +195,7 @@ test.describe("R2.5 the 48 h window", () => {
     await expect(prev(page)).toBeEnabled();
     await click(prev(page));
     await expect(range(page)).toHaveValue("1320");
-    await expect(shown(page)).toHaveText("10:00");
+    await expect(shown(page)).toHaveText("Tue 10:00"); // 27 Oct, with its day at 48 h
   });
 
   test("only the newest length's history is kept: a slow 24 h reply landing after 48 h was chosen changes nothing", async ({ page }) => {

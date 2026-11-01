@@ -1,7 +1,7 @@
 import type { html as Html, nothing as Nothing } from "lit";
 import { neighbour, type Onset } from "./events";
 import { clusters, motionBuckets, type Cluster, type TickGroup } from "./markers";
-import { WINDOWS, dayAndTime } from "./window";
+import { WINDOWS, dayAndTime, weekday } from "./window";
 
 // S40.1: the open bar's markup. It lives in the replay chunk with the parser: a card that never replays does not carry it. The card
 // (card-replay.ts) decides what each control does and what the message says; this file only draws them. It imports nothing at runtime: a
@@ -95,11 +95,12 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
       ${c.map((k) => html`<span class="fp-rp-tick fp-rp-t-${k.group}" style="left:${k.x.toFixed(1)}px;height:${k.height}px" title=${counts(k.n).join(", ")} @click=${() => h.jump(k.first.t)}></span>`)}
     </div>`;
   };
-  const onset = m.onsets?.find((o) => o.t === m.at), text = onset ? `${m.shown}, ${eventSaid(t, onset)}` : m.shown;
+  const shown = m.hours > 24 ? `${weekday(m.at, m.hass)} ${m.shown}` : m.shown;
+  const onset = m.onsets?.find((o) => o.t === m.at), text = onset ? `${shown}, ${eventSaid(t, onset)}` : shown;
   const go = (dir: 1 | -1, cls: string, name: string, path: string) => html`<button type="button" class=${cls} aria-label=${name} title=${name} ?disabled=${!m.ready || !neighbour(m.onsets ?? [], m.at, dir)} @click=${() => h.jumpBy(dir)}>${icon(path)}</button>`;
   const none = tn("{n} entity on this floor has no history", "{n} entities on this floor have no history", m.missing), play = m.playing ? t("Pause") : t("Play");
   return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} aria-busy=${m.ready || m.failed ? "false" : "true"} @keydown=${h.key}>
-    <div class="fp-rp-head"><span class="fp-rp-time">${m.shown}</span>
+    <div class="fp-rp-head"><span class="fp-rp-time">${shown}</span>
     <div class="fp-rp-len" role="group" aria-label=${t("Window")}>${WINDOWS.map((w) => html`<button type="button" aria-pressed=${w.hours === m.hours ? "true" : "false"} @click=${() => h.length(w.hours)}>${t("{n} h", { n: w.hours })}</button>`)}</div></div>
     ${go(-1, "fp-rp-prev", t("Previous event"), PREV)}
     <button type="button" class="fp-rp-play" aria-label=${play} title=${play} ?disabled=${!m.ready} @click=${h.play}>${icon(m.playing ? PAUSE : PLAY)}</button>
