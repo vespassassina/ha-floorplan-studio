@@ -4,8 +4,10 @@ import { DEFAULT_MOTION_FADE_S } from "../core";
 import { entitiesOfDevice, entitiesOfDoor, moreInfoEntities } from "../core/attachments";
 import { carEntities } from "../core/car-status";
 import { coverActive } from "../core/cover";
+import { doorRoomIndexes } from "../core/active";
 import { doorStateOf } from "../core/door-state";
 import { UI_ICONS } from "../core/icons";
+import { roomAt } from "../core/render";
 import type { Floor } from "../core/schema";
 import { NO_ANSWER, STALE_PAGE } from "./load";
 import { closePopup } from "./card-popup";
@@ -13,6 +15,7 @@ import { attentionOf } from "./card-overview";
 import type { FloorplanStudioCard, Hass, HassEntity } from "./floorplan-studio-card";
 import type { HistoryIndex } from "./replay/history";
 import type { Onset } from "./replay/events";
+import type { FilterState } from "./replay/filters";
 
 // S39.2/S39.3: the history replay. The bar, the fetch and the clock live here; the parser and `stateAt` are a chunk of their own
 // (replay/history.ts), loaded on the first Replay. The card draws the past through its one path: `_stateForRender()` and `_now()`
@@ -30,7 +33,7 @@ const FETCH_FAILED = mark("Could not load the history: {why}");
 const TIMED_OUT = mark("no answer in 20 s");
 
 type States = Record<string, HassEntity>;
-interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; onsets?: Onset[]; missing: number; why?: string; ids?: string[]; purgedFrom?: number | null }
+interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; onsets?: Onset[]; missing: number; why?: string; ids?: string[]; purgedFrom?: number | null; filter?: FilterState }
 export interface ReplayState {
   /** The moment the bar opened: the end of the slider. */
   end: number;
@@ -251,7 +254,7 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
     fh.index = await h.fetchHistory((m) => withTimeout(conn.sendMessagePromise<unknown>(m), FETCH_TIMEOUT_MS), ids, start, r.end);
     fh.ids = ids;
     fh.purgedFrom = h.purgedFrom(fh.index, start);
-    fh.onsets = h.onsets(fh.index, f, { doorStateOf, coverActive });
+    fh.onsets = h.onsets(fh.index, f, { doorStateOf, coverActive, roomAt, doorRooms: doorRoomIndexes });
     const sun = c._sunId();
     fh.missing = ids.filter((id) => id !== sun && !fh.index!.has(id)).length;
     fh.status = "ready";
@@ -374,7 +377,7 @@ function togglePlay(c: FloorplanStudioCard, r: ReplayState): void {
 
 /** R2.4: to the previous or next onset; a jump pauses play, and with none that way nothing happens, play included. */
 function jumpBy(c: FloorplanStudioCard, r: ReplayState, dir: 1 | -1, said = false): void {
-  const o = lib?.neighbour(floorHistory(c)?.onsets ?? [], r.drawnT, dir);
+  const fh = floorHistory(c), o = lib?.neighbour(fh?.onsets ?? [], r.drawnT, dir, lib.passes(fh?.filter));
   if (!o) return;
   r.playing = false;
   stopFrames(r);
@@ -388,7 +391,9 @@ function onKey(c: FloorplanStudioCard, ev: KeyboardEvent): void {
   if (!r || ev.ctrlKey || ev.metaKey || ev.altKey) return;
   const onButton = (ev.composedPath()[0] as Element | undefined)?.tagName === "BUTTON";
   const stop = () => { ev.preventDefault(); ev.stopPropagation(); };
-  if (ev.key === "Escape") { stop(); closeReplay(c, true); return; }
+  // The filter list is the innermost thing open: Escape closes it first, the bar on the next press.
+  const menu = floorHistory(c)?.filter;
+  if (ev.key === "Escape") { stop(); if (menu?.open) menu.show(false, true); else closeReplay(c, true); return; }
   if (ev.shiftKey && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) { stop(); jumpBy(c, r, ev.key === "ArrowLeft" ? -1 : 1, onButton); return; }
   if (onButton) return; // Space and Enter on a button are the button's own
   if (ev.key === " ") { stop(); togglePlay(c, r); return; }
@@ -450,7 +455,7 @@ function barView(c: FloorplanStudioCard, r: ReplayState) {
   const close = () => closeReplay(c, true), key = (e: KeyboardEvent) => onKey(c, e);
   // The full bar is drawn by the replay chunk (replay/bar.ts). Until it is there, a shell with the way out and the message.
   if (!lib) return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} @keydown=${key}><button type="button" class="fp-rp-close" aria-label=${t("Close replay")} @click=${close}>${c._icon(UI_ICONS.close)}</button><span class="fp-rp-msg" role="status">${message}</span></div>`;
-  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: r.hours * 60, hours: r.hours, purgedFrom: fh?.purgedFrom, hass: c._hass, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, end: r.end, width: r.width, at: r.drawnT, said: r.said },
+  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: r.hours * 60, hours: r.hours, purgedFrom: fh?.purgedFrom, hass: c._hass, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, filter: fh && (fh.filter ??= lib.newFilter(() => paintBar(c))), rooms: c._floor()?.rooms, end: r.end, width: r.width, at: r.drawnT, said: r.said },
     { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), jumpBy: (d) => jumpBy(c, r, d, true), length: (h) => setHours(c, r, h), info: () => { r.info = !r.info; r.said = undefined; paintBar(c); } });
 }
 

@@ -55,7 +55,7 @@ async function boot(page: Page, o: { width?: number; theme?: string; layout?: un
   });
   await page.goto(`${ORIGIN}/harness.html`);
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-  await wrapWidth(page, o.width ?? 900);
+  await wrapWidth(page, o.width ?? 1000);
   await page.evaluate(([config, rows]) => {
     const w = window as unknown as { __mk(r: unknown): unknown };
     const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
@@ -69,7 +69,8 @@ async function boot(page: Page, o: { width?: number; theme?: string; layout?: un
   await expect(strip(page)).toBeVisible();
 }
 
-/** The card's own container is 900 px wide in the harness; the bar's width follows it, not the viewport. */
+/** The card's own container is 1000 px wide in the harness; the bar's width follows it, not the viewport. */
+// R2.6: the filter button took 40 px from the slider, so the default bar is 1000 px, not 900: 20 minutes were 6.8 px apart at 900 and are 5.8 now.
 const wrapWidth = (page: Page, w: number) => page.evaluate((w) => { document.getElementById("wrap")!.style.width = `${w}px`; }, w);
 
 /** The centre of an element, in page coordinates. */
@@ -82,7 +83,7 @@ test.describe("R2.3 markers on the slider", () => {
   test("criterion 8: the strip is an image named with the totals; one tick per cluster, motion is a band", async ({ page }) => {
     await boot(page);
     await expect(strip(page)).toHaveAttribute("role", "img");
-    await expect(strip(page)).toHaveAttribute("aria-label", "2 lamps, 1 door or window, motion on 1 sensor");
+    await expect(strip(page)).toHaveAttribute("aria-label", "2 lamps, 1 door or window, motion in 1 room");
     await expect(ticks(page)).toHaveCount(3); // the door, and two lamps 11 px apart
     // 10:00 is 22 hours into the window: the bucket of 15 minutes at index 88 is the only one drawn.
     const op = await card(page).locator("css=.fp-rp-band i").evaluateAll((els) => els.map((e) => Number(getComputedStyle(e).opacity)));
@@ -152,7 +153,7 @@ test.describe("R2.3 markers on the slider", () => {
     await expect(ticks(page)).toHaveCount(3);
     await wrapWidth(page, 426);
     await expect(ticks(page)).toHaveCount(2);
-    await wrapWidth(page, 900);
+    await wrapWidth(page, 1000);
     await expect(ticks(page)).toHaveCount(3);
   });
 
@@ -162,7 +163,7 @@ test.describe("R2.3 markers on the slider", () => {
     await boot(page, { layout, rows: { ...ROWS(), "binary_sensor.\"><script>": [{ s: "off", a: {}, lu: START }, { s: "on", lu: secs(7, 0) }] } });
     expect(await card(page).locator("css=script").count()).toBe(0);
     expect(await page.evaluate(() => (window as unknown as { __x?: number }).__x)).toBeUndefined();
-    await expect(strip(page)).toHaveAttribute("aria-label", "2 lamps, 1 door or window, motion on 2 sensors");
+    await expect(strip(page)).toHaveAttribute("aria-label", "2 lamps, 1 door or window, motion in 2 rooms");
   });
 
   test("CSS pair (finding 10): each group's tick paints its own --fp-* colour, taller with more members; the strip is no second slider", async ({ page }) => {
