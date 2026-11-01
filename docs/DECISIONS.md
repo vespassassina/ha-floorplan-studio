@@ -2,6 +2,30 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-01: Sprint 43 review fixes (replay 2, R2.1 to R2.4)
+
+Opus review of `docs/specs/replay-2.md` items 5 to 9. Card 123,833 to 123,840 gzip (+7: +26 for the spoken jump, -19 for two grid rules moved
+to the chunk), replay chunk 3,985 to 4,046 (limit 6,000). Eight fixes, each test first:
+
+1. **Clusters are measured from the cluster's first tick**, not from the tick before it. This supersedes the R2.3 entry's "a cluster joins the
+   one before it ... chained": a run of close ticks chained into one cluster drawn at its start (474 onsets from 07:00 to 24:00 became one
+   cluster at 07:00). A strip `w` px wide now holds up to about `w / 6` clusters, each near where it happened. 0, 5, 7 and 20 px give 2, 1
+   and 1 (were 3 and 1); that R2.3 unit test was changed for it.
+2. **A button jump is spoken through the bar's status line** (the one `role="status"`; no second live region). Focus stays on the button after
+   a click, so `aria-valuetext` is never read. `ReplayState.said` holds the onset's ms; the line shows "21:14, door opened" while the thumb is
+   still on it, so a move off it clears it. It wins over the "no history" info line. A Shift+arrow on the slider is not repeated there (the
+   slider reads its own value text); on a button it is.
+3. **`doorOnsets` walks each entity's rows with one forward index**, not a filter of every row per moment. 20,000 rows on one sensor took
+   about 2.7 s before and under 35 ms after (the whole test file); the unit test bounds it at 1,000 ms. Same output.
+4. **The tick's hit area is 3 px past each side** (`inset:-4px -3px`, was -1px). A real click 4.5 px from the centre hits; a computed-style pair pins it.
+5. **Two hollow tests**: the entity-named-like-markup test now checks that no entity id appears anywhere in the markup (it fails if the
+   id reaches a title); the click-on-the-strip test was deleted (no handler exists there to fail; the real-pixel Playwright test "a click
+   between ticks moves nothing" covers it). Two `frames()` checks in the jump-pauses-play test were dropped (the Play label proves it).
+6. **The "cluster of five" stub** gives light rows `a` on every row (lights come in the full call).
+7. **`.fp-rp-prev` and `.fp-rp-next` grid areas moved into the chunk's stylesheet**: the shell drawn before the chunk loads has neither button.
+8. **The motion band opacity is `0.1 + 0.4 * n / top`** (0.1 to 0.5), which supersedes the R2.3 entry's "opacity 0.2 to 1": blueprint drew
+   the busiest bucket solid white over the ticks.
+
 ## 2026-11-01: furniture, worktops, room badges, floor heating, energy counters and the 3D Studio planned
 
 Spec `docs/specs/batch-s52.md`, approved by Diego with its defaults. Sprints 52 to 61 in `docs/PLAN.md`, after Sprint 51.

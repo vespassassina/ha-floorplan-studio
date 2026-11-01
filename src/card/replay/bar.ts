@@ -43,6 +43,7 @@ export interface BarHandlers { key(e: KeyboardEvent): void; play(): void; seek(m
 
 /** Colours only through `--fp-*`. The strip sits above the slider in the same column; its 8 px margins are the thumb's half width. */
 const MARKER_CSS = `
+.fp-rp-prev{grid-area:prev} .fp-rp-next{grid-area:next}
 .fp-rp-track{grid-area:range;min-width:0;display:flex;flex-direction:column}
 .fp-rp-strip{position:relative;height:8px;margin:10px 8px 2px}
 .fp-rp-band{position:absolute;inset:0;display:flex;pointer-events:none}
