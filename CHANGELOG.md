@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.41.0 - 2026-11-01
+
+Replay shows what happened, not only how it looked. Ticks on the slider mark lamps, doors and windows and alarms, a band shows motion, and two buttons jump to the previous and next event. The bar reaches 48 hours or 7 days back, and a filter list narrows the ticks and jumps to the groups and rooms you choose.
+
+- Card: ticks above the replay slider mark when a lamp went on, a door, window, cover or lock opened, or an alarm went off; close ticks join into one. A soft band shows how much motion there was. A tick's tooltip counts what it holds; a click jumps there.
+- Card: Previous event and Next event buttons, and Shift with the arrow keys, jump to the event before or after the moment on show. A jump pauses play and the time says what happened ("21:14, door opened").
+- Card: the bar offers 24 h, 48 h and 7 d. It opens at 24 h. At 48 h the time names the weekday, at 7 d the date. Arrows move 5, 10 or 30 minutes; Page Up and Down one or six hours. Play stays at 24 hours a minute.
+- Card: if Home Assistant has purged part of the window, the strip greys it and says from when history is kept.
+- Card: a filter button opens a list of the event groups and the rooms that had events. Turning one off removes its ticks and skips it in jumps; the plan is always drawn whole. A door counts in both rooms it joins. Filters stay when you change the length.
+- Card: the replay asks Home Assistant for less: devices whose attributes the plan draws (lamps, covers, climate and the like) send every change; the rest send only significant changes in the compact form.
+
 ## 0.40.0 - 2026-10-31
 
 A room that is too cold or too hot now shows it: a cold or hot tint on the plan and a line in Attention. Set one range for the house in the Studio; a room may have its own.
