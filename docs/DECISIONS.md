@@ -2,6 +2,53 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-01: Opus review of Sprint 44 (R2.5 to R2.7), fixes
+
+Branch `task/s44-review`. Bytes: card 124,059 to 124,096 gzip (cap 124,168; 72 left), replay chunk 5,941 to 5,991 (limit 6,000; 9 left, so the next change to the
+chunk must make room first), largest language chunk pl 4,196 (limit 5,000).
+
+- **The gate now holds two things (supersedes the R2.7 CI-test paragraph).** The R2.7 claim "a 2x slowdown reads about 2.1x the clean ratio" was true of the whole
+  load only. One stage twice as slow does not move the whole ratio enough: parse doubled reads 5.71 to 6.67 here against clean 3.48 to 4.05 (the review saw
+  6.08 to 6.71, 9 to 20 % over the old 5.6), onsets doubled 4.74 to 5.39, under the ceiling. `onsets` is a third of the load (about 15 of 45 ms), so
+  doubling it adds a third. CI makes it worse: its one figure, 3.22 for the whole load, is below the Mac's clean range, so only the whole load doubled (about
+  6.4) fails there.
+  Chosen with evidence: **keep the whole ratio, and add the balance of the two stages**, `parse and index / onsets` timed inside the same load, the median of 25
+  samples (`STAGE_LOW` 1.25, `STAGE_HIGH` 2.62). The machine's speed cancels in it, so no calibrate and no dependence on a runner's layout-to-JS balance.
+  Tried and dropped: each stage against `calibrate` (parse: clean max 2.83 against doubled min 4.16, only 47 % apart, the 25 % each way needs 56 %); each stage
+  against a new pure-JS calibrate (parse: 5.40 against 8.08, 50 %; the median of paired ratios 5.70 against 7.72, 35 %). Those spreads come from the machine drifting
+  by 40 % over a minute, which the in-load ratio does not see. The JS calibrate was removed again.
+  Measured, Diego's Mac, Chromium, unthrottled, fresh page per run, the real test (`replay-gate.spec.ts -g "CI:"`, `FP_GATE_SLOW` runs a stage twice):
+
+  | | runs | whole ratio (ceiling 5.5) | parse/onsets (bounds 1.25 to 2.62) |
+  |---|---|---|---|
+  | clean | 30 | 3.48 to 4.05, median 3.83 | 1.67 to 2.08, median 1.99 |
+  | parse doubled | 15 | 5.71 to 6.67 | 3.31 to 3.93 |
+  | onsets doubled | 15 | 4.74 to 5.39 | 0.79 to 0.93 |
+  | both doubled | 15 | 6.93 to 8.15 | 1.84 to 2.26 |
+
+  Room: balance high bound 26 % over the worst clean and 26 % under the best parse-doubled; low bound 34 % under the lowest clean and 34 % over the best
+  onsets-doubled. Whole ceiling 5.5 (was 5.6; both doubled reads 6.93 at best, 24 % over 5.6): 36 % over this clean worst, 26 % under the best both-doubled; against
+  the earlier worst clean 4.43 it is 24 %. Under load (`--repeat-each=10 --workers=4`, the replay-bar spec alongside): whole 3.42 to 3.79, balance 1.95 to 2.10, green.
+  **On CI:** the whole ceiling holds (3.22 is 41 % under it, and doubled it fails). The balance is not known there: only the total (94.4 ms) was recorded. It
+  needs no calibrate, but a runner whose engine shifts allocation against lookups would move it; the first CI run prints it (`GATE CI ... parse/onsets`), and if it sits
+  outside 1.67 to 2.08 by much, widen before trusting it. Not known and not claimed.
+- **The time cell reserves its width (`min-width` 10ch at 48 h, 14ch at 7 d, `data-h` on the cell, CSS in the chunk).** The slider's grid column follows the head,
+  and the head followed the weekday's glyphs (480.5, 484.7, 479.9 px on Mon, Tue, Wed at 1000 px) or "Nov 1" against "Oct 31". Tests scrub across a weekday and
+  across a 1- and 2-digit day and hold the slider's width to 0.5 px; both failed first (0.67 px and 6.45 px). `ch` is the width of a zero; the longest English forms fit.
+  Not checked: a language whose short weekday or month is longer than four letters.
+- **The strip's accessible name says the purge** ("1 lamp. History is kept from Oct 27, 00:00"), the existing string, so Info is no longer the only place.
+- **Filters survive a new length (Diego, 2026-11-01), superseding R2.6's "filters reset on a floor change and on a new length".** `ReplayState.filters` keeps each floor's
+  `FilterState` by floor key when the histories are dropped, and the new history of that floor takes it back. A floor never opened has none and starts with all on.
+  A room off with no onset in the new window stays off (and counts in "N off", though it has no toggle there); it reappears off. Card +37 bytes (the state stays in the
+  chunk). Test: Lights and a room off at 24 h, 7 d, 24 h: the strip, the jumps and the button's "2 off" held; it failed with the keeping removed.
+- **Two stubs were not HA's shape (finding 21).** The purge stub (`replay-window.spec.ts`, `scripts/shots.mjs`) gave every entity a row at the cut; a purged recorder has no
+  start-time row, each entity starts at its first change kept, and a quiet entity is not in the reply. The filters spec put the start row 100 s before the start;
+  HA puts it at the start. Both stubs now say where the shape comes from and send it. Consequence worth knowing: the first kept row after a purge is read as the
+  start state, not as an onset, so the first change an entity kept after the cut is not a tick or a jump. Left, not changed here (it is the card's rule, "the first
+  row is the start state", and a purge is rare); say if it should change.
+- **Spec criterion 14 and the sizes table** now state the working cap, 124,168 (+600 over 123,568, the card after Sprint 42, per R2.1's entry), not "+600 of 121,511".
+- **Shots:** `card-replay-{48h,7d}-{blueprint,light}-{1280,380}` re-rendered with the new purge stub and looked at.
+
 ## 2026-11-01: R2.7, 7 days ships; the gate and its CI ratio
 
 Spec `docs/specs/replay-2.md` items 10 to 12, criterion 9. The gate passed by a wide margin, so `{ hours: 168, arrow: 30, page: 360 }` is in `WINDOWS`.
