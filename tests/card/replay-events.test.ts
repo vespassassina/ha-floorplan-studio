@@ -16,6 +16,7 @@ const floor = (p: { devices?: object[]; doors?: object[]; rooms?: object[] }) =>
 const dev = (type: string, entity: string) => ({ id: entity, type, entity, x: 0, y: 0 });
 const run = (entity: string, type: string, rows: unknown[]) => onsets(idx({ [entity]: rows }), floor({ devices: [dev(type, entity)] }), tools);
 const ms = (s: number) => s * 1000;
+const LINEAR_MS = 1000;
 
 describe("the table", () => {
   it("names every device type: a rule or a reason to have none (finding 17)", () => {
@@ -66,6 +67,18 @@ describe("one entity per group", () => {
       { entity: "lock.dl", t: ms(1200), group: "opening", kind: "door" },
       { entity: "cover.dc", t: ms(1300), group: "opening", kind: "door" },
     ]);
+  });
+  it("a door on an entity with 60,000 rows is read in linear time (Opus review: it filtered every row for every moment)", () => {
+    const rows: unknown[] = [{ s: "off", a: {}, lu: 1000 }];
+    for (let i = 1; i < 60000; i++) rows.push({ s: i % 2 ? "on" : "off", lu: 1000 + i });
+    const index = idx({ "binary_sensor.busy": rows });
+    const f = floor({ doors: [{ id: "d1", name: "Front", kind: "door", sensors: ["binary_sensor.busy"] }] });
+    const t0 = performance.now();
+    const o = onsets(index, f, tools);
+    const took = performance.now() - t0;
+    expect(o).toHaveLength(30000); // every odd row is an off to on
+    expect(o[0]).toEqual({ entity: "binary_sensor.busy", t: ms(1001), group: "opening", kind: "door" });
+    expect(took).toBeLessThan(LINEAR_MS);
   });
   it("a door whose two sensors both read on is one onset, and a sensor dropping out between is none", () => {
     const f = floor({ doors: [{ id: "d1", name: "Front", kind: "door", sensors: ["binary_sensor.a", "binary_sensor.b"] }] });

@@ -34,6 +34,8 @@ export interface BarModel {
   width: number;
   /** R2.4: the moment on show in ms; the jumps go to the onset before or after it, and the value text names an onset that sits exactly on it. */
   at: number;
+  /** The onset a button jump went to: while the thumb is still on it, the status line speaks the event. */
+  said?: number;
 }
 /** What the card draws with: lit's `html` and `nothing`, its translators, and the X's path. */
 export interface BarTools { html: typeof Html; nothing: typeof Nothing; t(key: string): string; tn(one: string, other: string, n: number): string; close: string }
@@ -41,12 +43,13 @@ export interface BarHandlers { key(e: KeyboardEvent): void; play(): void; seek(m
 
 /** Colours only through `--fp-*`. The strip sits above the slider in the same column; its 8 px margins are the thumb's half width. */
 const MARKER_CSS = `
+.fp-rp-prev{grid-area:prev} .fp-rp-next{grid-area:next}
 .fp-rp-track{grid-area:range;min-width:0;display:flex;flex-direction:column}
 .fp-rp-strip{position:relative;height:8px;margin:10px 8px 2px}
 .fp-rp-band{position:absolute;inset:0;display:flex;pointer-events:none}
 .fp-rp-band i{flex:1;background:var(--fp-text)}
 .fp-rp-tick{position:absolute;bottom:0;width:4px;margin-left:-2px;border-radius:2px;cursor:pointer}
-.fp-rp-tick::before{content:"";position:absolute;inset:-4px -1px}
+.fp-rp-tick::before{content:"";position:absolute;inset:-4px -3px}
 .fp-rp-t-lamp{background:var(--fp-dev-light)} .fp-rp-t-opening{background:var(--fp-open-door)} .fp-rp-t-alarm{background:var(--fp-danger)}
 `;
 /** The strip's tick colours, one variable per group (a test reads each in every theme). */
@@ -93,6 +96,6 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
       @input=${(e: Event) => h.seek(Number((e.target as HTMLInputElement).value))}></div>
     ${m.ready ? html`<button type="button" class="fp-rp-info" aria-label=${none} aria-pressed=${m.info ? "true" : "false"} title=${none} @click=${h.info}>${icon(INFO)}</button>` : nothing}
     <button type="button" class="fp-rp-close" aria-label=${t("Close replay")} title=${t("Close replay")} @click=${h.close}>${icon(close)}</button>
-    <span class="fp-rp-msg" role="status">${m.message || (m.note ? t("Replaying") : m.info ? none : "")}</span>
+    <span class="fp-rp-msg" role="status">${m.message || (m.note ? t("Replaying") : m.said === m.at && onset ? text : m.info ? none : "")}</span>
   </div>`;
 }

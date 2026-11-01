@@ -53,6 +53,8 @@ export interface ReplayState {
   focus: boolean;
   /** R2.3: the strip's width in px, as last measured; the markers are clustered over it.  */
   width: number;
+  /** The onset a button jump went to, ms: the status line speaks it while the moment on show is still that one (focus stays on the button, so `aria-valuetext` is never read). */
+  said?: number;
 }
 
 type Lib = typeof import("./replay/history");
@@ -358,11 +360,12 @@ function togglePlay(c: FloorplanStudioCard, r: ReplayState): void {
 }
 
 /** R2.4: to the previous or next onset; a jump pauses play, and with none that way nothing happens, play included. */
-function jumpBy(c: FloorplanStudioCard, r: ReplayState, dir: 1 | -1): void {
+function jumpBy(c: FloorplanStudioCard, r: ReplayState, dir: 1 | -1, said = false): void {
   const o = lib?.neighbour(floorHistory(c)?.onsets ?? [], r.drawnT, dir);
   if (!o) return;
   r.playing = false;
   stopFrames(r);
+  r.said = said ? o.t : undefined;
   seek(c, r, o.t);
 }
 
@@ -373,7 +376,7 @@ function onKey(c: FloorplanStudioCard, ev: KeyboardEvent): void {
   const onButton = (ev.composedPath()[0] as Element | undefined)?.tagName === "BUTTON";
   const stop = () => { ev.preventDefault(); ev.stopPropagation(); };
   if (ev.key === "Escape") { stop(); closeReplay(c, true); return; }
-  if (ev.shiftKey && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) { stop(); jumpBy(c, r, ev.key === "ArrowLeft" ? -1 : 1); return; }
+  if (ev.shiftKey && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) { stop(); jumpBy(c, r, ev.key === "ArrowLeft" ? -1 : 1, onButton); return; }
   if (onButton) return; // Space and Enter on a button are the button's own
   if (ev.key === " ") { stop(); togglePlay(c, r); return; }
   if (floorHistory(c)?.status !== "ready") return;
@@ -433,8 +436,8 @@ function barView(c: FloorplanStudioCard, r: ReplayState) {
   const close = () => closeReplay(c, true), key = (e: KeyboardEvent) => onKey(c, e);
   // The full bar is drawn by the replay chunk (replay/bar.ts). Until it is there, a shell with the way out and the message.
   if (!lib) return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} @keydown=${key}><button type="button" class="fp-rp-close" aria-label=${t("Close replay")} @click=${close}>${c._icon(UI_ICONS.close)}</button><span class="fp-rp-msg" role="status">${message}</span></div>`;
-  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: DAY_MINUTES, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, end: r.end, width: r.width, at: r.drawnT },
-    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), jumpBy: (d) => jumpBy(c, r, d), info: () => { r.info = !r.info; paintBar(c); } });
+  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: DAY_MINUTES, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, end: r.end, width: r.width, at: r.drawnT, said: r.said },
+    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), jumpBy: (d) => jumpBy(c, r, d, true), info: () => { r.info = !r.info; r.said = undefined; paintBar(c); } });
 }
 
 /** The stylesheet of the bar. Colours only through `--fp-*`. Under 640 px of card the time sits above the slider. */
@@ -442,7 +445,7 @@ export const REPLAY_CSS = `
     .fp-rp-wrap { grid-area: bar; container-type: inline-size; min-width: 0; z-index: 3; }
     .fp-replay { box-sizing: border-box; display: grid; grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto; grid-template-areas: "time prev play next range info close" "msg msg msg msg msg msg msg"; align-items: center; column-gap: 8px; padding: 6px 8px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border-top: 1px solid var(--fp-idle); }
     .fp-rp-time { grid-area: time; min-width: 4.5em; font-variant-numeric: tabular-nums; font-weight: 600; }
-    .fp-rp-prev { grid-area: prev; } .fp-rp-play { grid-area: play; } .fp-rp-next { grid-area: next; } .fp-rp-range { min-width: 0; width: 100%; } .fp-rp-info { grid-area: info; } .fp-rp-close { grid-area: close; }
+    .fp-rp-play { grid-area: play; } .fp-rp-range { min-width: 0; width: 100%; } .fp-rp-info { grid-area: info; } .fp-rp-close { grid-area: close; }
     .fp-rp-msg { grid-area: msg; min-height: 0; color: var(--fp-text); }
     .fp-rp-msg:empty { display: none; }
     .fp-replay button, .fp-rp-open { font: inherit; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; min-width: 32px; min-height: 32px; padding: 0 10px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }

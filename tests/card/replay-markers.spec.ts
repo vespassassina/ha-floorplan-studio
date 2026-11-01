@@ -120,6 +120,22 @@ test.describe("R2.3 markers on the slider", () => {
     expect(await dash.evaluate((e) => getComputedStyle(e).strokeDasharray)).not.toBe("none");
   });
 
+  test("Opus review, CSS pair: a tick's hit area reaches 3 px past each side, so a finger on the edge of the 4 px tick still hits it", async ({ page }) => {
+    await boot(page);
+    const door = ticks(page).first();
+    expect(await door.evaluate((e) => { const c = getComputedStyle(e, "::before"); return [c.left, c.right, c.top, c.bottom]; })).toEqual(["-3px", "-3px", "-4px", "-4px"]);
+    // The pixel: 4.5 px from the centre is 2.5 px outside the drawn tick, inside the hit area.
+    const p = await centre(door);
+    await page.mouse.click(p.x + 4.5, p.y);
+    await expect(range(page)).toHaveValue("1200");
+    await page.mouse.click(p.x + 40, p.y);
+    await expect(range(page)).toHaveValue("1200");
+    await ticks(page).nth(1).click({ position: { x: 2, y: 2 } }); // another moment, to leave 1200 before the left side
+    await expect(range(page)).not.toHaveValue("1200");
+    await page.mouse.click(p.x - 4.5, p.y);
+    await expect(range(page)).toHaveValue("1200");
+  });
+
   test("criterion 6: a click between ticks moves nothing", async ({ page }) => {
     await boot(page);
     const a = await centre(ticks(page).nth(0)), b = await centre(ticks(page).nth(1));
@@ -169,7 +185,7 @@ test.describe("R2.3 markers on the slider", () => {
   test("CSS pair: a cluster of five is 16 px, of two 12 px", async ({ page }) => {
     // The living lamp goes on four more times (09:24, 09:28, 09:32, 09:36): with the kitchen lamp at 09:00 and the first living on at 09:20, six lamp onsets in 36 minutes.
     const rows = ROWS();
-    for (let i = 0; i < 4; i++) rows["light.demo_living"].push({ s: "off", lu: secs(9, 22 + 4 * i) }, { s: "on", lu: secs(9, 24 + 4 * i) });
+    for (let i = 0; i < 4; i++) rows["light.demo_living"].push({ s: "off", a: {}, lu: secs(9, 22 + 4 * i) }, { s: "on", a: {}, lu: secs(9, 24 + 4 * i) }); // lights come in the full call, `{s, a, lu}` on every row (modern.py, see the head of this file)
     await boot(page, { width: 426, rows });
     expect(await ticks(page).evaluateAll((els) => els.map((e) => [e.getAttribute("title"), getComputedStyle(e).height]))).toEqual([["1 door or window", "8px"], ["6 lamps", "16px"]]);
     await boot(page, { width: 426, rows: ROWS() });
