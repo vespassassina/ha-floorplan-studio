@@ -23,19 +23,17 @@ export interface Cluster {
   height: number;
 }
 
-/** Lamp, opening and alarm onsets of the window as clusters on a strip `width` px wide. A tick joins the cluster when it is closer than `TICK_GAP_PX` to the one before it. */
+/** Lamp, opening and alarm onsets of the window as clusters on a strip `width` px wide. A tick joins the cluster when it is closer than `TICK_GAP_PX` to the cluster's first tick (not to the tick before it: a run of close ticks would chain into one cluster drawn at its start, so a strip `w` px wide holds up to about `w / TICK_GAP_PX` clusters, each near where it happened). */
 export function clusters(onsets: readonly Onset[], start: number, end: number, width: number): Cluster[] {
   const span = end - start;
   if (!(span > 0) || !(width > 0)) return [];
   const out: Cluster[] = [];
-  let lastX = -Infinity;
   for (const o of onsets.filter((o) => o.group !== "motion" && o.t >= start && o.t <= end).sort((a, b) => a.t - b.t)) {
     const x = ((o.t - start) / span) * width;
     let c = out[out.length - 1];
-    if (!c || x - lastX >= TICK_GAP_PX) out.push((c = { x, first: o, size: 0, group: "lamp", n: { lamp: 0, opening: 0, alarm: 0 }, height: 8 }));
+    if (!c || x - c.x >= TICK_GAP_PX) out.push((c = { x, first: o, size: 0, group: "lamp", n: { lamp: 0, opening: 0, alarm: 0 }, height: 8 }));
     c.size++;
     c.n[o.group as TickGroup]++;
-    lastX = x;
   }
   for (const c of out) {
     c.group = RANK.find((g) => c.n[g])!;

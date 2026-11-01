@@ -9,14 +9,15 @@ import { t, tn } from "../../src/core/i18n";
 const on = (tt: number, group: EventGroup = "lamp", entity = `e.${tt}`): Onset => ({ entity, t: tt, group, kind: group });
 const win = { start: 0, end: 1000 };
 
-describe("clusters: ticks closer than 6 px merge (criterion 5)", () => {
+describe("clusters: ticks within 6 px of the cluster's first tick merge (criterion 5, measured from the first tick since the Sprint 43 review)", () => {
   const four = [on(0), on(5), on(7), on(20)];
-  it("ticks at 0, 5, 7 and 20 px give two clusters, the first of three, at the first tick's x", () => {
+  it("ticks at 0, 5, 7 and 20 px give three clusters (7 is 7 px from the first tick, so it starts a new one), at the first tick's x", () => {
     const c = clusters(four, win.start, win.end, 1000);
-    expect(c.map((k) => k.size)).toEqual([3, 1]);
+    expect(c.map((k) => k.size)).toEqual([2, 1, 1]);
     expect(c[0].x).toBe(0);
     expect(c[0].first.t).toBe(0);
-    expect(c[1].x).toBe(20);
+    expect(c[1].x).toBe(7);
+    expect(c[2].x).toBe(20);
   });
   it("at a wider bar the same events split", () => {
     const c = clusters(four, win.start, win.end, 2000); // x = 0, 10, 14, 40
@@ -26,6 +27,16 @@ describe("clusters: ticks closer than 6 px merge (criterion 5)", () => {
     expect(TICK_GAP_PX).toBe(6);
     expect(clusters([on(0), on(6)], 0, 1000, 1000)).toHaveLength(2);
     expect(clusters([on(0), on(5.9)], 0, 1000, 1000)).toHaveLength(1);
+  });
+  it("a long run of close ticks does not chain into one cluster: each member is within 6 px of its cluster's x (Opus review)", () => {
+    const run = Array.from({ length: 50 }, (_, i) => on(i * 4)); // every 4 px over 200 px
+    const c = clusters(run, 0, 1000, 1000);
+    expect(c.length).toBeGreaterThan(1);
+    expect(c.length).toBeLessThanOrEqual(Math.ceil(200 / TICK_GAP_PX) + 1);
+    expect(c.reduce((a, k) => a + k.size, 0)).toBe(50);
+    // Every onset sits in the cluster that starts at most 6 px before it.
+    const at = (tt: number) => c.filter((k) => k.x <= tt).pop()!;
+    for (const o of run) expect(o.t - at(o.t).x).toBeLessThan(TICK_GAP_PX);
   });
   it("an alarm among lamps colours the cluster alarm; an opening among lamps, opening; the first onset in time is the target", () => {
     expect(clusters([on(3), on(1, "alarm"), on(2, "opening")], 0, 1000, 1000)[0]).toMatchObject({ group: "alarm", size: 3, first: { t: 1 } });
