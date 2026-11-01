@@ -188,7 +188,8 @@ the chunk's limit must rise.
     at runtime (bar.ts says why): `doorStateOf`, `coverActive`, `roomAt` and `MOTION_TYPES` are handed over by the card, as
     `BarTools` hands over lit today.
 21. **Limits.** The replay chunk's limit rises from 1,500 to 6,000 bytes gzip (a DECISIONS entry in the first task).
-    The card may grow by at most 600 bytes gzip for all of this spec; each task states its own figure.
+    The card may grow by at most 600 bytes gzip for all of this spec, counted from 123,568 (the card after Sprint 42), so its working cap is
+    124,168; each task states its own figure. (DECISIONS 2026-11-01, Opus review of Sprint 44.)
 
 ## Acceptance criteria
 
@@ -224,7 +225,8 @@ where: `homeassistant/components/history/websocket_api.py`, `homeassistant/compo
     either is on; the plan's computed styles are unchanged by any filter. (E14, E15)
 12. Escaping: a room named `"><script>` in the filter list and the tooltip is text, not markup (finding 2).
 13. Every new string is in all nine catalogues (ten languages with English); the raw-English lint passes.
-14. Bytes: the card stays under its cap and within +600 of 121,511 for the whole spec; the replay chunk is under its new
+14. Bytes: the card stays under its cap and under 124,168 for the whole spec (+600 over 123,568, the card after Sprint 42; it was 121,511 when
+    this was written, and DECISIONS 2026-10-31 moved the base); the replay chunk is under its new
     limit; the card does not contain the event table (a marker string only the chunk has). (G20, G21)
 15. Shots: `npm run shots` gains the demo replayed with markers, a cluster's tooltip, the filter list and the 48 h bar,
     blueprint and light, 1280 and 380 wide. Looked at (finding 16).
@@ -239,7 +241,7 @@ where: `homeassistant/components/history/websocket_api.py`, `homeassistant/compo
 | C. Jumps | +30 to +80 | +200 to +300 | the card routes Shift+arrows |
 | D. 48 h and 7 days | +150 to +300 | +300 to +450 | `DAY_MS` becomes the window |
 | E. Filters | 0 to +50 | +500 to +800 | |
-| Total | +230 to +580 | +2,250 to +3,400 | chunk from 1,455 to about 4,000 to 4,900 |
+| Total | +230 to +580 | +2,250 to +3,400 | chunk from 1,455 to about 4,000 to 4,900; the card's total is held to +600 over 123,568, a cap of 124,168 |
 | Deferred: busy room | +250 to +450 | +200 | render option and stylesheet are card bytes |
 
 New strings cost their bytes in the chunk that uses them, and in each language chunk (each under its 5,000 limit).

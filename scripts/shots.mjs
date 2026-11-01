@@ -673,21 +673,23 @@ try {
         rows["binary_sensor.demo_hall_motion"] = cycle(...[6, 7, 8, 8, 9, 17, 17, 18, 18, 18, 19, 19, 20, 20, 21, 22].map((h, i) => [h, (i * 7) % 50]));
       }
       hass.locale = { language: "en", time_format: "24" };
+      const cut = at(0) - 86400; // 27 Oct 00:00
       if (h48) {
         // Yesterday evening, then the recorder's purge: nothing before 27 Oct 00:00 (12 hours into the 48 h window).
         const yday = (h, m) => at(h, m) - 86400;
         rows["light.demo_living"].push(...[[18, 0], [20, 30]].flatMap(([h, m]) => [{ s: "on", lu: yday(h, m) }, { s: "off", lu: yday(h, m + 3) }]));
         rows["binary_sensor.demo_front_door"].push(...[[9, 0], [18, 10]].flatMap(([h, m]) => [{ s: "on", lu: yday(h, m) }, { s: "off", lu: yday(h, m + 2) }]));
+        rows["light.demo_kitchen"].push({ s: "off", lu: cut + 30 }); // the first change the recorder kept: history begins there
         for (const id of Object.keys(rows)) rows[id].sort((x, y) => x.lu - y.lu);
       }
-      const cut = at(0) - 86400; // 27 Oct 00:00
-      // The reply as HA builds it: a row at the asked start (the state then), none before it; a purged recorder has none before `cut`.
+      // The reply as HA builds it (history/websocket_api.py, recorder/history/modern.py): a row at the asked start (the state then), none before it; the first row carries `a`.
+      // A purged recorder has no start-time row: each entity answers from its first change kept (`lu >= cut`), and one with none kept is not in the reply.
       const reply = (id, startSec) => {
-        const all = rows[id], first = { ...(all.find((r) => r.a) ?? all[0]) };
-        const kept = all.filter((r) => r.lu >= Math.max(startSec, h48 ? cut : 0));
-        return h48 && startSec < cut ? [{ ...first, lu: cut }, ...kept.filter((r) => r.lu > cut)] : [{ ...first, lu: startSec }, ...kept.filter((r) => r.lu > startSec)];
+        const all = rows[id], first = all.find((r) => r.a) ?? all[0];
+        if (h48 && startSec < cut) { const kept = all.filter((r) => r.lu >= cut); return kept.length ? [{ ...kept[0], a: kept[0].a ?? first.a }, ...kept.slice(1)] : undefined; }
+        return [{ ...first, lu: startSec }, ...all.filter((r) => r.lu > startSec)];
       };
-      hass.connection = { sendMessagePromise: (m) => Promise.resolve(Object.fromEntries((m.entity_ids ?? []).filter((id) => rows[id]).map((id) => [id, markers ? reply(id, Date.parse(m.start_time) / 1000) : rows[id]]))) };
+      hass.connection = { sendMessagePromise: (m) => Promise.resolve(Object.fromEntries((m.entity_ids ?? []).filter((id) => rows[id]).map((id) => [id, markers ? reply(id, Date.parse(m.start_time) / 1000) : rows[id]]).filter(([, r]) => r))) };
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
     }, [{ layout, floor: "ground", theme: s.t.theme, active_list: false }, hassFor("on", s.t.dark), !!s.markers, !!s.h48]);
