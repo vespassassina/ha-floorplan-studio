@@ -74,9 +74,9 @@ const SAME: Record<string, string[]> = {
   "pt-BR": ["Terminal", "Auto", "Media"],
   fr: ["Attention · {n}", "Pause", "Terminal", "Auto", "Minimal", "Contact", "Vibration"],
   de: ["Detail", "Details", "Pause", "Terminal", "Minimal", "Computer", "Server", "Vibration", "Boiler", "Person", "Alarm"],
-  nl: ["open", "Labels", "Detail", "Details", "Model", "Terminal", "Auto", "Media", "Contact", "Camera", "Computer", "Server", "Boiler", "Printer", "Alarm"],
+  nl: ["open", "Labels", "Detail", "Details", "Model", "Terminal", "Auto", "Media", "Contact", "Camera", "Computer", "Server", "Boiler", "Printer", "Alarm", "alarm"],
   "zh-Hans": [],
-  pl: ["Start", "Model", "Terminal", "Auto", "Media", "Alarm"],
+  pl: ["Start", "Model", "Terminal", "Auto", "Media", "Alarm", "alarm"],
 };
 
 describe("the keys in the source", () => {

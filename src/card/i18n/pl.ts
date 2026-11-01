@@ -274,5 +274,12 @@ const c: Catalogue = {
   "{n} alarm": { one: "{n} alarm", few: "{n} alarmy", many: "{n} alarmów", other: "{n} alarmu" },
   "motion on {n} sensor": { one: "ruch na {n} czujniku", few: "ruch na {n} czujnikach", many: "ruch na {n} czujnikach", other: "ruch na {n} czujnika" },
   "No events": "Brak zdarzeń",
+  "Previous event": "Poprzednie zdarzenie",
+  "Next event": "Następne zdarzenie",
+  "light on": "światło włączone",
+  "motion": "ruch",
+  "door opened": "drzwi otwarte",
+  "alarm": "alarm",
+  "cover opened": "roleta otwarta",
 };
 export default c;

@@ -2,6 +2,29 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-01: R2.4, jump to the previous and next event
+
+Spec `docs/specs/replay-2.md`, item 9 and criterion 7. `neighbour(onsets, t, dir, allow)` in `replay/events.ts` is the pure search; the bar
+(`replay/bar.ts`) draws two buttons beside Play and names the event in `aria-valuetext`; the card routes Shift+ArrowLeft and
+Shift+ArrowRight and pauses play (`jumpBy` in `card-replay.ts`). Card 123,672 to 123,833 gzip (+161, over the +30 to +80 estimate; replay 2
+may add 485 more in all, so 324 are left for R2.5 to R2.7), replay chunk 3,656 to 3,985 (limit 6,000), largest language chunk 4,093 (pl, limit 5,000).
+Choices the spec left open:
+
+- **The predicate takes the onset** (`allow: (o: Onset) => boolean`, default all). An onset has no room yet, so `(group, room)` is not
+  possible today; R2.6 adds `room` to `Onset` and passes a predicate that reads `o.group` and `o.room`. A test proves a rejected group is skipped.
+- **The moment on show is `drawnT`** (the exact ms), not the slider's minute. Standing on an onset (after a jump or a tap on a tick) the next
+  press moves on; between two, a jump goes to the neighbour on that side.
+- **The value text names an onset only when the thumb sits exactly on it** ("09:00, light on"); anywhere else it is the time alone. Two onsets
+  at one moment: the first in the list is named.
+- **Event phrases** (`eventSaid`): `light on`, `motion`, `door opened` (door, window, contact), `cover opened`, `unlocked` (lock; already
+  a key), `alarm` (alarm, siren, vibration, hazard sensor). Seven new keys in all nine languages. The onset does not carry what an alarm panel
+  went to, so "alarm" does not say armed or triggered.
+- **A button that goes disabled under the finger would take the keyboard with it** (Escape and Shift+arrows stopped working; found by a test).
+  `paintBar` moves focus to the bar when the focused button is disabled by the repaint (+30 bytes).
+- **A key with nowhere to go does nothing, play included.** Shift+arrow on the bar or on one of its buttons.
+- **Two buttons cost the strip 96 px** (2 x 40 px and 2 gaps). The R2.3 Playwright tests that needed a narrow strip moved from a 330 px to a 426 px card
+  (same strip). The catalogue test's "same word" list gained `alarm` for nl and pl.
+
 ## 2026-10-31: R2.3, markers on the slider and what the spec left open
 
 Spec `docs/specs/replay-2.md`, items 5 to 8 and criteria 5, 6, 12 to 15. `src/card/replay/markers.ts` clusters lamp, opening and alarm

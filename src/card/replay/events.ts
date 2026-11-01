@@ -105,3 +105,16 @@ export function onsets(index: HistoryIndex, floor: unknown, tools: EventTools): 
   const key = new Set<string>();
   return out.filter((o) => !key.has(`${o.entity} ${o.t}`) && key.add(`${o.entity} ${o.t}`)).sort((a, b) => a.t - b.t || (a.entity < b.entity ? -1 : a.entity > b.entity ? 1 : 0));
 }
+
+/**
+ * R2.4: the onset nearest to `t`, strictly after (`dir` 1) or strictly before (-1), that `allow` lets through. `onsets` is in time order.
+ * An onset at `t` itself is not a jump: standing on one, the next press moves on. R2.6 supplies `allow` from the filters.
+ */
+export function neighbour(onsets: readonly Onset[], t: number, dir: 1 | -1, allow: (o: Onset) => boolean = () => true): Onset | undefined {
+  const ahead = dir > 0;
+  for (let i = ahead ? 0 : onsets.length - 1; ahead ? i < onsets.length : i >= 0; i += dir) {
+    const o = onsets[i];
+    if ((ahead ? o.t > t : o.t < t) && allow(o)) return o;
+  }
+  return undefined;
+}

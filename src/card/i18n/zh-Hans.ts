@@ -274,5 +274,12 @@ const c: Catalogue = {
   "{n} alarm": "{n} 个警报",
   "motion on {n} sensor": "{n} 个传感器检测到移动",
   "No events": "无事件",
+  "Previous event": "上一个事件",
+  "Next event": "下一个事件",
+  "light on": "灯亮",
+  "motion": "移动",
+  "door opened": "门已打开",
+  "alarm": "警报",
+  "cover opened": "遮盖已打开",
 };
 export default c;
