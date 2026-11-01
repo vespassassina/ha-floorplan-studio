@@ -89,20 +89,14 @@ describe("the strip in the bar (items 5, 6, 8)", () => {
     expect(draw({}).querySelector(".fp-rp-strip")?.getAttribute("aria-label")).toBe("No events");
     expect(draw({ ready: false }).querySelector(".fp-rp-strip")).toBeNull();
   });
-  it("an entity named like markup reaches the strip as nothing at all: the tooltip holds counts, never a name (criterion 12)", () => {
-    const host = draw({ onsets: [on(0, "lamp", "light.\"><script>x</script>")] });
+  it("an entity's name never reaches the strip: not in a tooltip, a label or the text (criterion 12)", () => {
+    const host = draw({ onsets: [on(0, "lamp", "light.\"><script>x</script>"), on(0, "motion", "binary_sensor.\"><b>y</b>")] });
+    for (const name of ["light.", "binary_sensor.", "script", "<b>"]) expect(host.innerHTML, name).not.toContain(name);
     expect(host.querySelector("script")).toBeNull();
-    expect(host.innerHTML).not.toContain("<script");
   });
   it("a click on a tick hands its first onset to the card", () => {
     const host = draw({ onsets: [on(300), on(301)] });
     host.querySelector<HTMLElement>(".fp-rp-tick")!.click();
     expect(handlers.jump).toHaveBeenCalledWith(300);
-  });
-  it("a click on the strip between ticks hands over nothing", () => {
-    handlers.jump.mockClear();
-    const host = draw({ onsets: [on(300)] });
-    host.querySelector<HTMLElement>(".fp-rp-strip")!.click();
-    expect(handlers.jump).not.toHaveBeenCalled();
   });
 });

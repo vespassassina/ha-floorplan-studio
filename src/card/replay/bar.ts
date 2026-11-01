@@ -48,7 +48,7 @@ const MARKER_CSS = `
 .fp-rp-band{position:absolute;inset:0;display:flex;pointer-events:none}
 .fp-rp-band i{flex:1;background:var(--fp-text)}
 .fp-rp-tick{position:absolute;bottom:0;width:4px;margin-left:-2px;border-radius:2px;cursor:pointer}
-.fp-rp-tick::before{content:"";position:absolute;inset:-4px -1px}
+.fp-rp-tick::before{content:"";position:absolute;inset:-4px -3px}
 .fp-rp-t-lamp{background:var(--fp-dev-light)} .fp-rp-t-opening{background:var(--fp-open-door)} .fp-rp-t-alarm{background:var(--fp-danger)}
 `;
 /** The strip's tick colours, one variable per group (a test reads each in every theme). */
