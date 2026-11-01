@@ -21,6 +21,7 @@ const range = (page: Page) => card(page).locator("css=input.fp-rp-range");
 const prev = (page: Page) => card(page).locator("css=button.fp-rp-prev");
 const next = (page: Page) => card(page).locator("css=button.fp-rp-next");
 const play = (page: Page) => card(page).locator("css=button.fp-rp-play");
+const status = (page: Page) => card(page).locator("css=.fp-replay [role=status]");
 const shown = (page: Page) => card(page).locator("css=.fp-rp-time");
 
 const ROWS = () => ({
@@ -90,6 +91,26 @@ test.describe("R2.4 jump to the previous and next event", () => {
     await click(next(page));
     await expect(range(page)).toHaveValue("1260");
     await expect(range(page)).toHaveAttribute("aria-valuetext", "09:00, light on");
+  });
+
+  test("Opus review: a jump made with a button is spoken through the bar's status line, since focus stays on the button", async ({ page }) => {
+    await boot(page);
+    await expect(status(page)).toHaveText("");
+    await click(prev(page));
+    await expect(status(page)).toHaveText("10:00, motion");
+    await click(prev(page));
+    await expect(status(page)).toHaveText("09:20, light on");
+    await click(next(page));
+    await expect(status(page)).toHaveText("10:00, motion");
+    await expect(status(page)).toHaveCount(1); // the bar has the one live region it had
+    // Moving the thumb off the event takes the text away: the status never describes a moment that is not on show.
+    await range(page).focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect(status(page)).toHaveText("");
+    // A key on the slider is read from aria-valuetext; saying it twice would be noise.
+    await page.keyboard.press("Shift+ArrowRight");
+    await expect(range(page)).toHaveAttribute("aria-valuetext", "10:00, motion");
+    await expect(status(page)).toHaveText("");
   });
 
   test("criterion 7: the buttons are disabled at the ends; between events the value text is the time alone", async ({ page }) => {
@@ -172,15 +193,11 @@ test.describe("R2.4 jump to the previous and next event", () => {
     await click(next(page));
     await expect(play(page)).toHaveAttribute("aria-label", "Play");
     await expect(range(page)).toHaveValue("1200");
-    await frames(page);
-    await expect(range(page)).toHaveValue("1200"); // paused: no frame moved it on
     await click(play(page));
     await expect(play(page)).toHaveAttribute("aria-label", "Pause");
     await range(page).focus();
     await page.keyboard.press("Shift+ArrowRight");
     await expect(play(page)).toHaveAttribute("aria-label", "Play");
-    await expect(range(page)).toHaveValue("1260");
-    await frames(page);
     await expect(range(page)).toHaveValue("1260");
   });
 

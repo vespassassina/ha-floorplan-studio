@@ -34,6 +34,8 @@ export interface BarModel {
   width: number;
   /** R2.4: the moment on show in ms; the jumps go to the onset before or after it, and the value text names an onset that sits exactly on it. */
   at: number;
+  /** The onset a button jump went to: while the thumb is still on it, the status line speaks the event. */
+  said?: number;
 }
 /** What the card draws with: lit's `html` and `nothing`, its translators, and the X's path. */
 export interface BarTools { html: typeof Html; nothing: typeof Nothing; t(key: string): string; tn(one: string, other: string, n: number): string; close: string }
@@ -93,6 +95,6 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
       @input=${(e: Event) => h.seek(Number((e.target as HTMLInputElement).value))}></div>
     ${m.ready ? html`<button type="button" class="fp-rp-info" aria-label=${none} aria-pressed=${m.info ? "true" : "false"} title=${none} @click=${h.info}>${icon(INFO)}</button>` : nothing}
     <button type="button" class="fp-rp-close" aria-label=${t("Close replay")} title=${t("Close replay")} @click=${h.close}>${icon(close)}</button>
-    <span class="fp-rp-msg" role="status">${m.message || (m.note ? t("Replaying") : m.info ? none : "")}</span>
+    <span class="fp-rp-msg" role="status">${m.message || (m.note ? t("Replaying") : m.said === m.at && onset ? text : m.info ? none : "")}</span>
   </div>`;
 }
