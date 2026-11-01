@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-01: replay 2 spec, clusters measured from their first tick (Diego)
+
+Diego approved changing `docs/specs/replay-2.md` item 6 and criterion 5 to match the Sprint 43 review fix. A tick joins a cluster
+when it is under 6 px from the cluster's first tick, not from the tick before it. Ticks at 0, 5, 7 and 20 px now give clusters of
+2, 1 and 1 (the spec said two clusters, the first of three). Why: the chained rule turned a real day of 474 onsets into one
+cluster at 07:00. Code and tests already follow this (PR 23).
+
 ## 2026-11-01: Sprint 43 review fixes (replay 2, R2.1 to R2.4)
 
 Opus review of `docs/specs/replay-2.md` items 5 to 9. Card 123,833 to 123,840 gzip (+7: +26 for the spoken jump, -19 for two grid rules moved
