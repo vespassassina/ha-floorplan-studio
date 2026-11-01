@@ -68,15 +68,15 @@ describe("one entity per group", () => {
       { entity: "cover.dc", t: ms(1300), group: "opening", kind: "door" },
     ]);
   });
-  it("a door on an entity with 20,000 rows is read in linear time (Opus review: it filtered every row for every moment)", () => {
+  it("a door on an entity with 60,000 rows is read in linear time (Opus review: it filtered every row for every moment)", () => {
     const rows: unknown[] = [{ s: "off", a: {}, lu: 1000 }];
-    for (let i = 1; i < 20000; i++) rows.push({ s: i % 2 ? "on" : "off", lu: 1000 + i });
+    for (let i = 1; i < 60000; i++) rows.push({ s: i % 2 ? "on" : "off", lu: 1000 + i });
     const index = idx({ "binary_sensor.busy": rows });
     const f = floor({ doors: [{ id: "d1", name: "Front", kind: "door", sensors: ["binary_sensor.busy"] }] });
     const t0 = performance.now();
     const o = onsets(index, f, tools);
     const took = performance.now() - t0;
-    expect(o).toHaveLength(10000); // every odd row is an off to on
+    expect(o).toHaveLength(30000); // every odd row is an off to on
     expect(o[0]).toEqual({ entity: "binary_sensor.busy", t: ms(1001), group: "opening", kind: "door" });
     expect(took).toBeLessThan(LINEAR_MS);
   });

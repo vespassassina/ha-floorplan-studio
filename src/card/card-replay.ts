@@ -437,7 +437,7 @@ function barView(c: FloorplanStudioCard, r: ReplayState) {
   // The full bar is drawn by the replay chunk (replay/bar.ts). Until it is there, a shell with the way out and the message.
   if (!lib) return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} @keydown=${key}><button type="button" class="fp-rp-close" aria-label=${t("Close replay")} @click=${close}>${c._icon(UI_ICONS.close)}</button><span class="fp-rp-msg" role="status">${message}</span></div>`;
   return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: DAY_MINUTES, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, end: r.end, width: r.width, at: r.drawnT, said: r.said },
-    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), jumpBy: (d) => jumpBy(c, r, d, true), info: () => { r.info = !r.info; paintBar(c); } });
+    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), jumpBy: (d) => jumpBy(c, r, d, true), info: () => { r.info = !r.info; r.said = undefined; paintBar(c); } });
 }
 
 /** The stylesheet of the bar. Colours only through `--fp-*`. Under 640 px of card the time sits above the slider. */

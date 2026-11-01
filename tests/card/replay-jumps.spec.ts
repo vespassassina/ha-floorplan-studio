@@ -113,6 +113,15 @@ test.describe("R2.4 jump to the previous and next event", () => {
     await expect(status(page)).toHaveText("");
   });
 
+  test("Opus re-check: Info after a spoken jump shows its line; the spoken event does not hold the status", async ({ page }) => {
+    await boot(page);
+    await click(prev(page));
+    await expect(status(page)).toHaveText("10:00, motion");
+    await click(card(page).locator("css=button.fp-rp-info"));
+    await expect(card(page).locator("css=button.fp-rp-info")).toHaveAttribute("aria-pressed", "true");
+    await expect(status(page)).toHaveText(/no history/);
+  });
+
   test("criterion 7: the buttons are disabled at the ends; between events the value text is the time alone", async ({ page }) => {
     await boot(page);
     await expect(next(page)).toBeDisabled(); // 12:00 is after the last onset

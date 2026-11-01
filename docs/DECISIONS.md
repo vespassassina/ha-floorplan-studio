@@ -13,10 +13,11 @@ to the chunk), replay chunk 3,985 to 4,046 (limit 6,000). Eight fixes, each test
    and 1 (were 3 and 1); that R2.3 unit test was changed for it.
 2. **A button jump is spoken through the bar's status line** (the one `role="status"`; no second live region). Focus stays on the button after
    a click, so `aria-valuetext` is never read. `ReplayState.said` holds the onset's ms; the line shows "21:14, door opened" while the thumb is
-   still on it, so a move off it clears it. It wins over the "no history" info line. A Shift+arrow on the slider is not repeated there (the
+   still on it, so a move off it clears it. A click on Info clears it, so Info shows its line (the Opus re-check found Info looked dead after a jump). A Shift+arrow on the slider is not repeated there (the
    slider reads its own value text); on a button it is.
-3. **`doorOnsets` walks each entity's rows with one forward index**, not a filter of every row per moment. 20,000 rows on one sensor took
-   about 2.7 s before and under 35 ms after (the whole test file); the unit test bounds it at 1,000 ms. Same output.
+3. **`doorOnsets` walks each entity's rows with one forward index**, not a filter of every row per moment. The unit test uses 60,000 rows on one
+   sensor, bound 1,000 ms: the old code took 7,962 ms, the new one runs the whole test file in 35 ms (20,000 rows left the old code at
+   1,468 ms, too close to the bound for a faster machine). Same output.
 4. **The tick's hit area is 3 px past each side** (`inset:-4px -3px`, was -1px). A real click 4.5 px from the centre hits; a computed-style pair pins it.
 5. **Two hollow tests**: the entity-named-like-markup test now checks that no entity id appears anywhere in the markup (it fails if the
    id reaches a title); the click-on-the-strip test was deleted (no handler exists there to fail; the real-pixel Playwright test "a click
