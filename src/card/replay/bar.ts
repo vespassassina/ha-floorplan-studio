@@ -52,11 +52,12 @@ export interface BarModel {
 export interface BarTools { html: typeof Html; nothing: typeof Nothing; t(key: string, vars?: Record<string, string | number>): string; tn(one: string, other: string, n: number): string; close: string }
 export interface BarHandlers { key(e: KeyboardEvent): void; play(): void; seek(minute: number): void; jump(ms: number): void; jumpBy(dir: 1 | -1): void; length(hours: number): void; info(): void; close(): void }
 
-/** Colours only through `--fp-*`. The strip sits above the slider in the same column; its 8 px margins are the thumb's half width. */
+/** Colours only through `--fp-*`. The time cell reserves the longest form of its window ("Wed 09:00", "Oct 28, 12:00") so the slider, whose column follows the head, does not move as the weekday or the day's digits change. The strip sits above the slider in the same column; its 8 px margins are the thumb's half width. */
 const MARKER_CSS = `
 .fp-rp-prev{grid-area:prev} .fp-rp-next{grid-area:next}
 .fp-rp-head{grid-area:time;display:flex;align-items:center;gap:8px;min-width:0}
 .fp-rp-len{display:inline-flex;gap:4px}
+.fp-replay .fp-rp-time[data-h="48"]{min-width:10ch} .fp-replay .fp-rp-time[data-h="168"]{min-width:14ch}
 .fp-replay .fp-rp-len button,.fp-replay .fp-rp-menu button{min-width:0;padding:0 8px;font-size:12px}
 .fp-replay .fp-rp-len button[aria-pressed=true],.fp-replay .fp-rp-menu button[aria-pressed=true],.fp-replay .fp-rp-filtered{background:var(--fp-ink);color:var(--fp-room)}
 .fp-replay{position:relative}
@@ -105,7 +106,7 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
     // Motion is counted in rooms; a layout whose sensors stand in none says "motion" alone.
     const parts = [...counts(total), ...(motion.size ? [tn("motion in {n} room", "motion in {n} rooms", motion.size)] : any ? [t("motion")] : [])];
     const top = Math.max(1, ...b);
-    return html`<div class="fp-rp-strip" role="img" aria-label=${parts.join(", ") || t("No events")}>
+    return html`<div class="fp-rp-strip" role="img" aria-label=${[parts.join(", ") || t("No events"), ...(m.purgedFrom ? [t("History is kept from {when}", { when: dayAndTime(m.purgedFrom, m.hass) })] : [])].join(". ")}>
       ${m.purgedFrom ? html`<div class="fp-rp-purge" style="width:${Math.min(100, Math.max(0, +(((m.purgedFrom - start) / (m.max * 600)).toFixed(1))))}%"></div>` : nothing}
       <div class="fp-rp-band">${b.map((n) => html`<i style="opacity:${n ? (0.1 + (0.4 * n) / top).toFixed(2) : 0}"></i>`)}</div>
       ${c.map((k) => html`<span class="fp-rp-tick fp-rp-t-${k.group}" style="left:${k.x.toFixed(1)}px;height:${k.height}px" title=${counts(k.n).join(", ")} @click=${() => h.jump(k.first.t)}></span>`)}
@@ -130,7 +131,7 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
   };
   const none = tn("{n} entity on this floor has no history", "{n} entities on this floor have no history", m.missing), play = m.playing ? t("Pause") : t("Play");
   return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} aria-busy=${m.ready || m.failed ? "false" : "true"} @keydown=${h.key}>
-    <div class="fp-rp-head"><span class="fp-rp-time">${shown}</span>
+    <div class="fp-rp-head"><span class="fp-rp-time" data-h=${m.hours}>${shown}</span>
     <div class="fp-rp-len" role="group" aria-label=${t("Window")}>${WINDOWS.map((w) => html`<button type="button" aria-pressed=${w.hours === m.hours ? "true" : "false"} @click=${() => h.length(w.hours)}>${w.hours > 48 ? t("{n} d", { n: w.hours / 24 }) : t("{n} h", { n: w.hours })}</button>`)}</div>
     ${m.ready && fs ? html`<button type="button" class="fp-rp-filter ${off ? "fp-rp-filtered" : ""}" aria-label=${name} title=${name} aria-expanded=${fs.open ? "true" : "false"} @click=${(e: Event) => { fs.button = e.currentTarget as HTMLElement; fs.show(!fs.open); }}>${icon(FILTER)}</button>` : nothing}</div>
     ${m.ready && fs?.open ? menu() : nothing}

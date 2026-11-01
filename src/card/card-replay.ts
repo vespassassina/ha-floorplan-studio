@@ -44,6 +44,8 @@ export interface ReplayState {
   drawnT: number;
   playing: boolean;
   floors: Map<string, FloorHistory>;
+  /** The filters of floors whose history a new length dropped, by floor key: they outlive the history (Diego, 2026-11-01). */
+  filters: Map<string, FilterState>;
   /** The replayed states last drawn, with the floor history they came from. */
   drawn: { floor: FloorHistory; states: States } | null;
   raf: number | null;
@@ -198,7 +200,7 @@ export function openReplay(c: FloorplanStudioCard, focus = false): void {
   if (c._replay || !canReplay(c)) return;
   closePopup(c);
   const end = Date.now();
-  c._replay = { end, hours: 24, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null, focus, width: 0 };
+  c._replay = { end, hours: 24, t: end, drawnT: end, playing: false, floors: new Map(), filters: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null, focus, width: 0 };
   c._syncTimer(); // the motion fade follows the replayed moment now, not the clock
   c.requestUpdate();
 }
@@ -237,7 +239,7 @@ export function syncReplay(c: FloorplanStudioCard): void {
     c.shadowRoot!.querySelector<HTMLElement>(".fp-rp-open")?.focus();
   }
   if (!r || !key || !f || r.floors.has(key)) return;
-  const fh: FloorHistory = { status: "loading", missing: 0 };
+  const fh: FloorHistory = { status: "loading", missing: 0, filter: r.filters.get(key) };
   r.floors.set(key, fh);
   void fetchFloor(c, r, fh, f);
 }
@@ -357,11 +359,12 @@ function step(c: FloorplanStudioCard, ts: number): void {
 }
 
 /** R2.5: another length. The moment on show stays if it lies inside the new window, else goes to its start (`seek` clamps); the end stays the moment the
- * bar opened. Every floor's history is dropped and the shown one asked again by `syncReplay`, so only the newest length's is kept. */
+ * bar opened. Every floor's history is dropped (its filter is kept) and the shown one asked again by `syncReplay`, so only the newest length's is kept. */
 function setHours(c: FloorplanStudioCard, r: ReplayState, hours: number): void {
   if (hours === r.hours) return;
   r.hours = hours;
   r.playing = false; // the head would run on a floor with no history until the new reply is in; Play is the user's
+  r.floors.forEach((fh, key) => fh.filter && r.filters.set(key, fh.filter)); // switched-off groups and rooms stay off, a room too whose onsets are not in the new window
   r.floors.clear();
   seek(c, r, r.t);
 }
