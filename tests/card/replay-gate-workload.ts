@@ -28,12 +28,13 @@ async function load(g: Gate, days: number) {
   return { index, onsets: events };
 }
 
-/** One run of the workload, in ms. The fixture is made before the clock starts: HA built that reply, not the card. */
-export async function timed(days = 7): Promise<{ ms: number; rows: number; onsets: number }> {
+/** One run of the workload, in ms: `times` loads of the same floor one after the other (a longer run is a steadier one). The fixture is made before the clock starts: HA built that reply, not the card. */
+export async function timed(days = 7, times = 1): Promise<{ ms: number; rows: number; onsets: number }> {
   const g = gateFixture((END_MS - days * DAY_MS) / 1000, END_MS / 1000);
+  let n = 0;
   const t0 = performance.now();
-  const r = await load(g, days);
-  return { ms: performance.now() - t0, rows: g.rows, onsets: r.onsets.length };
+  for (let i = 0; i < times; i++) n = (await load(g, days)).onsets.length;
+  return { ms: performance.now() - t0, rows: g.rows, onsets: n };
 }
 
 /** Not the card's code: the websocket client's own `JSON.parse` of the reply (7 MB of text at 7 days), which runs on the same thread before `parseHistory`. Printed beside the gate, not part of it. */

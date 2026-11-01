@@ -15,11 +15,14 @@ Spec `docs/specs/replay-2.md` items 10 to 12, criterion 9. The gate passed by a 
   2026-11-01): first run (code cold) median 61 ms, worst 63 ms; second run median 40, worst 49 ms. Index heap after a GC, reply dropped: 12.9 MB
   median, 13.0 worst. Limits 1,500 ms and 60 MB: 24x and 4.6x to spare. Not part of the gate but printed: the websocket client's own `JSON.parse` of the
   reply (7 MB of text) 57 ms median, 61 worst, at 4x.
-- **CI test** (same file, always runs): fastest of 9 runs of the workload over the median of 9 `calibrate` calls, unthrottled; heap under 60 MB too (bytes do not
-  depend on speed). Clean Mac, 20 runs: ratio 0.60 to 0.88, median 0.73 (the workload is a steady 10.6 to 13.8 ms; calibrate's own spread is the noise).
-  With `fetchHistory` run twice inside the timed block: 15 runs, 1.10 to 1.42, all red. **Ceiling 1.0**, between the worst clean and the best slowed.
-  A median over runs gave a weaker proof (12 of 15 red), so the test takes the fastest run and the median calibrate. `--repeat-each=20` green.
-  Not known: CI's own baseline; the first CI run tells. `calibrate` moved to `tests/card/calibrate.ts` (a pure move) so both specs share it.
+- **CI test** (same file, always runs; redesigned after the coordinator's run showed 0.71 to 0.93 against a 1.0 ceiling): the fastest of 15 samples of the
+  workload (each 4 loads, about 45 ms) over the fastest of 15 `calibrate` calls, taken alternately, unthrottled. The same statistic on both sides; noise only adds
+  time. Clean Mac, 30 runs: ratio 3.45 to 4.30, median 3.93. With the whole load (fetchHistory, onsets, purgedFrom) run twice: 15 runs, 7.36 to 9.93, median 8.39,
+  so a 2x slowdown reads about 2.1x the clean ratio. **Ceiling 5.6**: 30 % above the worst clean run, and the best slowed run 31 % above it. Under a shard's
+  load (`--workers=4` with the replay-bar and replay-window specs alongside, 10 runs): 3.55 to 4.09, all green. Not known: CI's own baseline; the first CI run tells.
+  The separation is just the 30 % each way; if CI's ratio sits higher than the Mac's, widen the ceiling before the slowed side is lost.
+  Heap: after two forced GCs either side, the index kept referenced; asserted only against the 60 MB upper bound (one earlier reading went to -0.7 MB, so a lower
+  bound would be noise); typical 12.9 MB. `calibrate` moved to `tests/card/calibrate.ts` (a pure move) so both specs share it.
 - **Keys and play:** arrows 30 min, Page 6 h; play stays 24 h per minute.
 - **Reading the time at 7 days:** the weekday repeats only past 7 days, but the window is exactly 7 days, so Home and End share weekday and clock time. Past
   48 h the bar's time and `aria-valuetext` show the date instead (`dayAndTime`: "Oct 28, 12:00", the card's language and 12/24 h setting). At 48 h the weekday stays.
