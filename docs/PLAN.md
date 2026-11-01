@@ -4907,3 +4907,78 @@ a room. then scenes are saved for the rooms." The spec answers the open points b
   reason, so a scene cannot flood the Zigbee network.
 - The card shows a playing scene and stops it.
 
+
+## After the 2026-11-01 interview: Sprints 52 to 61
+
+Spec: `docs/specs/batch-s52.md`, approved by Diego on 2026-11-01 with its defaults. Comes after Sprint 51. Sprint 52 frees card bytes first; no
+feature task starts before it has measured what it freed. The card spends about +3,720 gzip across the batch. Each
+task measures its real figure and records it in DECISIONS.
+
+### Sprint 52: room for the card
+
+- B52.1 Measure the popup, the dialogs and the overview as lazy chunks (gzip saved, and first open at 4x CPU throttle).
+  Diego picks from the figures.
+- B52.2 Move the picked parts into chunks, loaded on first open with the retry-by-URL rule. They get the card's helpers
+  through deps, never by import. Done when at least 4,000 bytes are freed, the popup opens in under 300 ms at 4x, and
+  `size-budget.spec.ts` has each chunk's limit (spec criterion 1).
+
+### Sprint 53: furniture and the louder car
+
+- B53.1 `sofa-l`, `coffee-table`, `bookcase`, `buffet`: symbols, heights, sizes, picker, the 3D palette. A test walks
+  `FURNITURE_SYMBOLS` against every table (criterion 2).
+- B53.2 `mirror` on `sofa-l`, and the L as two blocks: one shape function for 2.5D and 3D (criterion 3).
+- B53.3 The charging car's glow and 2.4 s breath in 2D and 3D, still under reduced motion. Computed-style pairs, and
+  shots in both themes at 4x (criterion 7).
+
+### Sprint 54: worktop and underfloor heating
+
+- B54.1 The worktop's schema: `pts`, the box kept in step, `validate` (criterion 4).
+- B54.2 The worktop drawn in 2D, 2.5D and 3D at 90 cm.
+- B54.3 Worktop editing: draw by points, vertex handles, add, remove, move, one undo step each. The polygon code is
+  shared with rooms (criterion 5).
+- B54.4 `underfloor` on `climate` and `heater`: `--fp-floor-heat` in every theme, the wash and the pipe pattern in 2D,
+  the warm floor in 3D (criterion 6).
+
+### Sprint 55: room badges
+
+- B55.1 Schema: `badges`, `power`, `water`, with `validate`, and the room panel's settings and sensor lists.
+- B55.2 `BADGE_OF` over `DEVICE_TYPES`, and `badgeInfo` in core: rows per icon, live and at replay time (criterion 9).
+- B55.3 `renderFloor` draws the badges in the corner, with the L-room slide (criterion 8, the drawing).
+- B55.4 The bubble: hover on desktop; tap, tap away and 4 s on touch, with each engine's event shapes. The words go
+  into the ten languages (criterion 8, the bubble).
+
+### Sprint 56: replay always visible, energy counters
+
+- B56.1 `replay: always`: rests at live, fetches on the first drag back, has a Live button and returns after 5 minutes
+  idle. DECISIONS gives the freeze reason (criterion 10).
+- B56.2 First, check `energy/get_prefs` as a non-admin on Diego's HA. Then the energy chunk and its loader: the prefs
+  and one 5-minute statistics call, with stubs copied from HA's replies (criteria 11 and 15).
+- B56.3 The counter maths: the sum to t, interpolation inside a bucket, the electricity formula, and the cost rules
+  (criteria 11 and 12).
+- B56.4 The chips: icon, value and sparkline; the settings to hide each chip, choose use, cost or both, and turn the
+  sparkline off.
+
+### Sprint 57: the overlay chart and the device tree
+
+- B57.1 The see-through overlay chart: 5-minute bars, faded after t, a line at t, dragged by its header within the
+  card, one at a time (criterion 13).
+- B57.2 The device tree from `device_consumption`, nested by `included_in_stat`, with the untracked remainder
+  (criterion 14).
+
+### Sprint 58: 3D Studio, stage 1, the preview pane
+
+- B58.1 Prove the chunk loads in the HA panel and in the standalone `editor.html`, or drop the pane from `editor.html`.
+- B58.2 The split pane: rebuilt 200 ms after an edit, the selection outlined, live states in the panel, 0 card bytes
+  (criterion 16). Diego reviews before stage 2.
+
+### Sprint 59: 3D Studio, stage 2, pick and move
+
+- B59.1 One shared selection: a click in 3D selects in 2D, and the other way round.
+- B59.2 Drag on the floor plane with snap, R to rotate, Shift-drag for `z`. One undo step per drag (criterion 17).
+  Diego reviews before stage 3.
+
+### Sprints 60 and 61 (outline): 3D Studio, stage 3, structure
+
+Re-planned after Sprint 59's review. Drag wall ends, room, worktop and stair points on the floor plane; drag wall and
+room heights by their top edge; drag a door's or window's sill and head; drag the floor height and slab. Drawing new
+shapes stays in 2D unless the review says otherwise.

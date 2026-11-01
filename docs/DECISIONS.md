@@ -2,6 +2,26 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-01: furniture, worktops, room badges, floor heating, energy counters and the 3D Studio planned
+
+Spec `docs/specs/batch-s52.md`, approved by Diego with its defaults. Sprints 52 to 61 in `docs/PLAN.md`, after Sprint 51.
+Planning only; no code yet. His answers in the interview:
+
+- **Card room first.** The batch needs about +3,720 gzip on the card, and 978 bytes are left. Sprint 52 moves the popup,
+  the dialogs or the overview into lazy chunks and must free at least 4,000. The cap stays 124,650.
+- **A worktop is furniture with points** (`symbol: "worktop"`, `pts`), not a room kind. A room kind would have reused
+  the room's point editing; Diego chose furniture, so the point editing is shared with rooms rather than reused as is.
+- **Underfloor heating is a device flag** (`underfloor` on `climate` and `heater`), not a room field.
+- **The charging car gets a glow and a 2.4 s breath**, still under reduced motion.
+- **Badges:** a tap on touch opens the hover bubble; power and water come from room sensor lists, not from the
+  devices in the room.
+- **Energy counters:** HA's Energy preferences and 5-minute statistics, in their own lazy chunk. The device tree
+  comes a sprint later. Chips with sparklines, and a draggable, see-through chart of 5-minute bars.
+- **`replay: always`** is planned as a card key; B56.1 writes its surface-freeze reason. No sync with other cards'
+  graphs in this batch.
+- **The 3D Studio** goes up to editing in 3D, in stages: a preview pane, then pick and move, then structure. Diego
+  reviews after each stage, and any stage can be the last.
+
 ## 2026-11-01: R2.4, jump to the previous and next event
 
 Spec `docs/specs/replay-2.md`, item 9 and criterion 7. `neighbour(onsets, t, dir, allow)` in `replay/events.ts` is the pure search; the bar
