@@ -635,6 +635,8 @@ try {
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) for (const hover of [false, true]) replayShots.push({ name: `card-replay-markers-${t.id}-${width}${hover ? "-hover" : ""}`, t, ups: 21, width, bar: true, markers: true, hover });
   // R2.5: the 48 h bar, the recorder having purged the first 12 hours of the window (the grey part of the strip and the info line).
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) replayShots.push({ name: `card-replay-48h-${t.id}-${width}`, t, ups: 45, width, bar: true, markers: true, h48: true });
+  // R2.6: the filter list open over the bar (a real click on the button), lamps switched off so one toggle shows pressed and one not. The list floats above the bar, so the whole card is shot.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) replayShots.push({ name: `card-replay-filter-${t.id}-${width}`, t, ups: 21, width, markers: true, filter: true });
   for (const s of replayShots) {
     const ctx = await browser.newContext({ viewport: { width: s.width, height: 800 }, colorScheme: s.t.dark ? "dark" : "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
     const page = await ctx.newPage();
@@ -703,6 +705,11 @@ try {
     // The hovered shot: the mouse over the last cluster, as a person would find it.
     if (s.h48) await page.locator("floorplan-studio-card .fp-rp-info").click();
     if (s.hover) await page.locator("floorplan-studio-card .fp-rp-tick").last().hover();
+    if (s.filter) {
+      await page.locator("floorplan-studio-card .fp-rp-filter").click();
+      await page.locator("floorplan-studio-card .fp-rp-menu [data-g='lamp']").click();
+      await page.mouse.move(0, 0);
+    }
     if (s.bar) await page.locator("floorplan-studio-card .fp-replay").screenshot({ path: `${OUT}/${s.name}.png` });
     else await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
     shots.push(s.name);
