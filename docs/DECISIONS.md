@@ -2,6 +2,33 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-01: R2.7, 7 days ships; the gate and its CI ratio
+
+Spec `docs/specs/replay-2.md` items 10 to 12, criterion 9. The gate passed by a wide margin, so `{ hours: 168, arrow: 30, page: 360 }` is in `WINDOWS`.
+
+- **The fixture** (`tests/card/replay-gate-fixture.ts`, deterministic): 180,000 rows over 93 entities, 7 days: one power sensor with the remainder
+  (about 91,000 rows, lean rows, `a` on the first only), 20 temperatures, 14 humidities, 24 motion sensors, 14 contacts, and 20 attribute-domain entities (lights,
+  climate, a media player) with `a` on every row. 16 rooms, 6 doors. Shapes copied from `history/websocket_api.py`,
+  `recorder/models/state.py`, `recorder/history/modern.py` (said in the file). It goes through the real `fetchHistory` (both calls' parse, merged), `onsets` and
+  `purgedFrom`, served from vite's dev server as source. 10,440 onsets come out.
+- **Mac figures** (Chromium, 4x CPU throttle through CDP, `FP_GATE_MAC=1 npx playwright test tests/card/replay-gate.spec.ts -g Mac`, five fresh pages,
+  2026-11-01): first run (code cold) median 61 ms, worst 63 ms; second run median 40, worst 49 ms. Index heap after a GC, reply dropped: 12.9 MB
+  median, 13.0 worst. Limits 1,500 ms and 60 MB: 24x and 4.6x to spare. Not part of the gate but printed: the websocket client's own `JSON.parse` of the
+  reply (7 MB of text) 57 ms median, 61 worst, at 4x.
+- **CI test** (same file, always runs): fastest of 9 runs of the workload over the median of 9 `calibrate` calls, unthrottled; heap under 60 MB too (bytes do not
+  depend on speed). Clean Mac, 20 runs: ratio 0.60 to 0.88, median 0.73 (the workload is a steady 10.6 to 13.8 ms; calibrate's own spread is the noise).
+  With `fetchHistory` run twice inside the timed block: 15 runs, 1.10 to 1.42, all red. **Ceiling 1.0**, between the worst clean and the best slowed.
+  A median over runs gave a weaker proof (12 of 15 red), so the test takes the fastest run and the median calibrate. `--repeat-each=20` green.
+  Not known: CI's own baseline; the first CI run tells. `calibrate` moved to `tests/card/calibrate.ts` (a pure move) so both specs share it.
+- **Keys and play:** arrows 30 min, Page 6 h; play stays 24 h per minute.
+- **Reading the time at 7 days:** the weekday repeats only past 7 days, but the window is exactly 7 days, so Home and End share weekday and clock time. Past
+  48 h the bar's time and `aria-valuetext` show the date instead (`dayAndTime`: "Oct 28, 12:00", the card's language and 12/24 h setting). At 48 h the weekday stays.
+  The window is 168 real hours, so across a clock change Home reads one hour off a round time; it is true, left.
+- **Label:** "7 d", the existing key "{n} d" (already in the nine catalogues, so no new string); the button shows days for any length over 48 h.
+- **Tests changed because the spec said so:** the two R2.5 tests that pinned "two lengths only" and the 380 px fit now include 7 d. The bar at 380 keeps its slider (about 180 px, over 80).
+- **Bytes:** card 124,060 to 124,059 gzip (cap 124,168; 109 left), replay chunk 5,906 to 5,941 (limit 6,000; 59 left), largest language chunk pl 4,196 (limit 5,000).
+- **Shots:** `card-replay-7d-{blueprint,light}-{1280,380}` added and looked at.
+
 ## 2026-11-01: R2.6, replay filters by group and room
 
 Spec `docs/specs/replay-2.md` items 14, 15 and criteria 11, 12. Card 123,959 to 124,060 gzip (+101, over the +80 aim; the cap for the whole

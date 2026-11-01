@@ -9,10 +9,11 @@ export interface ReplayWindow {
   /** Minutes Page Up and Page Down move. */
   page: number;
 }
-/** The lengths the bar offers, shortest first and the first is the default. R2.7 adds 7 days here, one entry, if its gate passes. */
+/** The lengths the bar offers, shortest first and the first is the default. 7 days passed its gate (R2.7, docs/DECISIONS.md). */
 export const WINDOWS: readonly ReplayWindow[] = [
   { hours: 24, arrow: 5, page: 60 },
   { hours: 48, arrow: 10, page: 60 },
+  { hours: 168, arrow: 30, page: 360 },
 ];
 export const windowOf = (hours: number): ReplayWindow => WINDOWS.find((w) => w.hours === hours) ?? WINDOWS[0];
 

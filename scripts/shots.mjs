@@ -635,6 +635,8 @@ try {
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) for (const hover of [false, true]) replayShots.push({ name: `card-replay-markers-${t.id}-${width}${hover ? "-hover" : ""}`, t, ups: 21, width, bar: true, markers: true, hover });
   // R2.5: the 48 h bar, the recorder having purged the first 12 hours of the window (the grey part of the strip and the info line).
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) replayShots.push({ name: `card-replay-48h-${t.id}-${width}`, t, ups: 45, width, bar: true, markers: true, h48: true });
+  // R2.7: the 7 d bar, purged the same way (history begins 27 Oct 00:00, 36 hours before the end), parked on 28 Oct in the morning.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) replayShots.push({ name: `card-replay-7d-${t.id}-${width}`, t, ups: 27, width, bar: true, markers: true, h48: true, days: 7 });
   // R2.6: the filter list open over the bar (a real click on the button), lamps switched off so one toggle shows pressed and one not. The list floats above the bar, so the whole card is shot.
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) replayShots.push({ name: `card-replay-filter-${t.id}-${width}`, t, ups: 21, width, markers: true, filter: true });
   for (const s of replayShots) {
@@ -695,7 +697,7 @@ try {
     const range = page.locator("floorplan-studio-card input.fp-rp-range");
     await page.waitForFunction(() => !document.getElementById("c").shadowRoot.querySelector("input.fp-rp-range")?.disabled);
     if (s.h48) {
-      await page.locator("floorplan-studio-card .fp-rp-len button", { hasText: "48 h" }).click();
+      await page.locator("floorplan-studio-card .fp-rp-len button", { hasText: s.days ? `${s.days} d` : "48 h" }).click();
       await page.waitForFunction(() => !document.getElementById("c").shadowRoot.querySelector("input.fp-rp-range")?.disabled);
     }
     await range.focus();

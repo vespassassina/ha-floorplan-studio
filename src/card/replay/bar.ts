@@ -111,7 +111,8 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
       ${c.map((k) => html`<span class="fp-rp-tick fp-rp-t-${k.group}" style="left:${k.x.toFixed(1)}px;height:${k.height}px" title=${counts(k.n).join(", ")} @click=${() => h.jump(k.first.t)}></span>`)}
     </div>`;
   };
-  const shown = m.hours > 24 ? `${weekday(m.at, m.hass)} ${m.shown}` : m.shown;
+  // Over 24 h a clock time repeats, so it names its weekday; past 48 h a weekday repeats too (7 days starts and ends on one), so it names its date.
+  const shown = m.hours > 48 ? dayAndTime(m.at, m.hass) : m.hours > 24 ? `${weekday(m.at, m.hass)} ${m.shown}` : m.shown;
   const f: Filters = m.filter ?? ALL_ON, fs = m.filter;
   // Only an onset the filters let through is named: a lamp filtered away at the moment of a lock is not announced.
   const onset = m.onsets?.find((o) => o.t === m.at && allows(f, o)), text = onset ? `${shown}, ${eventSaid(t, onset)}` : shown;
@@ -130,7 +131,7 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
   const none = tn("{n} entity on this floor has no history", "{n} entities on this floor have no history", m.missing), play = m.playing ? t("Pause") : t("Play");
   return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} aria-busy=${m.ready || m.failed ? "false" : "true"} @keydown=${h.key}>
     <div class="fp-rp-head"><span class="fp-rp-time">${shown}</span>
-    <div class="fp-rp-len" role="group" aria-label=${t("Window")}>${WINDOWS.map((w) => html`<button type="button" aria-pressed=${w.hours === m.hours ? "true" : "false"} @click=${() => h.length(w.hours)}>${t("{n} h", { n: w.hours })}</button>`)}</div>
+    <div class="fp-rp-len" role="group" aria-label=${t("Window")}>${WINDOWS.map((w) => html`<button type="button" aria-pressed=${w.hours === m.hours ? "true" : "false"} @click=${() => h.length(w.hours)}>${w.hours > 48 ? t("{n} d", { n: w.hours / 24 }) : t("{n} h", { n: w.hours })}</button>`)}</div>
     ${m.ready && fs ? html`<button type="button" class="fp-rp-filter ${off ? "fp-rp-filtered" : ""}" aria-label=${name} title=${name} aria-expanded=${fs.open ? "true" : "false"} @click=${(e: Event) => { fs.button = e.currentTarget as HTMLElement; fs.show(!fs.open); }}>${icon(FILTER)}</button>` : nothing}</div>
     ${m.ready && fs?.open ? menu() : nothing}
     ${go(-1, "fp-rp-prev", t("Previous event"), PREV)}

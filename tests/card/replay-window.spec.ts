@@ -87,9 +87,9 @@ const asks = (page: Page) => page.evaluate(() => (window as unknown as { __asks:
 const release = (page: Page, hours: number) => page.evaluate((h) => { const w = window as unknown as { __held: { hours: number; f: () => void }[] }; w.__held.filter((x) => x.hours === h).forEach((x) => x.f()); }, hours);
 
 test.describe("R2.5 the 48 h window", () => {
-  test("criterion 8: opens at 24 h with two lengths only; no 7 days", async ({ page }) => {
+  test("criterion 8: opens at 24 h with three lengths: 24 h, 48 h, 7 d", async ({ page }) => {
     await boot(page);
-    await expect(card(page).locator("css=.fp-rp-len button")).toHaveText(["24 h", "48 h"]);
+    await expect(card(page).locator("css=.fp-rp-len button")).toHaveText(["24 h", "48 h", "7 d"]);
     await expect(len(page, "24 h")).toHaveAttribute("aria-pressed", "true");
     await expect(range(page)).toHaveAttribute("max", "1440");
     const a = await asks(page);
@@ -216,6 +216,106 @@ test.describe("R2.5 the 48 h window", () => {
   });
 });
 
+test.describe("R2.7 the 7-day window", () => {
+  const weekAgo = NOW - 168 * 3600000;
+
+  test("a real click on 7 d asks a 168-hour range ending when the bar opened, and keeps the moment on show", async ({ page }) => {
+    await boot(page);
+    await range(page).focus();
+    for (let i = 0; i < 3; i++) await page.keyboard.press("PageDown"); // 09:00 today
+    const before = (await asks(page)).length;
+    await click(len(page, "7 d"));
+    await expect(len(page, "7 d")).toHaveAttribute("aria-pressed", "true");
+    await expect(range(page)).toHaveAttribute("max", "10080");
+    await expect(range(page)).toBeEnabled();
+    const fresh = (await asks(page)).slice(before);
+    expect(fresh.length).toBeGreaterThan(0);
+    for (const m of fresh) {
+      expect(Date.parse(m.end_time)).toBe(NOW);
+      expect(Date.parse(m.start_time)).toBe(weekAgo);
+    }
+    await expect(range(page)).toHaveValue("9900"); // 09:00 today is 3 h before the end of 10080
+    await expect(shown(page)).toContainText("09:00");
+    await expect(shown(page)).toContainText("28");
+  });
+
+  test("arrows move 30 minutes and Page keys six hours; going back to 24 h keeps the moment when it is inside", async ({ page }) => {
+    await boot(page);
+    await click(len(page, "7 d"));
+    await expect(range(page)).toBeEnabled();
+    await range(page).focus();
+    await expect(range(page)).toHaveValue("10080"); // the bar opens on the end
+    await page.keyboard.press("ArrowLeft");
+    await expect(range(page)).toHaveValue("10050");
+    await page.keyboard.press("PageDown");
+    await expect(range(page)).toHaveValue("9690");
+    await page.keyboard.press("PageUp");
+    await expect(range(page)).toHaveValue("10050");
+    await page.keyboard.press("ArrowRight");
+    await expect(range(page)).toHaveValue("10080");
+    await page.keyboard.press("ArrowLeft");
+    await click(len(page, "24 h"));
+    await expect(range(page)).toBeEnabled();
+    await expect(range(page)).toHaveValue("1410"); // 30 minutes before the end, in 24 h minutes
+  });
+
+  test("Home and End read differently: past 48 h the time names its date, since the first and last moment share a weekday", async ({ page }) => {
+    await boot(page);
+    await click(len(page, "7 d"));
+    await expect(range(page)).toBeEnabled();
+    await range(page).focus();
+    await page.keyboard.press("Home");
+    const first = (await shown(page).textContent())!;
+    await page.keyboard.press("End");
+    const last = (await shown(page).textContent())!;
+    expect(first).not.toBe(last);
+    expect(first).toMatch(/21.*Oct|Oct.*21/);
+    expect(last).toMatch(/28.*Oct|Oct.*28/);
+    expect(first).not.toMatch(/Wed|Tue/); // no weekday: the date is what tells them apart
+    await expect(range(page)).toHaveAttribute("aria-valuetext", last);
+  });
+
+  test("a door from 6 days ago is on the strip and a jump reaches it", async ({ page }) => {
+    const rows = ROWS();
+    (rows["binary_sensor.demo_front_door"] as unknown[]).push({ s: "on", lu: secs(8, 0, -6) }, { s: "off", lu: secs(8, 5, -6) });
+    await boot(page, { rows });
+    await expect(ticks(page)).toHaveCount(1);
+    await click(len(page, "7 d"));
+    await expect(range(page)).toBeEnabled();
+    await expect(ticks(page)).toHaveCount(3); // the lamp today, the door 27 Oct, the door 22 Oct
+    for (let i = 0; i < 3; i++) await click(prev(page));
+    await expect(range(page)).toHaveValue(String(10080 - 6 * 1440 - 240)); // 22 Oct 08:00 is 6 days and 4 h before the end
+    await expect(prev(page)).toBeDisabled();
+  });
+
+  test("play covers 24 hours per 60 s at 7 days", async ({ page }) => {
+    await boot(page, { clock: "install" });
+    await click(len(page, "7 d"));
+    await expect(range(page)).toBeEnabled();
+    await range(page).focus();
+    await page.keyboard.press("Home");
+    await click(play(page));
+    await page.clock.runFor(60000);
+    const v = Number(await range(page).inputValue());
+    expect(v).toBeGreaterThanOrEqual(1430);
+    expect(v).toBeLessThanOrEqual(1450);
+  });
+
+  test("purge at 7 days: a reply starting 36 h before the end greys the part before it, and the info line says from when", async ({ page }) => {
+    await boot(page, { cut: secs(0, 0, -1) }); // 27 Oct 00:00, 36 h before the end
+    await click(len(page, "7 d"));
+    await expect(range(page)).toBeEnabled();
+    const grey = (await card(page).locator("css=.fp-rp-purge").boundingBox())!;
+    const strip = (await card(page).locator("css=.fp-rp-strip").boundingBox())!;
+    expect(grey.x).toBeCloseTo(strip.x, 0);
+    expect(grey.width / strip.width).toBeCloseTo((168 - 36) / 168, 2);
+    await click(card(page).locator("css=button.fp-rp-info"));
+    await expect(status(page)).toContainText("History is kept from");
+    await expect(status(page)).toContainText("27");
+    await expect(status(page)).toContainText("00:00");
+  });
+});
+
 test.describe("R2.5 purge (item 13, criterion 10)", () => {
   const cut = secs(0, 0, -1); // 27 Oct 00:00: 12 h into the 48 h window
 
@@ -246,7 +346,7 @@ test.describe("R2.5 purge (item 13, criterion 10)", () => {
   test("a 380 px card: the selector fits and the slider stays over 80 px", async ({ page }) => {
     await boot(page, { width: 380 });
     const bar = (await card(page).locator("css=.fp-replay").boundingBox())!;
-    for (const b of [len(page, "24 h"), len(page, "48 h"), card(page).locator("css=.fp-rp-close")]) {
+    for (const b of [len(page, "24 h"), len(page, "48 h"), len(page, "7 d"), card(page).locator("css=.fp-rp-close")]) {
       const r = (await b.boundingBox())!;
       expect(r.x).toBeGreaterThanOrEqual(bar.x);
       expect(r.x + r.width).toBeLessThanOrEqual(bar.x + bar.width);
