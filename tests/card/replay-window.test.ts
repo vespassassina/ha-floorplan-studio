@@ -10,10 +10,11 @@ import { t, tn } from "../../src/core/i18n";
 const MIN = 60000, HOUR = 60 * MIN;
 
 describe("the length table (item 10, item 11)", () => {
-  it("offers 24 h and 48 h only, in that order (7 days waits for R2.7)", () => expect(WINDOWS.map((w) => w.hours)).toEqual([24, 48]));
-  it("arrows move 5 minutes at 24 h and 10 at 48 h; pages one hour at both", () => {
+  it("offers 24 h, 48 h and 7 days, in that order (R2.7: the gate passed, docs/DECISIONS.md)", () => expect(WINDOWS.map((w) => w.hours)).toEqual([24, 48, 168]));
+  it("arrows move 5 minutes at 24 h, 10 at 48 h and 30 at 7 days; pages one hour, one hour, six hours (item 11)", () => {
     expect(windowOf(24)).toMatchObject({ arrow: 5, page: 60 });
     expect(windowOf(48)).toMatchObject({ arrow: 10, page: 60 });
+    expect(windowOf(168)).toMatchObject({ arrow: 30, page: 360 });
   });
   it("an unknown length is the first one, never a throw", () => expect(windowOf(7).hours).toBe(24));
 });
@@ -33,6 +34,22 @@ describe("keyMinute over a longer window", () => {
     expect(k("ArrowLeft", 3)).toBe(0);
   });
   it("the defaults are the 24 h bar's, so the old callers are unchanged", () => expect(keyMinute("ArrowRight", 100)).toBe(105));
+});
+
+describe("keyMinute over 7 days", () => {
+  const w = windowOf(168), max = w.hours * 60;
+  const k = (key: string, v: number) => keyMinute(key, v, w.arrow, max, w.page);
+  it("arrows move 30 minutes, Page keys six hours", () => {
+    expect(k("ArrowRight", 1000)).toBe(1030);
+    expect(k("ArrowLeft", 1000)).toBe(970);
+    expect(k("PageUp", 1000)).toBe(1360);
+    expect(k("PageDown", 1000)).toBe(640);
+  });
+  it("the end is 10080 and nothing leaves the range", () => {
+    expect(k("End", 5)).toBe(10080);
+    expect(k("PageUp", 9900)).toBe(10080);
+    expect(k("ArrowLeft", 20)).toBe(0);
+  });
 });
 
 describe("purgedFrom: where the recorder's history begins (item 13)", () => {
@@ -63,11 +80,14 @@ describe("the bar's length selector and purge grey", () => {
 
   it("a button per length, the chosen one pressed; a click asks for its hours", () => {
     const h = draw({});
-    expect(buttons(h).map((b) => b.textContent!.trim())).toEqual(["24 h", "48 h"]);
-    expect(buttons(h).map((b) => b.getAttribute("aria-pressed"))).toEqual(["true", "false"]);
+    expect(buttons(h).map((b) => b.textContent!.trim())).toEqual(["24 h", "48 h", "7 d"]);
+    expect(buttons(h).map((b) => b.getAttribute("aria-pressed"))).toEqual(["true", "false", "false"]);
     buttons(h)[1].click();
     expect(length).toHaveBeenCalledWith(48);
-    expect(buttons(draw({ hours: 48, max: 2880 })).map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "true"]);
+    buttons(h)[2].click();
+    expect(length).toHaveBeenCalledWith(168);
+    expect(buttons(draw({ hours: 48, max: 2880 })).map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "true", "false"]);
+    expect(buttons(draw({ hours: 168, max: 10080 })).map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "false", "true"]);
   });
   it("the group has a name", () => expect(draw({}).querySelector(".fp-rp-len")!.getAttribute("aria-label")).toBe("Window"));
   it("the slider's maximum is the window's minutes", () => expect(draw({ hours: 48, max: 2880 }).querySelector<HTMLInputElement>(".fp-rp-range")!.max).toBe("2880"));
@@ -77,6 +97,20 @@ describe("the bar's length selector and purge grey", () => {
     const a = x({ hours: 24, max: 1440 }), b = x({ hours: 48, max: 2880 });
     expect(a).toBeCloseTo(500, 0);
     expect(b).toBeCloseTo(750, 0); // memo would keep 500 if the window were not in its key
+  });
+  it("past 48 h the time carries its date, not its weekday: the first and last moment of 7 days share a weekday and a clock time", () => {
+    const end = new Date(2026, 9, 28, 12).getTime(), hass = { language: "en", locale: { language: "en", time_format: "24" } };
+    const text = (hours: number, at: number) => draw({ hours, max: hours * 60, end, at, shown: "12:00", hass }).querySelector(".fp-rp-time")!.textContent!;
+    const first = text(168, new Date(2026, 9, 21, 12).getTime()), last = text(168, end);
+    expect(first).not.toBe(last);
+    expect(first).toMatch(/21.*Oct.*12:00|Oct.*21.*12:00/);
+    expect(last).toMatch(/28.*Oct.*12:00|Oct.*28.*12:00/);
+    expect(text(48, end)).toMatch(/^\w{3} 12:00$/); // 48 h keeps its weekday (Diego, 2026-11-01)
+    expect(text(24, end)).toBe("12:00");
+  });
+  it("the 12 hour clock is kept in the date form", () => {
+    const hass = { language: "en", locale: { language: "en", time_format: "12" } };
+    expect(draw({ hours: 168, max: 10080, end: new Date(2026, 9, 28, 12).getTime(), at: new Date(2026, 9, 28, 12).getTime(), hass }).querySelector(".fp-rp-time")!.textContent).toMatch(/12:00\sPM$/);
   });
   it("no purge, no grey", () => expect(draw({}).querySelector(".fp-rp-purge")).toBeNull());
   it("a purge greys the strip from its start to where history begins, 12 h of 48 h is a quarter", () => {

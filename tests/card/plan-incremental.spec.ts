@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { calibrate } from "./calibrate";
 
 // S25.6 exit test of the sprint: one sensor update writes only its device. A MutationObserver on the real plan <svg> in the
 // built card, a real `hass` update through the setter Home Assistant uses. Same harness as card-tooltip-stale.spec.ts.
@@ -74,27 +75,6 @@ async function measure(page: Page, one: [Record<string, unknown>, Record<string,
     off.push(await timeUpdate(page, allOff));
   }
   return { one: median(o), on: median(on), off: median(off) };
-}
-/**
- * The machine's speed, in ms: median of 5 builds of a fixed 2,000-group SVG string set as innerHTML and laid out. None of
- * our code runs in it, so a renderFloor slowdown moves the plan's time and not this one.
- */
-async function calibrate(page: Page) {
-  return page.evaluate(() => {
-    const host = document.createElement("div");
-    document.body.append(host);
-    const xs: number[] = [];
-    for (let r = 0; r < 5; r++) {
-      const t0 = performance.now();
-      let s = '<svg xmlns="http://www.w3.org/2000/svg">';
-      for (let i = 0; i < 2000; i++) s += `<g data-x="${i}" transform="translate(${(i % 50) * 10},${Math.floor(i / 50) * 10})"><circle r="4" fill="#${((i * 2654435761) >>> 8 & 0xffffff).toString(16).padStart(6, "0")}"/><text>${i}</text></g>`;
-      host.innerHTML = s + "</svg>";
-      host.firstElementChild!.getBoundingClientRect();
-      xs.push(performance.now() - t0);
-    }
-    host.remove();
-    return xs.sort((a, b) => a - b)[2]!;
-  });
 }
 // NODE WRITES in an "all on" update, counted by a MutationObserver (2026-10-27): 400 devices 2461, stress ground 421.
 const WRITES = { big: 2710, stress: 465 };

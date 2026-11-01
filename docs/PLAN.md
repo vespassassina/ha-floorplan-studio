@@ -4836,6 +4836,8 @@ the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
   list in `bar.ts`; card 123,959 to 124,060 gzip (+101), replay chunk 4,770 to 5,906, limit 6,000.
 - R2.7 The 7-day gate: a 180k-row fixture parsed and indexed in under 1.5 s at 4x CPU throttle and under 60 MB of heap,
   or 7 days is cut and the reason goes into DECISIONS.
+  Done 2026-11-01: the gate passed (61 ms and 12.9 MB at 4x throttle on the Mac), so 7 days ships: one `WINDOWS` entry, "7 d" button, date in the time past
+  48 h; `tests/card/replay-gate*.ts` hold the fixture and the CI ratio test; card 124,060 to 124,059 gzip, replay chunk 5,906 to 5,941, limit 6,000.
 
 ## Sprint 45 (outline): split editor-app
 
