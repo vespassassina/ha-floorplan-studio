@@ -9,7 +9,10 @@ import { openMenu, menuItem } from "./menu-helper";
 // `history/history_during_period` with `{ [entity_id]: CompressedState[] }`; `recorder/models/state.py` builds a row as `{ s, a?, lu }` (float
 // seconds); `recorder/history/modern.py` sends `{s, a, lu}` on the first row and `{s, lu}` after. With include_start_time_state the first row
 // is the state at the request's start_time, so the stub puts it AT the start it was asked for ("start" below), and rows before the start are
-// not sent. A purged recorder has no such row: its first row is the first state it kept (`cut`).
+// not sent. A purged recorder has no such row (the states table no longer holds the state before the start): each entity answers from its first
+// change kept (`lu >= cut`), carrying `a` as any first row does, and an entity with no change kept has no key in the reply at all, because the
+// reply is built from the rows found, grouped by entity (`history/websocket_api.py`, `recorder/history/modern.py`). Opus review S44: the first
+// version gave every entity a synthetic row at the cut, which no recorder sends.
 //
 // The clock: 2026-10-28 12:00 local is the moment the bar opens. A 24 h slider has 1440 minutes from 12:00 the day before; a 48 h one 2880.
 
@@ -31,10 +34,13 @@ const ROWS = () => ({
   "binary_sensor.demo_front_door": [{ s: "off", a: {}, lu: "start" }, { s: "on", lu: secs(10, 0, -1) }, { s: "off", lu: secs(10, 5, -1) }],
 });
 
-interface Opts { rows?: Record<string, unknown[]>; cut?: number; hold?: boolean; clock?: "install" | "fixed"; width?: number }
+/** ROWS plus the kitchen lamp's first change kept after the purge, 30 s after the cut: history begins there, as it does on a real recorder (the others change later). */
+const afterCut = (cut: number) => { const r = ROWS(), k = r["light.demo_kitchen"]; return { ...r, "light.demo_kitchen": [k[0], { s: "off", lu: cut + 30 }, ...k.slice(1)] }; };
+
+interface Opts { now?: number; rows?: Record<string, unknown[]>; cut?: number; hold?: boolean; clock?: "install" | "fixed"; width?: number }
 
 async function boot(page: Page, o: Opts = {}) {
-  if (o.clock === "install") await page.clock.install({ time: NOW }); else await page.clock.setFixedTime(NOW);
+  if (o.clock === "install") await page.clock.install({ time: o.now ?? NOW }); else await page.clock.setFixedTime(o.now ?? NOW);
   await serve(page);
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.addInitScript((cut) => {
@@ -53,8 +59,11 @@ async function boot(page: Page, o: Opts = {}) {
           for (const id of m.entity_ids ?? []) {
             if (!rows[id]) continue;
             const mine = rows[id].map((r) => (r.lu === "start" ? { ...r, lu: startSec } : r)).filter((r) => (r.lu as number) >= startSec);
-            // A purged recorder: nothing before `cut`, and the first state it kept is at `cut` (the start-time row exists only if the window starts after it).
-            out[id] = cut && startSec < cut ? [{ s: mine[0].s, a: mine[0].a ?? {}, lu: cut }, ...mine.filter((r) => (r.lu as number) > cut)] : mine;
+            // A purged recorder (the window starts before `cut`): no start-time row, nothing before `cut`; the first row kept carries `a`; a quiet entity is left out.
+            if (cut && startSec < cut) {
+              const kept = mine.filter((r) => (r.lu as number) >= cut);
+              if (kept.length) out[id] = [{ ...kept[0], a: kept[0].a ?? rows[id][0].a ?? {} }, ...kept.slice(1)];
+            } else out[id] = mine;
           }
           if (!w.__hold) return Promise.resolve(out);
           return new Promise((res) => (w.__held as { hours: number; f: () => void }[]).push({ hours: Math.round((Date.parse(m.end_time) - Date.parse(m.start_time)) / 3600000), f: () => res(out) }));
@@ -143,6 +152,46 @@ test.describe("R2.5 the 48 h window", () => {
     await expect(shown(page)).toHaveText("Wed 12:00");
     await click(len(page, "24 h"));
     await expect(shown(page)).toHaveText("12:00");
+  });
+
+  test("Opus review S44: the slider keeps its width as the time changes weekday at 48 h, wide layout", async ({ page }) => {
+    const width = async () => (await range(page).boundingBox())!.width;
+    await boot(page, { width: 1000 });
+    await click(len(page, "48 h"));
+    await expect(range(page)).toBeEnabled();
+    await range(page).focus();
+    await page.keyboard.press("Home"); // Mon 12:00
+    const w0 = await width();
+    for (const [key, text] of [["PageUp", "Mon 13:00"], ["End", "Wed 12:00"]] as const) {
+      await page.keyboard.press(key);
+      await expect(shown(page)).toHaveText(text);
+      expect(Math.abs((await width()) - w0), text).toBeLessThan(0.5);
+    }
+    await page.keyboard.press("PageDown"); // Wed 11:00 and on, to Tue: 33 h back is Tue 03:00
+    for (let i = 0; i < 32; i++) await page.keyboard.press("PageDown");
+    await expect(shown(page)).toHaveText("Tue 03:00");
+    expect(Math.abs((await width()) - w0)).toBeLessThan(0.5);
+  });
+
+  test("Opus review S44: at 7 d the slider keeps its width from Oct 31 to Nov 1, wide layout", async ({ page }) => {
+    const width = async () => (await range(page).boundingBox())!.width;
+    // 7 d ending Tue 3 Nov 12:00 runs from 27 Oct: "Oct 31, 12:00" and "Nov 1, 12:00" differ in length. Page is 6 h at 7 d.
+    await boot(page, { width: 1000, now: new Date(2026, 10, 3, 12, 0, 0).getTime() });
+    await click(len(page, "7 d"));
+    await expect(range(page)).toBeEnabled();
+    await range(page).focus();
+    await page.keyboard.press("Home");
+    await expect(shown(page)).toHaveText("Oct 27, 12:00");
+    const v0 = await width();
+    for (let i = 0; i < 16; i++) await page.keyboard.press("PageUp");
+    await expect(shown(page)).toHaveText("Oct 31, 12:00");
+    expect(Math.abs((await width()) - v0)).toBeLessThan(0.5);
+    for (let i = 0; i < 4; i++) await page.keyboard.press("PageUp");
+    await expect(shown(page)).toHaveText("Nov 1, 12:00");
+    expect(Math.abs((await width()) - v0)).toBeLessThan(0.5);
+    await page.keyboard.press("End");
+    await expect(shown(page)).toHaveText("Nov 3, 12:00");
+    expect(Math.abs((await width()) - v0)).toBeLessThan(0.5);
   });
 
   test("item 11: arrows move 5 minutes at 24 h and 10 at 48 h; Page keys an hour at both", async ({ page }) => {
@@ -302,7 +351,7 @@ test.describe("R2.7 the 7-day window", () => {
   });
 
   test("purge at 7 days: a reply starting 36 h before the end greys the part before it, and the info line says from when", async ({ page }) => {
-    await boot(page, { cut: secs(0, 0, -1) }); // 27 Oct 00:00, 36 h before the end
+    await boot(page, { cut: secs(0, 0, -1), rows: afterCut(secs(0, 0, -1)) }); // 27 Oct 00:00, 36 h before the end
     await click(len(page, "7 d"));
     await expect(range(page)).toBeEnabled();
     const grey = (await card(page).locator("css=.fp-rp-purge").boundingBox())!;
@@ -320,7 +369,7 @@ test.describe("R2.5 purge (item 13, criterion 10)", () => {
   const cut = secs(0, 0, -1); // 27 Oct 00:00: 12 h into the 48 h window
 
   test("a reply that starts 12 hours into a 48 h window greys that quarter of the strip, and the info line says from when", async ({ page }) => {
-    await boot(page, { cut });
+    await boot(page, { cut, rows: afterCut(cut) });
     await expect(card(page).locator("css=.fp-rp-purge")).toHaveCount(0); // 24 h starts after the cut: all kept
     await click(len(page, "48 h"));
     await expect(range(page)).toBeEnabled();
@@ -332,6 +381,18 @@ test.describe("R2.5 purge (item 13, criterion 10)", () => {
     await expect(status(page)).toContainText("History is kept from");
     await expect(status(page)).toContainText("27");
     await expect(status(page)).toContainText("00:00");
+  });
+
+  test("Opus review S44: the strip's accessible name says the purge, without pressing Info", async ({ page }) => {
+    await boot(page, { cut, rows: afterCut(cut) });
+    await click(len(page, "48 h"));
+    await expect(range(page)).toBeEnabled();
+    const name = card(page).locator("css=.fp-rp-strip[role=img]");
+    await expect(name).toHaveAttribute("aria-label", /^1 lamp\. History is kept from .*27.*00:00/); // the events first, then the purge
+    await expect(card(page).locator("css=button.fp-rp-info")).toHaveAttribute("aria-pressed", "false");
+    await click(len(page, "24 h")); // the 24 h window starts after the cut: nothing purged
+    await expect(range(page)).toBeEnabled();
+    await expect(name).not.toHaveAttribute("aria-label", /History is kept/);
   });
 
   test("with the whole window kept there is no grey and no purge line", async ({ page }) => {

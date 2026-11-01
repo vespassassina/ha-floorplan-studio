@@ -7,7 +7,9 @@ import { openMenu, menuItem } from "./menu-helper";
 //
 // Where the stubbed reply comes from (finding 21): as replay-jumps.spec.ts. `homeassistant/components/history/websocket_api.py` answers
 // `history/history_during_period` with `{ [entity_id]: CompressedState[] }`; `recorder/models/state.py` builds a row as `{ s, a?, lu }` (float seconds);
-// `recorder/history/modern.py` sends `{s, a, lu}` on the first row and `{s, lu}` after. The first row is the start state, never an onset.
+// `recorder/history/modern.py` sends `{s, a, lu}` on the first row and `{s, lu}` after. The first row is the start state, never an onset. With
+// include_start_time_state that row sits AT the start_time of the request (`lu: START` below becomes it), whatever the window's length; the first version put it
+// 100 s early, which no recorder does, and a window of another length then looked purged.
 //
 // The clock: 2026-10-28 12:00 local is the moment the bar opens; the slider is 1440 minutes from 12:00 the day before.
 // The demo's ground floor has Living room (index 0), Kitchen (1), Hall (2). A door is added on the wall between Living room and Hall.
@@ -16,7 +18,8 @@ import { openMenu, menuItem } from "./menu-helper";
 
 const NOW = new Date(2026, 9, 28, 12, 0, 0).getTime();
 const secs = (h: number, m = 0) => (NOW + (h - 12) * 3600000 + m * 60000) / 1000;
-const START = secs(12, 0) - 86400 - 100;
+/** The state at the asked start_time: the stub puts the first row there, as HA does. */
+const START = "start" as const;
 
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const range = (page: Page) => card(page).locator("css=input.fp-rp-range");
@@ -51,9 +54,10 @@ async function boot(page: Page, o: { width?: number; layout?: unknown; theme?: s
       states: {}, themes: { darkMode: false }, config: { latitude: 52.52, longitude: 13 }, locale: { language: "en", time_format: "24" },
       callService: () => Promise.resolve(),
       connection: {
-        sendMessagePromise: (m: { type: string; entity_ids?: string[] }) => {
+        sendMessagePromise: (m: { type: string; entity_ids?: string[]; start_time?: string }) => {
           const out: Record<string, unknown[]> = {};
-          if (m.type === "history/history_during_period") for (const id of m.entity_ids ?? []) if (rows[id]) out[id] = rows[id];
+          const startSec = Date.parse(m.start_time ?? "") / 1000;
+          if (m.type === "history/history_during_period") for (const id of m.entity_ids ?? []) if (rows[id]) out[id] = (rows[id] as { lu: number | "start" }[]).map((r) => (r.lu === "start" ? { ...r, lu: startSec } : r)).filter((r) => (r.lu as number) >= startSec);
           return Promise.resolve(out);
         },
       },
@@ -118,6 +122,35 @@ test.describe("R2.6 filters by group and room", () => {
     await expect(ticks(page)).toHaveCount(3);
     await click(next(page));
     await expect(range(page)).toHaveValue("1260"); // the lamps are back as jumps
+  });
+
+  test("Diego 2026-11-01: the filters survive a change of window length, 24 h to 7 d and back", async ({ page }) => {
+    const len = (label: string) => card(page).locator("css=.fp-rp-len button", { hasText: label });
+    const off = "Filter events, 2 off";
+    await boot(page);
+    await openList(page);
+    await click(group(page, "lamp"));
+    await click(room(page, 2)); // Hall off: its motion goes; the door stays (Living is on)
+    await expect(strip(page)).toHaveAttribute("aria-label", "1 door or window");
+    await expect(filter(page)).toHaveAttribute("aria-label", off);
+    for (const [label, end, door] of [["7 d", 10080, 9840], ["24 h", 1440, 1200]] as const) {
+      await click(len(label));
+      await expect(range(page)).toHaveAttribute("max", String(end));
+      await expect(range(page)).toBeEnabled();
+      await expect(ticks(page)).toHaveCount(1);
+      await expect(strip(page)).toHaveAttribute("aria-label", "1 door or window");
+      await expect(filter(page)).toHaveAttribute("aria-label", off);
+      await expect(filter(page)).toHaveClass(/fp-rp-filtered/);
+      await range(page).focus();
+      await page.keyboard.press("End");
+      await click(prev(page));
+      await expect(range(page)).toHaveValue(String(door)); // the lamps and the hall motion are not jumps
+      await expect(prev(page)).toBeDisabled();
+    }
+    await openList(page);
+    await expect(group(page, "lamp")).toHaveAttribute("aria-pressed", "false");
+    await expect(room(page, 2)).toHaveAttribute("aria-pressed", "false");
+    await expect(room(page, 0)).toHaveAttribute("aria-pressed", "true");
   });
 
   test("criterion 11: a door between two rooms stays while either is on; an event with no room needs every room on", async ({ page }) => {

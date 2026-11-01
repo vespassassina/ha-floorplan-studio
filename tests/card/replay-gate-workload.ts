@@ -20,21 +20,30 @@ const hold = globalThis as unknown as { __gateKept: { index: HistoryIndex; onset
 /** What `send` in the card answers: HA's reply for the entities of one call (copied from the fixture, which says where its shape comes from). */
 const sender = (g: Gate) => (m: { entity_ids: string[] }) => Promise.resolve(Object.fromEntries(m.entity_ids.map((id) => [id, g.reply[id]])));
 
-async function load(g: Gate, days: number) {
+/** The two stages, apart: `parse` is `fetchHistory` (both calls' parse, merged), `onsets` is `onsets` and `purgedFrom`. `slow`: that stage runs twice, the first result dropped,
+ * which is a stage that got twice as slow. `FP_GATE_SLOW` in replay-gate.spec.ts turns it on, to see the gate catch it (docs/DECISIONS.md, Sprint 44 review). */
+export type Slow = "parse" | "onsets" | "both" | undefined;
+async function load(g: Gate, days: number, slow?: Slow, took?: { parse: number; onsets: number }) {
   const start = END_MS - days * DAY_MS;
+  const t0 = performance.now();
+  if (slow === "parse" || slow === "both") await fetchHistory(sender(g), g.asked, start, END_MS);
   const index = await fetchHistory(sender(g), g.asked, start, END_MS);
+  const t1 = performance.now();
+  if (slow === "onsets" || slow === "both") onsets(index, g.floor, tools);
   const events = onsets(index, g.floor, tools);
   purgedFrom(index, start);
+  if (took) { took.parse += t1 - t0; took.onsets += performance.now() - t1; }
   return { index, onsets: events };
 }
 
 /** One run of the workload, in ms: `times` loads of the same floor one after the other (a longer run is a steadier one). The fixture is made before the clock starts: HA built that reply, not the card. */
-export async function timed(days = 7, times = 1): Promise<{ ms: number; rows: number; onsets: number }> {
+export async function timed(days = 7, times = 1, slow?: Slow): Promise<{ ms: number; parse: number; onsets: number; rows: number; events: number }> {
   const g = gateFixture((END_MS - days * DAY_MS) / 1000, END_MS / 1000);
   let n = 0;
+  const took = { parse: 0, onsets: 0 };
   const t0 = performance.now();
-  for (let i = 0; i < times; i++) n = (await load(g, days)).onsets.length;
-  return { ms: performance.now() - t0, rows: g.rows, onsets: n };
+  for (let i = 0; i < times; i++) n = (await load(g, days, slow, took)).onsets.length;
+  return { ms: performance.now() - t0, parse: took.parse, onsets: took.onsets, rows: g.rows, events: n };
 }
 
 /** Not the card's code: the websocket client's own `JSON.parse` of the reply (7 MB of text at 7 days), which runs on the same thread before `parseHistory`. Printed beside the gate, not part of it. */
