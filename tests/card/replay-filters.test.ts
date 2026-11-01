@@ -31,8 +31,9 @@ describe("the room of an onset (item 15)", () => {
     expect(run(rise("light.b"), f)[0].rooms).toEqual([1]);
   });
   it("a line device is in the room of its middle", () => {
-    const f = { rooms, doors: [], devices: [{ id: "l", type: "light", entity: "light.b", a: [60, 50], b: [130, 50] }] };
-    expect(run(rise("light.b"), f)[0].rooms).toEqual([0]);
+    const f = { rooms, doors: [], devices: [{ id: "l", type: "light", entity: "light.b", a: [20, 50], b: [200, 50] }] };
+    // `a` is in room A (0), the middle (110) in room B (1): the middle decides.
+    expect(run(rise("light.b"), f)[0].rooms).toEqual([1]);
   });
   it("a door between two rooms belongs to both; on an outer wall, to one; far from every room, to none", () => {
     const f = { rooms, doors, openings: [], devices: [] };
@@ -137,6 +138,18 @@ describe("the bar's filter button and list", () => {
     f.room(1); // the alarm stands in room 1 only and goes; the door joins rooms 0 and 1 and stays
     expect(count()).toBe(1);
   });
+  it("the value text names only an onset the filters let through: a filtered lamp at the same moment as a lock is not announced", () => {
+    const same = [{ ...on(100, "lamp", [0]) }, { ...on(100, "opening", [0]), kind: "lock" }];
+    const text = (filter: FilterState) => draw({ onsets: same, rooms: rm(...names), filter, at: 100 }).querySelector(".fp-rp-range")!.getAttribute("aria-valuetext");
+    expect(text(fl())).toBe("21:14, light on");
+    expect(text(fl(["lamp"]))).toBe("21:14, unlocked");
+    expect(text(fl(["lamp", "opening"]))).toBe("21:14"); // both filtered: the time alone
+  });
+  it("the filter button says how many toggles are off; with none off it keeps its plain name", () => {
+    const label = (filter: FilterState) => draw({ onsets: list, rooms: rm(...names), filter }).querySelector(".fp-rp-filter")!.getAttribute("aria-label");
+    expect(label(fl())).toBe("Filter events");
+    expect(label(fl(["alarm"], [1]))).toBe("Filter events, 2 off");
+  });
   it("a toggle that is off says so", () => {
     const h = draw({ onsets: list, rooms: rm(...names), filter: fl(["alarm"], [1], true) });
     expect(h.querySelector(".fp-rp-menu [data-g=alarm]")!.getAttribute("aria-pressed")).toBe("false");
@@ -222,6 +235,15 @@ describe("the filter state's buttons (what the card holds per floor history)", (
     page.click(); // the listener is gone: nothing happens, nothing throws
     document.body.replaceChildren();
   });
+  it("a click whose target stops its propagation still closes the list (the listener is in the capture phase)", () => {
+    const { f } = make();
+    const plan = body("plan");
+    plan.addEventListener("click", (e) => e.stopPropagation());
+    f.show(true);
+    plan.click();
+    expect(f.open).toBe(false);
+    document.body.replaceChildren();
+  });
   it("closing removes the listener; Escape (back) gives focus to the button that was clicked", () => {
     const { f, repaint } = make();
     const btn = body("fp-rp-filter"), p = body("somewhere");
@@ -234,9 +256,11 @@ describe("the filter state's buttons (what the card holds per floor history)", (
     p.click();
     expect(repaint).not.toHaveBeenCalled();
     f.show(true);
+    const other = body("other");
+    other.tabIndex = 0;
+    other.focus();
     f.show(false); // closed without Escape: focus is not moved
-    (document.activeElement as HTMLElement).blur();
-    expect(document.activeElement).not.toBe(btn);
+    expect(document.activeElement).toBe(other);
     document.body.replaceChildren();
   });
   it("passes: everything without a state; the predicate of the filters with one", () => {

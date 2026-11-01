@@ -214,6 +214,7 @@ export function closeReplay(c: FloorplanStudioCard, back = false): void {
   stopFrames(r);
   if (r.noteTimer !== null) globalThis.clearTimeout(r.noteTimer);
   c._replay = null;
+  r.floors.forEach((fh) => fh.filter?.show(false)); // an open list holds a click listener on the document
   c._syncTimer();
   c.requestUpdate();
 }

@@ -274,6 +274,7 @@ const c: Catalogue = {
   "{n} alarm": { one: "{n} alarm", few: "{n} alarmy", many: "{n} alarmów", other: "{n} alarmu" },
   "motion in {n} room": { one: "ruch w {n} pokoju", few: "ruch w {n} pokojach", many: "ruch w {n} pokojach", other: "ruch w {n} pokoju" },
   "Filter events": "Filtruj zdarzenia",
+  "Filter events, {n} off": "Filtruj zdarzenia, wyłączone: {n}",
   "Doors and windows": "Drzwi i okna",
   "Rooms": "Pokoje",
   "No events": "Brak zdarzeń",
