@@ -1,5 +1,6 @@
 import type { html as Html, nothing as Nothing } from "lit";
-import { neighbour, type Onset } from "./events";
+import { allows, neighbour, type EventGroup, type Filters, type Onset } from "./events";
+import type { FilterState } from "./filters";
 import { clusters, motionBuckets, type Cluster, type TickGroup } from "./markers";
 import { WINDOWS, dayAndTime, weekday } from "./window";
 
@@ -11,6 +12,7 @@ const PLAY = "M8,5.14V19.14L19,12.14L8,5.14Z";
 const PAUSE = "M14,19H18V5H14M6,19H10V5H6V19Z";
 const PREV = "M6,18V6H8V18H6M9.5,12L18,6V18L9.5,12Z";
 const NEXT = "M16,18H18V6H16M6,18L14.5,12L6,6V18Z";
+const FILTER = "M6,13H18V11H6M3,6V8H21V6M10,18H14V16H10V18Z";
 const INFO = "M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z";
 
 export interface BarModel {
@@ -42,6 +44,9 @@ export interface BarModel {
   /** R2.5: when the reply begins, if the recorder had purged part of the window; `hass` gives the language and clock setting that write it. */
   purgedFrom?: number | null;
   hass?: Parameters<typeof dayAndTime>[1];
+  /** R2.6: the filters of this floor's history (absent: all on, no button), and the floor's rooms, indexed as `Onset.rooms`. Layout data: any element may be junk. */
+  filter?: FilterState;
+  rooms?: readonly ({ name?: unknown } | undefined)[];
 }
 /** What the card draws with: lit's `html` and `nothing`, its translators, and the X's path. */
 export interface BarTools { html: typeof Html; nothing: typeof Nothing; t(key: string, vars?: Record<string, string | number>): string; tn(one: string, other: string, n: number): string; close: string }
@@ -52,8 +57,12 @@ const MARKER_CSS = `
 .fp-rp-prev{grid-area:prev} .fp-rp-next{grid-area:next}
 .fp-rp-head{grid-area:time;display:flex;align-items:center;gap:8px;min-width:0}
 .fp-rp-len{display:inline-flex;gap:4px}
-.fp-replay .fp-rp-len button{min-width:0;padding:0 8px;font-size:12px}
-.fp-replay .fp-rp-len button[aria-pressed=true]{background:var(--fp-ink);color:var(--fp-room)}
+.fp-replay .fp-rp-len button,.fp-replay .fp-rp-menu button{min-width:0;padding:0 8px;font-size:12px}
+.fp-replay .fp-rp-len button[aria-pressed=true],.fp-replay .fp-rp-menu button[aria-pressed=true],.fp-replay .fp-rp-filtered{background:var(--fp-ink);color:var(--fp-room)}
+.fp-replay{position:relative}
+.fp-rp-menu{position:absolute;left:8px;bottom:100%;z-index:4;box-sizing:border-box;width:max-content;max-width:calc(100% - 16px);max-height:min(50vh,16em);overflow:auto;padding:8px;display:flex;flex-direction:column;gap:6px;background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:12px}
+.fp-rp-menu>div{display:flex;flex-wrap:wrap;gap:4px}
+.fp-replay .fp-rp-menu button{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @container (max-width:640px){.fp-rp-head{justify-content:space-between}}
 .fp-rp-purge{position:absolute;left:0;top:-2px;bottom:-2px;border-radius:2px;background:var(--fp-idle);opacity:.6;pointer-events:none}
 .fp-rp-track{grid-area:range;min-width:0;display:flex;flex-direction:column}
@@ -67,11 +76,16 @@ const MARKER_CSS = `
 /** The strip's tick colours, one variable per group (a test reads each in every theme). */
 export const MARKER_VARS = ["--fp-dev-light", "--fp-open-door", "--fp-danger", "--fp-text"];
 
-let memo: { onsets: readonly Onset[]; end: number; max: number; width: number; c: Cluster[]; b: number[] } | null = null;
-/** Play repaints the bar every frame; the clusters change only with the onsets, the window or the width. */
+const ALL_ON: Filters = { groups: new Set(), rooms: new Set() };
+let memo: { onsets: readonly Onset[]; groups: Filters["groups"]; rooms: Filters["rooms"]; end: number; max: number; width: number; kept: Onset[]; c: Cluster[]; b: number[] } | null = null;
+/** Play repaints the bar every frame; what the strip shows changes only with the onsets, the filters (the card replaces a set on each toggle), the window or the width.
+ * `kept` is the onsets the filters allow: the ticks, the band, the totals and the name all come from it. */
 function marked(m: BarModel, onsets: readonly Onset[]) {
-  const start = m.end - m.max * 60000;
-  if (!memo || memo.onsets !== onsets || memo.end !== m.end || memo.max !== m.max || memo.width !== m.width) memo = { onsets, end: m.end, max: m.max, width: m.width, c: clusters(onsets, start, m.end, m.width), b: motionBuckets(onsets, start, m.end) };
+  const start = m.end - m.max * 60000, f = m.filter ?? ALL_ON;
+  if (!memo || memo.onsets !== onsets || memo.groups !== f.groups || memo.rooms !== f.rooms || memo.end !== m.end || memo.max !== m.max || memo.width !== m.width) {
+    const kept = onsets.filter((o) => allows(f, o));
+    memo = { onsets, groups: f.groups, rooms: f.rooms, end: m.end, max: m.max, width: m.width, kept, c: clusters(kept, start, m.end, m.width), b: motionBuckets(kept, start, m.end) };
+  }
   return memo;
 }
 
@@ -85,9 +99,11 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
   const icon = (path: string) => html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d=${path} fill="currentColor"/></svg>`;
   const counts = (n: Record<TickGroup, number>) => [tn("{n} lamp", "{n} lamps", n.lamp), tn("{n} door or window", "{n} doors or windows", n.opening), tn("{n} alarm", "{n} alarms", n.alarm)].filter((_, i) => n[(["lamp", "opening", "alarm"] as const)[i]]);
   const strip = () => {
-    const start = m.end - m.max * 60000, onsets = m.onsets ?? [], { c, b } = marked(m, onsets), total = { lamp: 0, opening: 0, alarm: 0 }, sensors = new Set<string>();
-    for (const o of onsets) { if (o.group === "motion") sensors.add(o.entity); else total[o.group]++; }
-    const parts = [...counts(total), ...(sensors.size ? [tn("motion on {n} sensor", "motion on {n} sensors", sensors.size)] : [])];
+    const start = m.end - m.max * 60000, { kept, c, b } = marked(m, m.onsets ?? []), total = { lamp: 0, opening: 0, alarm: 0 }, motion = new Set<number>();
+    let any = false;
+    for (const o of kept) { if (o.group === "motion") { any = true; o.rooms?.forEach((i) => motion.add(i)); } else total[o.group]++; }
+    // Motion is counted in rooms; a layout whose sensors stand in none says "motion" alone.
+    const parts = [...counts(total), ...(motion.size ? [tn("motion in {n} room", "motion in {n} rooms", motion.size)] : any ? [t("motion")] : [])];
     const top = Math.max(1, ...b);
     return html`<div class="fp-rp-strip" role="img" aria-label=${parts.join(", ") || t("No events")}>
       ${m.purgedFrom ? html`<div class="fp-rp-purge" style="width:${Math.min(100, Math.max(0, +(((m.purgedFrom - start) / (m.max * 600)).toFixed(1))))}%"></div>` : nothing}
@@ -97,11 +113,24 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
   };
   const shown = m.hours > 24 ? `${weekday(m.at, m.hass)} ${m.shown}` : m.shown;
   const onset = m.onsets?.find((o) => o.t === m.at), text = onset ? `${shown}, ${eventSaid(t, onset)}` : shown;
-  const go = (dir: 1 | -1, cls: string, name: string, path: string) => html`<button type="button" class=${cls} aria-label=${name} title=${name} ?disabled=${!m.ready || !neighbour(m.onsets ?? [], m.at, dir)} @click=${() => h.jumpBy(dir)}>${icon(path)}</button>`;
+  const go = (dir: 1 | -1, cls: string, name: string, path: string) => html`<button type="button" class=${cls} aria-label=${name} title=${name} ?disabled=${!m.ready || !neighbour(m.onsets ?? [], m.at, dir, (o) => allows(f, o))} @click=${() => h.jumpBy(dir)}>${icon(path)}</button>`;
+  const f: Filters = m.filter ?? ALL_ON, fs = m.filter;
+  // R2.6: the groups, and the rooms that have an onset in the window (all groups, whatever is off now, so a room stays on the list to be switched back on).
+  const menu = () => {
+    const have = new Set(m.onsets?.flatMap((o) => o.rooms ?? [])), pressed = (off: boolean) => (off ? "false" : "true");
+    const groups: [EventGroup, string][] = [["lamp", t("Lights")], ["motion", t("Motion")], ["opening", t("Doors and windows")], ["alarm", t("Alarm")]];
+    const rooms = (m.rooms ?? []).flatMap((r, i) => (have.has(i) && typeof r?.name === "string" && r.name ? [[i, r.name] as const] : []));
+    return html`<div class="fp-rp-menu" role="group" aria-label=${t("Filter events")}>
+      <div>${groups.map(([g, name]) => html`<button type="button" data-g=${g} aria-pressed=${pressed(f.groups.has(g))} @click=${() => fs?.group(g)}>${name}</button>`)}</div>
+      ${rooms.length ? html`<div role="group" aria-label=${t("Rooms")}>${rooms.map(([i, n]) => html`<button type="button" data-r=${i} title=${n} aria-pressed=${pressed(f.rooms.has(i))} @click=${() => fs?.room(i)}>${n}</button>`)}</div>` : nothing}
+    </div>`;
+  };
   const none = tn("{n} entity on this floor has no history", "{n} entities on this floor have no history", m.missing), play = m.playing ? t("Pause") : t("Play");
   return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} aria-busy=${m.ready || m.failed ? "false" : "true"} @keydown=${h.key}>
     <div class="fp-rp-head"><span class="fp-rp-time">${shown}</span>
-    <div class="fp-rp-len" role="group" aria-label=${t("Window")}>${WINDOWS.map((w) => html`<button type="button" aria-pressed=${w.hours === m.hours ? "true" : "false"} @click=${() => h.length(w.hours)}>${t("{n} h", { n: w.hours })}</button>`)}</div></div>
+    <div class="fp-rp-len" role="group" aria-label=${t("Window")}>${WINDOWS.map((w) => html`<button type="button" aria-pressed=${w.hours === m.hours ? "true" : "false"} @click=${() => h.length(w.hours)}>${t("{n} h", { n: w.hours })}</button>`)}</div>
+    ${m.ready && fs ? html`<button type="button" class="fp-rp-filter ${f.groups.size + f.rooms.size ? "fp-rp-filtered" : ""}" aria-label=${t("Filter events")} title=${t("Filter events")} aria-expanded=${fs.open ? "true" : "false"} @click=${(e: Event) => { fs.button = e.currentTarget as HTMLElement; fs.show(!fs.open); }}>${icon(FILTER)}</button>` : nothing}</div>
+    ${m.ready && fs?.open ? menu() : nothing}
     ${go(-1, "fp-rp-prev", t("Previous event"), PREV)}
     <button type="button" class="fp-rp-play" aria-label=${play} title=${play} ?disabled=${!m.ready} @click=${h.play}>${icon(m.playing ? PAUSE : PLAY)}</button>
     ${go(1, "fp-rp-next", t("Next event"), NEXT)}

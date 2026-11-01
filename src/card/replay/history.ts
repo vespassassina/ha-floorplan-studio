@@ -5,6 +5,7 @@ import type { HassEntity } from "../floorplan-studio-card";
 export { barView } from "./bar";
 export { WINDOWS, windowOf, purgedFrom, dayAndTime } from "./window";
 export { EVENTS_MARKER, EVENT_RULES, NO_EVENT, neighbour, onsets } from "./events";
+export { newFilter, passes } from "./filters";
 
 /** Only this module holds it, so a test can prove the card file does not contain the parser. */
 export const REPLAY_CHUNK = "fp-replay-v1";

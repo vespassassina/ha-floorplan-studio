@@ -80,10 +80,10 @@ describe("the strip in the bar (items 5, 6, 8)", () => {
     expect(host.querySelector(".fp-rp-tick")?.getAttribute("title")).toBe("3 lamps, 1 door or window");
   });
   it("the strip is an image with the totals as its name", () => {
-    const host = draw({ onsets: [on(0), on(100, "opening"), on(200, "alarm"), on(300, "motion", "b.a"), on(400, "motion", "b.b")] });
+    const host = draw({ onsets: [on(0), on(100, "opening"), on(200, "alarm"), { ...on(300, "motion", "b.a"), rooms: [0] }, { ...on(400, "motion", "b.b"), rooms: [1] }] });
     const s = host.querySelector(".fp-rp-strip")!;
     expect(s.getAttribute("role")).toBe("img");
-    expect(s.getAttribute("aria-label")).toBe("1 lamp, 1 door or window, 1 alarm, motion on 2 sensors");
+    expect(s.getAttribute("aria-label")).toBe("1 lamp, 1 door or window, 1 alarm, motion in 2 rooms");
   });
   it("no events say so; the strip is not drawn before the history is there", () => {
     expect(draw({}).querySelector(".fp-rp-strip")?.getAttribute("aria-label")).toBe("No events");

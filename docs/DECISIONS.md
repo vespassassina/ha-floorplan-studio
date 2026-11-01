@@ -2,6 +2,29 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-01: R2.6, replay filters by group and room
+
+Spec `docs/specs/replay-2.md` items 14, 15 and criteria 11, 12. Card 123,959 to 124,047 gzip (+88, over the +80 aim; the cap for the whole
+spec is 124,168, so 121 are left for R2.7), replay chunk 4,770 to 5,877 (limit 6,000, so 123 left), largest language chunk pl 4,180 (limit 5,000).
+Choices the spec left open:
+
+- **The state lives in the chunk.** `replay/filters.ts` holds `FilterState` (the sets of what is OFF, the open flag, the toggles) and the card keeps one
+  per `FloorHistory`. A first version kept it in the card: +336. Filters therefore reset on a floor change and on a new length; nothing is remembered.
+- **Rooms are indexes into `floor.rooms`,** never names, so a room called `__proto__` is safe. A room without a string name counts as no room and gets
+  no toggle. `doorRoomIndexes` in `core/active.ts` returns every room a door stands on; `doorRoomIndex` is its first. A junk door that `onEdge` throws
+  on gets no rooms. Rooms are computed once per fetch, in `onsets()`.
+- **Filter rule** (`allows`): the group must be on; an event with rooms passes when any of them is on; an event with no room passes only when every
+  room with an onset is on. `neighbour` takes the predicate, and the prev/next disabled state follows it.
+- **The button sits in the head row** (`.fp-rp-head`, after the 24 h and 48 h buttons), so the grid is untouched; at 380 px the slider keeps about 190 px
+  (test: over 80). The list is `position:absolute` above the bar, inside the card, `max-width:calc(100% - 16px)`, scrolling past 16 em.
+- **A click outside includes the rest of the bar,** a literal reading: a jump button closes the list and does its jump. It is a capture-phase `click`
+  (finding 22), so nothing moves under the finger; it only closes. A list left open when the bar closes removes its listener on the next click.
+- **Escape** closes the list first and gives focus back to the filter button; a second Escape closes the bar.
+- **Strip name:** "motion in N rooms" replaces "motion on N sensors" (counted in distinct rooms; plain "motion" when no sensor has a room). All nine
+  catalogues changed; three pinned assertions in `replay-markers` followed. The Playwright bar width default went from 900 to 1000 in
+  `replay-markers.spec.ts`: the filter button takes 40 px of the slider, and at 900 two clusters merged that the test counts apart.
+- **Not done:** the guard against a late click was not run under CPU throttle (nothing moves on pointerup here).
+
 ## 2026-11-01: at 48 h the replay time names its day (Diego)
 
 A 48-hour window shows each clock time twice, so "09:00" did not say which day. Above 24 h the bar's time and its
