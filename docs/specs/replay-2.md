@@ -129,7 +129,8 @@ the chunk's limit must rise.
 5. **Markers.** A strip 8 px high above the slider. Lamp, opening and alarm onsets are ticks in their group's colour
    (`--fp-dev-light`, `--fp-open-door`, `--fp-danger`). Motion is a band under the ticks: per bucket, its opacity
    follows the count of motion onsets, so a busy evening reads as a darker stretch.
-6. **Clusters.** Ticks closer than 6 px merge into one, drawn in the colour of its highest group
+6. **Clusters.** A tick closer than 6 px to a cluster's first tick joins it (measured from the first tick, so a run of close
+   ticks does not chain into one cluster), drawn in the colour of its highest group
    (alarm, then opening, then lamp), taller with more members (8, 12, 16 px for 1, 2 to 4, 5 or more). Its tooltip
    says what it holds, by group ("3 lamps, 1 door or window"). Clusters are recomputed when the bar's width changes.
 7. **Tap a marker.** A tap or click on a tick or cluster moves the thumb to its first onset. The strip is not a
@@ -205,7 +206,8 @@ where: `homeassistant/components/history/websocket_api.py`, `homeassistant/compo
 4. The event table: a test iterates `DEVICE_TYPES` and fails on a member that is not in the table; for each group one
    entity's rows give the expected onsets; `unavailable` between two `on` rows gives one onset, not two; the start row
    gives none. Asymmetric times. (B4)
-5. Clusters: ticks at 0, 5, 7 and 20 px give two clusters, the first of three; an alarm in a cluster of lamps colours
+5. Clusters: ticks at 0, 5, 7 and 20 px give three clusters of 2, 1 and 1; a run of ticks 4 px apart over 200 px gives
+   more than one; an alarm in a cluster of lamps colours
    it danger; at a wider bar the same events split. (B6)
 6. A real click on a cluster moves the thumb to its first onset and the plan draws that moment (a door dashed). A
    click between ticks moves nothing. (B7)
