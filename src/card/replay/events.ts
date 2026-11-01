@@ -1,5 +1,7 @@
 import type { coverActive as CoverActive } from "../../core/cover";
 import type { doorStateOf as DoorStateOf } from "../../core/door-state";
+import type { doorRoomIndexes as DoorRooms } from "../../core/active";
+import type { roomAt as RoomAt } from "../../core/render";
 import type { HistoryIndex } from "./history";
 
 // R2.2: what counts as an event in a replay (docs/specs/replay-2.md, item 4). It lives in the replay chunk with the parser: a card
@@ -10,9 +12,11 @@ import type { HistoryIndex } from "./history";
 export const EVENTS_MARKER = "fp-events-v1";
 
 export type EventGroup = "lamp" | "motion" | "opening" | "alarm";
-/** One onset: `t` in ms like `stateAt`'s; `kind` is the device type, `door` for a door or window, `room` for a room's motion sensor. */
-export interface Onset { entity: string; t: number; group: EventGroup; kind: string }
-export interface EventTools { doorStateOf: typeof DoorStateOf; coverActive: typeof CoverActive }
+/** One onset: `t` in ms like `stateAt`'s; `kind` is the device type, `door` for a door or window, `room` for a room's motion sensor.
+ * R2.6: `rooms` are indexes into the floor's `rooms` (the rooms it is in; absent when it is in none). */
+export interface Onset { entity: string; t: number; group: EventGroup; kind: string; rooms?: number[] }
+/** Handed over like the two state helpers: the plan's own room rule (`roomAt`) and the rooms a door joins (`doorRoomIndexes`). */
+export interface EventTools { doorStateOf: typeof DoorStateOf; coverActive: typeof CoverActive; roomAt: typeof RoomAt; doorRooms: typeof DoorRooms }
 
 type Attrs = Record<string, unknown>;
 /** `cls` sorts a state into a class (null: a passing state that says nothing, ignored); entering a class in `fires` is an onset. */
@@ -49,18 +53,18 @@ const list = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.fi
 const dead = (s: string) => s === "unavailable" || s === "unknown";
 
 /** One entity's onsets: the first row is the baseline (the start-time state), a dead row is skipped, and what follows it is compared with the last known class. */
-function ruleOnsets(index: HistoryIndex, entity: string, rule: Rule, kind: string, tools: EventTools, out: Onset[]) {
+function ruleOnsets(index: HistoryIndex, entity: string, rule: Rule, kind: string, tools: EventTools, out: Onset[], rooms: number[]) {
   let last: string | null = null;
   for (const r of index.get(entity) ?? []) {
     const c = dead(r.state) ? null : rule.cls(r.state, r.attributes, tools);
     if (c === null) continue;
-    if (last !== null && c !== last && rule.fires.includes(c)) out.push({ entity, t: r.lu * 1000, group: rule.group, kind });
+    if (last !== null && c !== last && rule.fires.includes(c)) out.push({ entity, t: r.lu * 1000, group: rule.group, kind, ...(rooms.length ? { rooms } : {}) });
     last = c;
   }
 }
 
 /** A door or window opens when `doorStateOf` says so on the states its entities held, dead rows left out; the entity that changed is the onset's. */
-function doorOnsets(index: HistoryIndex, door: Record<string, unknown>, tools: EventTools, out: Onset[]) {
+function doorOnsets(index: HistoryIndex, door: Record<string, unknown>, tools: EventTools, out: Onset[], rooms: number[]) {
   const ids = [...strings(door.sensors), ...strings(door.locks), ...(typeof door.cover === "string" ? [door.cover] : [])];
   const mine: HistoryIndex = new Map();
   const moments: { t: number; entity: string }[] = [];
@@ -84,9 +88,20 @@ function doorOnsets(index: HistoryIndex, door: Record<string, unknown>, tools: E
     }
     const d = tools.doorStateOf(door as never, state as never);
     const now = d.open || d.cover;
-    if (was === false && now) out.push({ ...m, group: "opening", kind: "door" });
+    if (was === false && now) out.push({ ...m, group: "opening", kind: "door", ...(rooms.length ? { rooms } : {}) });
     was = now;
   }
+}
+
+/** The rooms of door `i`; a door or neighbour of the wrong shape makes `onEdge` throw, and an event is not worth a thrown replay. */
+function doorRooms(f: Record<string, unknown>, i: number, tools: EventTools): number[] {
+  try { return tools.doorRooms(f as never, i); } catch { return []; }
+}
+
+/** Where a device stands: its point, or a line device's middle; NaN where the layout has no usable number (`roomAt` then says no room). */
+function standsAt(d: Record<string, unknown>): [number, number] {
+  const a = d.a, b = d.b, num = (v: unknown) => (typeof v === "number" ? v : NaN);
+  return Array.isArray(a) && Array.isArray(b) ? [(num(a[0]) + num(b[0])) / 2, (num(a[1]) + num(b[1])) / 2] : [num(d.x), num(d.y)];
 }
 
 /**
@@ -97,14 +112,18 @@ export function onsets(index: HistoryIndex, floor: unknown, tools: EventTools): 
   const out: Onset[] = [];
   const f = isObject(floor) ? floor : {};
   const seen = new Set<string>();
-  const watch = (entity: unknown, rule: Rule | undefined, kind: string) => {
+  const watch = (entity: unknown, rule: Rule | undefined, kind: string, rooms: number[]) => {
     if (typeof entity !== "string" || !rule || seen.has(entity)) return;
     seen.add(entity);
-    ruleOnsets(index, entity, rule, kind, tools, out);
+    ruleOnsets(index, entity, rule, kind, tools, out, rooms);
   };
-  for (const d of list(f.devices)) watch(d.entity, typeof d.type === "string" && Object.prototype.hasOwnProperty.call(EVENT_RULES, d.type) ? EVENT_RULES[d.type] : undefined, String(d.type));
-  for (const r of list(f.rooms)) for (const e of strings(r.motion)) watch(e, EVENT_RULES.motion, "room");
-  for (const d of list(f.doors)) doorOnsets(index, d, tools, out);
+  // A room with no usable name cannot be listed in the filter, so an onset in it counts as in none.
+  const roomList: unknown[] = Array.isArray(f.rooms) ? f.rooms : [];
+  const named = (i: number) => { const r = roomList[i]; return isObject(r) && typeof r.name === "string" && r.name ? [i] : []; };
+  for (const d of list(f.devices)) watch(d.entity, typeof d.type === "string" && Object.prototype.hasOwnProperty.call(EVENT_RULES, d.type) ? EVENT_RULES[d.type] : undefined, String(d.type), named(tools.roomAt(f as never, standsAt(d))));
+  roomList.forEach((r, i) => { if (isObject(r)) for (const e of strings(r.motion)) watch(e, EVENT_RULES.motion, "room", named(i)); });
+  // The door's own index in the layout's list, not in the cleaned one: `doorRooms` finds it by that index.
+  (Array.isArray(f.doors) ? f.doors : []).forEach((d, i) => { if (isObject(d)) doorOnsets(index, d, tools, out, doorRooms(f, i, tools)); });
   // The same entity at the same moment from a device and a door is one onset.
   const key = new Set<string>();
   return out.filter((o) => !key.has(`${o.entity} ${o.t}`) && key.add(`${o.entity} ${o.t}`)).sort((a, b) => a.t - b.t || (a.entity < b.entity ? -1 : a.entity > b.entity ? 1 : 0));
@@ -121,4 +140,11 @@ export function neighbour(onsets: readonly Onset[], t: number, dir: 1 | -1, allo
     if ((ahead ? o.t > t : o.t < t) && allow(o)) return o;
   }
   return undefined;
+}
+
+/** R2.6: the filters, as what is OFF (the empty sets are "all on", the state every bar opens in, and a room or group nobody names stays on). */
+export interface Filters { groups: ReadonlySet<EventGroup>; rooms: ReadonlySet<number> }
+/** Whether the filters let an onset through: its group is on, and some room of it is on. An onset with no room passes only while every room is on. */
+export function allows(f: Filters, o: Onset): boolean {
+  return !f.groups.has(o.group) && (o.rooms ? o.rooms.some((i) => !f.rooms.has(i)) : f.rooms.size === 0);
 }

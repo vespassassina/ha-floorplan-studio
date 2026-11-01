@@ -3,13 +3,15 @@ import { EVENTS_MARKER, EVENT_RULES, NO_EVENT, onsets, type EventTools } from ".
 import { parseHistory } from "../../src/card/replay/history";
 import { coverActive } from "../../src/core/cover";
 import { doorStateOf } from "../../src/core/door-state";
+import { doorRoomIndexes } from "../../src/core/active";
+import { roomAt } from "../../src/core/render";
 import { DEVICE_TYPES } from "../../src/core/schema";
 
 // Row shapes, as Home Assistant sends them (checked on a real HA, 2026-10-31; source: homeassistant/components/recorder/history/modern.py
 // and recorder/models/state.py): with include_start_time_state the first row is the state at the start (its `lu` is the start time).
 // The lean call (minimal_response, no_attributes false) sends `{s, a, lu}` first and `{s, lu}` after. The full call sends
 // `{s, a, lu}` on every row. `lu` is float seconds. parseHistory carries the first row's attributes forward.
-const tools: EventTools = { doorStateOf, coverActive };
+const tools: EventTools = { doorStateOf, coverActive, roomAt, doorRooms: doorRoomIndexes };
 const idx = (rows: Record<string, unknown[]>) => parseHistory(rows, Object.keys(rows));
 const floor = (p: { devices?: object[]; doors?: object[]; rooms?: object[] }) =>
   ({ devices: p.devices ?? [], doors: p.doors ?? [], rooms: p.rooms ?? [] }) as never;
