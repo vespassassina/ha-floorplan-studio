@@ -71,12 +71,16 @@ function doorOnsets(index: HistoryIndex, door: Record<string, unknown>, tools: E
     for (const r of rows) moments.push({ t: r.lu * 1000, entity: id });
   }
   moments.sort((a, b) => a.t - b.t);
+  // Rows are sorted by `lu` (parseHistory), so each entity keeps one index that only moves forward: the row it held at a moment is the last at or before it.
+  const at = new Map<string, number>();
   let was: boolean | null = null;
   for (const m of moments) {
     const state: Record<string, { state: string; attributes: Attrs }> = Object.create(null);
     for (const [id, rows] of mine) {
-      const row = rows.filter((r) => r.lu * 1000 <= m.t).pop();
-      if (row) state[id] = { state: row.state, attributes: row.attributes };
+      let i = at.get(id) ?? -1;
+      while (i + 1 < rows.length && rows[i + 1].lu * 1000 <= m.t) i++;
+      at.set(id, i);
+      if (i >= 0) state[id] = { state: rows[i].state, attributes: rows[i].attributes };
     }
     const d = tools.doorStateOf(door as never, state as never);
     const now = d.open || d.cover;
