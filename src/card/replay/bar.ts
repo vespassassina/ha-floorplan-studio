@@ -77,14 +77,14 @@ const MARKER_CSS = `
 export const MARKER_VARS = ["--fp-dev-light", "--fp-open-door", "--fp-danger", "--fp-text"];
 
 const ALL_ON: Filters = { groups: new Set(), rooms: new Set() };
-let memo: { onsets: readonly Onset[]; f: Filters; end: number; max: number; width: number; kept: Onset[]; c: Cluster[]; b: number[] } | null = null;
+let memo: { onsets: readonly Onset[]; groups: Filters["groups"]; rooms: Filters["rooms"]; end: number; max: number; width: number; kept: Onset[]; c: Cluster[]; b: number[] } | null = null;
 /** Play repaints the bar every frame; what the strip shows changes only with the onsets, the filters (the card replaces a set on each toggle), the window or the width.
  * `kept` is the onsets the filters allow: the ticks, the band, the totals and the name all come from it. */
 function marked(m: BarModel, onsets: readonly Onset[]) {
   const start = m.end - m.max * 60000, f = m.filter ?? ALL_ON;
-  if (!memo || memo.onsets !== onsets || memo.f.groups !== f.groups || memo.f.rooms !== f.rooms || memo.end !== m.end || memo.max !== m.max || memo.width !== m.width) {
+  if (!memo || memo.onsets !== onsets || memo.groups !== f.groups || memo.rooms !== f.rooms || memo.end !== m.end || memo.max !== m.max || memo.width !== m.width) {
     const kept = onsets.filter((o) => allows(f, o));
-    memo = { onsets, f, end: m.end, max: m.max, width: m.width, kept, c: clusters(kept, start, m.end, m.width), b: motionBuckets(kept, start, m.end) };
+    memo = { onsets, groups: f.groups, rooms: f.rooms, end: m.end, max: m.max, width: m.width, kept, c: clusters(kept, start, m.end, m.width), b: motionBuckets(kept, start, m.end) };
   }
   return memo;
 }

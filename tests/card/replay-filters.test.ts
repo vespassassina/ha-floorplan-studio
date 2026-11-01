@@ -125,6 +125,18 @@ describe("the bar's filter button and list", () => {
     r[1].click(); g[2].click();
     expect(calls.slice(-2)).toEqual([["room", 1], ["group", "opening"]]);
   });
+  it("the strip follows a toggle made on the same state object (the card changes one state in place and redraws)", () => {
+    // Apart by hours so no two ticks merge; motion is the band, not a tick.
+    const spaced = [on(100 * MIN, "lamp", [0]), on(400 * MIN, "motion", [1]), on(700 * MIN, "opening", [0, 1]), on(1000 * MIN, "alarm", [1])];
+    const f = newFilter(() => {});
+    const model = { onsets: spaced, rooms: rm(...names), filter: f };
+    const count = () => draw(model).querySelectorAll(".fp-rp-tick").length;
+    expect(count()).toBe(3);
+    f.group("lamp");
+    expect(count()).toBe(2);
+    f.room(1); // the alarm stands in room 1 only and goes; the door joins rooms 0 and 1 and stays
+    expect(count()).toBe(1);
+  });
   it("a toggle that is off says so", () => {
     const h = draw({ onsets: list, rooms: rm(...names), filter: fl(["alarm"], [1], true) });
     expect(h.querySelector(".fp-rp-menu [data-g=alarm]")!.getAttribute("aria-pressed")).toBe("false");
