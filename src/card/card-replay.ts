@@ -18,10 +18,9 @@ import type { Onset } from "./replay/events";
 // (replay/history.ts), loaded on the first Replay. The card draws the past through its one path: `_stateForRender()` and `_now()`
 // answer from the replay while it is open, and nothing else in the render knows about it (CLAUDE.md finding 8).
 
-const DAY_MS = 24 * 3600 * 1000;
 export const DAY_MINUTES = 1440;
-/** 24 hours in 60 seconds. */
-const PLAY_MS_PER_MS = DAY_MS / 60000;
+/** 24 hours of replay in 60 seconds of clock, at every window length (R2.5, item 11). */
+const PLAY_MS_PER_MS = 1440;
 /** A hidden tab stops its frames; the first frame back would jump hours. A step longer than this is a pause, not a leap. */
 const MAX_STEP_MS = 500;
 const FETCH_TIMEOUT_MS = 20000;
@@ -31,10 +30,12 @@ const FETCH_FAILED = mark("Could not load the history: {why}");
 const TIMED_OUT = mark("no answer in 20 s");
 
 type States = Record<string, HassEntity>;
-interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; onsets?: Onset[]; missing: number; why?: string; ids?: string[] }
+interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; onsets?: Onset[]; missing: number; why?: string; ids?: string[]; purgedFrom?: number | null }
 export interface ReplayState {
   /** The moment the bar opened: the end of the slider. */
   end: number;
+  /** R2.5: the window's length in hours, one of the chunk's `WINDOWS`. The bar opens at 24 every time. */
+  hours: number;
   /** Where the play head is, ms. `drawnT` is the moment last drawn, which moves by the minute while playing. */
   t: number;
   drawnT: number;
@@ -150,16 +151,16 @@ export function replayTime(ms: number, hass: { language?: string; locale?: { lan
   return formatterFor(hass?.language ?? hass?.locale?.language, hass?.locale?.time_format).format(ms);
 }
 
-/** The bar's keys over the slider's minutes (0 is 24 h ago, 1440 is the moment of opening). null: not a key of the bar. */
-export function keyMinute(key: string, v: number): number | null {
-  const to = (m: number) => Math.min(DAY_MINUTES, Math.max(0, m));
+/** The bar's keys over the slider's minutes (0 is the window's start, `max` the moment of opening). The steps come from the window's row in the chunk (`window.ts`); the defaults are the 24 h bar's. null: not a key of the bar. */
+export function keyMinute(key: string, v: number, arrow = 5, max = DAY_MINUTES, page = 60): number | null {
+  const to = (m: number) => Math.min(max, Math.max(0, m));
   switch (key) {
-    case "ArrowRight": case "ArrowUp": return to(v + 5);
-    case "ArrowLeft": case "ArrowDown": return to(v - 5);
-    case "PageUp": return to(v + 60);
-    case "PageDown": return to(v - 60);
+    case "ArrowRight": case "ArrowUp": return to(v + arrow);
+    case "ArrowLeft": case "ArrowDown": return to(v - arrow);
+    case "PageUp": return to(v + page);
+    case "PageDown": return to(v - page);
     case "Home": return 0;
-    case "End": return DAY_MINUTES;
+    case "End": return max;
     default: return null;
   }
 }
@@ -181,8 +182,8 @@ export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-const startOf = (r: ReplayState): number => r.end - DAY_MS;
-const minuteOf = (r: ReplayState, ms: number): number => Math.min(DAY_MINUTES, Math.max(0, Math.round((ms - startOf(r)) / 60000)));
+const startOf = (r: ReplayState): number => r.end - r.hours * 3600000;
+const minuteOf = (r: ReplayState, ms: number): number => Math.min(r.hours * 60, Math.max(0, Math.round((ms - startOf(r)) / 60000)));
 
 /** Replay is offered with a connection to ask, a layout to draw, and not in kiosk (spec item 1). */
 export function canReplay(c: FloorplanStudioCard): boolean {
@@ -194,7 +195,7 @@ export function openReplay(c: FloorplanStudioCard, focus = false): void {
   if (c._replay || !canReplay(c)) return;
   closePopup(c);
   const end = Date.now();
-  c._replay = { end, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null, focus, width: 0 };
+  c._replay = { end, hours: 24, t: end, drawnT: end, playing: false, floors: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null, focus, width: 0 };
   c._syncTimer(); // the motion fade follows the replayed moment now, not the clock
   c.requestUpdate();
 }
@@ -239,6 +240,7 @@ export function syncReplay(c: FloorplanStudioCard): void {
 
 async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHistory, f: Floor): Promise<void> {
   const ids = replayEntities(f, c._sunId(), { powerLinks: c._powerLinks(), registry: c._hass?.entities, liveStates: c._hass?.states });
+  const start = startOf(r); // the window this call was made for; a length chosen meanwhile drops `fh` from the map, so a late reply lands on an object nobody reads
   try {
     const conn = c._hass?.connection;
     if (!conn) throw { message: t(NO_ANSWER) };
@@ -246,8 +248,9 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
     const h = await loadLib().catch(() => { throw { message: t(STALE_PAGE) }; });
     if (c._replay === r) paintBar(c); // the chunk is here: the bar's full markup replaces its shell
     // Each call has its own timeout: a second call that never answers fails the floor though the first did.
-    fh.index = await h.fetchHistory((m) => withTimeout(conn.sendMessagePromise<unknown>(m), FETCH_TIMEOUT_MS), ids, startOf(r), r.end);
+    fh.index = await h.fetchHistory((m) => withTimeout(conn.sendMessagePromise<unknown>(m), FETCH_TIMEOUT_MS), ids, start, r.end);
     fh.ids = ids;
+    fh.purgedFrom = h.purgedFrom(fh.index, start);
     fh.onsets = h.onsets(fh.index, f, { doorStateOf, coverActive });
     const sun = c._sunId();
     fh.missing = ids.filter((id) => id !== sun && !fh.index!.has(id)).length;
@@ -349,6 +352,16 @@ function step(c: FloorplanStudioCard, ts: number): void {
   r.raf = globalThis.requestAnimationFrame((n) => step(c, n));
 }
 
+/** R2.5: another length. The moment on show stays if it lies inside the new window, else goes to its start (`seek` clamps); the end stays the moment the
+ * bar opened. Every floor's history is dropped and the shown one asked again by `syncReplay`, so only the newest length's is kept. */
+function setHours(c: FloorplanStudioCard, r: ReplayState, hours: number): void {
+  if (hours === r.hours) return;
+  r.hours = hours;
+  r.playing = false; // the head would run on a floor with no history until the new reply is in; Play is the user's
+  r.floors.clear();
+  seek(c, r, r.t);
+}
+
 function togglePlay(c: FloorplanStudioCard, r: ReplayState): void {
   if (r.playing) { r.playing = false; stopFrames(r); paintBar(c); return; }
   if (floorHistory(c)?.status !== "ready") return;
@@ -380,7 +393,8 @@ function onKey(c: FloorplanStudioCard, ev: KeyboardEvent): void {
   if (onButton) return; // Space and Enter on a button are the button's own
   if (ev.key === " ") { stop(); togglePlay(c, r); return; }
   if (floorHistory(c)?.status !== "ready") return;
-  const m = keyMinute(ev.key, minuteOf(r, r.drawnT));
+  const w = lib!.windowOf(r.hours); // the history is ready, so the chunk is here
+  const m = keyMinute(ev.key, minuteOf(r, r.drawnT), w.arrow, w.hours * 60, w.page);
   if (m === null) return;
   stop();
   seek(c, r, startOf(r) + m * 60000);
@@ -436,8 +450,8 @@ function barView(c: FloorplanStudioCard, r: ReplayState) {
   const close = () => closeReplay(c, true), key = (e: KeyboardEvent) => onKey(c, e);
   // The full bar is drawn by the replay chunk (replay/bar.ts). Until it is there, a shell with the way out and the message.
   if (!lib) return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} @keydown=${key}><button type="button" class="fp-rp-close" aria-label=${t("Close replay")} @click=${close}>${c._icon(UI_ICONS.close)}</button><span class="fp-rp-msg" role="status">${message}</span></div>`;
-  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: DAY_MINUTES, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, end: r.end, width: r.width, at: r.drawnT, said: r.said },
-    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), jumpBy: (d) => jumpBy(c, r, d, true), info: () => { r.info = !r.info; r.said = undefined; paintBar(c); } });
+  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: r.hours * 60, hours: r.hours, purgedFrom: fh?.purgedFrom, hass: c._hass, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, end: r.end, width: r.width, at: r.drawnT, said: r.said },
+    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), jumpBy: (d) => jumpBy(c, r, d, true), length: (h) => setHours(c, r, h), info: () => { r.info = !r.info; r.said = undefined; paintBar(c); } });
 }
 
 /** The stylesheet of the bar. Colours only through `--fp-*`. Under 640 px of card the time sits above the slider. */

@@ -281,5 +281,7 @@ const c: Catalogue = {
   "door opened": "drzwi otwarte",
   "alarm": "alarm",
   "cover opened": "roleta otwarta",
+  "Window": "Okres",
+  "History is kept from {when}": "Historia jest przechowywana od {when}",
 };
 export default c;

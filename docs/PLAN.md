@@ -4829,6 +4829,8 @@ the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
 ## Sprint 44 (outline): replay 2, part 2
 
 - R2.5 48 h and the length selector.
+  Done 2026-11-01: `replay/window.ts` (`WINDOWS`, `purgedFrom`, `dayAndTime`), the length buttons and the purge grey in `bar.ts`, `setHours` and the
+  window-aware keys in `card-replay.ts`; card 123,845 to 123,958 gzip (+113), replay chunk 4,046 to 4,725, limit 6,000.
 - R2.6 Filters by group and room; they change markers and jumps, never the plan.
 - R2.7 The 7-day gate: a 180k-row fixture parsed and indexed in under 1.5 s at 4x CPU throttle and under 60 MB of heap,
   or 7 days is cut and the reason goes into DECISIONS.

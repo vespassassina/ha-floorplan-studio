@@ -633,6 +633,8 @@ try {
   for (const width of [1280, 380]) replayShots.push({ name: `card-replay-bar-${width}`, t: THEMES.find((x) => x.id === "light"), ups: 21, width, bar: true });
   // R2.3: the slider with its markers (lamps, doors, motion band, a cluster of lamps) over a busy day, and the hovered cluster (the tooltip is the browser's own `title`, which a headless screenshot cannot draw).
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) for (const hover of [false, true]) replayShots.push({ name: `card-replay-markers-${t.id}-${width}${hover ? "-hover" : ""}`, t, ups: 21, width, bar: true, markers: true, hover });
+  // R2.5: the 48 h bar, the recorder having purged the first 12 hours of the window (the grey part of the strip and the info line).
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) replayShots.push({ name: `card-replay-48h-${t.id}-${width}`, t, ups: 45, width, bar: true, markers: true, h48: true });
   for (const s of replayShots) {
     const ctx = await browser.newContext({ viewport: { width: s.width, height: 800 }, colorScheme: s.t.dark ? "dark" : "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
     const page = await ctx.newPage();
@@ -649,7 +651,7 @@ try {
     });
     await page.goto(`${ORIGIN}/`);
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-    await page.evaluate(([config, hass, markers]) => {
+    await page.evaluate(([config, hass, markers, h48]) => {
       const el = document.getElementById("c");
       const at = (h, m = 0) => (new Date(2026, 9, 28, h, m, 0).getTime()) / 1000;
       const rows = {
@@ -667,20 +669,39 @@ try {
         rows["binary_sensor.demo_hall_motion"] = cycle(...[6, 7, 8, 8, 9, 17, 17, 18, 18, 18, 19, 19, 20, 20, 21, 22].map((h, i) => [h, (i * 7) % 50]));
       }
       hass.locale = { language: "en", time_format: "24" };
-      hass.connection = { sendMessagePromise: (m) => Promise.resolve(Object.fromEntries((m.entity_ids ?? []).filter((id) => rows[id]).map((id) => [id, rows[id]]))) };
+      if (h48) {
+        // Yesterday evening, then the recorder's purge: nothing before 27 Oct 00:00 (12 hours into the 48 h window).
+        const yday = (h, m) => at(h, m) - 86400;
+        rows["light.demo_living"].push(...[[18, 0], [20, 30]].flatMap(([h, m]) => [{ s: "on", lu: yday(h, m) }, { s: "off", lu: yday(h, m + 3) }]));
+        rows["binary_sensor.demo_front_door"].push(...[[9, 0], [18, 10]].flatMap(([h, m]) => [{ s: "on", lu: yday(h, m) }, { s: "off", lu: yday(h, m + 2) }]));
+        for (const id of Object.keys(rows)) rows[id].sort((x, y) => x.lu - y.lu);
+      }
+      const cut = at(0) - 86400; // 27 Oct 00:00
+      // The reply as HA builds it: a row at the asked start (the state then), none before it; a purged recorder has none before `cut`.
+      const reply = (id, startSec) => {
+        const all = rows[id], first = { ...(all.find((r) => r.a) ?? all[0]) };
+        const kept = all.filter((r) => r.lu >= Math.max(startSec, h48 ? cut : 0));
+        return h48 && startSec < cut ? [{ ...first, lu: cut }, ...kept.filter((r) => r.lu > cut)] : [{ ...first, lu: startSec }, ...kept.filter((r) => r.lu > startSec)];
+      };
+      hass.connection = { sendMessagePromise: (m) => Promise.resolve(Object.fromEntries((m.entity_ids ?? []).filter((id) => rows[id]).map((id) => [id, markers ? reply(id, Date.parse(m.start_time) / 1000) : rows[id]]))) };
       el.setConfig(config); el.hass = hass;
       return el.updateComplete;
-    }, [{ layout, floor: "ground", theme: s.t.theme, active_list: false }, hassFor("on", s.t.dark), !!s.markers]);
+    }, [{ layout, floor: "ground", theme: s.t.theme, active_list: false }, hassFor("on", s.t.dark), !!s.markers, !!s.h48]);
     await page.locator("floorplan-studio-card svg polygon[data-r]").first().waitFor();
     await page.locator("floorplan-studio-card fp-menu button").first().click();
     await page.locator("floorplan-studio-card [data-value='replay']").click();
     const range = page.locator("floorplan-studio-card input.fp-rp-range");
     await page.waitForFunction(() => !document.getElementById("c").shadowRoot.querySelector("input.fp-rp-range")?.disabled);
+    if (s.h48) {
+      await page.locator("floorplan-studio-card .fp-rp-len button", { hasText: "48 h" }).click();
+      await page.waitForFunction(() => !document.getElementById("c").shadowRoot.querySelector("input.fp-rp-range")?.disabled);
+    }
     await range.focus();
     await page.keyboard.press("Home");
     for (let i = 0; i < s.ups; i++) await page.keyboard.press("PageUp");
     await page.mouse.move(0, 0);
     // The hovered shot: the mouse over the last cluster, as a person would find it.
+    if (s.h48) await page.locator("floorplan-studio-card .fp-rp-info").click();
     if (s.hover) await page.locator("floorplan-studio-card .fp-rp-tick").last().hover();
     if (s.bar) await page.locator("floorplan-studio-card .fp-replay").screenshot({ path: `${OUT}/${s.name}.png` });
     else await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });

@@ -72,8 +72,8 @@ describe("motionBuckets: the band's darkness follows the count of motion onsets"
 });
 
 describe("the strip in the bar (items 5, 6, 8)", () => {
-  const base: BarModel = { shown: "12:00", value: 1440, max: 1440, ready: true, failed: false, playing: false, note: false, info: false, missing: 0, message: "", onsets: [], end: 1440 * 60000, width: 1000, at: 0 };
-  const handlers = { key() {}, play() {}, seek() {}, info() {}, close() {}, jump: vi.fn(), jumpBy() {} };
+  const base: BarModel = { shown: "12:00", value: 1440, max: 1440, hours: 24, ready: true, failed: false, playing: false, note: false, info: false, missing: 0, message: "", onsets: [], end: 1440 * 60000, width: 1000, at: 0 };
+  const handlers = { key() {}, play() {}, seek() {}, info() {}, close() {}, jump: vi.fn(), jumpBy() {}, length() {} };
   const draw = (m: Partial<BarModel>) => { const host = document.createElement("div"); render(barView({ html, nothing, t, tn, close: "" }, { ...base, ...m }, handlers), host); return host; };
   it("a cluster's tooltip names what it holds, by group", () => {
     const host = draw({ onsets: [on(0), on(1), on(2), on(3, "opening")] });

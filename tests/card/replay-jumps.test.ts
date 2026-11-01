@@ -54,9 +54,9 @@ describe("eventSaid: what happened, in words", () => {
 
 describe("the bar's jump buttons and value text", () => {
   const MIN = 60000;
-  const base: BarModel = { shown: "21:14", value: 700, max: 1440, ready: true, failed: false, playing: false, note: false, info: false, missing: 0, message: "", onsets: [], end: 1440 * MIN, width: 1000, at: 0 };
+  const base: BarModel = { shown: "21:14", value: 700, max: 1440, hours: 24, ready: true, failed: false, playing: false, note: false, info: false, missing: 0, message: "", onsets: [], end: 1440 * MIN, width: 1000, at: 0 };
   const jumpBy = vi.fn();
-  const handlers = { key() {}, play() {}, seek() {}, info() {}, close() {}, jump() {}, jumpBy };
+  const handlers = { key() {}, play() {}, seek() {}, info() {}, close() {}, jump() {}, jumpBy, length() {} };
   const draw = (m: Partial<BarModel>) => { const host = document.createElement("div"); render(barView({ html, nothing, t, tn, close: "" }, { ...base, ...m }, handlers), host); return host; };
   const prev = (h: HTMLElement) => h.querySelector<HTMLButtonElement>(".fp-rp-prev")!;
   const next = (h: HTMLElement) => h.querySelector<HTMLButtonElement>(".fp-rp-next")!;
