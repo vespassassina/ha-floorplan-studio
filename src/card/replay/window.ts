@@ -28,6 +28,12 @@ export function purgedFrom(index: HistoryIndex, startMs: number): number | null 
   return first > startMs + PURGE_SLACK_MS && first !== Infinity ? first : null;
 }
 
+/** A moment's short weekday ("Mon"), in the card's language: a window over 24 h shows each clock time twice, so the time names its day. */
+export function weekday(ms: number, hass: { language?: string; locale?: { language?: string } } | undefined): string {
+  const o: Intl.DateTimeFormatOptions = { weekday: "short" };
+  try { return new Intl.DateTimeFormat(hass?.language ?? hass?.locale?.language, o).format(ms); } catch { return new Intl.DateTimeFormat(undefined, o).format(ms); }
+}
+
 /** A moment with its date, in the language and 12 or 24 hour setting the card's time uses (`replayTime` in card-replay.ts reads the same two fields). */
 export function dayAndTime(ms: number, hass: { language?: string; locale?: { language?: string; time_format?: string } } | undefined): string {
   const tf = hass?.locale?.time_format, o: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", ...(tf === "12" ? { hour12: true } : tf === "24" ? { hour12: false, hourCycle: "h23" as const } : {}) };
