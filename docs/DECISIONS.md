@@ -2,6 +2,33 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-01: R2.5, the 48 h window and the length selector
+
+Spec `docs/specs/replay-2.md`, items 10, 11, 13 and criteria 8, 10. Card 123,845 to 123,958 gzip (+113, under the +150 aim; replay 2 may reach
+124,168, so 210 are left for R2.6 and R2.7), replay chunk 4,046 to 4,725 (limit 6,000), largest language chunk pl 4,137 (limit 5,000). The
+baseline measured here was 123,845, five above the 123,840 recorded in the last entry. Choices the spec left open:
+
+- **The lengths are a table**, `WINDOWS` in `replay/window.ts`: `{ hours, arrow, page }` for 24 and 48. R2.7 adds 7 days with one entry
+  (30 and 360) and the bar, the keys and the slider follow. 7 days is not shown. Unknown hours fall back to the first entry.
+- **The selector is two pressed-state buttons** ("24 h", "48 h"), not a native select: a select cannot be driven by a real mouse in
+  Chromium. It sits in the time cell (`.fp-rp-head`, same grid area as the time), so the card's grid is untouched and, at 380 px, it shares
+  row one with the time. The slider keeps about 190 px at 380 (test: over 80).
+- **A new length drops every floor's history** (`r.floors.clear()`) and the shown floor is asked again by the usual `syncReplay`. Each
+  request owns its own `FloorHistory`, so a slow 24 h reply that lands after 48 h was chosen writes to an object nobody reads. No guard
+  code; a test holds the 24 h calls, answers 48 h, then releases 24 h. Play stops on a change (Play is the user's).
+- **The moment on show stays if inside, else goes to the new window's start** (`seek` clamps). The end stays the moment the bar opened.
+- **Play speed is unchanged**: 1,440 minutes per 60 s at every length, so half of 48 h passes in 60 s.
+- **Purge** is the earliest first row over all entities when it lies more than 60 s after the window's start (`purgedFrom`). One entity
+  with its start-time row means the window is whole, so a new sensor does not grey the strip. The grey is `.fp-rp-purge` in `--fp-idle`
+  (a quarter of the strip for 12 h of 48 h); the info line adds "History is kept from 27 Oct, 00:00" after the missing-entities sentence
+  (`dayAndTime`, in the chunk, from the card's language and clock setting). New keys "History is kept from {when}" and "Window" in all nine
+  languages; "{n} h" already existed.
+- **The motion band keeps 96 buckets**, now 30 min at 48 h. The marker memo is keyed by the window length too (a test fails without it).
+- **Tests**: `keyMinute` gained optional arrow, max and page arguments (defaults are the 24 h bar's); two bar fixtures in the R2.3 and R2.4
+  unit tests gained `hours` and `length` so they type-check, no assertion changed. Each key test was seen red with its fix reverted:
+  keep-moment, steps, purge, memo, and the race (by sharing one history object across lengths). The play-speed test has nothing to revert;
+  it fails if speed is scaled to the window (seen at 2,880).
+
 ## 2026-11-01: replay 2 spec, clusters measured from their first tick (Diego)
 
 Diego approved changing `docs/specs/replay-2.md` item 6 and criterion 5 to match the Sprint 43 review fix. A tick joins a cluster
