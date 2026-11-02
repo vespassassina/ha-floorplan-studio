@@ -252,6 +252,32 @@ test.describe("3D view: the charging breath", () => {
     for (const s of seen) expect(strongest(s)).toBe(strongest(charge));
     await handOver(page, STATES());
     await expect.poll(() => bodyEmissive(page), { timeout: 5000 }).toBe("#000000");
+    await still(page); // the loop ends with the charge: no frame is drawn once it has
+  });
+
+  // Review of B53.3: a wall tablet charges its car overnight, so a breath alone must not draw at display rate.
+  test("a breath alone draws well under display rate, yet keeps drawing and keeps moving", async ({ page }) => {
+    await boot(page, layoutOf("sedan"), STATES());
+    await handOver(page, CHARGING);
+    await expect.poll(() => bodyEmissive(page), { timeout: 5000 }).not.toBe("#000000");
+    const n0 = (await cam(page)).drawn;
+    const seen = await sample(page, 10, 200); // 2 s
+    const frames = (await cam(page)).drawn - n0;
+    expect(frames, `${frames} frames in 2 s`).toBeGreaterThan(5);
+    expect(frames, `${frames} frames in 2 s`).toBeLessThan(40);
+    expect(new Set(seen).size, "still moving").toBeGreaterThan(3);
+  });
+
+  test("reduced motion switched off at run time starts the breath; switched on again holds it", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await boot(page, layoutOf("sedan"), STATES());
+    await setStates(page, CHARGING);
+    expect(new Set(await sample(page, 6, 250)).size, "held").toBe(1);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expect.poll(async () => new Set(await sample(page, 6, 250)).size, { timeout: 8000 }).toBeGreaterThan(2);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await still(page);
+    expect(new Set(await sample(page, 4, 250)).size, "held again").toBe(1);
   });
 
   test("under reduced motion the emissive is lit and does not move", async ({ page }) => {

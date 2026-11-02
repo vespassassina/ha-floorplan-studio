@@ -263,8 +263,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       fail("it could not start");
       return;
     }
-    if (pulsing || breathing) want();
+    if (pulsing) want();
+    else if (breathing) wantBreath();
   };
+  // A breath alone moves one emissive on a 2.4 s sine: about 15 frames a second is enough, and a wall tablet may charge a car all night.
+  // Anything else that animates (a pulse, a glide) asks for the next display frame itself.
+  let breathTimer: ReturnType<typeof setTimeout> | null = null;
+  const BREATH_FRAME_MS = 66;
+  const wantBreath = () => { if (!breathTimer && !raf && !disposed) breathTimer = setTimeout(() => { breathTimer = null; want(); }, BREATH_FRAME_MS); };
   /** Renders once, on the next frame. A burst of changes (a drag) is one frame; with no change there is no frame at all. */
   const want = () => { if (!raf && !disposed) raf = requestAnimationFrame(draw); };
 
@@ -396,6 +402,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     if (disposed || lost) return;
     lost = true;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    if (breathTimer !== null) { clearTimeout(breathTimer); breathTimer = null; }
     restoreTimer = setTimeout(() => { restoreTimer = null; if (lost) fail(CONTEXT_LOST, true); }, RESTORE_MS);
   };
   const onRestored = () => {
@@ -787,7 +794,11 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     });
     if (markers.instanceColor) markers.instanceColor.needsUpdate = true;
   }
-  const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const motionQuery = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+  const reduced = () => !!motionQuery?.matches;
+  // The preference can change while the view is open: the breath starts or holds at once, not at the next live update.
+  const onMotionPref = () => { if (disposed) return; applyBreath(); want(); };
+  motionQuery?.addEventListener?.("change", onMotionPref);
   /** The motion edges: a pulse plays for a room just tripped (three pulses, then hold), the hold fades by the plan's own figure. Returns whether a pulse is still playing. */
   function applyRings(): boolean {
     const L = liveNow ?? EMPTY, t = (performance.now() - pulseStart) / 1000, calm = reduced();
@@ -1083,6 +1094,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       if (disposed) return;
       disposed = true;
       if (raf) cancelAnimationFrame(raf);
+      if (breathTimer !== null) { clearTimeout(breathTimer); breathTimer = null; }
+      motionQuery?.removeEventListener?.("change", onMotionPref);
       ro?.disconnect();
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
@@ -1243,7 +1256,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         const body = (b: (typeof devBodies)[number]) => ({ index: b.index, type: b.type, colour: hexOf(b.mat.color), emissive: b.on && b.lit[0] ? hexOf((b.lit[0].material as MeshBasicMaterial).color) : "#000000" });
         const c = new Color();
         return {
-          builds, children: scene.children.length, pulsing,
+          builds, children: scene.children.length, pulsing, breathing,
           doors: parts.map((x) => ({ index: x.index, tag: x.tag, visible: x.mesh.visible, rot: x.mesh.rotation.y || 0, colour: hexOf(x.mat.color) })),
           bodies: devBodies.map(body),
           pieces: pieceBodies.map((b) => ({ index: b.index, tag: b.tag, on: b.on, colour: hexOf(b.mat.color), emissive: hexOf(b.mat.emissive), visible: b.mesh.visible, transparent: b.mat.transparent, opacity: b.mat.opacity, depthWrite: b.mat.depthWrite, depthFunc: b.mat.depthFunc, renderOrder: b.mesh.renderOrder, twin: b.twin ? { visible: b.twin.visible, colorWrite: (b.twin.material as MeshBasicMaterial).colorWrite, depthWrite: (b.twin.material as MeshBasicMaterial).depthWrite, renderOrder: b.twin.renderOrder } : null })),
