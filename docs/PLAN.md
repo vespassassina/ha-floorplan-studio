@@ -4931,8 +4931,9 @@ task measures its real figure and records it in DECISIONS.
 
 ### Sprint 52: room for the card
 
-- B52.1 Measure the popup, the dialogs and the overview as lazy chunks (gzip saved, and first open at 4x CPU throttle).
-  Diego picks from the figures.
+- [x] B52.1 Measure the popup, the dialogs and the overview as lazy chunks (gzip saved, and first open at 4x CPU throttle).
+  Diego picks from the figures. Done 2026-11-02: overview 6,145 saved, popup 2,226, dialogs 1,331; Diego picked the
+  overview (DECISIONS).
 - B52.2 Move the picked parts into chunks, loaded on first open with the retry-by-URL rule. They get the card's helpers
   through deps, never by import. Done when at least 4,000 bytes are freed, the popup opens in under 300 ms at 4x, and
   `size-budget.spec.ts` has each chunk's limit (spec criterion 1).

@@ -2,6 +2,25 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-02: B52.1, the overview leaves the card
+
+Measured on rough prototypes (branch `task/b52.1-measure`, not merged), gzip -9 against the card's 124,096, Chromium at
+4x CPU throttle, 12 fresh pages per cell, real taps, median:
+
+| Candidate | Card saved | Chunk | First open (main) | Second open (main) |
+|---|---|---|---|---|
+| Popup | 2,226 | 3,306 | 81 ms (72) | 37 ms (36) |
+| Dialogs (cover) | 1,331 | 2,672 | 57 ms (41) | 40 ms (43) |
+| Overview, code and CSS | 6,145 | 8,219 | 128 ms first paint (106) | 46 ms unfold (37) |
+| All three | 10,131 | 14,197 | | |
+
+Diego chose **the overview alone**: one move frees 6,145, enough for the batch's 3,700, and nothing on a tap gets
+slower. The price: the side panel paints about 22 ms later on a dashboard's first load at 4x on localhost (more over a
+real network, once; the browser then caches the chunk). The popup and the dialogs stay in the card, so spec item 14's
+300 ms popup bar is untouched. In B52.2 the chunk imports nothing from the card (a shortcut that did made rollup hoist
+the card into a shared chunk); it gets its helpers through a deps object, as the replay chunk does, and its CSS is
+adopted as a stylesheet, not a `<style>` in the template, so the cascade order stays (findings 10 and 16).
+
 ## 2026-11-02: furniture paint and block shapes, and Sprints 52 and 53 move up
 
 Diego asked for colour and wood textures on furniture and more detailed tables and sofas, "still block based". The
