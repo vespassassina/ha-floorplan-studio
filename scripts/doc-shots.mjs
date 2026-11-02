@@ -6,6 +6,7 @@
 // the result, whenever the editor toolbar, a menu shown in the doc, or the card's look changes enough that a
 // screenshot would mislead.
 import { chromium } from "@playwright/test";
+import { cardSource } from "./card-source.mjs";
 import { readFileSync, mkdirSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -20,7 +21,7 @@ for (const f of [CARD, EDITOR]) {
 if (!existsSync(`${CARD_3D_DIR}/floorplan-studio-card.js`)) { console.error(`Missing ${CARD_3D_DIR}/. Run \`FP_TEST_BUILD=1 node scripts/build.mjs\` first.`); process.exit(1); }
 const OUT = "docs/img";
 mkdirSync(OUT, { recursive: true });
-const cardJs = readFileSync(CARD, "utf8");
+const cardJs = cardSource(); // the card with its Overview chunk inlined (a page of inline modules cannot fetch the chunk)
 const hass = homeHass();
 const errors = [];
 

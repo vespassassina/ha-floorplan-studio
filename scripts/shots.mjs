@@ -13,6 +13,7 @@
 // The baseline is local and gitignored: PNGs differ between machines (fonts, antialiasing), so a committed
 // baseline would fail everywhere but where it was made. Only demo/ is ever drawn; no personal layout.
 import { chromium } from "@playwright/test";
+import { cardSource } from "./card-source.mjs";
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, copyFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -30,7 +31,7 @@ for (const f of [CARD, EDITOR]) {
   }
 }
 const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
-const cardJs = readFileSync(CARD, "utf8");
+const cardJs = cardSource(); // the card with its Overview chunk inlined (a page of inline modules cannot fetch the chunk)
 // Review 27: the floors' offsets. The first floor sits 120 cm east and 40 cm south of the ground floor, so the floor below
 // shows as a displaced outline: part of it falls where the shown floor draws nothing, part under its room fills.
 const ghostLayout = structuredClone(layout);

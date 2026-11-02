@@ -5,6 +5,7 @@
 // (scripts/demo-home.mjs). Only demo/ is ever drawn, same rule as scripts/shots.mjs — no personal layout in a committed
 // doc image. Run this again, and commit the result, whenever a theme is added, removed or re-palette'd.
 import { chromium } from "@playwright/test";
+import { cardSource } from "./card-source.mjs";
 import { readFileSync, mkdirSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,7 +15,7 @@ const CARD = "dist/floorplan-studio-card.js";
 if (!existsSync(CARD)) { console.error(`Missing ${CARD}. Run \`npm run build\` first.`); process.exit(1); }
 const OUT = "docs/img";
 mkdirSync(OUT, { recursive: true });
-const cardJs = readFileSync(CARD, "utf8");
+const cardJs = cardSource(); // the card with its Overview chunk inlined (a page of inline modules cannot fetch the chunk)
 const hass = homeHass();
 
 const THEMES = ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha", "coffee", "a-team", "space", "cyberpunk", "carpenter-brut", "beach-house"];
