@@ -99,7 +99,7 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   "sofa-l": { w: 280, h: 180, svg: `<path d="M4 4 L96 4 L96 45 L35 45 L35 96 L4 96 Z" ${SB}/><path d="M4 22 H96 M4 45 H35" ${S}/>` },
   "coffee-table": { w: 110, h: 60, svg: r(4, 4, 92, 92, 10) + r(16, 16, 68, 68, 6) },
   bookcase: { w: 100, h: 35, svg: r(2, 4, 96, 92, 2) + `<path d="M26 4 V96 M50 4 V96 M74 4 V96" ${S}/>` },
-  buffet: { w: 180, h: 50, svg: r(2, 4, 96, 92, 3) + `<path d="M34 4 V96 M66 4 V96" ${S}/>` + c(28, 50, 2) + c(40, 50, 2) + c(60, 50, 2) + c(72, 50, 2) },
+  buffet: { w: 180, h: 50, svg: r(2, 4, 96, 92, 3) + `<path d="M34 4 V96 M66 4 V96" ${S}/>` + [28, 40, 60, 72].map((x) => `<ellipse cx="${x}" cy="50" rx="1.1" ry="4" ${SB}/>`).join("") }, // round knobs once stretched to 180 x 50
   tv: { w: 120, h: 10, svg: r(2, 20, 96, 60, 4) },
   speaker: { w: 25, h: 25, svg: r(10, 4, 80, 92, 8) + c(50, 62, 20) + c(50, 26, 9) },
   // S18.13: seen from above, the user at the bottom: a desk, the monitor along its back edge, a keyboard in front of it and

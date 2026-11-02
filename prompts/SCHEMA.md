@@ -107,7 +107,7 @@ Optional: `"color": "#rrggbb"` sets a floor colour; `"texture"` (`wood-light`, `
 { "id": "furniture-ground-1", "symbol": "sofa", "x": 250, "y": 320, "rot": 0, "w": 200, "h": 90 }
 ```
 
-`symbol` is one of `table sofa bed cabinet chair sink toilet shower bathtub tv computer speaker tree patio-wood patio-concrete car`. `x`, `y` is the centre. `w`, `h` are its size in cm, each between 5 and 2000. `rot` in degrees. Furniture is optional; skip anything you are not sure of.
+`symbol` is one of `table sofa sofa-l coffee-table bed cabinet bookcase buffet chair sink toilet shower bathtub tv computer speaker tree patio-wood patio-concrete car`. `sofa-l` is an L-shaped corner sofa: the back runs along the top edge, the chaise down the left. `x`, `y` is the centre. `w`, `h` are its size in cm, each between 5 and 2000. `rot` in degrees. Furniture is optional; skip anything you are not sure of.
 
 ## Walls, openings, extras
 
