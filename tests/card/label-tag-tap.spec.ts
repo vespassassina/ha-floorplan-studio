@@ -1,14 +1,15 @@
 import { test, expect, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
+
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // Opus review of Sprint 23, M1: a name on a tag (S23.3, `text.lbl.lbl-on`) is drawn over the icons. The plate took no clicks
 // but the name on it did, so a tap on a device under the name found no device and picked the room instead. Real
 // page.mouse clicks at the screen point where a device's disc sits under the name (finding 3).
 
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 // One small room packed with switches: every spot is covered, so its name goes on a tag over the icons. The rows are at
 // y = 20, 40, 60 ..., so a switch sits exactly at the room's centre (150, 60), where the name is drawn, at any font.

@@ -3,13 +3,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { FLOORPLAN_CSS, THEMES } from "../../src/core/render";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // The slit window in the card, in a real Chromium: the glass band of a slit sits against the top of its wall in 2.5D,
 // at half the height of the demo's 120 cm window, and it takes the window's look in every theme (CLAUDE.md findings 10, 16).
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const card = (page: Page) => page.locator("floorplan-studio-card");
 
 /** The websocket reply has the shape websocket.py sends: `{ layout }` (CLAUDE.md finding 21). */

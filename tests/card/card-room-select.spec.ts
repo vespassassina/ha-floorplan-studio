@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S11.3 and S11.4 (docs/specs/room-sensors.md, criteria 5 and 6): tap a room in the card, read it in the left panel,
 // open a device's details. Every click is a real page.mouse click at coordinates found with elementFromPoint, so a
@@ -9,7 +10,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 // Living (room 0, 500 x 400 cm = 20 m2) owns two temperature sensors, a humidity sensor and a motion sensor.
 const layout = structuredClone(demo);

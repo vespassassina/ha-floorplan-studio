@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { calibrate } from "./calibrate";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S25.6 exit test of the sprint: one sensor update writes only its device. A MutationObserver on the real plan <svg> in the
 // built card, a real `hass` update through the setter Home Assistant uses. Same harness as card-tooltip-stale.spec.ts.
@@ -10,7 +11,7 @@ import { calibrate } from "./calibrate";
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const stress = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-04T09:30:15Z" });
 const STATES = () => ({

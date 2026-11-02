@@ -1,9 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
+
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { SIZES, deviceIndex, layout, roomIndex } from "./touch-helpers";
 import { ORIGIN, drawn, serve } from "./helpers-3d";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S31.9 (docs/specs/card-layout-touch.md, criterion 3): under `pointer: coarse` every control of the card is at least 44 x 44 CSS px,
 // in every state the card can be in, and under a fine pointer the same controls keep the size they had. The check is a walk, not a
@@ -18,7 +19,7 @@ import { ORIGIN, drawn, serve } from "./helpers-3d";
 // is not a defect; a control covered by anything else is, and so are two controls that overlap.
 
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const MIN = 44;
 
 type Size = keyof typeof SIZES;

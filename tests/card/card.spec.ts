@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { hasItem, menuButton, menuPanel, openMenu, pick } from "./menu-helper";
 import { readSvg } from "../helpers/pixels";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 
@@ -20,7 +21,7 @@ const MIDNIGHT_INK = "rgb(216, 226, 242)"; // midnight's --fp-text, #d8e2f2 — 
 // A plain <script src="../../dist/floorplan-studio-card.js"> fails under file://: Chromium refuses a cross-origin
 // module fetch between two file:// URLs (unlike dist/editor.html, which is inlined into one file). Injecting the
 // built module's own source as inline content runs without a fetch, so the element defines and upgrades normally.
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 /** Loads harness.html fresh and waits for the card to actually upgrade before configuring it. */
 async function open(page: Page) {

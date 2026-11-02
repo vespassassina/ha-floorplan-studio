@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // A tv, speaker or computer piece with an entity is linked, and in the card it behaves as the device of its type (DECISIONS
 // 2026-10-07): it is listed as active, a tap is more-info and never a room pick, it has a hover tooltip and a room row. An
@@ -9,7 +10,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 // Living (room 0) is 500 x 400 cm. A linked tv at (120, 150) and an unlinked one at (330, 230): clear of every demo device.
 const layout = structuredClone(demo);

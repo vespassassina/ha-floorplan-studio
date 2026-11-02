@@ -3,6 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // Diego, 0.12.22: "buttons in the studio but not in the card ... arrow keys work in studio but not card".
 // The card mounted the way Home Assistant mounts it: a bare config from the dashboard, a hass with no `config`,
@@ -12,7 +13,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const card = (page: Page) => page.locator("floorplan-studio-card");
 
 /** `nested`: the card inside two shadow roots, as in Home Assistant (home-assistant > ... > hui-card > card). There

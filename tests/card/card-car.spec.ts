@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S35.6, tap, hold and kiosk for the car (spec C8; criteria 12 to 15). Every click is a real page.mouse event at a point checked to
 // be the real top element (finding 3). The hold is a real mouse.down held past HOLD_MS. The 3D tap on a car is held by card-3d-car.spec.ts.
@@ -10,7 +11,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-18T09:30:15Z" });
 const STATES = (o: Record<string, unknown> = {}) => ({

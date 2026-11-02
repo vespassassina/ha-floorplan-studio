@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { pick } from "./menu-helper";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S27.15: the card's floor switch is animated, in 2D and in 2.5D (3D cuts). Real clicks on the floor tabs and a real Enter in the
 // search. The animation itself is recorded in the page (animationstart / animationend on the plan root, with the time and the
@@ -10,7 +11,7 @@ import { pick } from "./menu-helper";
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8")); // floors: ground, first, test
 const stress = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8")); // ground, first, second
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 async function boot(page: Page, config: Record<string, unknown> = {}, layout: unknown = demo) {
   await page.setViewportSize({ width: 1280, height: 900 });

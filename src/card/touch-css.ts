@@ -9,6 +9,8 @@ import { css } from "lit";
 // These rules sit after the card's own and use the same selectors (`.fp-sheet-top .fp-back` where the card's rule is that specific), so
 // they win by order, not by weight. The ⋯ menu (`more-menu.ts`) carries its own coarse rule, being a component with its own shadow
 // root; so does `<fp-search>` (`SEARCH_TOUCH_CSS` below). A checkbox row is the target, not the 18 px box in it.
+// B52.2: the Overview's controls (the sheets, their rows, Back, the rail, the filter and floor buttons) are sized in the Overview's own
+// stylesheet (overview/css.ts), after its base rules, because that sheet comes after this one; the walk in the spec above covers them still.
 
 /** Sizes for the card's own shadow root: header, tabs, zoom cluster, rail, sheets, rows, scene and floor buttons, popup, dialogs. */
 export const TOUCH_CSS = css`
@@ -16,13 +18,7 @@ export const TOUCH_CSS = css`
     .fp-head-btn, .fp-floors button { min-height: 44px; min-width: 44px; }
     .fp-stack button { width: 44px; height: 44px; }
     svg.fp-zoomable.fp-clear-stack { width: calc(100% - 60px); }
-    .fp-back, .fp-sheet-top .fp-back, .fp-active-collapse { min-width: 44px; min-height: 44px; }
-    .fp-rail-open { width: 44px; height: 44px; }
-    .fp-rail-count { top: -4px; right: -4px; }
-    .fp-active-row { min-height: 44px; }
-    button.fp-cat { min-height: 44px; }
-    .fp-room-clear { flex-basis: 44px; width: 44px; height: 44px; }
-    .fp-alloff, .fp-floor-off, .fp-fav-act, .fp-fav-cancel, .fp-scene, .fp-ov-scope, .fp-layer-note button, .fp-show-all { min-height: 44px; min-width: 44px; }
+    .fp-scene { min-height: 44px; min-width: 44px; }
     .fp-dialog-actions button { min-height: 44px; min-width: 44px; }
     .fp-chooser-list button { min-height: 44px; }
     .fp-off-row { min-height: 44px; }

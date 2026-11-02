@@ -2,13 +2,14 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S25.2: the card and the Studio both ask `detailFor` for the level and pass it to `renderFloor`, so the plan root says
 // the same thing in both. Real clicks on the real zoom buttons (finding 3); the level is read off the live plan root.
 
 const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const EDITOR = "floorplan-studio-editor";
 
 test("the card: with the harness pinning full the plan is whole at every zoom; with auto, fit is mid (the plan is wide, S37.6), zooming in with the + button goes to near, - and Fit go back", async ({ page }) => {

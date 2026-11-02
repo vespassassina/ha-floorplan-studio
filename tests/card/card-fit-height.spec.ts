@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { cardHeight, frameMode, HEADER_H, sideOpenByDefault, sideWidth } from "../../src/card/frame";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S31.7 (docs/specs/card-layout-touch.md, criterion 4, the "fit to height" assumption): a card in an auto-height parent is never
 // taller than the screen. Real Chromium, the built card, the harness's auto-height wrapper (a masonry column). The expected height is
@@ -11,7 +12,7 @@ import { cardHeight, frameMode, HEADER_H, sideOpenByDefault, sideWidth } from ".
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const stress = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const GUTTER = 16;
 
 async function boot(page: Page, layout: unknown, size: { width: number; height: number }, config: Record<string, unknown> = {}) {

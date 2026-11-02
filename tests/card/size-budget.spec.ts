@@ -7,7 +7,7 @@ import ts from "typescript";
 
 /** gzip -9 of dist/floorplan-studio-card.js built from the commit before the 3D work (36b22c4, the 0.13.x card), 2026-10-05. */
 const PRE_3D_CARD = 90780;
-const CARD_GROWTH_LIMIT = 33870; // card file ≤ 124,650 gz (+550 for the leader search, S23.F1, 2026-10-21, Diego to confirm; 124,100 was +300 for task/card-gaps, 2026-10-21, Diego to confirm; 123,800 was +800 for the card's load, merged with the camera thumbnail, 2026-10-21, Diego to confirm; S16.3 camera thumbnail, 2026-10-21, docs/DECISIONS.md; was 121,000, Diego, 2026-10-17; Sprint 34 favourites and heat map, Sprint 35 car)
+const CARD_GROWTH_LIMIT = 27870; // card file ≤ 118,650 gz: 118,059 after the Overview left for its chunk (B52.2, 2026-11-02; was 124,650 gz: +550 for the leader search, S23.F1, 2026-10-21, Diego to confirm; 124,100 was +300 for task/card-gaps, 2026-10-21, Diego to confirm; 123,800 was +800 for the card's load, merged with the camera thumbnail, 2026-10-21, Diego to confirm; S16.3 camera thumbnail, 2026-10-21, docs/DECISIONS.md; was 121,000, Diego, 2026-10-17; Sprint 34 favourites and heat map, Sprint 35 car)
 const CHUNK_LIMIT = 233000; // Diego, 2026-10-06
 const LANG_CHUNK_LIMIT = 5000; // S37.5: one language of the card's own words, gzip; about 3.1-3.5 KB each when written, with room for the strings that follow
 /** The size `gzip -9` gives, the figure this budget is written in (node's zlib at level 9 differs by about 0.3 percent). */
@@ -194,5 +194,32 @@ test("no shipped file carries optional chaining printed out as `==null?void 0`",
   for (const f of files) {
     const hits = readFileSync(`dist/${f}`, "utf8").match(/(?<![=!])==null\?void 0/g) ?? [];
     expect(hits.length, `${f} holds ${hits.length} downlevelled optional chains; build.target is too old for \`?.\` (vite.config.ts)`).toBe(0);
+  }
+});
+
+// B52.2 (docs/specs/batch-s52.md items 13 and 14, criterion 1; docs/DECISIONS.md, 2026-11-02): the Overview (the side sheet, the phone's
+// bottom sheet, their rows, scenes, favourites and search, with the stylesheet that draws them) is a lazy chunk. The card file fell from
+// 124,096 to 118,059 gzip, 6,037 freed. The chunk was 8,443 when written; the limit leaves about 550 for the rows that follow.
+const OVERVIEW_CHUNK_LIMIT = 9000;
+const overviewChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-overview-.+\.js$/.test(f));
+
+test(`there is exactly one overview chunk, at most ${OVERVIEW_CHUNK_LIMIT} bytes gzipped, importing nothing from the card, and the card names it by import()`, () => {
+  expect(overviewChunks()).toHaveLength(1);
+  const [f] = overviewChunks();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(OVERVIEW_CHUNK_LIMIT);
+  const chunk = readFileSync(`dist/${f}`, "utf8");
+  // Any import would make rollup hoist what the card and the chunk share into a third file, and the card would shrink by moving code, not by being smaller.
+  expect(chunk, "the chunk imports nothing").not.toMatch(/\bfrom\s*["'][^"']+["']|\bimport\s*\(/);
+  expect(readFileSync("dist/floorplan-studio-card.js", "utf8")).toMatch(/"\.\/floorplan-studio-overview-[\w-]+\.js"/);
+  expect(readFileSync("dist/floorplan-studio-card.js", "utf8"), "the build put the file's name in").not.toContain("__FPOVERVIEW_CHUNK__");
+});
+
+test("the card file does not carry the Overview: a rule and a label of the sheets are only in the chunk", () => {
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  const chunk = readFileSync(`dist/${overviewChunks()[0]}`, "utf8");
+  for (const word of [".fp-rail-count", ".fp-sheet-top", "fp-fav-act"]) {
+    expect(card, `the card holds ${word}`).not.toContain(word);
+    expect(chunk, `the chunk holds ${word}`).toContain(word); // so the check above can fail
   }
 });

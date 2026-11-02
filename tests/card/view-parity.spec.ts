@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { serve, ORIGIN } from "./helpers-3d";
 import { menuItem, openMenu } from "./menu-helper";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // Diego, 0.12.22: "everything you do in studio must also be done in card". The rule for what is VIEWING: every
 // control the editor's View menu, its zoom group and its Filter menu draw is listed here with a decision, so a new
@@ -60,7 +61,7 @@ const CARD_ONLY: Record<string, { item: string }> = {
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 /** The card is checked on a layout that has a saved view: the Views section is drawn only for one that does. */
 const withView = { ...structuredClone(demo), views: [{ id: FIRST_VIEW, name: "Living", floor: "ground" }] };
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const HARNESS = pathToFileURL(resolve("tests/card/harness.html")).href;
 
 test("every view control of the editor has a decision for the card", async ({ page }) => {

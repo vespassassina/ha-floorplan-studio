@@ -37,6 +37,9 @@ jobs:
           # The history replay is a lazy chunk beside the card (S39.2, the card's Replay item): exactly one, or Replay cannot load its parser.
           n=$(ls custom_components/floorplan_studio/www/floorplan-studio-replay-*.js 2>/dev/null | wc -l)
           [ "$n" -eq 1 ] || { echo "expected one www/floorplan-studio-replay-<hash>.js, found $n: the build did not produce it, or a stale one is left"; exit 1; }
+          # The Overview is a lazy chunk beside the card (B52.2): exactly one, or the card runs without its panel.
+          n=$(ls custom_components/floorplan_studio/www/floorplan-studio-overview-*.js 2>/dev/null | wc -l)
+          [ "$n" -eq 1 ] || { echo "expected one www/floorplan-studio-overview-<hash>.js, found $n: the build did not produce it, or a stale one is left"; exit 1; }
           cd custom_components/floorplan_studio && zip -r ../../floorplan_studio.zip . -x "__pycache__/*" "*.pyc"
       - name: Release, with the CHANGELOG entry as its notes
         # No section for the version (or an empty one): fall back to generated notes rather than fail the release.

@@ -4934,9 +4934,12 @@ task measures its real figure and records it in DECISIONS.
 - [x] B52.1 Measure the popup, the dialogs and the overview as lazy chunks (gzip saved, and first open at 4x CPU throttle).
   Diego picks from the figures. Done 2026-11-02: overview 6,145 saved, popup 2,226, dialogs 1,331; Diego picked the
   overview (DECISIONS).
-- B52.2 Move the picked parts into chunks, loaded on first open with the retry-by-URL rule. They get the card's helpers
+- [x] B52.2 Move the picked parts into chunks, loaded on first open with the retry-by-URL rule. They get the card's helpers
   through deps, never by import. Done when at least 4,000 bytes are freed, the popup opens in under 300 ms at 4x, and
   `size-budget.spec.ts` has each chunk's limit (spec criterion 1).
+  Done 2026-11-02 (Diego picked the overview alone, so only it moved): card 124,096 to 118,059 gzip, 6,037 freed; chunk
+  8,443 (cap 9,000). First paint of the panel at 4x, median of 12 fresh pages: side sheet 102.7 to 121.6 ms, phone
+  118.6 to 148.3 ms. The popup stayed in the card. DECISIONS 2026-11-02, B52.2.
 
 ### Sprint 53: furniture and the louder car
 

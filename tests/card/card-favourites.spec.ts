@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DEVICE_TYPES } from "../../src/core/schema";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S34.4 (spec F2, F3, F5, F9; criteria 2 to 7): the Favourites section of the card's Overview, on the stress house (three
 // floors). Real page.mouse clicks at points checked to be the real top element (finding 3). The hass stub has the shape Home
@@ -11,7 +12,7 @@ import { DEVICE_TYPES } from "../../src/core/schema";
 
 const layout = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-08T09:30:15Z" });
 // Ground: the kitchen spot (a light, off), the living wall switch (on: its Turn off asks first), the garage temperature probe (a

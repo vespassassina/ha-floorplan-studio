@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { serve, ORIGIN, drawn } from "./helpers-3d";
 import { hasItem, menuItem, openMenu, pick, stateOf, menuButton } from "./menu-helper";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S34.8 (spec docs/specs/extras-s34.md, H7, H8, criterion 13): the heat map in the card. The ⋯ menu's Heat map section, the legend
 // strip, the viewer's pick in view memory, the YAML key. Real clicks through the real menu (finding 3). The hass stub has the shape
@@ -12,7 +13,7 @@ import { hasItem, menuItem, openMenu, pick, stateOf, menuButton } from "./menu-h
 
 const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const st = (state: string) => ({ state, attributes: {}, last_changed: "2026-10-08T09:30:15Z" });
 const STATES = (): Record<string, unknown> => ({

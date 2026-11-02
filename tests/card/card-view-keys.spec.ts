@@ -3,12 +3,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuItem, openMenu, rotateLeft } from "./menu-helper";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // The card's keys and its floor memory in real Chromium: a real pointer over the card, a real keyboard, a real reload.
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const settled = (page: Page) => expect(card(page).locator("css=svg.fp-turning")).toHaveCount(0);

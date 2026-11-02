@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { readSvg } from "../helpers/pixels";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S1 (Opus review of S23): a window in an outer wall read as a hole. The wall is cut wider than the room polygon (which
 // stops at the wall's centre line), so the outer half of the gap showed the board. Read from real pixels (finding 16).
@@ -12,7 +13,7 @@ import { readSvg } from "../helpers/pixels";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 async function open(page: Page, config: Record<string, unknown>) {
   await page.goto(URL_);

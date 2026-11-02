@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { differing, readPatches } from "../helpers/pixels";
 import { FIRST_TO_GROUND, GROUND_TO_BASEMENT } from "../fixtures/hand-align-truth";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S29.3 + S29.5: the card's ghost follows the floors' rotation. The fixture stores no pose; the truth (hand-align-truth.ts) says the ground is turned
 // -2.50 degrees and shifted [-57, 112] from the basement, the first 4.00 degrees and [83, -41] from the ground. The pose written here is built from
@@ -31,7 +32,7 @@ const groundInFirst = (p: [number, number]): [number, number] => {
 };
 
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 async function configure(page: Page, layout: unknown, config: Record<string, unknown>) {
   await page.evaluate(({ layout, config }) => {
     const el = document.getElementById("card") as unknown as HTMLElement & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S42.4 (docs/specs/temp-range.md, decision 8): a real built card, fed the way Home Assistant feeds it, tints a hot room and lists
 // it in Attention, and clears both when the reading comes back inside the band. The states have the shape HA's frontend gives
@@ -10,7 +11,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const layout = structuredClone(demo);
 layout.tempRange = { min: 17, max: 26, hold: 0 };

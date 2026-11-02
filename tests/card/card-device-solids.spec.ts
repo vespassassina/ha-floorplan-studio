@@ -1,13 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
+
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // 2.5D device solids in the card: a radiator box, a speaker cabinet, a TV panel on the wall. The icon stays the tap
 // target (a real mouse, finding 3); the solid takes no click. A small own layout, not the demo: no house data.
 
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
 const room = { id: "r", name: "Room", area: "", kind: "room", pts: [[0, 0], [600, 0], [600, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] };

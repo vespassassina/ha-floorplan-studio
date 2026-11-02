@@ -2,13 +2,14 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S14.7 (docs/specs/card-polish-and-light.md, item 19): the Room section lists scene buttons. Each click is a real
 // page.mouse click on the real top element (CLAUDE.md finding 3).
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 // Living (room 0, area "living") gets two custom scenes: Movie (a light at 20 %) and Fan off (turns a switch off, so it asks).
 // A payload name proves names are text. Kitchen (room 1) has a light and no scene. Hall (room 2) has no light at all.

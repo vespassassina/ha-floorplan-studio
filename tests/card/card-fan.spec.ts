@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S33.2 (docs/specs/extras-s33.md, X1, criteria 3 and 4): a real click on a fan's icon opens its popup, Turn on and Turn off
 // call fan.turn_on and fan.turn_off (OFF asks first), a fan that reports `percentage` and SET_SPEED gets a speed slider whose
@@ -11,7 +12,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const FAN = 6; // first floor: the demo's Bedroom fan, fan.demo_bedroom
 
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-04T09:30:15Z" });

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { nextInDirection, type FocusDir } from "../../src/card/plan-focus";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S31.10 (docs/specs/card-layout-touch.md, D4 and criterion 8): keys on the plan, with a real keyboard and a real mouse, on the demo
 // turned 45 degrees. The plan is one Tab stop; Tab in puts a ring on the device nearest the view's centre; arrows walk devices by
@@ -12,7 +13,7 @@ import { nextInDirection, type FocusDir } from "../../src/card/plan-focus";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const card = (page: Page, n = 0) => page.locator("floorplan-studio-card").nth(n);
 const CONFIG = { type: "custom:floorplan-studio-card", floor: "ground", theme: "light", rotate_switch: true };
