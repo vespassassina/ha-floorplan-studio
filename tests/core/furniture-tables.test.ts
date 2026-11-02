@@ -49,4 +49,28 @@ describe("B53.1: every furniture symbol is decided in every table", () => {
     l.floors.ground.furniture[0].symbol = "sofa-xl";
     expect(validate(l).ok).toBe(false);
   });
+
+  // Spec item 18: a back run along the top, 45 % of the height deep, full width; a chaise on the left, 35 % of the width,
+  // full height; the bottom right empty. The symbol is stretched to w x h as a whole, so the fractions hold in the 0-100 box.
+  it("draws sofa-l as an L: back run and chaise filled, the bottom right empty", () => {
+    const tag = /<path[^>]*class="ff"[^>]*>/.exec(FURNITURE["sofa-l"].svg)?.[0] ?? "";
+    const body = /\sd="([^"]+)"/.exec(tag);
+    expect(body, "a filled path").not.toBeNull();
+    const pts = [...body![1].matchAll(/(-?\d+(?:\.\d+)?)[ ,](-?\d+(?:\.\d+)?)/g)].map((m) => [+m[1], +m[2]]);
+    const inside = (x: number, y: number) => {
+      let c = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const [xi, yi] = pts[i], [xj, yj] = pts[j];
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+      }
+      return c;
+    };
+    expect(inside(80, 80), "bottom right").toBe(false);
+    expect(inside(60, 60), "just under the back run, right of the chaise").toBe(false);
+    expect(inside(80, 20), "back run, right").toBe(true);
+    expect(inside(50, 40), "back run, depth 45").toBe(true);
+    expect(inside(20, 80), "chaise").toBe(true);
+    expect(inside(30, 90), "chaise, width 35").toBe(true);
+    expect(inside(40, 80), "just right of the chaise").toBe(false);
+  });
 });

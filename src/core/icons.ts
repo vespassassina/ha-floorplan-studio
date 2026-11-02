@@ -94,8 +94,9 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   toilet: { w: 40, h: 65, svg: r(20, 4, 60, 26, 4) + `<ellipse cx="50" cy="64" rx="36" ry="30" ${SB}/>` },
   shower: { w: 90, h: 90, svg: r(4, 4, 92, 92, 2) + c(50, 50, 8) + `<path d="M4 4 L96 96 M96 4 L4 96" ${S} stroke-opacity=".4"/>` },
   bathtub: { w: 170, h: 75, svg: r(4, 4, 92, 92, 14) + r(14, 14, 72, 72, 22) + c(88, 50, 3) },
-  // B53.1: the L is drawn as a corner sofa (back along the top and down the left, seat inside); the true L footprint is B53.2.
-  "sofa-l": { w: 280, h: 180, svg: r(4, 4, 92, 92, 8) + r(26, 26, 68, 68, 6) },
+  // B53.1: an L: a back run 45 % deep over the full width, a chaise 35 % wide down the left, the bottom right empty (spec item 18).
+  // The box is stretched to w x h as a whole, so the fractions hold in it. The 3D blocks come with B53.2.
+  "sofa-l": { w: 280, h: 180, svg: `<path d="M4 4 L96 4 L96 45 L35 45 L35 96 L4 96 Z" ${SB}/><path d="M4 22 H96 M4 45 H35" ${S}/>` },
   "coffee-table": { w: 110, h: 60, svg: r(4, 4, 92, 92, 10) + r(16, 16, 68, 68, 6) },
   bookcase: { w: 100, h: 35, svg: r(2, 4, 96, 92, 2) + `<path d="M26 4 V96 M50 4 V96 M74 4 V96" ${S}/>` },
   buffet: { w: 180, h: 50, svg: r(2, 4, 96, 92, 3) + `<path d="M34 4 V96 M66 4 V96" ${S}/>` + c(28, 50, 2) + c(40, 50, 2) + c(60, 50, 2) + c(72, 50, 2) },
