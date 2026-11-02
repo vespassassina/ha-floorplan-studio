@@ -4923,6 +4923,8 @@ a room. then scenes are saved for the rooms." The spec answers the open points b
 
 ## After the 2026-11-01 interview: Sprints 52 to 61
 
+Order changed 2026-11-02 (Diego): after Sprint 45 come Sprints 52 and 53, then 46 to 51, then 54 on.
+
 Spec: `docs/specs/batch-s52.md`, approved by Diego on 2026-11-01 with its defaults. Comes after Sprint 51. Sprint 52 frees card bytes first; no
 feature task starts before it has measured what it freed. The card spends about +3,720 gzip across the batch. Each
 task measures its real figure and records it in DECISIONS.
@@ -4940,6 +4942,10 @@ task measures its real figure and records it in DECISIONS.
 - B53.1 `sofa-l`, `coffee-table`, `bookcase`, `buffet`: symbols, heights, sizes, picker, the 3D palette. A test walks
   `FURNITURE_SYMBOLS` against every table (criterion 2).
 - B53.2 `mirror` on `sofa-l`, and the L as two blocks: one shape function for 2.5D and 3D (criterion 3).
+- B53.4 Paint a piece: `color` or `texture` on any furniture, the room swatches in its panel, one `paint` step; 2D
+  fill, 2.5D and 3D block colour (spec items 19a, criterion 3a).
+- B53.5 Shapes from blocks: `furnitureBlocks` for table, sofa, bed, chair, cabinet, sink, buffet, bathtub, feeding
+  2.5D and 3D; the L sofa (B53.2) uses it (spec item 19b, criterion 3b). Shots at 4x in both themes.
 - B53.3 The charging car's glow and 2.4 s breath in 2D and 3D, still under reduced motion. Computed-style pairs, and
   shots in both themes at 4x (criterion 7).
 

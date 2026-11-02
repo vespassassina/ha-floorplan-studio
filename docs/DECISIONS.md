@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-02: furniture paint and block shapes, and Sprints 52 and 53 move up
+
+Diego asked for colour and wood textures on furniture and more detailed tables and sofas, "still block based". The
+card has 72 bytes left under its cap, so the work cannot land before Sprint 52 frees bytes. Diego chose: Sprint 45,
+then 52, then 53 with the new tasks B53.4 (paint) and B53.5 (block shapes for table, sofa, bed, chair, cabinet, sink,
+buffet and bathtub), then 46 to 51. Spec: `docs/specs/batch-s52.md` items 19a and 19b, criteria 3a and 3b. Assumption:
+3D shows a texture by its base colour, no grain; a canvas texture is a later choice. One shape function feeds 2.5D and
+3D so they cannot differ (finding 8).
+
 ## 2026-11-01: Opus review of Sprint 44 (R2.5 to R2.7), fixes
 
 Branch `task/s44-review`. Bytes: card 124,059 to 124,096 gzip (cap 124,168; 72 left), replay chunk 5,941 to 5,991 (limit 6,000; 9 left, so the next change to the

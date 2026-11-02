@@ -75,6 +75,27 @@ This batch needs about 3.7 KB on the card. 978 bytes are not enough, so Sprint 5
     (`scene-build.ts`), so the two views cannot differ. The other three new pieces are boxes.
 19. **Every symbol decided:** `FURNITURE_SOLID`, the 3D palette's role per symbol, `furnitureHeight` and the symbol
     picker each have an entry for each new symbol. A test walks `FURNITURE_SYMBOLS` (finding 17).
+19a. **Paint a piece (added 2026-11-02, Diego).** Any furniture piece takes `color` (a `#rrggbb`) or `texture` (one of
+    `TEXTURE_IDS`, the room textures, woods included) with `textureRot` and `textureScale`, as a room does. It is the
+    same `EditorState.paint` step (`on` gains `"furniture"`): one undo step, a custom colour joins `layout.palette`. The
+    furniture panel shows the room's swatches. 2D fills the piece with the colour or the texture's pattern and keeps
+    its outline and symbol lines. 2.5D and 3D colour every block of the piece with the colour, or with the texture's
+    base colour (assumption: no grain in 3D; a canvas texture is a later choice). No paint keeps today's
+    `--fp-furniture` and palette roles. `validate` refuses a bad colour, an unknown texture and a non-finite rotation or
+    scale with the piece's name, and never throws (finding 1). A car keeps its own `color` meaning.
+19b. **Shapes from blocks (added 2026-11-02, Diego).** One function in core, `furnitureBlocks(piece)`, returns a
+    piece's boxes in its own frame; `solids.ts` (2.5D) and `scene-build.ts` (3D) both draw from it, so the two views
+    cannot differ (finding 8). With `H` the piece's height and `w × h` its size:
+    - `table`, `coffee-table`: a top 4 cm thick at `H`, four legs 5 × 5 cm inset 5 cm from the corners.
+    - `sofa`: a seat at 45 % of `H` over the whole piece, a back 20 % of `h` deep along the back edge to `H`, two arms
+      15 cm wide (at most 20 % of `w`) to 65 % of `H`. `sofa-l` is the same, its chaise a seat block (item 18).
+    - `bed`: a frame to 30 cm, a mattress inset 3 cm to 55 cm, a headboard 8 cm deep to `H` at the head edge.
+    - `chair`: a seat 5 cm thick at 45 cm (at most `H`), four legs 4 × 4 cm, a back 8 % of `h` deep to `H`.
+    - `cabinet`, `sink`, `buffet`: a plinth 10 cm high inset 5 cm, the body to `H − 3`, a top 3 cm thick.
+    - `bathtub`: a base to 15 cm, a rim 8 cm wide round the edge to `H`.
+    - Every other symbol: one box, as today.
+    Every block lies inside the piece's footprint and under `H`, at any size the editor allows, down to the smallest
+    (insets shrink so no block has a size of 0 or less). Legs and plinths take the piece's colour 20 % darker.
 
 ### C. Worktop (Sprint 54)
 
@@ -222,6 +243,11 @@ these fields from a shape it does not know. `npm run docs:schema` regenerates `d
    fails when one lacks an entry.
 3. A mirrored `sofa-l` draws its chaise on the other side in 2D, in 2.5D and in the 3D scene. One test checks all
    three on asymmetric sizes (finding 4). `mirror` on another symbol fails `validate` with the piece's name.
+3a. A painted piece (a colour, then a wood texture) shows it in 2D, 2.5D and 3D; each paint is one undo step; a bad
+   colour or texture fails `validate` with the piece's name. Computed-style pairs for the 2D fill (finding 10), shots in
+   both themes (finding 16).
+3b. `furnitureBlocks` for every symbol in `FURNITURE_SYMBOLS`, on asymmetric sizes and on the smallest size: every
+   block inside the footprint, under `H`, of positive size; 2.5D and 3D build the same block count from it.
 4. A worktop of 3, 6 and 64 points draws in 2D and builds a prism at 90 cm in 3D. A self-crossing polygon, 2 points,
    65 points or a non-finite point fails `validate` and never throws.
 5. Worktop editing: drag, add, remove (never below 3), move and undo are each one undo step, and the result passes
@@ -259,6 +285,7 @@ these fields from a shape it does not know. `npm run docs:schema` regenerates `d
 |---|---|---|
 | Sprint 52: lazy popup, dialogs, overview | −4,000 or more | new chunks |
 | Furniture: 4 symbols, `mirror` | +900 | 3D +600 |
+| Furniture paint and block shapes | +700 | 3D +500; editor +400 |
 | Car glow and pulse | +120 | 3D +150 |
 | Worktop: draw, schema | +350 | 3D +250; editor +3,000 |
 | Underfloor: wash, pattern, flag | +250 | 3D +150 |
