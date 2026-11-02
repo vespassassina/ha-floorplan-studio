@@ -8,7 +8,6 @@ import { restoreScene, tryScene } from "./scene-try";
 import { type AddCandidate, DEVICE_COLOURS, type Pt, type SceneItem, viewBoxFor } from "../core";
 import { cleanSceneItem, roomSceneTargets, saveScene } from "./room-scenes-ops";
 import { placeDevice } from "./editor-draw";
-import { setFloor } from "./editor-views";
 import { MAX_ZOOM } from "../card/viewport";
 import { EditorState } from "./state";
 import { html, nothing } from "lit";
@@ -185,7 +184,7 @@ export function pickAddDev(ed: FloorplanStudioEditor, c: AddCandidate) {
   if (c.source === "catalog") { placeDevice(ed, c.id); ed.requestUpdate(); return; }
   const e = st.ha?.entities.find((x) => x.id === c.entity);
   if (!e) return;
-  if (c.floorKey && c.floorKey !== st.floor) setFloor(ed, c.floorKey);
+  if (c.floorKey && c.floorKey !== st.floor) ed.setFloor(c.floorKey);
   // Opus review finding 11: names the placed device (and the "Added …" status) after c.name, the row the user
   // just clicked — a device row's own name can differ from its main entity's, e.g. the device registry's name.
   ed.addHaEntity(c.name !== e.name ? { ...e, name: c.name } : e);

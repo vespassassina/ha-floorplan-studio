@@ -4844,7 +4844,7 @@ the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
 Plan D, item 15, second half. `src/editor/editor-app.ts` (220 KB of source) split as S39.0 split the card: whole
 concerns into modules, no behaviour change, the full suite as the test.
 
-- [ ] S45.1 Split the editor file. Move whole concerns out of `src/editor/editor-app.ts` into modules beside it, each a
+- [x] S45.1 Split the editor file (2026-11-02: `editor-app.ts` 225,730 -> 72,014 B source, 3,412 -> 992 lines, fifteen modules `editor-*.ts`, each member a function over the element with a one-line delegate; editor panel gzip -9 192,133 -> 191,810, card 124,096 unchanged; vitest 6267, Playwright 2786 passed). Move whole concerns out of `src/editor/editor-app.ts` into modules beside it, each a
   plain function or a small helper over the element: the remembered view, the pointer handlers, the floating popups
   (Place, scene designer, Add > Device), the trace image, search and Outline, draw mode and drawing, saved views. The
   element keeps its state, lifecycle and `render`. No behaviour change, no new public name, no new test needed: the

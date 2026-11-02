@@ -9,7 +9,7 @@ import type { FloorplanStudioEditor } from "./editor-app";
 /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
 export function saveByKey(ed: FloorplanStudioEditor) {
   if (isBlank(ed.st.layout)) { ed.status = "Nothing to save yet: the plan is empty. Draw something, then press Cmd/Ctrl+S."; ed.requestUpdate(); return; }
-  save(ed);
+  ed.save();
 }
 
 export function save(ed: FloorplanStudioEditor) {

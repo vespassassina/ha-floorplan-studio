@@ -1,13 +1,11 @@
 import { layoutEntries, type SearchEntry } from "../core/search";
 import { undo } from "./editor-actions";
-import { save } from "./editor-file";
 import { setPlanLocked } from "./editor-changes";
 import { startDraw } from "./editor-draw";
 import { openAddDev } from "./editor-popups";
 import { buildOutline, deviceNodeId, filterOutline, outlineKey, type OutlineNode, type OutlineRow, outlineView, visibleRows } from "./outline";
 import { layerCounts, type LayerId, layerOfType, LAYERS, type Pt, soloLayer, toggleLayer, viewBoxFor } from "../core";
 import { hasOwn } from "./editor-kit";
-import { setFloor } from "./editor-views";
 import { roomMiddle } from "./ops";
 import { ctxTargetFor } from "./ctx-menu";
 import { html, nothing } from "lit";
@@ -35,7 +33,7 @@ export function runCommand(ed: FloorplanStudioEditor, id: string) {
   else if (id === "cmd:addDevice") openAddDev(ed);
   else if (id === "cmd:fit") { ed.st.fit(); ed.requestUpdate(); }
   else if (id === "cmd:undo") undo(ed, true);
-  else if (id === "cmd:save") save(ed);
+  else if (id === "cmd:save") ed.save();
 }
 
 /** The search entries (commands first) and the Outline, rebuilt only when what they are made of changed: an edit
@@ -63,7 +61,7 @@ export function goTo(ed: FloorplanStudioEditor, e: SearchEntry) {
   if (e.kind === "command") { runCommand(ed, e.id); return; }
   const st = ed.st;
   if (typeof e.floor !== "string" || !hasOwn(st.layout.floors, e.floor)) return;
-  if (e.floor !== st.floor) setFloor(ed, e.floor);
+  if (e.floor !== st.floor) ed.setFloor(e.floor);
   const f = st.f;
   if (e.kind === "room" && e.room !== undefined && f.rooms[e.room]) {
     st.sel = { t: "room", i: e.room };
