@@ -402,7 +402,7 @@ function prism(base: Pt[], h: number, px: Proj, z0 = 0): string | null {
  * One entry per symbol, so a new FurnitureSymbol fails the test that walks the list until someone decides (finding 17).
  */
 export const FURNITURE_SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
-  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", tv: "box", computer: "box", speaker: "box",
+  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", tv: "box", computer: "box", speaker: "box",
   car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
 };
 /** How a piece of furniture draws in 2.5D. A piece that is not finite or not known is flat: the 2D path deals with it as ever. */

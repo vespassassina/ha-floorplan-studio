@@ -325,7 +325,7 @@ describe("scene: furniture, unlinked, stairs", () => {
   const piece = (symbol: FurnitureSymbol, o = {}) => ({ id: "f", symbol, x: 300, y: 200, rot: 0, w: 120, h: 70, ...o });
   /** What a symbol becomes. Written out on purpose (finding 17). */
   const SYMBOL_DECISION: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
-    table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", tv: "box", computer: "box", speaker: "box",
+    table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", tv: "box", computer: "box", speaker: "box",
     car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
   };
   it("decides every FurnitureSymbol", () => {

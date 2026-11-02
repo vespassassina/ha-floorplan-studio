@@ -22,7 +22,7 @@ const CORNERS: [number, number][] = [[260, 220], [340, 220], [340, 280], [260, 2
 
 /** What each symbol becomes in 2.5D. Written out here on purpose: a new FurnitureSymbol is a type error until someone decides. */
 const SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
-  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", tv: "box", computer: "box", speaker: "box",
+  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", tv: "box", computer: "box", speaker: "box",
   car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
 };
 /** Whether a device of each type, mounted at its default height, gets a stem up from its icon. */

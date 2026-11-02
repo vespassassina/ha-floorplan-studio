@@ -103,7 +103,7 @@ const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split("
 /** S26.17: what each piece of furniture is called in the Add menu. A table, not the symbol with its hyphen swapped, so a
  *  new symbol fails the iterating test until someone writes its name. */
 export const FURNITURE_LABELS: Record<FurnitureSymbol, string> = {
-  table: "Table", sofa: "Sofa", bed: "Bed", cabinet: "Cabinet", chair: "Chair", sink: "Sink", toilet: "Toilet", shower: "Shower", bathtub: "Bathtub",
+  table: "Table", sofa: "Sofa", bed: "Bed", cabinet: "Cabinet", chair: "Chair", sink: "Sink", toilet: "Toilet", shower: "Shower", bathtub: "Bathtub", "sofa-l": "Corner sofa", "coffee-table": "Coffee table", bookcase: "Bookcase", buffet: "Buffet",
   tv: "TV", computer: "Computer", speaker: "Speaker", tree: "Tree", "patio-wood": "Patio, wood", "patio-concrete": "Patio, concrete", car: "Car",
 };
 
