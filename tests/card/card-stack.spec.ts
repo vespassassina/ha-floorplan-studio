@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { hasItem, isDisabled, rotateLeft, rotateRight } from "./menu-helper";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // The card's zoom cluster: one vertical stack (zoom in, zoom out, fit) at the top right of the stage. S31.6: rotate and
 // reset moved into the header's ⋯ menu with the look controls, and the toolbar is gone. Real mouse coordinates
@@ -10,7 +11,7 @@ import { hasItem, isDisabled, rotateLeft, rotateRight } from "./menu-helper";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 type Cfg = Record<string, unknown>;
 const STACK = ["Zoom in", "Zoom out", "Fit"];

@@ -4,13 +4,14 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { THEMES } from "../../src/core";
 import { chooseTheme, closeMenu, menuButton, menuPanel, openMenu, themeNow, themeSelect } from "./menu-helper";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // The Theme item of the ⋯ menu is one select, not 13 radios. Real mouse and keyboard (finding 3). The labels are the card's own
 // (THEME_LABELS); the list must be THEMES, in order (finding 17: iterate the union).
 
 const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const LABELS: Record<string, string> = { ha: "Home Assistant", "a-team": "A-Team", "carpenter-brut": "Carpenter Brut", "beach-house": "Beach house" };
 const label = (t: string) => LABELS[t] ?? t[0].toUpperCase() + t.slice(1);
 

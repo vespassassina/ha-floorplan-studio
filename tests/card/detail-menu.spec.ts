@@ -3,6 +3,7 @@ import { checkedIn, menuPanel, openMenu, closeMenu, pick as pickItem, stateOf } 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S25.8: the card's Detail section of the ⋯ menu (S31.6: it was a button beside Layers), and `detail:` in the card YAML. Real page.mouse (finding 3); the level
 // is read off the live plan root; the viewer's choice goes through the real localStorage and a real reload.
@@ -11,7 +12,7 @@ import { pathToFileURL } from "node:url";
 
 const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 async function boot(page: Page, config: Record<string, unknown> = {}) {
   await page.addScriptTag({ content: CARD_JS, type: "module" });

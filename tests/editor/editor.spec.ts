@@ -5,6 +5,7 @@ import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } f
 import { GUIDE_STEPS, plainBody } from "../../src/editor/guide";
 import { readSvg } from "../helpers/pixels";
 import { openLabels, pickFurniture, pickUnlinked } from "./menu-helpers";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
 // real top element decides what is hit (icons, handles, walls), as for a user.
@@ -8356,7 +8357,7 @@ test("S9.6: Copy card view round-trips into a card's center/zoom_level, within 1
   expect(gotCy).toBe(center[1]);
   expect(gotZoom).toBeCloseTo(zoomLevel, 2);
 
-  const CARD_JS = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
   const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
   await page.addScriptTag({ content: CARD_JS, type: "module" });
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));

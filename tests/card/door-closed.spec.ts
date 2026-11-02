@@ -2,13 +2,14 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S25.D1 in a real card (Diego, 2026-10-09: "open doors are just holes and closed doors are closed. doors with no sensor are
 // left open"). The demo's Front door (ground floor, door 0) and Patio (glass, door 1) have a contact each. Read back from Chromium.
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const FRONT = "binary_sensor.demo_front_door", PATIO = "binary_sensor.demo_patio_door";
 const st = (state: string) => ({ state, attributes: {}, last_changed: "2026-10-01T10:00:00Z" });

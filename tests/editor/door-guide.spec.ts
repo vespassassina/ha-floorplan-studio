@@ -2,12 +2,13 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // 2026-10-12 (Diego: "in studio doors are not visible"). CSS pair, finding 10/18: the guide rule must reach the pixel in the Studio, and the
 // same door must stay a transparent hole in the card. Computed style, not the stylesheet text.
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const HARNESS = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const EDITOR = "floorplan-studio-editor";
 const paint = (l: import("@playwright/test").Locator) => l.evaluate((e) => { const c = getComputedStyle(e); return { stroke: c.stroke, width: c.strokeWidth, dash: c.strokeDasharray, op: Number(c.strokeOpacity) }; });
 

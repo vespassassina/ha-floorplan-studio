@@ -3,13 +3,14 @@ import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // G23: axe-core over the card and the Studio in the states a person reaches, light and dark. Scoped to our elements:
 // the harness page has no title, lang or main, which the Home Assistant page around the real card supplies.
 // Before the fixes this found: hover grey under light text (2.9:1), two buttons whose name left out their visible
 // text, and the Save shortcut hint at 3.9:1. Not covered by axe: keyboard order, focus return, screen reader speech.
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-04T09:30:15Z" });
 const STATES = () => ({ "light.demo_living": st("on", { friendly_name: "Living light" }), "switch.demo_hall": st("off"), "sensor.demo_living_temperature": st("21", { unit_of_measurement: "°C" }), "camera.demo_hall": st("idle") });
 

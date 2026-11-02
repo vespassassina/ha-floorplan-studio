@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { readSvg } from "../helpers/pixels";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S21.1: a camera's cone stops at the walls of its room. The test looks at pixels, because the markup can name a clip that the
 // browser never applies (a `url(#id)` has to resolve inside the card's shadow root). Demo ground floor, Living room x 0..500,
@@ -13,7 +14,7 @@ import { readSvg } from "../helpers/pixels";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const card = (page: Page) => page.locator("floorplan-studio-card");
 
 async function open(page: Page, config: Record<string, unknown>) {

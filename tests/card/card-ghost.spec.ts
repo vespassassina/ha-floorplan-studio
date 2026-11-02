@@ -6,6 +6,7 @@ import { readGhostIn } from "../fixtures/ghost-contrast";
 import { floorPlace, renderFloor } from "../../src/core";
 import { isDisabled, pick, stateOf } from "./menu-helper";
 import { loadCard } from "./form-harness";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S27.13: the card's ghost floor. `ghost_floor` in YAML and the Floor below item of the header menu (S31.6: it was a button). Real page.mouse clicks on the real top element
 // (finding 3). The first floor sits 200 cm east of the ground floor (offset), so the ground floor's ghost is drawn 200 cm to the
@@ -14,7 +15,7 @@ const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const layout = structuredClone(demo);
 layout.floors.first.offset = [200, 0];
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 async function boot(page: Page, config: Record<string, unknown> = {}, width = 1280) {
   await page.setViewportSize({ width, height: 900 });

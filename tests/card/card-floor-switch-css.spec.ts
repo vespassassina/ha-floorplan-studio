@@ -2,12 +2,13 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S27.6 and S27.5 computed-style pairs on the card (finding 10: a rule asserted as a string proves nothing). The card sets
 // data-switch itself in S27.15; here the attribute is set by hand on the plan root, so only the stylesheet is under test.
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 async function boot(page: Page) {
   await page.setViewportSize({ width: 1280, height: 900 });

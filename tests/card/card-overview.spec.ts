@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S24.7: the card's Overview sheet on the stress house (three floors, 437 devices). Every click is a real page.mouse click at
 // a point checked to be the real top element (CLAUDE.md finding 3). The hass stub has the shape Home Assistant's frontend
@@ -9,7 +10,7 @@ import { pathToFileURL } from "node:url";
 
 const layout = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-08T09:30:15Z" });
 // Lights on on every floor, and the attention state counted by hand in tests/core/attention.test.ts (ground: alarm triggered,

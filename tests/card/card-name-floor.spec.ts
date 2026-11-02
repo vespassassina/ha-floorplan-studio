@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // Opus review of Sprint 31, finding 2: `qpx` snaps the drawn scale DOWN so a room name never falls under its 11 px floor
 // (NAME_MIN_PX). Nothing measured the pixel. This does: the real on-screen font size of every room name, across card widths,
@@ -10,7 +11,7 @@ import { pathToFileURL } from "node:url";
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const stress = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const frames = (page: Page, n: number) => page.evaluate((n) => new Promise<void>((r) => { const f = (i: number) => (i ? requestAnimationFrame(() => f(i - 1)) : r()); f(n); }), n);
 
 /** Every room name's drawn size on screen: its font-size times the scale of its own screen transform (a turned plan too). */

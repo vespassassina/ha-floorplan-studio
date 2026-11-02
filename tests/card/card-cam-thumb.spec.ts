@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuItem, openMenu, pick, stateOf } from "./menu-helper";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S16.3: the camera thumbnail in the 2D and 2.5D card. Real clicks (finding 3). The hass stub has Home Assistant's shape (finding 21):
 // `states` keyed by entity id, each { state, attributes, last_changed }; a camera's `entity_picture` is a path on HA, `/api/camera_proxy/...?token=`.
@@ -11,7 +12,7 @@ import { menuItem, openMenu, pick, stateOf } from "./menu-helper";
 
 const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const PIC = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"; // one valid pixel: a truncated gif fires `error` and is hidden
 const PATH = "/api/camera_proxy/camera.demo_hall?token=abc";
 const cam = (pic: string, state = "idle") => ({ "camera.demo_hall": { state, attributes: { entity_picture: pic }, last_changed: "2026-10-21T09:30:15Z" } });

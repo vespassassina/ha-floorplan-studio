@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S37.7 defect 5: at 1024 px wide the card's + / - / Fit buttons sat on the faint outline of the floor below (Floor below on, demo
 // home, first floor: the ground floor reaches past the first floor's right edge, so its lines run under the buttons). The ghost is
@@ -9,7 +10,7 @@ import { pathToFileURL } from "node:url";
 // and counts those that are inside the svg's own box (what shows) and inside the button stack's box (what covers).
 const home = JSON.parse(readFileSync("demo/home.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 async function boot(page: Page, width: number, config: Record<string, unknown>) {
   await page.setViewportSize({ width, height: 800 });

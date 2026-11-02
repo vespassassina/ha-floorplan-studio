@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // 2.5D: a high mount (the kitchen light, demo device 1 at 650,200, z 250) is drawn where it hangs; the pin and the stem
 // stay on the floor. A real mouse must reach the lifted icon (finding 3) and not the pin. Every click is page.mouse at
@@ -9,7 +10,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
 

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { checkedIn, pick, rotateLeft, rotateRight } from "./menu-helper";
 import { THEMES } from "../../src/core";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // Field report 0.12.21: "the template and view resets between reloads of the dashboard". These drive the card
 // the way Home Assistant does: a config that sets theme, view and tilt, a layout that arrives over the websocket
@@ -11,7 +12,7 @@ import { THEMES } from "../../src/core";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const card = (page: Page) => page.locator("floorplan-studio-card");
 // S31.6: Theme and View are radio groups of the header menu; the zoom stack keeps its buttons.

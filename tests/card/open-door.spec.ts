@@ -3,13 +3,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { FLOORPLAN_CSS, THEMES } from "../../src/core/render";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // The open doorway in the card, in a real Chromium: closed it draws nothing at all; when its contact says open it
 // is a SOLID alert band across the gap: no dash, no pulse, no door look (S14.5; Diego, 2026-10-05: "open ... do not draw the door").
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const SENSOR = "binary_sensor.hall_arch";
 

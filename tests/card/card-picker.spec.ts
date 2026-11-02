@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
+
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S36.3: Home Assistant's "By entity" card picker (frontend 2026.6) asks every `window.customCards` entry for a suggestion.
 // CLAUDE.md finding 21: the shape below is copied from the HA frontend (home-assistant/frontend, read 2026-10-22 at the tags
@@ -19,7 +20,7 @@ import { pathToFileURL } from "node:url";
 // What cannot be checked without a real Home Assistant 2026.6: the picker drawing the tile. The pieces above are all we can reach.
 
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 type Suggestion = { label?: string; config: { type: string } & Record<string, unknown> };
 

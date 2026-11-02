@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S14.2 (docs/specs/card-polish-and-light.md, items 3, 4, 5, 17, 18) in the 2D plan: a tap opens a popup and operates
 // nothing, its button makes the one call, OFF asks first except for a light, a slider's release is one light.turn_on,
@@ -10,7 +11,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-04T09:30:15Z" });
 // Home Assistant's light attributes (core light/const.py): supported_color_modes, min/max_color_temp_kelvin, brightness 0-255,

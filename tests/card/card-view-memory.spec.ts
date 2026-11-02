@@ -4,13 +4,14 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { checkedIn, hasItem, menuPanel, openMenu, pick, resetView, rotateRight } from "./menu-helper";
 import { THEMES } from "../../src/core";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // The card's rotation, its animation and its view memory in real Chromium: real mouse coordinates (CLAUDE.md
 // finding 3), computed styles (finding 10), and a reload that goes through the real localStorage.
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const KITCHEN_LIGHT = 1; // demo/layout.json: floors.ground.devices[1], light.demo_kitchen
 
 type Cfg = Record<string, unknown>;

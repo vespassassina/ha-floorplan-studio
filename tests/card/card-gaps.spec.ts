@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // task/card-gaps: G9 (display text from hass.formatEntityState), G11 (a failed service call tells the user) and G12
 // (popup buttons for script, scene, button, valve). Clicks are real page.mouse events at the centre of an icon that is
@@ -9,7 +10,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-04T09:30:15Z" });
 const STATES = () => ({
   "light.demo_living": st("on", { friendly_name: "Living light", brightness: 128 }),

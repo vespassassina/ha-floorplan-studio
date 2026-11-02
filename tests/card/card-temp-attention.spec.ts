@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S42.3 (docs/specs/temp-range.md, decision 12 and criterion 6): the Attention row of a room out of range taps to the room, as a
 // tap on the room does on the plan. The click is a real page.mouse click at the row's own coordinates, checked to be the top
@@ -9,7 +10,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const layout = structuredClone(demo);
 layout.tempRange = { min: 17, max: 26, hold: 0 };

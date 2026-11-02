@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S33.4, spec X2, criteria 5 to 7: the card's `tap_action` and `hold_action` for device icons. Every click and hold is a
 // real page.mouse event at the centre of an icon checked to be the real top element there (CLAUDE.md finding 3); the hold
@@ -9,7 +10,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-04T09:30:15Z" });
 // ground devices: 0 living light (on), 1 kitchen light, 2 hall switch (off), 3 TV plug (on), 4 temperature sensor,

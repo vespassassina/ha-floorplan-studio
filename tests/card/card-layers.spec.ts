@@ -3,13 +3,14 @@ import { closeMenu, menuItem, menuPanel, openMenu, pick, pickAlt, stateOf } from
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S24.8 (layers; S31.6: the chips are the Layers section of the ⋯ menu, so every click goes through the real menu): the card's layer chips on the stress house (ground: 182 devices, 75 of them lights, 39 pieces). Real
 // page.mouse and page.keyboard only (finding 3); the memory goes through the real localStorage and a real reload.
 
 const layout = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const GROUND_LIGHTS = 75, GROUND_DEVICES = 182, GROUND_PIECES = 39;
 
 async function open(page: Page, size = { width: 1280, height: 900 }) {

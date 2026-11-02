@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S37.6 (docs/DECISIONS.md 2026-10-25): in `auto`, the card draws device icons at fit on a plan 400 px wide or more, and dots
 // under it. The width is the plan's own rendered width (the svg), not the window: the card sits in a box of its own here, so the
@@ -10,7 +11,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const st = (state: string) => ({ state, attributes: {}, last_changed: new Date().toISOString() });
 /** Every linked device on the ground floor is on: at far an idle device is not drawn at all, an on device is a dot. */
 const STATES = Object.fromEntries(demo.floors.ground.devices.filter((d: { entity?: string }) => d.entity).map((d: { entity: string }) => [d.entity, st("on")]));

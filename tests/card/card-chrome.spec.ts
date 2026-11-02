@@ -3,6 +3,7 @@ import { hasItem, menuButton, menuPanel } from "./menu-helper";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S31.5 (docs/specs/card-layout-touch.md, D1; criteria 2, 5, 9): the card's chrome sits around the plan, not over it. The host is a
 // grid: header bar, side sheet, stage (the plan's own `<svg>`), the zoom cluster on the stage. Real `page.mouse` clicks on the real
@@ -11,7 +12,7 @@ import { pathToFileURL } from "node:url";
 
 const layout = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-08T09:30:15Z" });
 const STATES = () => ({ "light.kitchen_spot_1": st("on"), "light.study_desk_lamp": st("on"), "light.guest_bedroom_bedside_left": st("off") });

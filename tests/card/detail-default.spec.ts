@@ -3,13 +3,14 @@ import { hasItem, pick } from "./menu-helper";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S25 fix A, B, C, F: the card with its REAL default (`window.__realDetailDefault`, so the harness does not pin `detail: full`).
 // Every click is page.mouse at coordinates checked to be the real top element (CLAUDE.md finding 3).
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: new Date().toISOString() });
 const IDLE = { "light.demo_living": st("off"), "switch.demo_living_relay": st("off") };
 

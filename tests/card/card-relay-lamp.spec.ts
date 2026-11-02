@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S22.1 (C1): a lamp lit by its bound relay can be turned off from the card. The demo's Living light (ground device 0) is
 // bound to switch.demo_living_relay; the plan draws it on while either entity is on (render.ts `boundClassOf`). Every click is a
@@ -10,7 +11,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 // A second Living lamp on the same relay: two lamps, one relay.
 const layout = structuredClone(demo);

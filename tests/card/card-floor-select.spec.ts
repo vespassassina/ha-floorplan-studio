@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S20.1 and S20.2: the room panel's "All off" button, and the floor pill that selects its floor and loads the same panel.
 // Every click is a real page.mouse click or a real key press (CLAUDE.md finding 3). The stub hass records each call as
@@ -9,7 +10,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 // Ground: Living (room 0) gets two more lamps, one off and one on; Kitchen's lamp is on. The Living lamp is bound to a relay that is
 // on: S22.1 adds it to All off as one switch.turn_off. The TV plug (a switch) is on in the Living room and is never in the call.

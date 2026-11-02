@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { checkedIn, hasItem, pick, rotateRight, resetView } from "./menu-helper";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // The Walls group in the card's header menu (S31.6: it was a select in the toolbar), in a real Chromium with a real reload. The drawn wall height is read from
 // the DOM (the screen rectangle of the wall's side polygon), not from a string of the markup (CLAUDE.md findings
@@ -10,7 +11,7 @@ import { checkedIn, hasItem, pick, rotateRight, resetView } from "./menu-helper"
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const wallsNow = (page: Page) => checkedIn(page, "walls", ["full", "cut", "low"]);

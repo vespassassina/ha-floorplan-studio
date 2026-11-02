@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuItem, menuPanel, openMenu, closeMenu, pick, checkedIn, hasItem, resetView, menuButton } from "./menu-helper";
 import { open as open3d, configure as configure3d, drawn, holder, card as card3d } from "./helpers-3d";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S33.8 (docs/specs/extras-s33.md, X3 Card, criterion 10): the layout's saved views are the Views section of the card's ⋯ menu,
 // one radio-like item per view, `data-value` `view:<id>`. A pick is a viewer's pick: floor, then mode, then turn (a view that names
@@ -12,7 +13,7 @@ import { open as open3d, configure as configure3d, drawn, holder, card as card3d
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 const VIEWS = [
   { id: "view-bed-close", name: "Bed close", floor: "first", zoom: 3, center: [120, 90] },

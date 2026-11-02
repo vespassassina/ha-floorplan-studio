@@ -2,12 +2,13 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S27.5 computed-style pair on the card (finding 10: a rule asserted as a string proves nothing). The card passes no ghost until S27.13,
 // so the markup renderFloor writes (pinned in tests/core/render-ghost.test.ts) is placed by hand, last, on top.
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 async function boot(page: Page) {
   await page.setViewportSize({ width: 1280, height: 900 });

@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S31.1: helpers for the tap tasks of Sprint 31 (docs/specs/card-layout-touch.md, K1 to K5). Real taps only: every tap is one
 // `page.touchscreen.tap` at a point where the target is the real top element (finding 3), and every tap is counted.
@@ -12,7 +13,7 @@ export const SIZES = { tablet: { width: 768, height: 1024 }, phone: { width: 390
 export type TouchSize = { width: number; height: number };
 
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 /** The stress house (three floors, 437 devices), the layout of the spec's acceptance criteria. */
 export const layout = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
 

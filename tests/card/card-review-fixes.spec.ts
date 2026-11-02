@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // Opus review of Sprint 11, the card side: a tap on a room's name, readout or furniture picks the room (1); a double
 // tap leaves the pick alone (3); the motion border pulses three times and a redraw does not replay them (5); the
@@ -10,7 +11,7 @@ import { pathToFileURL } from "node:url";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 const st = (state: string, attributes: Record<string, unknown> = {}, last_changed = "2026-10-04T09:30:15Z") => ({ state, attributes, last_changed });
 
 const layout = structuredClone(demo);

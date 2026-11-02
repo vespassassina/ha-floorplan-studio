@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { THEMES } from "../../src/core";
 import { serve, ORIGIN, drawn } from "./helpers-3d";
 import { closeMenu, hasItem, isDisabled, menuButton, menuItem, menuPanel, openMenu, pick, stateOf, themeNow } from "./menu-helper";
+import { cardSource } from "../../scripts/card-source.mjs";
 
 // S31.6 (docs/specs/card-layout-touch.md, D3, criterion 7): the header's ⋯ holds the look. Real page.mouse and page.keyboard (finding 3);
 // each item is judged by what it does to the plan and to the view memory (`fp-view:`), the two things the control it replaced did.
@@ -13,7 +14,7 @@ import { closeMenu, hasItem, isDisabled, menuButton, menuItem, menuPanel, openMe
 
 const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
+const CARD_JS = cardSource(); // the card with its Overview chunk inlined (scripts/card-source.mjs)
 
 async function boot(page: Page, config: Record<string, unknown> = {}, size = { width: 1280, height: 900 }) {
   await page.setViewportSize(size);
