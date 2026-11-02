@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-02: the card cap is 124,650 again
+
+B52.2 set the card's cap to 118,650 gz, just above what was left once the Overview moved out. That took back the
+room it was meant to make: the batch spec keeps the cap at 124,650 (batch-s52.md, decision 1), and the batch needs
+about 3.7 KB for its features. `size-budget.spec.ts` is back at 124,650. Supersedes that line of the B52.2 entry.
+B53.1 also adds the four new symbols to `prompts/SCHEMA.md`, so an LLM writing a layout knows them, and draws the
+buffet's knobs as ellipses that look round once the symbol is stretched to 180 × 50.
+
 ## 2026-11-02: B52.2, the overview chunk, as built
 
 The overview (`src/card/overview/`, with its stylesheet) is a lazy chunk, fetched when the card first has a layout to

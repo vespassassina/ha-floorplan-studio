@@ -7,7 +7,7 @@ import ts from "typescript";
 
 /** gzip -9 of dist/floorplan-studio-card.js built from the commit before the 3D work (36b22c4, the 0.13.x card), 2026-10-05. */
 const PRE_3D_CARD = 90780;
-const CARD_GROWTH_LIMIT = 27870; // card file ≤ 118,650 gz: 118,059 after the Overview left for its chunk (B52.2, 2026-11-02; was 124,650 gz: +550 for the leader search, S23.F1, 2026-10-21, Diego to confirm; 124,100 was +300 for task/card-gaps, 2026-10-21, Diego to confirm; 123,800 was +800 for the card's load, merged with the camera thumbnail, 2026-10-21, Diego to confirm; S16.3 camera thumbnail, 2026-10-21, docs/DECISIONS.md; was 121,000, Diego, 2026-10-17; Sprint 34 favourites and heat map, Sprint 35 car)
+const CARD_GROWTH_LIMIT = 33870; // card file ≤ 124,650 gz again: the batch spec (batch-s52.md, decision 1) keeps this cap, and the room B52.2 freed is for the rest of that batch (2026-11-02). Before: 118,650 after the Overview left for its chunk (B52.2, 2026-11-02; was 124,650 gz: +550 for the leader search, S23.F1, 2026-10-21, Diego to confirm; 124,100 was +300 for task/card-gaps, 2026-10-21, Diego to confirm; 123,800 was +800 for the card's load, merged with the camera thumbnail, 2026-10-21, Diego to confirm; S16.3 camera thumbnail, 2026-10-21, docs/DECISIONS.md; was 121,000, Diego, 2026-10-17; Sprint 34 favourites and heat map, Sprint 35 car)
 const CHUNK_LIMIT = 233000; // Diego, 2026-10-06
 const LANG_CHUNK_LIMIT = 5000; // S37.5: one language of the card's own words, gzip; about 3.1-3.5 KB each when written, with room for the strings that follow
 /** The size `gzip -9` gives, the figure this budget is written in (node's zlib at level 9 differs by about 0.3 percent). */

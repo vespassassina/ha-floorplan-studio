@@ -4945,6 +4945,8 @@ task measures its real figure and records it in DECISIONS.
 
 - B53.1 `sofa-l`, `coffee-table`, `bookcase`, `buffet`: symbols, heights, sizes, picker, the 3D palette. A test walks
   `FURNITURE_SYMBOLS` against every table (criterion 2).
+  Done 2026-11-02: the four draw as plain boxes (the L and `mirror` stay with B53.2); the picker calls `sofa-l` "Corner
+  sofa" because the menu test forbids a hyphen in a name. Card 118,579 gzip.
 - B53.2 `mirror` on `sofa-l`, and the L as two blocks: one shape function for 2.5D and 3D (criterion 3).
 - B53.4 Paint a piece: `color` or `texture` on any furniture, the room swatches in its panel, one `paint` step; 2D
   fill, 2.5D and 3D block colour (spec items 19a, criterion 3a).

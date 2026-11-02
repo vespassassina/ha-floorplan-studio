@@ -303,8 +303,9 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   and unlink; the automation it names does the actual work, and unlinking
   removes only this field, never the automation in Home Assistant. Must
   differ from `entity`, same rule as `bound`.
-- `furniture.symbol`: table, sofa, bed, cabinet, chair, sink, toilet, shower,
-  bathtub, tv, computer, speaker, tree, patio-wood, patio-concrete, car.
+- `furniture.symbol`: table, sofa, sofa-l, coffee-table, bed, cabinet, bookcase,
+  buffet, chair, sink, toilet, shower, bathtub, tv, computer, speaker, tree,
+  patio-wood, patio-concrete, car (sofa-l and the three after it: B53.1).
 - A **car piece** (S35, 0.33.0; `docs/specs/car-s35.md`): furniture with `symbol: "car"` may carry three optional keys,
   with no schema bump (an older card ignores them and draws the old box). `model`: one of `sedan`, `wagon`, `suv`,
   `offroad`, `truck`, `van`, `utility`, `citycar`, `electric`; absent is `sedan`. `color`: the body colour, `#rrggbb`;
