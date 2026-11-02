@@ -4844,6 +4844,13 @@ the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
 Plan D, item 15, second half. `src/editor/editor-app.ts` (220 KB of source) split as S39.0 split the card: whole
 concerns into modules, no behaviour change, the full suite as the test.
 
+- [ ] S45.1 Split the editor file. Move whole concerns out of `src/editor/editor-app.ts` into modules beside it, each a
+  plain function or a small helper over the element: the remembered view, the pointer handlers, the floating popups
+  (Place, scene designer, Add > Device), the trace image, search and Outline, draw mode and drawing, saved views. The
+  element keeps its state, lifecycle and `render`. No behaviour change, no new public name, no new test needed: the
+  full unit and Playwright suites are the test. `dist/editor.js` gzip does not grow more than 1 %; the card's bytes do
+  not change. Report the element's source size and the editor gzip before and after.
+
 ## After the 2026-10-30 brainstorm (S41.b): Sprints 46 to 51
 
 Diego's picks from 25 candidates, each rated for value, cost and risk. Not picked: vacuum position (the research said
