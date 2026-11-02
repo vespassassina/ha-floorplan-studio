@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.42.0 - 2026-11-02
+
+Four new furniture pieces, a glow that breathes around a charging car, and a lighter card: the side sheet now loads after the plan.
+
+- Studio: furniture adds Corner sofa (an L shape), Coffee table, Bookcase and Buffet, in 2D and 3D.
+- Card: a car that is charging gets a soft glow that breathes, in 2D and 3D. With reduced motion it holds still. In 3D the breath alone draws about 15 frames a second, to spare a wall tablet's battery.
+- Card: the side sheet and the phone's bottom sheet (rooms, scenes, favourites, search) load as a separate file once the card has a layout, about 6 KB (gzip) off the first load. A tap before it arrives still opens the popup. If the file fails three times, the card says so and the plan keeps working.
+- Studio: "Areas not on the plan" is one dropdown, so many areas no longer run off the panel. Choosing one says "Drawing a room for <area>." Thanks to jon23cooper.
+
 ## 0.41.0 - 2026-11-01
 
 Replay shows what happened, not only how it looked. Ticks on the slider mark lamps, doors and windows and alarms, a band shows motion, and two buttons jump to the previous and next event. The bar reaches 48 hours or 7 days back, and a filter list narrows the ticks and jumps to the groups and rooms you choose.
