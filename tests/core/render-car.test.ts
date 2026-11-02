@@ -206,3 +206,21 @@ describe("the plan's frame holds the whole car", () => {
     expect(Math.max(...ys)).toBeGreaterThanOrEqual(285);
   });
 });
+
+// B53.3, spec E item 29: a charging car carries a glow, a copy of its outline under the top view, in 2D and 2.5D; a car at rest, away or in alert has none.
+describe("renderFloor: the charging car's glow", () => {
+  const CHARGING: StateOverlay = { ...HOME, "binary_sensor.car_charging": st("on", { device_class: "battery_charging" }) };
+  const glows = (html: string) => html.match(/<polygon class="car-glow" points="[^"]*"/g) ?? [];
+  it("a charging car draws one glow, the body's own outline, before the body", () => {
+    for (const view of [undefined, "2.5d"] as const) {
+      const html = draw(car(WIRED), CHARGING, view), body = /<polygon class="car-body" points="([^"]*)"/.exec(html)!;
+      expect(glows(html), String(view)).toHaveLength(1);
+      expect(glows(html)[0]).toContain(`points="${body[1]}"`);
+      expect(html.indexOf("car-glow"), "under the body").toBeLessThan(html.indexOf("car-body"));
+    }
+  });
+  it("home, away and alert draw none", () => {
+    for (const state of [HOME, { ...HOME, "device_tracker.car": st("not_home") }, { ...HOME, "lock.car_doors": st("unlocked") }]) expect(glows(draw(car(WIRED), state))).toEqual([]);
+    expect(glows(draw(car(), undefined))).toEqual([]);
+  });
+});

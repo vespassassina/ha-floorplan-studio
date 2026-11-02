@@ -94,6 +94,8 @@ export interface CarLook {
   style: string;
   /** The badges and the level, in a group at `%AT%` (the piece's centre, at the height it is drawn): outside the scaled symbol so circles stay round and the fade of an away car does not dim them. */
   marks: string;
+  /** B53.3: a charging car's glow, a copy of the outline to draw under the top view; "" when the car is not charging. Colour and blur come from the stylesheet. */
+  glow: string;
 }
 
 /**
@@ -112,6 +114,7 @@ export function carLook(m: Furniture, s: CarStatus, dead: boolean): CarLook {
   return {
     cls: ` furn-car${away ? " away" : ""}${s.charging ? " charging" : ""}${s.alert ? " alert" : ""}`,
     style: typeof m.color === "string" && HEX.test(m.color) ? ` style="--fp-car-body:${m.color}"` : "",
+    glow: s.charging ? poly("car-glow", carParts(m.model).outline) : "",
     marks: badges || level ? `<g class="car-marks" transform="translate(%AT%)"><g transform="rotate(${rot})">${badges}</g>${level}</g>` : "",
   };
 }

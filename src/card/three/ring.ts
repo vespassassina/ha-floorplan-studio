@@ -36,3 +36,10 @@ export function insetBand(base: readonly (readonly number[])[], inner: number, o
 
 /** The pulse of the motion edge as the plan's CSS animation draws it: 1 at the start of a pulse, 0.35 half way. `age` in seconds, `period` in seconds. */
 export const pulseAt = (age: number, period: number): number => 0.675 + 0.325 * Math.cos((2 * Math.PI * age) / period);
+
+/**
+ * B53.3: how strongly a charging car glows, as the plan's `fp-car-breath` draws it: 0.35 at the start of a breath, 0.8 half way, 2.4 s
+ * round. Reduced motion holds 0.6. `t` in seconds; junk reads as the start.
+ */
+export const BREATH_S = 2.4;
+export const breathAt = (t: number, calm: boolean): number => (calm ? 0.6 : 0.575 - 0.225 * Math.cos((2 * Math.PI * (Number.isFinite(t) ? t : 0)) / BREATH_S));
