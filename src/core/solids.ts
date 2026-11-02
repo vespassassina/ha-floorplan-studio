@@ -461,7 +461,7 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
     body = (tree ? treeShadeSvg(m) : "") + `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(end[0])}" y2="${num(end[1])}"/>`;
   }
   const lid = car ? px.lift(c, belt) : top;
-  const sym = `<g transform="translate(${num(lid[0])} ${num(lid[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${tree ? TREE_CROWN : car ? carTop(m.model) : symbol}</g>`;
+  const sym = `<g transform="translate(${num(lid[0])} ${num(lid[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${tree ? TREE_CROWN : car ? car.glow + carTop(m.model) : symbol}</g>`;
   // S18.9: a playing tv or speaker sends its waves from the lid, outside the scaled symbol group so they stay round.
   // A car's marks sit after its group, as in 2D: inside it an away car's dot would fade with the car.
   const w = (car ? car.marks : waves)?.replace("%AT%", `${num(top[0])} ${num(top[1])}`) ?? "";

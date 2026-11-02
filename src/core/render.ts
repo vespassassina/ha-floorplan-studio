@@ -413,6 +413,11 @@ ${THEME_EXTRAS}
 .car-bed{fill:color-mix(in srgb,var(--fp-car-body,var(--fp-furniture)) 55%,black)} .car-roof{fill:color-mix(in srgb,var(--fp-car-body,var(--fp-furniture)) 82%,black)} .car-mirror{fill:var(--fp-car-body,var(--fp-furniture))}
 .car-glass{fill:var(--fp-car-glass)} .car-tyre,.car-grille{fill:var(--fp-car-tyre)}
 .furn-car.alert .car-body{stroke:var(--fp-open-door);stroke-width:3} .furn-car.charging .car-body{stroke:var(--fp-dev-car);stroke-width:3} .furn-car.away{opacity:.35}
+/* B53.3: a charging car breathes. The glow is a blurred copy of the outline in --fp-dev-car under the body, 35 % to 80 % over 2.4 s; reduced motion holds it at 60 %. */
+.car-glow{fill:none;stroke:var(--fp-dev-car);stroke-width:8;stroke-linejoin:round;vector-effect:non-scaling-stroke;filter:blur(3px);pointer-events:none}
+.furn-car.charging .car-glow{animation:fp-car-breath 2.4s ease-in-out infinite}
+@keyframes fp-car-breath{0%,100%{opacity:.35}50%{opacity:.8}}
+@media (prefers-reduced-motion:reduce){.furn-car.charging .car-glow{animation:none;opacity:.6}}
 .furn-car .bs{fill:color-mix(in srgb,var(--fp-car-body,var(--fp-furniture)) 60%,var(--fp-bg))} .furn-car .bs.w{fill:color-mix(in srgb,var(--fp-car-body,var(--fp-furniture)) 75%,var(--fp-bg))}
 .furn-car .car-cabin .bs{fill:var(--fp-car-glass)} .furn-car .car-cabin .bt{fill:color-mix(in srgb,var(--fp-car-body,var(--fp-furniture)) 82%,black)}
 .car-marks{pointer-events:none} .car-marks .away-mark{fill:var(--fp-idle);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke}
@@ -1796,7 +1801,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const shade = treeShadeSvg(m);
     if (shade) out.push(shade);
     const car = carOf(o, m);
-    out.push(`<g data-f="${i}" class="furn${on}${car?.cls ?? ""}"${furnitureLinked(m)}${car?.style ?? ""} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? carTop(m.model) : sym.svg}</g>`);
+    out.push(`<g data-f="${i}" class="furn${on}${car?.cls ?? ""}"${furnitureLinked(m)}${car?.style ?? ""} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : sym.svg}</g>`);
     if (car?.marks) out.push(car.marks.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
     if (o.locate?.t === "furn" && o.locate.i === i) out.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
     const waves = furnitureWaves(o, m);

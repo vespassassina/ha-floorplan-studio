@@ -1,10 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { FLOORPLAN_CSS, THEMES } from "../../src/core/render";
-import { carTop } from "../../src/core/car";
+import { carLook, carTop } from "../../src/core/car";
+import type { Furniture } from "../../src/core/schema";
 
 // S35.4, spec C5 and C7, criterion 7, finding 10: a rule read as a string says nothing about specificity. Every rule that matters is read back
 // from Chromium as a computed colour in every theme, against a probe of the token it must wear. Remove a rule and its test fails.
-const car = (cls: string, style = "") => `<g class="furn furn-car ${cls}" ${style ? `style="${style}"` : ""}>${carTop("truck")}</g>`;
+const car = (cls: string, style = "") => `<g class="furn furn-car ${cls}" ${style ? `style="${style}"` : ""}>${cls.includes("charging") ? glowMarkup : ""}${carTop("truck")}</g>`;
+// The glow as renderFloor draws it for a charging car (B53.3), from the same function.
+const glowMarkup = carLook({ id: "c", symbol: "car", x: 0, y: 0, rot: 0, w: 470, h: 182, model: "truck" } as Furniture, { place: "home", charging: true, level: null, alert: false }, false).glow;
 const prism = `<g class="furn furn-car"><polygon class="bs" points="0,0 1,0 1,1"/><polygon class="bs w" points="0,0 1,0 1,1"/><g class="car-cabin"><polygon class="bs" points="0,0 1,0 1,1"/><polygon class="bt" points="0,0 1,0 1,1"/></g></g>`;
 const marks = `<g class="car-marks"><circle class="away-mark" r="8"/><g class="car-bolt"><circle r="10"/><path d="M0 0"/></g></g>`;
 const probe = (v: string) => `<g class="probe" style="fill:var(${v})"><path d="M0 0"/></g>`;
@@ -112,5 +115,53 @@ test("car charging is green in every theme, never the theme's accent", async ({ 
     const [red, green, blue] = (r.devCar.match(/[\d.]+/g) ?? []).map(Number);
     expect(green, `${t}: ${r.devCar} has more green than red`).toBeGreaterThan(red!);
     expect(green, `${t}: ${r.devCar} has more green than blue`).toBeGreaterThan(blue!);
+  }
+});
+
+// B53.3, spec E item 29, findings 10 and 18: the charging car's glow is a blurred copy of the outline (`.car-glow`, a class rule), 35 % to 80 % over 2.4 s,
+// held at 60 % under reduced motion. Read back from Chromium, not matched as text.
+const glowOf = (page: import("@playwright/test").Page, t: string, i: number) => page.locator(`#t-${t}`).evaluate((g, i) => {
+  const el = g.children[i].querySelector(".car-glow");
+  if (!el) return null;
+  const cs = getComputedStyle(el);
+  const kf = (el.getAnimations()[0]?.effect as KeyframeEffect | undefined)?.getKeyframes().map((k) => k.opacity) ?? [];
+  return { stroke: cs.stroke, filter: cs.filter, opacity: cs.opacity, animation: cs.animationName, duration: cs.animationDuration, pe: cs.pointerEvents, kf, devCar: getComputedStyle(g.children[7].querySelector("path")!).fill };
+}, i);
+
+test("car glow: only a charging car shows it, in --fp-dev-car, blurred, breathing 35 to 80 % over 2.4 s", async ({ page }) => {
+  await page.setContent(plan(BODY));
+  for (const t of THEMES) {
+    const idle = await glowOf(page, t, 0), charging = await glowOf(page, t, 3), both = await glowOf(page, t, 5), alert = await glowOf(page, t, 4);
+    for (const [what, g] of [["idle", idle], ["alert", alert]] as const) expect(g, `${t}: ${what} car has no glow`).toBeNull();
+    for (const [what, g0] of [["charging", charging], ["charging alert", both]] as const) {
+      const g = g0!;
+      expect(g.stroke, `${t}: ${what} glow wears --fp-dev-car`).toBe(g.devCar);
+      expect(g.filter, `${t}: ${what} glow is blurred`).toMatch(/^blur\(/);
+      expect(g.pe, `${t}: it takes no clicks`).toBe("none");
+      expect(g.animation, `${t}: ${what} breathes`).toBe("fp-car-breath");
+      expect(g.duration, t).toBe("2.4s");
+      expect(g.kf.map(Number).sort(), `${t}: from 35 % to 80 %`).toEqual([0.35, 0.35, 0.8]);
+    }
+  }
+});
+
+test("car glow under reduced motion: it stays, at 60 %, and does not breathe", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setContent(plan(BODY));
+  for (const t of THEMES) {
+    const g = (await glowOf(page, t, 3))!;
+    expect(g.animation, `${t}: no breath`).toBe("none");
+    expect(g.opacity, `${t}: held at 60 %`).toBe("0.6");
+    expect(g.kf, t).toEqual([]);
+    expect(await glowOf(page, t, 0), `${t}: an idle car still has none`).toBeNull();
+  }
+});
+
+test("car glow sits under the body: the outline keeps its 3 px --fp-dev-car stroke on top", async ({ page }) => {
+  await page.setContent(plan(BODY));
+  for (const t of THEMES) {
+    const order = await page.locator(`#t-${t}`).evaluate((g) => Array.from(g.children[3].children).slice(0, 2).map((e) => e.getAttribute("class")));
+    expect(order, t).toEqual(["car-glow", "car-body"]);
+    expect(await page.locator(`#t-${t}`).evaluate((g) => getComputedStyle(g.children[3].querySelector(".car-body")!).strokeWidth), t).toBe("3px");
   }
 });
