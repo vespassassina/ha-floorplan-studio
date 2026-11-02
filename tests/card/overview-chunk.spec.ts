@@ -76,9 +76,12 @@ test("a failed first fetch is asked for again under a new query, and the Overvie
 
 test("when every try fails the card works without the Overview, says why, and stops asking", async ({ page }) => {
   const errors = errorsOf(page);
-  const { asked } = await boot(page, { reply: (route) => route.fulfill({ status: 503, body: "" }) });
+  const at: number[] = [];
+  const { asked } = await boot(page, { reply: (route) => { at.push(Date.now()); return route.fulfill({ status: 503, body: "" }); } });
   await expect(card(page).locator("css=.fp-3d-note")).toContainText(/Overview unavailable/, { timeout: 10000 });
   expect(asked.map((u) => /\?r=(\d)$/.exec(u)?.[1] ?? "plain"), asked.join(" ")).toEqual(["plain", "1", "2"]);
+  // RETRY_MS: the tries are a second apart, not back to back (PR 33 review: with no pause the order above still held).
+  for (let i = 1; i < at.length; i++) expect(at[i] - at[i - 1], `pause before try ${i}`).toBeGreaterThanOrEqual(900);
   expect(await panel(page).count()).toBe(0);
   // The card still works: a state update neither throws nor asks again, and a real click on a device icon opens its popup.
   await update(page);
@@ -102,6 +105,28 @@ for (const [name, reply] of [["while the chunk is not there yet", "hold"], ["aft
     await expect(pop).toBeVisible();
     const [box, host] = await Promise.all([pop.boundingBox(), page.locator("#wrap").boundingBox()]);
     expect(box!.y + box!.height, "the popup is inside the card, not below it").toBeLessThanOrEqual(host!.y + host!.height + 1);
+    if (reply === "fail") return;
+    // The chunk arrives with the popup open: the sheet takes it over, so there is one popup, in the sheet, and the card's own is gone.
     open();
+    await expect(card(page).locator("css=.fp-pop-wait")).toHaveCount(0);
+    await expect(pop).toHaveCount(1);
+    await expect(card(page).locator("css=.fp-bottom .fp-pop")).toHaveCount(1);
   });
 }
+
+test("a card taken out of the page while the chunk loads draws nothing then, and the Overview when it is put back", async ({ page }) => {
+  const errors = errorsOf(page);
+  let open!: () => void;
+  const gate = new Promise<void>((r) => { open = r; });
+  const { asked } = await boot(page, { reply: async (route) => { await gate; return route.fallback(); } });
+  await expect.poll(() => asked.length).toBe(1);
+  await page.evaluate(() => { (window as unknown as { held: Element }).held = document.getElementById("card")!; document.getElementById("card")!.remove(); });
+  const arrived = page.waitForResponse(CHUNK);
+  open();
+  await arrived; // the chunk is in while the card is out of the page
+  expect(await page.evaluate(() => (window as unknown as { held: Element }).held.shadowRoot!.querySelector(".fp-active"))).toBeNull();
+  await page.evaluate(() => { document.getElementById("wrap")!.append((window as unknown as { held: Element }).held); });
+  await expect(panel(page)).toHaveCount(1);
+  expect(asked).toHaveLength(1);
+  expect(errors).toEqual([]);
+});

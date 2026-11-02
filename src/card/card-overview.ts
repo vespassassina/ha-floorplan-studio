@@ -24,7 +24,8 @@ const overview = lazy<Panel>(() => import("./overview/panel"), "__FPOVERVIEW_CHU
 const TRIES = 3, RETRY_MS = 1000;
 const UNAVAILABLE = mark("Overview unavailable: its code did not load. Reload the page to try again.");
 let failed = 0;
-/** A try is on its way, or the pause before the next one is running. A render in that time asks for nothing. */
+/** A try is on its way, or the pause before the next one is running. A render in that time asks for nothing. lazy.ts shares a try in flight, but in
+ * the pause there is none, and without this every render would start the next try at once. */
 let busy = false;
 /** The cards that rendered without the panel while it was not there; they draw it when it is. */
 const waiting = new Set<FloorplanStudioCard>();
@@ -42,8 +43,10 @@ function fetchPanel(): void {
   });
 }
 
-/** The chunk's stylesheet goes onto the card's shadow root once, after the card's own sheets, which is where these rules sat in its list. Where the browser
- * has no constructable sheets (jsdom, old engines) a <style> at the end of the root does the same job. */
+/** The chunk's stylesheet goes onto the card's shadow root once, after all the card's own sheets. Before B52.2 these rules sat in the first of them, ahead of
+ * the popup, scenes, touch and replay sheets; none of those names an Overview class, so the later place changes nothing. Where the browser
+ * has no constructable sheets (jsdom, Safari 15.4-16.3, Firefox 98-100) a <style> at the end of the root does the same job. Once is enough there too:
+ * LitElement then appends its own <style>s first and renders before them, so the appended one is outside the part a template switch clears. */
 const styled = new WeakSet<ShadowRoot>();
 let sheet: CSSResult | undefined;
 function adoptSheet(root: ShadowRoot, text: string): void {

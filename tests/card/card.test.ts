@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Layout } from "../../src/core/schema";
 import type { RenderOpts } from "../../src/core/render";
@@ -58,6 +58,16 @@ async function mountSide(): Promise<FloorplanStudioCard> {
 }
 
 describe("FloorplanStudioCard", () => {
+  // B52.2: the Overview is a chunk that loads on first use. Load it once here, so a test of the panel does not pass only because an
+  // earlier test happened to draw one (the S9.5 tests did, run alone they failed). overview-chunk.spec.ts covers the wait itself.
+  beforeAll(async () => {
+    const el = await mount();
+    el.setConfig({ layout: structuredClone(demo) as unknown as Layout });
+    el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+    await vi.waitFor(() => expect(el.shadowRoot!.querySelector(".fp-active")).toBeTruthy());
+    el.remove();
+  });
+
   afterEach(() => {
     document.body.innerHTML = "";
   });
@@ -1445,6 +1455,29 @@ describe("FloorplanStudioCard", () => {
       await el.updateComplete;
     }
     const chips = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector(".fp-ov-chips")!.textContent!.replace(/\s+/g, " ").trim();
+
+    // PR 33 Opus review: where the browser has no constructable sheets (jsdom here; Safari 15.4-16.3 and Firefox 98-100 in the build
+    // target) the Overview's rules are a <style> the card appends to its root, once. That holds only while the <style> sits outside
+    // Lit's root part, which a switch of template clears: LitElement renders before its own static <style>s, so one appended after them
+    // is safe. Inserted before them, it is lost (checked: the test then fails).
+    it("keeps the Overview's stylesheet when the card shows a message and then the plan again", async () => {
+      const el = await mount();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      const sheets = () => [...el.shadowRoot!.querySelectorAll("style")].filter((x) => x.textContent!.includes(".fp-ov-")).length;
+      expect(el.shadowRoot!.querySelector(".fp-active")).toBeTruthy();
+      expect(sheets()).toBe(1);
+      el.setConfig({ layout: { version: 2 } as never }); // not a layout: the message template replaces the plan
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active")).toBeNull();
+      expect(el.shadowRoot!.querySelector("p.msg")).toBeTruthy();
+      el.setConfig({ layout: structuredClone(L) });
+      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active")).toBeTruthy();
+      expect(sheets()).toBe(1);
+    });
 
     it("lists the floor on show by default, and exactly the active devices of every floor under All floors, grouped by type", async () => {
       const el = await mount();

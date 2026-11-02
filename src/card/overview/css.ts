@@ -1,5 +1,6 @@
 // The Overview's stylesheet (B52.2). It is the chunk's, not the card's: the card adopts it onto its shadow root once the chunk is in (card-overview.ts),
-// after its own sheets, which is the place these rules had in the card's list. A plain string: the chunk imports nothing, lit's `css` included.
+// after all its own sheets. They used to sit in its first sheet, ahead of the popup, scenes, touch and replay sheets; none of those names an Overview
+// class, so the later place changes nothing. A plain string: the chunk imports nothing, lit's `css` included.
 // The touch block at the end is the Overview's share of TOUCH_CSS (touch-css.ts). It has to follow the base rules above, as it did there: the two
 // sit at the same specificity (`.fp-sheet-top .fp-back`), and a coarse pointer wins by order.
 export const OVERVIEW_CSS = `

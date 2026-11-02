@@ -17,6 +17,10 @@ Choices the spec did not make:
   tap would show nothing.
 - **The chunk's stylesheet is adopted after the card's**, and the overview's touch sizes sit inside it after its base
   rules. Left in `touch-css.ts` they would have lost to the base rules by order (a 40 px Back beat the 44 px one).
+  Where the browser has no constructable sheets (Safari 15.4-16.3, Firefox 98-100) it is a `<style>` appended once:
+  LitElement renders before its own `<style>`s, so the appended one survives a switch to the message template and back.
+- **After the last failed try a side-frame card keeps its empty sheet column**, with the note over the plan. The plan
+  keeps the box it had while the chunk loaded; it does not grow into the column.
 - **Specs inject the card through `scripts/card-source.mjs`**, which stands the chunk's text in as a `data:` URL. An
   inline module has the page's URL, so a relative import of the chunk found nothing.
 - The deps object has 51 names. Pure helpers from `core` could be imported by the chunk, but rollup would then hoist
