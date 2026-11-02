@@ -4950,7 +4950,7 @@ task measures its real figure and records it in DECISIONS.
   fill, 2.5D and 3D block colour (spec items 19a, criterion 3a).
 - B53.5 Shapes from blocks: `furnitureBlocks` for table, sofa, bed, chair, cabinet, sink, buffet, bathtub, feeding
   2.5D and 3D; the L sofa (B53.2) uses it (spec item 19b, criterion 3b). Shots at 4x in both themes.
-- B53.3 The charging car's glow and 2.4 s breath in 2D and 3D, still under reduced motion. Computed-style pairs, and
+- [x] 2026-11-02 B53.3 The charging car's glow and 2.4 s breath in 2D and 3D, still under reduced motion. Computed-style pairs, and
   shots in both themes at 4x (criterion 7).
 
 ### Sprint 54: worktop and underfloor heating

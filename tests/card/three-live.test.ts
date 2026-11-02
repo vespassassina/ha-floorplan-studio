@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { edgeGap, inPoly, liftFor, MAX_POOLS, pickLights, roomLifts, roomOfPoint, type RoomShape } from "../../src/card/three/light";
-import { insetBand, pulseAt } from "../../src/card/three/ring";
+import { breathAt, insetBand, pulseAt } from "../../src/card/three/ring";
 import { MOTION_PULSE_S } from "../../src/core/render";
 
 const sq = (x: number, y: number, w: number, h: number) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
@@ -92,5 +92,21 @@ describe("the pulse", () => {
     expect(pulseAt(0, MOTION_PULSE_S)).toBeCloseTo(1, 6);
     expect(pulseAt(MOTION_PULSE_S / 2, MOTION_PULSE_S)).toBeCloseTo(0.35, 6);
     expect(pulseAt(MOTION_PULSE_S, MOTION_PULSE_S)).toBeCloseTo(1, 6);
+  });
+});
+
+// B53.3, spec E item 30: the charging car's glow breathes 35 % to 80 % over 2.4 s in 3D as in 2D (render.ts `fp-car-breath`), and holds at 60 % when motion is reduced.
+describe("the car's breath", () => {
+  it("starts at 0.35, peaks at 0.8 half way, is back at 0.35 after 2.4 s", () => {
+    expect(breathAt(0, false)).toBeCloseTo(0.35, 6);
+    expect(breathAt(1.2, false)).toBeCloseTo(0.8, 6);
+    expect(breathAt(2.4, false)).toBeCloseTo(0.35, 6);
+    expect(breathAt(0.6, false)).toBeCloseTo(0.575, 6);
+  });
+  it("holds at 0.6 under reduced motion, whatever the time", () => {
+    for (const t of [0, 0.4, 1.2, 99]) expect(breathAt(t, true)).toBe(0.6);
+  });
+  it("junk time reads as the start, never NaN", () => {
+    for (const t of [NaN, Infinity, -Infinity]) expect(breathAt(t, false)).toBeCloseTo(0.35, 6);
   });
 });

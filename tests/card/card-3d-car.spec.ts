@@ -126,7 +126,9 @@ test.describe("3D view: a real hold on the car", () => {
 });
 
 test.describe("3D view: state on the car", () => {
+  // B53.3: a charging car now breathes, so the view never goes still; these two tests are about colour and badge, and wait for stillness, so they run with reduced motion (the glow held).
   test("charging lights the greenhouse in the charge colour and nothing else; stopping puts it back", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await boot(page, layoutOf("sedan"), STATES());
     const rest = (await part(page, "car-glass"))[0], body = (await part(page, "car-body"))[0];
     expect(rest.emissive).toBe("#000000");
@@ -161,6 +163,7 @@ test.describe("3D view: state on the car", () => {
   });
 
   test("the badge shows the bolt while charging, the away mark when away, and the level", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" }); // B53.3: see above
     await boot(page, layoutOf("sedan"), STATES());
     const badge = card(page).locator("css=.fp3-car");
     await expect(badge.locator("css=.fp3-cv")).toHaveText("78 %");
@@ -216,5 +219,47 @@ test.describe("3D view: away is real transparency without broken depth", () => {
     const hidden = await mean(page, p);
     expect(dist(shown, hidden), "the same with the wheels shown and hidden").toBeLessThanOrEqual(9); // 3 per channel
     expect(dist(shown, home), "faded, not the home body").toBeGreaterThan(24);
+  });
+});
+
+// B53.3, spec E item 30: while charging, the body's emissive goes toward --fp-dev-car on a 2.4 s breath; under reduced motion it holds still.
+// The view draws frames while it breathes, so `still` cannot be waited for here: the states are handed over and the emissive is sampled over time.
+const CHARGING = STATES({ "sensor.car_charging": st("charging") });
+const handOver = (page: Page, states: Record<string, unknown>) => page.evaluate((states) => { const el = document.getElementById("card") as unknown as { hass: { callService: unknown } }; el.hass = { ...el.hass, states } as never; }, states);
+const lightness = (hex: string) => parseInt(hex.slice(1, 3), 16) + parseInt(hex.slice(3, 5), 16) + parseInt(hex.slice(5, 7), 16);
+const bodyEmissive = async (page: Page) => (await part(page, "car-body"))[0].emissive;
+async function sample(page: Page, n: number, gap: number) {
+  const out: string[] = [];
+  for (let i = 0; i < n; i++) { out.push(await bodyEmissive(page)); await page.waitForTimeout(gap); }
+  return out;
+}
+
+test.describe("3D view: the charging breath", () => {
+  test("the body's emissive moves toward the charge colour and swells and fades; not charging, it is black", async ({ page }) => {
+    await boot(page, layoutOf("sedan"), STATES());
+    expect(await bodyEmissive(page)).toBe("#000000");
+    await handOver(page, CHARGING);
+    const charge = await cssHex(page, "var(--fp-dev-car, var(--fp-active))");
+    await expect.poll(() => bodyEmissive(page), { timeout: 5000 }).not.toBe("#000000");
+    const seen = await sample(page, 14, 200); // 2.8 s: one full breath and a bit
+    const l = seen.map(lightness);
+    expect(new Set(seen).size, "it changes from frame to frame").toBeGreaterThan(4);
+    expect(Math.max(...l) - Math.min(...l), "swing is wide, not a flicker").toBeGreaterThan(0.2 * Math.max(...l));
+    expect(Math.max(...l), "never brighter than the charge colour itself").toBeLessThan(lightness(charge));
+    expect(Math.min(...l), "never off while charging").toBeGreaterThan(0);
+    // toward the charge colour: its strongest channel is the strongest of the emissive
+    const strongest = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).reduce((a, v, i, arr) => (v > arr[a] ? i : a), 0);
+    for (const s of seen) expect(strongest(s)).toBe(strongest(charge));
+    await handOver(page, STATES());
+    await expect.poll(() => bodyEmissive(page), { timeout: 5000 }).toBe("#000000");
+  });
+
+  test("under reduced motion the emissive is lit and does not move", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await boot(page, layoutOf("sedan"), STATES());
+    await setStates(page, CHARGING);
+    const seen = await sample(page, 8, 350); // 2.8 s
+    expect(seen[0]).not.toBe("#000000");
+    expect(new Set(seen).size, "one value, held").toBe(1);
   });
 });

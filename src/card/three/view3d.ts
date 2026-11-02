@@ -23,7 +23,7 @@ import { createOverlay, type Anchors } from "./overlay";
 import { crownMesh } from "./crowns";
 import { contactShadows, groundBox } from "./shade";
 import { debugOnce } from "../../core/debug-once";
-import { pulseAt } from "./ring";
+import { breathAt, pulseAt } from "./ring";
 import { sunDir, sunLook } from "./sun";
 import { createSunPatches } from "./patches";
 import { MAX_SUN_PATCHES, sunPatches } from "./sunpatch";
@@ -180,7 +180,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   const raycaster = new Raycaster();
   let wallMeshes: Mesh[] = [], bodies: WallBody[] = [], lowered = new Set<string>(), walls: Walls = "cut";
   // ---- the live state (S12.5). `liveNow` is what core/live.ts last said; every part below is changed in place from it.
-  let liveNow: Live3D | null = null, liveSig = "", builds = 0, pulsing = false, pulseStart = 0, liftKey = "";
+  let liveNow: Live3D | null = null, liveSig = "", builds = 0, pulsing = false, breathing = false, pulseStart = 0, liftKey = "";
   let lifts = new Map<number, Rgb>(), roomShapes: RoomShape[] = [];
   const roomSolid = new Map<number, { base: Poly; z: number; kind: string }>();
   let parts: { index: number; tag: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; shut?: boolean }[] = [];
@@ -252,6 +252,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       if (!orbit.finite) throw new Error("the camera has no finite position (the plan's numbers are out of range)");
       // The motion edge breathes while a pulse plays: one frame asks for the next, and the one that ends it sets the held value.
       if (pulsing) pulsing = applyRings();
+      if (breathing) applyBreath();
       renderer.render(scene, camera);
       const { w, h } = size();
       overlay.place(project, hidden, w, h);
@@ -262,7 +263,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       fail("it could not start");
       return;
     }
-    if (pulsing) want();
+    if (pulsing || breathing) want();
   };
   /** Renders once, on the next frame. A burst of changes (a drag) is one frame; with no change there is no frame at all. */
   const want = () => { if (!raf && !disposed) raf = requestAnimationFrame(draw); };
@@ -741,6 +742,18 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       if (lit) b.mat.emissive.copy(charge).multiplyScalar(0.55); else b.mat.emissive.setRGB(0, 0, 0);
       fadeCarPart(b, !!live?.away);
     }
+    applyBreath();
+  }
+  /** B53.3: a charging car's body glows toward the charge colour on the plan's 2.4 s breath (still, at 60 %, under reduced motion). Sets `breathing` while a frame must follow. */
+  function applyBreath() {
+    const L = liveNow ?? EMPTY, charge = paintOf("car-charge", undefined).colour, calm = reduced(), k = breathAt(performance.now() / 1000, calm);
+    let any = false;
+    for (const b of pieceBodies) {
+      if (b.tag !== "car-body") continue;
+      const charging = !!L.pieces[b.index]?.charging;
+      if (charging) { b.mat.emissive.copy(charge).multiplyScalar(k); any = true; } else b.mat.emissive.setRGB(0, 0, 0);
+    }
+    breathing = any && !calm;
   }
   function applyDoors() {
     const L = liveNow ?? EMPTY, open = paintOf("open-door", undefined).colour, cover = paintOf("door-cover", undefined).colour;
