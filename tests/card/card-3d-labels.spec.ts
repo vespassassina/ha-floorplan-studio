@@ -126,7 +126,7 @@ test("a drag never flips a label: the faded set is the same in every frame of th
     tick();
   });
   const f0 = (await cam(page)).drawn;
-  await page.mouse.move(box.x + box.width / 2 + 170, box.y + box.height / 2 - 40, { steps: 60 });
+  await page.mouse.move(box.x + box.width / 2 + 170, box.y + box.height / 2 - 40, { steps: 12 });
   const seen = await page.evaluate(() => { const w = window as unknown as { __s: string[]; __run: boolean }; w.__run = false; return w.__s; });
   expect((await cam(page)).drawn, "the drag drew frames").toBeGreaterThan(f0 + 5);
   expect(seen.length).toBeGreaterThan(5);

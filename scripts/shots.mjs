@@ -625,6 +625,100 @@ try {
     shots.push(s.name);
     await ctx.close();
   }
+  // S39: the history replay. The demo home at a morning moment (kitchen lamp on, sun up) and a night one (lamp off, sun down), blueprint and
+  // light, and the bar alone at 1280 and 380 wide. The connection is made in the page and answers history/history_during_period with rows in
+  // Home Assistant's compressed shape ({ s, a?, lu } in float seconds). The slider is moved by its keys, as a person would.
+  const replayShots = [];
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const [when, ups] of [["morning", 21], ["night", 15]]) replayShots.push({ name: `card-replay-${when}-${t.id}`, t, ups, width: 1100 });
+  for (const width of [1280, 380]) replayShots.push({ name: `card-replay-bar-${width}`, t: THEMES.find((x) => x.id === "light"), ups: 21, width, bar: true });
+  // R2.3: the slider with its markers (lamps, doors, motion band, a cluster of lamps) over a busy day, and the hovered cluster (the tooltip is the browser's own `title`, which a headless screenshot cannot draw).
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) for (const hover of [false, true]) replayShots.push({ name: `card-replay-markers-${t.id}-${width}${hover ? "-hover" : ""}`, t, ups: 21, width, bar: true, markers: true, hover });
+  // R2.5: the 48 h bar, the recorder having purged the first 12 hours of the window (the grey part of the strip and the info line).
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) replayShots.push({ name: `card-replay-48h-${t.id}-${width}`, t, ups: 45, width, bar: true, markers: true, h48: true });
+  // R2.7: the 7 d bar, purged the same way (history begins 27 Oct 00:00, 36 hours before the end), parked on 28 Oct in the morning.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) replayShots.push({ name: `card-replay-7d-${t.id}-${width}`, t, ups: 27, width, bar: true, markers: true, h48: true, days: 7 });
+  // R2.6: the filter list open over the bar (a real click on the button), lamps switched off so one toggle shows pressed and one not. The list floats above the bar, so the whole card is shot.
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [1280, 380]) replayShots.push({ name: `card-replay-filter-${t.id}-${width}`, t, ups: 21, width, markers: true, filter: true });
+  for (const s of replayShots) {
+    const ctx = await browser.newContext({ viewport: { width: s.width, height: 800 }, colorScheme: s.t.dark ? "dark" : "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    page.on("pageerror", (e) => errors.push(`${s.name}: ${e}`));
+    page.on("console", (m) => { if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`); });
+    await page.clock.setFixedTime(new Date(2026, 9, 28, 12, 0, 0));
+    await page.route("**/*", (route) => {
+      const url = new URL(route.request().url());
+      if (url.origin !== ORIGIN) return route.abort();
+      if (url.pathname === "/") return route.fulfill({ contentType: "text/html", body: `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=shots"></script><body style="margin:0;padding:12px;background:${s.t.page};${s.t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>` });
+      const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
+      if (!m || !existsSync(resolve(DIST, m[1]))) return route.fulfill({ status: 404, body: "not found" });
+      return route.fulfill({ contentType: "text/javascript", body: readFileSync(resolve(DIST, m[1])) });
+    });
+    await page.goto(`${ORIGIN}/`);
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await page.evaluate(([config, hass, markers, h48]) => {
+      const el = document.getElementById("c");
+      const at = (h, m = 0) => (new Date(2026, 9, 28, h, m, 0).getTime()) / 1000;
+      const rows = {
+        "light.demo_kitchen": [{ s: "off", a: { friendly_name: "Kitchen" }, lu: at(0) - 7200 }, { s: "on", a: { friendly_name: "Kitchen", rgb_color: [255, 170, 60] }, lu: at(8) }, { s: "off", a: { friendly_name: "Kitchen" }, lu: at(10) }],
+        "sun.sun": [{ s: "below_horizon", a: { azimuth: 10, elevation: -30 }, lu: at(0) - 7200 }, { s: "above_horizon", a: { azimuth: 90, elevation: 30 }, lu: at(7) }, { s: "below_horizon", a: { azimuth: 300, elevation: -5 }, lu: at(10, 30) }],
+      };
+      if (markers) {
+        // Home Assistant's shapes: the first row is the state at the start (with `a`), later rows carry `s` and `lu`.
+        const start = at(12) - 86400 - 60;
+        const cycle = (...times) => [{ s: "off", a: {}, lu: start }, ...times.flatMap(([h, m]) => [{ s: "on", lu: at(h, m) }, { s: "off", lu: at(h, m + 3) }])].sort((x, y) => x.lu - y.lu);
+        rows["light.demo_kitchen"] = cycle([17, 0], [18, 30], [6, 40], [7, 0], [7, 10], [7, 20], [19, 0], [22, 45]);
+        rows["light.demo_living"] = cycle([18, 0], [18, 15], [2, 30]);
+        rows["binary_sensor.demo_front_door"] = cycle([8, 0], [17, 55], [23, 30]);
+        rows["binary_sensor.demo_patio_door"] = cycle([18, 5]);
+        rows["binary_sensor.demo_hall_motion"] = cycle(...[6, 7, 8, 8, 9, 17, 17, 18, 18, 18, 19, 19, 20, 20, 21, 22].map((h, i) => [h, (i * 7) % 50]));
+      }
+      hass.locale = { language: "en", time_format: "24" };
+      const cut = at(0) - 86400; // 27 Oct 00:00
+      if (h48) {
+        // Yesterday evening, then the recorder's purge: nothing before 27 Oct 00:00 (12 hours into the 48 h window).
+        const yday = (h, m) => at(h, m) - 86400;
+        rows["light.demo_living"].push(...[[18, 0], [20, 30]].flatMap(([h, m]) => [{ s: "on", lu: yday(h, m) }, { s: "off", lu: yday(h, m + 3) }]));
+        rows["binary_sensor.demo_front_door"].push(...[[9, 0], [18, 10]].flatMap(([h, m]) => [{ s: "on", lu: yday(h, m) }, { s: "off", lu: yday(h, m + 2) }]));
+        rows["light.demo_kitchen"].push({ s: "off", lu: cut + 30 }); // the first change the recorder kept: history begins there
+        for (const id of Object.keys(rows)) rows[id].sort((x, y) => x.lu - y.lu);
+      }
+      // The reply as HA builds it (history/websocket_api.py, recorder/history/modern.py): a row at the asked start (the state then), none before it; the first row carries `a`.
+      // A purged recorder has no start-time row: each entity answers from its first change kept (`lu >= cut`), and one with none kept is not in the reply.
+      const reply = (id, startSec) => {
+        const all = rows[id], first = all.find((r) => r.a) ?? all[0];
+        if (h48 && startSec < cut) { const kept = all.filter((r) => r.lu >= cut); return kept.length ? [{ ...kept[0], a: kept[0].a ?? first.a }, ...kept.slice(1)] : undefined; }
+        return [{ ...first, lu: startSec }, ...all.filter((r) => r.lu > startSec)];
+      };
+      hass.connection = { sendMessagePromise: (m) => Promise.resolve(Object.fromEntries((m.entity_ids ?? []).filter((id) => rows[id]).map((id) => [id, markers ? reply(id, Date.parse(m.start_time) / 1000) : rows[id]]).filter(([, r]) => r))) };
+      el.setConfig(config); el.hass = hass;
+      return el.updateComplete;
+    }, [{ layout, floor: "ground", theme: s.t.theme, active_list: false }, hassFor("on", s.t.dark), !!s.markers, !!s.h48]);
+    await page.locator("floorplan-studio-card svg polygon[data-r]").first().waitFor();
+    await page.locator("floorplan-studio-card fp-menu button").first().click();
+    await page.locator("floorplan-studio-card [data-value='replay']").click();
+    const range = page.locator("floorplan-studio-card input.fp-rp-range");
+    await page.waitForFunction(() => !document.getElementById("c").shadowRoot.querySelector("input.fp-rp-range")?.disabled);
+    if (s.h48) {
+      await page.locator("floorplan-studio-card .fp-rp-len button", { hasText: s.days ? `${s.days} d` : "48 h" }).click();
+      await page.waitForFunction(() => !document.getElementById("c").shadowRoot.querySelector("input.fp-rp-range")?.disabled);
+    }
+    await range.focus();
+    await page.keyboard.press("Home");
+    for (let i = 0; i < s.ups; i++) await page.keyboard.press("PageUp");
+    await page.mouse.move(0, 0);
+    // The hovered shot: the mouse over the last cluster, as a person would find it.
+    if (s.h48) await page.locator("floorplan-studio-card .fp-rp-info").click();
+    if (s.hover) await page.locator("floorplan-studio-card .fp-rp-tick").last().hover();
+    if (s.filter) {
+      await page.locator("floorplan-studio-card .fp-rp-filter").click();
+      await page.locator("floorplan-studio-card .fp-rp-menu [data-g='lamp']").click();
+      await page.mouse.move(0, 0);
+    }
+    if (s.bar) await page.locator("floorplan-studio-card .fp-replay").screenshot({ path: `${OUT}/${s.name}.png` });
+    else await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
+    shots.push(s.name);
+    await ctx.close();
+  }
   for (const theme of ["blueprint", "light", "ha"]) {
     const name = `editor-${theme}`;
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
@@ -737,9 +831,9 @@ try {
     await ctx.close();
   }
   // S29.13: the Align panel on the hand-align house's first floor, after a real click on Align stairs (so the stair report and the status line show
-  // numbers), at 1280 and 380 px wide, in a light, a dark (blueprint) and the HA dark theme. The whole page is shot, so a wrapped toolbar and a panel
+  // numbers), at 1280 and 768 px wide (S37.3: under 700 the Studio shows a message, not the editor; the page pads it 24 px a side), in a light, a dark (blueprint) and the HA dark theme. The whole page is shot, so a wrapped toolbar and a panel
   // below the fold both show. The theme names are the Studio's.
-  for (const width of [1280, 380]) for (const [theme, scheme, label] of [["light", "light", "light"], ["blueprint", "light", "blueprint"], ["ha", "dark", "ha-dark"]]) {
+  for (const width of [1280, 768]) for (const [theme, scheme, label] of [["light", "light", "light"], ["blueprint", "light", "blueprint"], ["ha", "dark", "ha-dark"]]) {
     const name = `editor-handalign-panel-${label}-${width}px`;
     const ctx = await browser.newContext({ viewport: { width, height: 800 }, colorScheme: scheme, reducedMotion: "reduce" });
     const page = await ctx.newPage();
@@ -762,8 +856,8 @@ try {
     await ctx.close();
   }
   // S30.10: the Align panel on the hand-align house's ground floor from no pose: the turn line and the other-turn line showing ("preview"),
-  // then after a real click on Apply ("applied": Already aligned, Apply disabled). 1280 and 380 px, blueprint, light and ha-dark.
-  for (const state of ["preview", "applied"]) for (const width of [1280, 380]) for (const [theme, scheme, label] of [["blueprint", "light", "blueprint"], ["light", "light", "light"], ["ha", "dark", "ha-dark"]]) {
+  // then after a real click on Apply ("applied": Already aligned, Apply disabled). 1280 and 768 px, blueprint, light and ha-dark.
+  for (const state of ["preview", "applied"]) for (const width of [1280, 768]) for (const [theme, scheme, label] of [["blueprint", "light", "blueprint"], ["light", "light", "light"], ["ha", "dark", "ha-dark"]]) {
     const name = `editor-align-turn-${state}-${label}-${width}px`;
     const ctx = await browser.newContext({ viewport: { width, height: 800 }, colorScheme: scheme, reducedMotion: "reduce" });
     const page = await ctx.newPage();
@@ -809,6 +903,16 @@ try {
     heatShots.push({ name: `heat-first-humidity-bathroom-wet-4x-${t.id}`, floor: "first", kind: "humidity", st: extremes(null, true), t, room: 1, dpr: 4 });
     heatShots.push({ name: `heat-first-humidity-bathroom-dry-4x-${t.id}`, floor: "first", kind: "humidity", st: extremes(null, false), t, room: 1, dpr: 4 });
   }
+  // S42.2: the temperature-range tint. The card passes `tempWarn` from S42.4; until then this harness does what the card will. The range
+  // (17 to 26 degrees) is not written into demo/layout.json, which migrate.test.ts compares with its v1 twin: the extremes state puts
+  // Living (27.5) over it and Bedroom (14) under it, and the harness hands renderFloor the room ids that `tempWarn` would flag.
+  // Each, with and without the temperature heat map, at 1x and as a 4x crop.
+  const TINT = { ground: { cls: "hot", room: 0 }, first: { cls: "cold", room: 0 } };
+  for (const [floor, w] of Object.entries(TINT)) for (const kind of ["off", "temperature"]) for (const t of HEAT_THEMES) {
+    const warn = { [layout.floors[floor].rooms[w.room].id]: w.cls };
+    heatShots.push({ name: `tint-${floor}-${w.cls}-${kind}-${t.id}`, floor, kind, st: extremes(), warn, t, dpr: 1 });
+    heatShots.push({ name: `tint-${floor}-${w.cls}-${kind}-4x-${t.id}`, floor, kind, st: extremes(), warn, t, room: w.room, dpr: 4 });
+  }
   for (const s of heatShots) {
     const f = layout.floors[s.floor];
     const ctx = await browser.newContext({ viewport: { width: 940, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: s.dpr });
@@ -817,11 +921,11 @@ try {
     await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${s.t.page};${s.t.vars}"><svg id="p" width="900" viewBox="-20 -20 940 690"></svg></body>`);
     await page.addScriptTag({ content: planJs });
     const states = s.st ?? STATES[s.which];
-    await page.evaluate(([floor, kind, states, theme, dark, night, ratio]) => {
+    await page.evaluate(([floor, kind, states, theme, dark, night, ratio, tempWarn]) => {
       const st = {}; for (const [id, v] of Object.entries(states)) { const a = Array.isArray(v) ? v : [v]; st[id] = { state: a[0], attributes: a[1] ?? {}, last_changed: new Date().toISOString() }; }
       const sty = document.createElement("style"); sty.textContent = FPR.FLOORPLAN_CSS; document.head.append(sty);
-      document.getElementById("p").innerHTML = FPR.renderFloor(floor, { scale: ratio, px: ratio, state: st, theme, dark, night, roomGlow: true, heat: kind });
-    }, [f, s.kind, states, s.t.theme, s.t.dark, !!s.night, 900 / 940]);
+      document.getElementById("p").innerHTML = FPR.renderFloor(floor, { scale: ratio, px: ratio, state: st, theme, dark, night, roomGlow: true, heat: kind, tempWarn });
+    }, [f, s.kind, states, s.t.theme, s.t.dark, !!s.night, 900 / 940, s.warn]);
     if (s.room !== undefined) {
       const box = await page.evaluate((i) => { const r = document.querySelector(`#p polygon[data-r="${i}"]`).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }, s.room);
       await page.screenshot({ path: `${OUT}/${s.name}.png`, clip: { x: Math.max(0, box.x - 6), y: Math.max(0, box.y - 6), width: box.width + 12, height: box.height + 12 } });

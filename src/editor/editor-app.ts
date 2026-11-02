@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, MAX_VIEWS, alignCandidates, chooseAlign, alignSummary, alignStatus, alignKeyOf, stairPlace, stairReport, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, anyRoomHeated, heatLegend, ThumbFeed, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { TempWatch, COORD_LIMIT, DEFAULT_MOTION_FADE_S, MAX_VIEWS, alignCandidates, chooseAlign, alignSummary, alignStatus, alignKeyOf, stairPlace, stairReport, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, anyRoomHeated, heatLegend, ThumbFeed, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -15,7 +15,7 @@ import type { FpSearch } from "../card/search-box";
 import { layoutEntries, type SearchEntry } from "../core/search";
 import { buildOutline, deviceNodeId, filterOutline, outlineKey, outlineView, visibleRows, type OutlineNode, type OutlineRow } from "./outline";
 import { readViewMemory, writeViewMemory } from "./view-memory";
-import { traceImage } from "./trace";
+import { traceImage, traceRotStored, traceRotShown } from "./trace";
 import { furnitureNear, roomMiddle, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo, spawnInView, spawnPoint, squareAt, stairsAt, type Corner } from "./ops";
 import { Draw, applyShape, rayPoint, snapRay, type AreaPreset, type DrawKind } from "./draw";
 import { restoreScene, tryScene } from "./scene-try";
@@ -25,6 +25,7 @@ import { layerHides } from "../core/layers";
 import { newDraft, sceneDesigner, type SceneDraft } from "./scene-designer";
 import { roomSceneTargets, saveScene } from "./room-scenes-ops";
 import { TYPE_LABELS, typeNoun, type PanelCtx } from "./panels";
+import type { TempUnit } from "./temp-range-ops";
 import { confirm as askHa } from "./confirm";
 import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
@@ -32,6 +33,8 @@ import { EditorState, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, sl
 import { floorGroups, toolbarCss, toolbarView } from "./toolbar";
 import { asideView, inspectorCss, parseAlignNumber, readAlignSteps, writeAlignSteps, type AlignSteps } from "./inspector";
 import type { AsideMode } from "./inspector";
+import { firstRunCss, firstRunView } from "./first-run";
+import { layoutFromAreas } from "./from-areas";
 import { ctxMenuCss, ctxMenuView, ctxTargetFor, fitCtxMenu, type CtxTarget } from "./ctx-menu";
 
 /**
@@ -39,6 +42,7 @@ import { ctxMenuCss, ctxMenuView, ctxTargetFor, fitCtxMenu, type CtxTarget } fro
  *   property `layout`  the layout to edit (validated; a bad one is refused and listed)
  *   property `floor`   the floor shown
  *   property `demo`    a demo home; File, Load demo puts it in, only while nothing is drawn (Reset first). No demo, no button.
+ *   property `firstRun` the host found no saved plan: while the plan is blank, three choices show (Load the demo, areas, Blank)
  *   event `layout-changed`  detail: the Layout, after every edit
  *   event `save-request`    detail: the Layout, File, Save (host writes it somewhere)
  *   method saveDone(ok, message?)  the host calls it when the write is over; status stays "Saving…" until then.
@@ -69,7 +73,9 @@ type Drag =
   | { type: "furn"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "unl"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "fscale"; base: Floor; i: number; corner: Corner; moved: boolean }
-  | { type: "room"; base: Floor; list: "rooms" | "stairs"; i: number; start: Pt; moved: boolean; alt?: boolean };
+  | { type: "room"; base: Floor; list: "rooms" | "stairs"; i: number; start: Pt; moved: boolean; alt?: boolean }
+  /** S40.2: Move is on and the plan was pressed: the trace image follows the pointer. `from`: its place at the press; `before`: the layout as the first real move found it. */
+  | { type: "trace"; start: Pt; from: Pt; moved: boolean; before: Layout | null };
 
 const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 const num = (n: number) => String(Math.round(n * 100) / 100);
@@ -145,14 +151,21 @@ const EYE_OFF = "M11.83,9L15,12.16C15,12.11 15,12.05 15,12A3,3 0 0,0 12,9C11.94,
 /** S24.5: how long the ring stays round what a search or the Outline went to: three beats of `fp-locate`. */
 const LOCATE_MS = 2400;
 
+/** S37.3: under this width (px, the Studio's own) the Studio shows a message instead of the editor. Docs: DECISIONS 2026-10-25. */
+const NARROW_PX = 700;
+
 export class FloorplanStudioEditor extends LitElement {
   /** S25.7: the detail mode, kept by the editor state (View, Detail). */
   get detailMode(): DetailMode { return this.st.detail; }
   set detailMode(m: DetailMode) { this.st.detail = m; this.requestUpdate(); }
   static properties = {
     floor: { type: String },
+    dashboardHref: { type: String, attribute: "dashboard-href" },
+    narrow: { state: true },
     haDark: { attribute: false },
+    tempUnit: { attribute: false },
     demo: { attribute: false },
+    firstRun: { type: Boolean, attribute: false },
     errors: { state: true },
     status: { state: true },
     banner: { state: true },
@@ -162,9 +175,17 @@ export class FloorplanStudioEditor extends LitElement {
     haListErr: { state: true },
   };
   declare floor: string;
+  /** S37.3: where the "too narrow" message sends the person: the host (the panel) sets it to the dashboard. Unset on the standalone page, which has none. */
+  declare dashboardHref: string | undefined;
+  /** S37.3: the Studio's own width is under NARROW_PX. The editor stays drawn underneath (display:none), so nothing is lost; keys are ignored meanwhile. */
+  declare narrow: boolean;
   /** Home Assistant's dark mode, set by the panel host from `hass.themes.darkMode`. Read only by the `ha` theme; undefined (standalone) follows the OS instead. */
   declare haDark: boolean | undefined;
+  /** S42.5: the unit of the temperature range fields, set by the panel host from `hass.config.unit_system.temperature`. Standalone: °C. */
+  declare tempUnit: TempUnit | undefined;
   declare demo: Layout | undefined;
+  /** S37.1: set by the host when nothing is stored (the panel, on `{ layout: null }`). The standalone page never sets it: it always opens on a plan. Any choice, or drawing anything, ends it. */
+  declare firstRun: boolean;
   declare errors: string[];
   declare status: string;
   /** `action`: one button in the banner that undoes what the message is about (S22.4: Untick Fix plan). */
@@ -251,6 +272,8 @@ export class FloorplanStudioEditor extends LitElement {
   /** S7.11: Edit, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
   traceOpen = false;
   private traceScale: Pt[] | null = null;
+  /** S40.2: Move is on, so a drag on the plan moves the trace image and the arrows nudge it. Off on Hide, Remove, Scale, a closed panel and Escape. */
+  traceMove = false;
   exportTrace = false;
   private rect = { w: 800, h: 600 };
   private ro?: ResizeObserver;
@@ -265,6 +288,8 @@ export class FloorplanStudioEditor extends LitElement {
   constructor() {
     super();
     this.floor = "";
+    this.firstRun = false;
+    this.narrow = false;
     this.errors = [];
     this.status = "Ready";
     this.banner = null;
@@ -300,6 +325,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.requestUpdate();
   }
   private _hassStates: StateOverlay | undefined;
+  private temps = new TempWatch(() => this.requestUpdate());
   private _fadeTimer: ReturnType<typeof setInterval> | null = null;
   /** The states the render reads: a motion sensor's own `last_changed` is when it went off, which is when its fade starts. */
   private stateForRender(): StateOverlay | undefined { return this._hassStates; }
@@ -437,9 +463,15 @@ export class FloorplanStudioEditor extends LitElement {
     css`
     ${css([FLOORPLAN_CSS] as unknown as TemplateStringsArray)}
     :host{display:block;outline:none;background:var(--fp-bg);color:var(--fp-ink);font:14px/1.4 system-ui,sans-serif}
+    /* S37.3: under 700 px (the host's own width) the toolbar and the editor are hidden, not removed: the state underneath lives on. */
+    .narrow-note{display:none;padding:24px 16px}
+    :host([data-narrow]) .narrow-note{display:block}
+    :host([data-narrow]) :is(.bar,.errors,.ed){display:none}
+    .narrow-note a{color:var(--fp-ink);font-weight:600}
   `,
     toolbarCss,
     ctxMenuCss,
+    firstRunCss,
     css`
     .btn,.chip,select,input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px;padding:4px 8px}
     .btn,.chip,summary{cursor:pointer}
@@ -470,6 +502,8 @@ export class FloorplanStudioEditor extends LitElement {
     .trace-panel{position:absolute;left:8px;bottom:8px;z-index:3;width:260px;max-width:calc(100% - 16px);display:flex;flex-direction:column;gap:6px;padding:0 10px 10px;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .trace-panel .installcode-head{margin:0 -10px}
     .trace-panel .row .btn{flex:1}
+    .trace-panel .rotrow{display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .trace-panel .hint{margin:0}
     .trace-panel input[type=number]{width:6em}
     .stepper{display:flex;gap:2px;align-items:stretch} .stepper input{flex:1;min-width:0} .btn.step{padding:0 6px;min-width:26px}
     .controls{border-collapse:collapse;width:100%;margin:8px 0}
@@ -571,7 +605,7 @@ export class FloorplanStudioEditor extends LitElement {
     css`
     .errors{border:1px solid var(--fp-motion);border-radius:4px;padding:6px 10px;margin:6px 0}
     .errors ul{margin:4px 0;padding-left:18px}
-    .banner{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:10px;max-width:min(40em,calc(100vw - 24px));padding:8px 8px 8px 14px;border:1px solid;border-radius:6px;font-size:.9em;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none}
+    .banner{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:10px;max-width:min(40em,calc(100% - 24px));padding:8px 8px 8px 14px;border:1px solid;border-radius:6px;font-size:.9em;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none}
     .banner.info{background:#e8f1fb;color:#123a63;border-color:#6c9bd1}
     .banner.warning{background:#fff4d6;color:#5c4200;border-color:#d9a400}
     .banner.error{background:#fde4e1;color:#7a1410;border-color:#d4483f}
@@ -590,6 +624,7 @@ export class FloorplanStudioEditor extends LitElement {
     .len{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round;pointer-events:none;user-select:none}
     .lbl{pointer-events:none;user-select:none}
     .dev,.door,.heater{cursor:move}
+    /* 700 to 900 px keeps the single column; under 700 px the notice above takes over (S37.3). */
     @media (max-width:900px){.ed{grid-template-columns:1fr}.side{height:auto;min-height:0}.side.open,.side.shut{width:auto}.side .tree{max-height:40vh}}
   `,
   ];
@@ -619,6 +654,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.temps.stop();
     this.thumbs.want(false);
     this.renderRoot.removeEventListener("error", this.onThumbError, true);
     this.removeEventListener("keydown", this.onKey);
@@ -633,6 +669,7 @@ export class FloorplanStudioEditor extends LitElement {
     window.removeEventListener("click", this.onWindowClick);
     window.removeEventListener("pointerdown", this.onWindowPointerDown, true);
     this.ro?.disconnect();
+    this.roHost?.disconnect();
     this.stopFadeTimer();
     clearTimeout(this.locateTimer);
   }
@@ -643,7 +680,7 @@ export class FloorplanStudioEditor extends LitElement {
     try { return matchMedia("(prefers-color-scheme: dark)").matches; } catch { return false; }
   }
 
-  /** Shows a message as a top banner for 20 s, coloured by its situation. `level` overrides the guess from the text. */
+  /** Shows a message as a banner low in the plan for 20 s, coloured by its situation. `level` overrides the guess from the text. */
   private notify(text: string, level?: BannerLevel, action?: { id: string; label: string; run: () => void }) {
     clearTimeout(this.bannerTimer);
     if (isQuiet(text)) { this.banner = null; return; }
@@ -653,6 +690,7 @@ export class FloorplanStudioEditor extends LitElement {
   private closeBanner() { clearTimeout(this.bannerTimer); this.banner = null; this.status = ""; }
 
   protected willUpdate(changed: Map<string, unknown>) {
+    this.temps.sync(this.st.layout, this._hassStates, Date.now()); // S42.4: the live view's warning, the same onset memory as the card's
     if (this.linkScope && this.st.f !== this.linkFloor) { this.linkScope = null; if (this.asideMode === "link") this.asideMode = "selection"; } // R2
     if (changed.has("status") && this.banner?.text !== this.status) this.notify(this.status); // already shown by an explicit notify, with its level and action
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { this.stopDraw(); this.st.setFloor(this.floor); }
@@ -660,6 +698,7 @@ export class FloorplanStudioEditor extends LitElement {
     // Always named, never left to inherit: blueprint unless the viewer chose otherwise. Reflected on the host itself, not just the svg,
     // so the editor's own chrome (menus, panels, buttons) themes with the plan. data-mode is for the ha theme only.
     this.setAttribute("data-theme", this.st.theme);
+    this.toggleAttribute("data-narrow", this.narrow);
     if (this.st.theme === "ha" && this.isDark()) this.setAttribute("data-mode", "dark");
     else this.removeAttribute("data-mode");
   }
@@ -668,7 +707,16 @@ export class FloorplanStudioEditor extends LitElement {
     const s = this.svgEl;
     s?.addEventListener("wheel", this.onWheel, { passive: false });
     if (s && typeof ResizeObserver !== "undefined") { this.ro = new ResizeObserver(() => this.measure()); this.ro.observe(s); }
+    if (typeof ResizeObserver !== "undefined") { this.roHost = new ResizeObserver(() => this.measureHost()); this.roHost.observe(this); }
+    this.measureHost();
     this.measure();
+  }
+  private roHost?: ResizeObserver;
+  /** S37.3: the Studio's own width, not the window's: in Home Assistant the panel sits beside the sidebar. A width of 0 (not laid out) is not narrow. */
+  private measureHost() {
+    const w = this.getBoundingClientRect().width;
+    const narrow = w > 0 && w < NARROW_PX;
+    if (narrow !== this.narrow) this.narrow = narrow;
   }
 
   private get svgEl(): SVGSVGElement | null { return this.renderRoot.querySelector(".canvas > svg"); } // the plan, not the icons inside the buttons
@@ -706,6 +754,7 @@ export class FloorplanStudioEditor extends LitElement {
     const kept = this.st.persist();
     this.status = kept ? status : `${status}. The browser has no room for the trace image in the autosave: Save to keep it`;
     this.emit("layout-changed");
+    this.temps.stop(); // edits mutate the layout in place, so the watch would see the same reference; forget it, keep the onsets
     this.requestUpdate();
   }
   commit = (fn: (f: Floor) => Floor | void) => { if (this.st.edit(fn)) this.changed(); else this.refused(); };
@@ -796,7 +845,7 @@ export class FloorplanStudioEditor extends LitElement {
     else this.requestUpdate();
   };
   ctx(): PanelCtx {
-    return { st: this.st, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); else this.refused(); }, edited: (ok) => { if (ok) this.changed(); else this.refused(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => { this.startDraw("room", "wall", a); if (this.draw) this.status = `Drawing a room for ${a.name}. ${DRAW_HINT}`; }, placeArea: (i) => this.openPlace(i), designScene: (i, id) => this.openScene(i, id), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
+    return { st: this.st, tempUnit: this.tempUnit, commit: this.commit, attachEntity: this.attachEntity, attachToRoom: this.attachToRoom, paint: (on, i, p) => { if (this.st.paint(on, i, p)) this.changed(); else this.refused(); }, edited: (ok) => { if (ok) this.changed(); else this.refused(); }, rotateTexture: this.rotateTexture, rotateItem: this.rotateItem, scaleTexture: this.scaleTexture, select: this.select, say: (m) => { this.status = m; this.requestUpdate(); }, refresh: () => this.requestUpdate(), help: () => { if (!this.st.helpOpen) this.toggleHelp(); }, areaDiff: (i) => { const a = this.areaDiff(i); return a ? { name: a.name } : null; }, moveArea: (i) => void this.offerAreaMove(i, true), createArea: this.writer && this.st.ha ? (i) => void this.createArea(i) : undefined, drawArea: (a) => { this.startDraw("room", "wall", a); if (this.draw) this.status = `Drawing a room for ${a.name}. ${DRAW_HINT}`; }, placeArea: (i) => this.openPlace(i), designScene: (i, id) => this.openScene(i, id), makeLight: this.writer && this.st.ha ? (i) => void this.makeLight(i) : undefined, createGroup: this.writer && this.st.ha ? (is, kind, name) => void this.createGroup(is, kind, name) : undefined, controlsAutomation: this.writer ? (i, targets) => void this.controlsAutomation(i, targets) : undefined, scheduleAutomation: this.writer ? (i, on, off) => void this.scheduleAutomation(i, on, off) : undefined, linkMotion: this.writer && this.st.ha ? (i, motionEntity, minutes) => void this.motionAutomation(motionEntity, this.st.f.devices[i].entity, minutes, i) : undefined, moreInfo: (id) => this.moreInfo(id), runScene: this.writer ? (id) => void this.runScene(id) : undefined, addToArea: this.writer ? (i, id) => void this.addToArea(i, id) : undefined, floors: { rename: (k, t) => this.renameFloor(k, t), move: (k, d) => this.moveFloor(k, d), remove: (k) => this.deleteFloor(k) } };
   }
 
   // ---- pointer -------------------------------------------------------------
@@ -876,6 +925,13 @@ export class FloorplanStudioEditor extends LitElement {
     const p = this.toSvg(ev);
     // S7.11: a Scale step takes the next two clicks as its points, raw (no snap: they sit on the image, not the plan), and nothing else.
     if (this.traceScale) { if (this.traceScale.length < 2) { this.traceScale.push(p); this.traceStep(); } return; }
+    // S40.2: with Move on, the press is the image's alone: no wall, room or device under it takes it.
+    if (this.moving) {
+      const t = f.trace;
+      if (st.planLocked) { this.planFixed(); return; }
+      if (t) { this.drag = { type: "trace", start: p, from: [t.x, t.y], moved: false, before: null }; capture(); }
+      return;
+    }
     if (this.draw) { this.drawClick(p, ev.altKey, ev); return; }
     // Review 29: Align is read-only. A press on the plan only pans (the wheel still zooms); nothing is selected, dragged or marqueed, so no invisible selection can be deleted.
     if (this.aligning) { this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: 0, moved: false }; capture(); return; }
@@ -1024,6 +1080,15 @@ export class FloorplanStudioEditor extends LitElement {
     this.drag = null;
     this.requestUpdate();
   }
+  /** S40 review: Escape in a Move drag puts the image back where the press found it, writes no undo step and ends Move. */
+  private cancelTraceDrag() {
+    const d = this.drag, t = this.st.f.trace;
+    if (d?.type !== "trace") return;
+    if (t && d.moved) this.st.replaceFloor({ ...this.st.f, trace: { ...t, x: d.from[0], y: d.from[1] } });
+    this.drag = null;
+    this.traceMove = false;
+    this.requestUpdate();
+  }
   private begin(d: { moved: boolean }) {
     if (!d.moved) { d.moved = true; this.st.snapshot(); }
   }
@@ -1046,6 +1111,17 @@ export class FloorplanStudioEditor extends LitElement {
       d.cur = [ev.clientX, ev.clientY];
       if (!d.moved && Math.hypot(d.cur[0] - d.a[0], d.cur[1] - d.a[1]) >= 4) d.moved = true;
       if (d.moved) d.quad = this.marqueeQuad(d.a, d.cur);
+      this.requestUpdate();
+      return;
+    }
+    if (d.type === "trace") {
+      const t = st.f.trace;
+      if (!t) return;
+      const p = this.toSvg(ev), tenth = (n: number) => Math.round(n * 10) / 10;
+      const x = tenth(d.from[0] + p[0] - d.start[0]), y = tenth(d.from[1] + p[1] - d.start[1]);
+      if (!d.before) { if (x === t.x && y === t.y) return; d.before = structuredClone(st.layout); }
+      d.moved = true;
+      st.replaceFloor({ ...st.f, trace: { ...t, x, y } });
       this.requestUpdate();
       return;
     }
@@ -1181,6 +1257,11 @@ export class FloorplanStudioEditor extends LitElement {
       return;
     }
     if (d.type === "marquee") { this.endMarquee(d, ev); return; }
+    if (d.type === "trace") {
+      if (d.before && st.commitLiveEdit(d.before)) this.changed("Image moved");
+      else this.requestUpdate();
+      return;
+    }
     if (d.type === "devs") {
       if (!d.moved) { st.sel = { t: "dev", i: d.i }; this.requestUpdate(); } // a click, not a drag: the group gives way to the one pressed
       else if (d.before && st.commitLiveEdit(d.before)) this.changed(`Moved ${d.is.length} devices`);
@@ -1313,6 +1394,7 @@ export class FloorplanStudioEditor extends LitElement {
   openPlace(i: number) {
     const r = this.st.f.rooms[i];
     if (!r) return;
+    this.traceMove = false;
     this.placeRoom = r.id; this.placeOn = new Set(); this.placeType = null; this.asideMode = "place";
     this.requestUpdate();
   }
@@ -1435,12 +1517,49 @@ export class FloorplanStudioEditor extends LitElement {
   toggleTrace() {
     this.traceOpen = !this.traceOpen;
     this.traceScale = null;
+    this.traceMove = false;
     this.requestUpdate();
   }
   /** Changes this floor's trace: one undo step, none when nothing changed. */
   private setTrace(t: Trace | null, status: string) {
+    if (!t || !t.on) this.traceMove = false; // S40.2: nothing shown, nothing to move
     if (this.st.setTrace(t)) this.changed(status);
-    else this.requestUpdate();
+    else this.refused();
+  }
+  /** S40.2: Move is on and there is an image to move. */
+  private get moving(): boolean { return this.traceMove && this.traceOpen && this.st.f.trace?.on === true; }
+  private setTraceMove(on: boolean) {
+    this.traceMove = on;
+    if (on) { this.stopDraw(); this.traceScale = null; }
+    this.requestUpdate();
+    this.focus({ preventScroll: true });
+  }
+  /** S40.2: the arrows move the image 1 cm, Shift 10 cm; one undo step per press. A text field keeps its keys. */
+  private traceKeyDo(ev: KeyboardEvent): boolean {
+    if (!this.moving || this.draw) return false;
+    if (ev.defaultPrevented || ev.isComposing || ev.ctrlKey || ev.metaKey || ev.altKey) return false;
+    const dir: Record<string, Pt> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const d = dir[ev.key], t = this.st.f.trace;
+    if (!d || !t || takesTyping(ev.composedPath()[0] as HTMLElement | undefined)) return false;
+    ev.preventDefault();
+    if (ev.repeat) return true;
+    const n = ev.shiftKey ? 10 : 1;
+    this.setTrace({ ...t, x: t.x + d[0] * n, y: t.y + d[1] * n }, `Image moved ${n} cm`);
+    return true;
+  }
+  /** S40.2: Rotation field, degrees -180..180 (a comma works). `rot` is stored in [0, 360) about the image's top-left corner. Junk or out of range is refused and the box shows the layout again. */
+  private setTraceRot(ev: Event) {
+    const input = ev.target as HTMLInputElement, t = this.st.f.trace;
+    if (!t) return;
+    const n = Number(input.value.trim().replace(",", "."));
+    if (input.value.trim() === "" || !Number.isFinite(n) || n < -180 || n > 180) {
+      this.status = "Type a rotation from -180 to 180 degrees";
+      input.value = String(traceRotShown(t.rot));
+      this.requestUpdate();
+      return;
+    }
+    this.setTrace({ ...t, rot: traceRotStored(n) }, "Image turned");
+    input.value = String(traceRotShown(this.st.f.trace?.rot ?? 0)); // the box shows what was stored, not what was typed
   }
   /** Load: downscale, then place the image over the outline (or the view, on a blank floor), fitted inside it. Load again resets the placement. */
   private async loadTrace(ev: Event) {
@@ -1466,6 +1585,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
   private startTraceScale() {
     this.stopDraw();
+    this.traceMove = false;
     this.traceScale = [];
     this.status = "Click two points on the image a known distance apart. Esc cancels.";
     this.requestUpdate();
@@ -1511,6 +1631,10 @@ export class FloorplanStudioEditor extends LitElement {
             <div class="row"><input id="traceDist" type="number" min="1" step="1" @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); this.applyTraceScale(); } else if (e.key === "Escape") { e.preventDefault(); this.cancelTraceScale(); } }}>
               <button class="btn" id="traceApply" @click=${() => this.applyTraceScale()}>Apply</button></div>`
           : html`<button class="btn" id="traceScale" aria-pressed=${sc ? "true" : "false"} @click=${() => (sc ? this.cancelTraceScale() : this.startTraceScale())}>${sc ? `Click point ${sc.length + 1} of 2…` : "Scale…"}</button>`}
+        ${t.on ? html`<button class="btn" id="traceMove" aria-pressed=${this.moving ? "true" : "false"} title="Drag the image, or nudge it with the arrow keys (Shift: 10 cm). Esc ends it" @click=${() => this.setTraceMove(!this.moving)}>Move</button>` : nothing}
+        ${this.moving ? html`<p class="hint" id="traceMoveHint">Move: drag the image, arrows nudge it</p>` : nothing}
+        <div class="rotrow"><label for="traceRot">Rotation (°)</label>
+        <input id="traceRot" type="number" min="-180" max="180" step="0.1" .value=${live(String(traceRotShown(t.rot)))} @change=${(e: Event) => this.setTraceRot(e)} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); this.setTraceRot(e); } }}></div>
         <label for="traceAlpha">Opacity</label>
         <div class="rangerow"><input id="traceAlpha" type="range" min="0" max="1" step="0.05" .value=${live(String(t.alpha))} @change=${(e: Event) => { const a = Number((e.target as HTMLInputElement).value); if (Number.isFinite(a)) this.setTrace({ ...t, alpha: Math.min(1, Math.max(0, a)) }, "Image opacity changed"); }}><span class="rot-val">${Math.round(t.alpha * 100)}%</span></div>
         <label><input id="traceOn" type="checkbox" .checked=${live(t.on)} @change=${(e: Event) => this.setTrace({ ...t, on: (e.target as HTMLInputElement).checked }, (e.target as HTMLInputElement).checked ? "Image shown" : "Image hidden")}> Show</label>
@@ -1767,12 +1891,14 @@ export class FloorplanStudioEditor extends LitElement {
   private onKeyUp = (ev: KeyboardEvent) => { if (ev.key === "Alt") this.setAlt(false); };
   private onBlur = () => this.setAlt(false);
   private onKey = (ev: KeyboardEvent) => {
+    if (this.narrow) return; // S37.3: the editor is hidden; a key must not act on what the person cannot see
     if (ev.key === "Alt") this.setAlt(true);
     // Cmd/Ctrl+S is Save from anywhere in the editor, a text box included; the browser's own save-page dialog never opens.
     if (isSaveChord(ev) && !ev.defaultPrevented && !ev.isComposing) { ev.preventDefault(); this.saveByKey(); return; }
     // S24.5: Cmd/Ctrl+K from anywhere in the editor, "/" from anywhere but a text field, goes to the search box.
     if (isSearchChord(ev)) { ev.preventDefault(); this.renderRoot.querySelector<FpSearch>("#search")?.focus(); return; }
     if (this.alignKeyDo(ev)) return;
+    if (this.traceKeyDo(ev)) return; // S40.2
     const vk = viewKeyFor(ev);
     if (vk) { this.doViewKey(vk, ev); return; }
     // S22.5: Escape closes an open toolbar menu first, and does nothing else on that press. Ahead of the input check,
@@ -1792,6 +1918,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "?" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !takesTyping(t)) { ev.preventDefault(); this.toggleHelp(); return; }
     // Escape cancels a drag of devices before anything else: Help, Place and the rest must not swallow it while the plan is being dragged.
     if (ev.key === "Escape" && (this.drag?.type === "devs" || this.drag?.type === "dev")) { ev.preventDefault(); this.cancelDeviceDrag(); return; }
+    if (ev.key === "Escape" && this.drag?.type === "trace") { ev.preventDefault(); this.cancelTraceDrag(); return; }
     if (ev.key === "Escape" && this.ctxMenu) { ev.preventDefault(); this.closeCtxMenu(); return; }
     if (ev.key === "Escape" && this.devColsPos) { ev.preventDefault(); this.toggleDevCols(); return; }
     if (ev.key === "Escape" && this.haPos) { ev.preventDefault(); this.toggleHa(); return; }
@@ -1803,6 +1930,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (ev.key === "Escape" && this.asideMode === "add") { ev.preventDefault(); this.closeAddDev(); return; }
     if (ev.key === "Escape" && this.installCodeOpen) { ev.preventDefault(); this.toggleInstallCode(); return; }
     if (ev.key === "Escape" && this.traceScale) { ev.preventDefault(); this.cancelTraceScale(); return; }
+    if (ev.key === "Escape" && this.traceMove) { ev.preventDefault(); this.traceMove = false; this.requestUpdate(); return; } // S40.2: ends Move first
     if (ev.key === "Escape" && this.traceOpen) { ev.preventDefault(); this.toggleTrace(); return; }
     if (this.draw) {
       // Draw mode owns these keys: Delete must not remove the item that was selected before.
@@ -1855,8 +1983,10 @@ export class FloorplanStudioEditor extends LitElement {
   private onFocusOut = (ev: FocusEvent) => {
     const next = ev.relatedTarget as Node | null;
     if (next && (next === this || this.contains(next))) return; // into the panel or a menu (retargeted to this host)
+    if (this.narrow) return; // S37.3: hiding the editor blurs what was focused in it; that is not the person leaving the selection
     const src = ev.composedPath()[0], sel = this.st.sel;
     setTimeout(() => {
+      if (this.narrow) return;
       if (this.st.sel !== sel) return; // something was selected since: that is not the selection that lost focus
       if (src instanceof Node && !src.isConnected) return; // the focused control was replaced by a new panel, not left
       if (!document.hasFocus()) return; // the window lost focus; the user comes back to the same selection
@@ -2223,6 +2353,7 @@ export class FloorplanStudioEditor extends LitElement {
   startDraw(kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
     if (this.st.planLocked) { this.planFixed(); return; }
     this.closeAlign(false); // review 29: a draw and Align never run together
+    this.traceMove = false; // S40 review: Move takes the press before Draw sees it, so Draw would be dead
     this.draw = new Draw(kind, wall, area);
     this.hover = this.aim = this.rayAim = null;
     this.st.sel = null;
@@ -2699,7 +2830,7 @@ export class FloorplanStudioEditor extends LitElement {
   openAlign() {
     this.closeMenus();
     if (floorBelow(this.st.layout, this.st.floor) === null) return;
-    this.stopDraw(); this.st.sel = null; this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
+    this.stopDraw(); this.traceMove = false; this.st.sel = null; this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
     if (this.st.helpOpen) this.st.setHelp(false);
     this.requestUpdate();
     this.focus({ preventScroll: true }); // S29.10: the keys are heard on the host, so the menu click must leave focus there
@@ -2913,7 +3044,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.setFloorNow(name);
     this.switchDir = floorSwitch(Object.keys(this.st.layout.floors), from, this.st.floor, reduced)?.dir ?? null; // S27.12: null for the same floor and for reduced motion
   }
-  private setFloorNow(name: string) { this.stopDraw(); this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.closeAlign(false); this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
+  private setFloorNow(name: string) { this.stopDraw(); this.traceMove = false; /* S40 review: Move belongs to the floor's image; it must not resume on another floor */ this.st.setFloor(name); this.floor = name; this.placeRoom = null; if (this.asideMode === "place" || this.asideMode === "link") this.asideMode = "selection"; this.closeAlign(false); this.linkScope = null; this.closeScene(); } // the Place popup belongs to a room of the floor it was opened on
 
   /** Cmd/Ctrl+S: the Save button's action, except that an empty plan says so instead of writing nothing useful. */
   private saveByKey() {
@@ -3001,6 +3132,17 @@ export class FloorplanStudioEditor extends LitElement {
     if (!this.demo || !isBlank(this.st.layout)) return;
     this.applyLayout(this.demo, "Demo home loaded");
   }
+  /** S37.1: the three first-run choices. Each one ends it; the demo and the areas go through `applyLayout` (validate, one undo step, nothing changes on failure). */
+  private firstRunDemo() { this.firstRun = false; this.loadDemo(); }
+  private firstRunBlank() { this.firstRun = false; }
+  /** S37.2: one room per Home Assistant area. The plan stays unlocked, so the corners can be dragged next. */
+  roomsFromAreas() {
+    if (!isBlank(this.st.layout)) return;
+    const built = layoutFromAreas(this.ha);
+    if (!built) { this.status = "No Home Assistant area has anything the plan can draw"; this.requestUpdate(); return; }
+    this.firstRun = false;
+    this.applyLayout(built, `Drew ${built.floors.ground.rooms.length} rooms from your Home Assistant areas. Drag a corner to shape one`, false);
+  }
   /** Validates first; on any problem lists them and leaves the current layout untouched. */
   private applyLayout(x: unknown, status: string, lock = true): boolean {
     const r = loadLayout(x);
@@ -3080,8 +3222,10 @@ export class FloorplanStudioEditor extends LitElement {
     }
     const line = (a: Pt, b: Pt, cls: string, extra = "") => `<line class="${cls}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}" ${extra}/>`;
     const deg = st.turnDeg, upright = (x: number, y: number) => (deg % 360 ? ` transform="rotate(${num(-deg)} ${num(x)} ${num(y)})"` : "");
+    // S37.7: the length labels are written last among the handles (see below): a short wall puts its two end dots on its own label.
+    const lens: string[] = [];
     const len = (a: Pt, b: Pt) => `<text class="len" x="${num((a[0] + b[0]) / 2)}" y="${num((a[1] + b[1]) / 2)}"${upright((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)} text-anchor="middle" font-size="${num(10 * k)}">${(dist(a, b) / 100).toFixed(2)} m</text>`;
-    if (s?.t === "edge") { const pts = polyPts(f, s.poly); if (pts) { const a = pts[s.i], b = pts[(s.i + 1) % pts.length]; o.push(line(a, b, "hl", 'stroke-width="4"'), len(a, b)); } }
+    if (s?.t === "edge") { const pts = polyPts(f, s.poly); if (pts) { const a = pts[s.i], b = pts[(s.i + 1) % pts.length]; o.push(line(a, b, "hl", 'stroke-width="4"')); lens.push(len(a, b)); } }
     if (s?.t === "opening" && f.openings[s.i]) o.push(line(f.openings[s.i].a, f.openings[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "wall" && f.walls[s.i]) o.push(line(f.walls[s.i].a, f.walls[s.i].b, "hl", 'stroke-width="4"'));
     if (s?.t === "extra" && f.extras[s.i]) o.push(line(f.extras[s.i].a, f.extras[s.i].b, "hl", 'stroke-width="4"'));
@@ -3102,8 +3246,8 @@ export class FloorplanStudioEditor extends LitElement {
     }
     if (st.showLen) {
       const P = f.outline;
-      P.forEach((a, i) => o.push(len(a, P[(i + 1) % P.length])));
-      f.walls.forEach((w) => o.push(len(w.a, w.b)));
+      P.forEach((a, i) => lens.push(len(a, P[(i + 1) % P.length])));
+      f.walls.forEach((w) => lens.push(len(w.a, w.b)));
     }
     f.stairs.forEach((t, i) => { if (t.shape === "straight" && !t.rot) t.pts.forEach((p, j) => o.push(`<circle class="h" data-h="s${i}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`)); });
     const open = st.openDoor && f.doors.find((d) => d.id === st.openDoor);
@@ -3111,6 +3255,7 @@ export class FloorplanStudioEditor extends LitElement {
     for (const r of looseEnds(f)) { const p = f[r.k][r.i][r.end]; o.push(`<circle class="h" data-hp="${r.k}:${r.i}:${r.end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(4.5 * k)}"/>`); }
     if (s?.t === "door" && f.doors[s.i]) for (const end of ["a", "b"] as const) { const p = f.doors[s.i][end]; o.push(`<circle class="h" data-dh="${s.i}:${end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`); }
     if (s?.t === "v") { const p = ptOf(f, s.ref); if (p) o.push(`<circle class="h on" pointer-events="none" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`); }
+    o.push(...lens); // over every handle dot; a label takes no pointer, so the dots under it stay grabbable
     // Draw mode: the placed points and a dashed rubber band. Only the editor draws these; the card never sees them.
     const dr = this.draw;
     if (dr?.points.length) {
@@ -3151,10 +3296,10 @@ export class FloorplanStudioEditor extends LitElement {
     const { activeGroup } = floorGroups(st);
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, handles: !(this.asideMode === "align" && this.alignKey === st.floor), trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, ghost: this.ghostOpts(), labels: st.labels, heat: st.heat, camThumb: st.cam.on ? { ...st.cam, bust: this.thumbs.bust, failed: this.thumbs.failed } : undefined, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, handles: !(this.asideMode === "align" && this.alignKey === st.floor), trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), tempWarn: this.temps.warnFor(st.floor), now: Date.now(), roomGlow: true, ghost: this.ghostOpts(), labels: st.labels, heat: st.heat, camThumb: st.cam.on ? { ...st.cam, bust: this.thumbs.bust, failed: this.thumbs.failed } : undefined, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
     const find = this.findData();
     return html`
-      ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span>${this.banner.action ? html`<button class="banner-act" id=${this.banner.action.id} @click=${this.banner.action.run}>${this.banner.action.label}</button>` : nothing}<button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
+      <div class="narrow-note" id="narrowNote" role="status"><p>The Studio needs a wider screen.</p>${this.dashboardHref ? html`<p><a href=${this.dashboardHref}>Open the dashboard</a></p>` : nothing}</div>
       ${toolbarView(this, find.entries)}
       ${this.errors.length ? html`<div class="errors" id="errors" role="alert"><strong>That layout was not used.</strong><ul>${this.errors.map((e) => html`<li>${e}</li>`)}</ul><button class="btn" id="errclose" @click=${() => { this.errors = []; }}>Dismiss</button></div>` : nothing}
       <div class="ed">
@@ -3169,7 +3314,10 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="vrotl" title="Rotate view left" aria-label="Rotate view left" @click=${() => this.turnBy(-ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateLeft} fill="currentColor"/></svg></button>
             <button class="btn" id="vrotr" title="Rotate view right" aria-label="Rotate view right" @click=${() => this.turnBy(ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateRight} fill="currentColor"/></svg></button>
           </div>
+          <!-- S37.7: the message sits low in the plan, above the status bar. At the top it covered the open menus (Floors, Add floor) and, when the toolbar wraps, the search box. -->
+          ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span>${this.banner.action ? html`<button class="banner-act" id=${this.banner.action.id} @click=${this.banner.action.run}>${this.banner.action.label}</button>` : nothing}<button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
           ${this.statusBarView()}
+          ${this.firstRun && isBlank(st.layout) ? firstRunView({ hasAreas: !!this.ha?.areas?.length, hasHa: !!this.ha, demo: () => this.firstRunDemo(), areas: () => this.roomsFromAreas(), blank: () => this.firstRunBlank() }) : nothing}
           ${this.ctxMenu ? ctxMenuView(this, this.ctxMenu) : nothing}
           ${this.devColsPos ? this.devColsView(st) : nothing}
           ${this.haPos && this.writer ? this.haView() : nothing}
@@ -3190,7 +3338,7 @@ export class FloorplanStudioEditor extends LitElement {
 
   /** S26.22: the facts under the canvas (selection, room, snap, floor, zoom); messages and refusals keep the banner. */
   private statusBarView() {
-    const s = statusFacts(this.st, { alt: this.altDown, drawing: !!this.draw, heat: this.heatText() });
+    const s = statusFacts(this.st, { alt: this.altDown, drawing: !!this.draw, heat: this.heatText(), move: this.moving });
     const legend = heatLegend(this.st.heat);
     const ramp = legend ? `linear-gradient(to right in oklch,${legend.stops.map((t) => `var(${t.token}) ${t.at * 100}%`).join(",")})` : "";
     return html`<div class="statusbar" id="statusBar" aria-label="Status"><span class="sb-text">${s.text}</span>${legend ? html`<span class="sb-ramp" aria-hidden="true" style=${`background:${ramp}`}></span>` : nothing}${s.locked ? html`<button class="btn" id="statusUnlock" @click=${() => this.setPlanLocked(false)}>Unlock</button>` : nothing}</div>`;

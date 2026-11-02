@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { serve, ORIGIN, card, drawn, cam } from "./helpers-3d";
+import { loadCard } from "./form-harness";
 import { FIRST_TO_GROUND, GROUND_TO_BASEMENT } from "../fixtures/hand-align-truth";
 import { checkedIn, pick } from "./menu-helper";
 
@@ -132,8 +133,6 @@ test.describe("3D view: floors below (S27.7)", () => {
 // S27.14: the card gives the view its floors below: `floors_below` in YAML, a Floors below select beside Walls, kept per viewer. The
 // card calls `setBelow` with `floorsBelow`, the `floorElevation` differences and `floorPlace`. What is drawn is read back through the
 // view's test hook, as above, so the card's numbers are tested at the pixel end, not by spying on the call.
-const EDITOR_URL = "file://" + process.cwd() + "/tests/card/config-editor-harness.html";
-const CARD_JS = readFileSync("dist/floorplan-studio-card.js", "utf8");
 async function bootCard(page: Page, config: Record<string, unknown> = {}, layout: unknown = structuredClone(stress)) {
   await serve(page);
   await page.setViewportSize({ width: 1100, height: 800 });
@@ -277,13 +276,11 @@ test.describe("3D view: the card's floors below (S27.14)", () => {
   });
 
   test("the config form offers floors_below: off is the default and dropped, junk reads off", async ({ page }) => {
-    await page.goto(EDITOR_URL);
-    await page.addScriptTag({ content: CARD_JS, type: "module" });
-    await page.evaluate(() => Promise.all([customElements.whenDefined("floorplan-studio-card"), customElements.whenDefined("floorplan-studio-card-editor")]));
-    const mount = (config: Record<string, unknown>) => page.evaluate((config) => {
+    await loadCard(page);
+    const mount = (config: Record<string, unknown>) => page.evaluate(async (config) => {
       document.getElementById("editor")?.remove();
-      const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): HTMLElement };
-      const el = Ctor.getConfigElement();
+      const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): Promise<HTMLElement> };
+      const el = await Ctor.getConfigElement();
       (window as any).__events = [];
       el.addEventListener("config-changed", (e) => (window as any).__events.push((e as CustomEvent).detail));
       el.id = "editor";

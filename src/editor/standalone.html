@@ -15,6 +15,14 @@
   import "./editor-app";
 
   const el = document.getElementById("editor");
+  // The page behind the Studio takes the Studio's own background (--fp-bg of the theme on show), so a light Studio is not framed
+  // in dark. The CSS above is only the colour before the Studio has drawn.
+  const follow = () => {
+    const bg = getComputedStyle(el).getPropertyValue("--fp-bg").trim();
+    if (bg) document.documentElement.style.background = document.body.style.background = bg;
+  };
+  new MutationObserver(follow).observe(el, { attributes: true, attributeFilter: ["data-theme", "data-mode"] });
+  follow();
   el.demo = home; // File, Load demo: the furnished house
   el.layout = restoreLayout() ?? fixture; // the page opens on the test fixture, which the specs pin
   // Standalone: the host of the element writes the file.

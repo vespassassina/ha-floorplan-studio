@@ -41,7 +41,7 @@ export const MAX_ROOM_SENSORS = 20;
 `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each.
 
 ```ts
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[] }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
 ```
 
 ## MAX_ROOM_SCENES
@@ -146,10 +146,10 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
 
 ## Device
 
-`bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor entity attached to this device — several allowed, unlike `bound`. `room` (person only), S7.8: an entity whose state, `area_id` or `area` attribute names the room the person is in (a Bermuda or ESPresense area sensor, say). The card moves the icon to that room; no match keeps the placed spot. The person's own `entity` is `person.*` or `device_tracker.*`. `targets` (radar only), S7.9: up to any number of x/y sensor-entity pairs from an mmWave presence sensor (an ESPHome LD2450, say), each pair's two entities reporting one target's position in millimetres, x to the sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is screen-up), the same field a camera already uses for its cone. `motion` (lights only), S8.7: the motion sensor or motion-group entity that this light was linked to through the editor's "Turn on with... Create automation" flow — the automation the editor created, not this field, is what actually drives the light. Unlinking removes only this field; the automation itself stays in Home Assistant, untouched. Must differ from `entity`, same rule as `bound`. `power` (plugs only): the `sensor.*` (device class `power`) that measures the plug. A plug is active only while that sensor reads at least 2 W (the card's `plug_watts` changes the 2); switched on and drawing nothing is idle. Unset, the editor links the plug's sibling power sensor when it finds exactly one, and the card does the same at runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`. S14.8: the same reading also tints the plug cool, warm or hot by how much it draws (the card's `plug_heat_from` and `plug_heat_to`); no sensor, no tint. `fx` (S14.3): the size of the effect the device draws, in percent of its type's own size, 25 to 300; absent is 100. It scales a lit lamp's aura (and its floor pool and wall light in 3D), a playing speaker's or media device's waves, a triggered motion or contact sensor's ring and a siren's rings (`FX_TYPES`, `isSiren`); on a device that draws none it is ignored. Not a schema bump: an old card ignores the field, and a layout without it draws as before. `locked` (S26.1): the device does not move when dragged, alone or in a group; it can still be edited and deleted. Absent is false.
+`bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in HA. Several lights may share one switch, and the switch may be an icon too. `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor entity attached to this device — several allowed, unlike `bound`. `room` (person only), S7.8: an entity whose state, `area_id` or `area` attribute names the room the person is in (a Bermuda or ESPresense area sensor, say). The card moves the icon to that room; no match keeps the placed spot. The person's own `entity` is `person.*` or `device_tracker.*`. `targets` (radar only), S7.9: up to any number of x/y sensor-entity pairs from an mmWave presence sensor (an ESPHome LD2450, say), each pair's two entities reporting one target's position in millimetres, x to the sensor's right and y ahead of it. `entity` is the radar's own presence entity (typically a `binary_sensor.*occupancy`), which colours the icon; `rot` is which way the sensor points (`0` = ahead is screen-up), the same field a camera already uses for its cone. `motion` (lights only), S8.7: the motion sensor or motion-group entity that this light was linked to through the editor's "Turn on with... Create automation" flow — the automation the editor created, not this field, is what actually drives the light. Unlinking removes only this field; the automation itself stays in Home Assistant, untouched. Must differ from `entity`, same rule as `bound`. `power` (plugs only): the `sensor.*` (device class `power`) that measures the plug. A plug is active only while that sensor reads at least 2 W (the card's `plug_watts` changes the 2); switched on and drawing nothing is idle. Unset, the editor links the plug's sibling power sensor when it finds exactly one, and the card does the same at runtime; with no sensor at all a plug is active whenever its switch is on. Must differ from `entity`. S14.8: the same reading also tints the plug cool, warm or hot by how much it draws (the card's `plug_heat_from` and `plug_heat_to`); no sensor, no tint. `fx` (S14.3): the size of the effect the device draws, in percent of its type's own size, 25 to 300; absent is 100. It scales a lit lamp's aura (and its floor pool and wall light in 3D), a playing speaker's or media device's waves, a triggered motion or contact sensor's ring and a siren's rings (`FX_TYPES`, `isSiren`); on a device that draws none it is ignored. Not a schema bump: an old card ignores the field, and a layout without it draws as before. `locked` (S26.1): the device does not move when dragged, alone or in a group; it can still be edited and deleted. Absent is false. `view` (S40.3): a path inside Home Assistant, such as `/lovelace/terrace` (`isViewPath`). A tap on the icon opens that dashboard view, whatever the card's `tap_action`; hold keeps its own action. An older card ignores it.
 
 ```ts
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean } & ({ x: number; y: number } | { a: Pt; b: Pt });
 ```
 
 ## CarModel
@@ -238,7 +238,7 @@ export interface SavedView { id: string; name: string; floor: string; mode?: "2d
 `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned.
 
 ```ts
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 ```
 
 ## MAX_TRACE_BYTES
@@ -263,6 +263,30 @@ S7.11: a raster data URL and nothing else. SVG is left out (it is a document), a
 
 ```ts
 export const TRACE_SRC = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
+```
+
+## isEntityId
+
+A strict Home Assistant entity id (`domain.object_id`, letters, digits and underscores). The car reads its entities with this one check in `validate`, `migrate` and `carEntities`, so none of them keeps an id the others ignore.
+
+```ts
+export const isEntityId = (x: unknown): x is string => typeof x === "string" && /^[a-z0-9_]+\.[a-z0-9_]+$/i.test(x);
+```
+
+## VIEW_MAX
+
+S40.3: the longest `view` path.
+
+```ts
+export const VIEW_MAX = 200;
+```
+
+## isViewPath
+
+S40.3: a `view` is a path inside Home Assistant: one leading `/` and not `//` (or `/\`, which a browser reads as `//`), no scheme, no whitespace or control character, at most `VIEW_MAX`, and no `.` or `..` segment (a browser folds `/..//evil.com` into `//evil.com`; `%2e` counts as a dot). The card checks it again at tap time.
+
+```ts
+export const isViewPath = (x: unknown): x is string => typeof x === "string" && x.length <= VIEW_MAX && /^(?![^?#]*\/(?:\.|%2e){1,2}(?:[/?#]|$))\/(?![/\\])[^\s\\\0-\x1f\x7f-\x9f]*$/i.test(x);
 ```
 
 ## COORD_LIMIT

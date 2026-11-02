@@ -100,8 +100,9 @@ With no `layout` and no `layout_url`, the card asks the integration for the save
   only when Home Assistant does not know the command. After a failure it tries once more on the next `hass` update and again when the
   connection is ready; it never loops.
 - **Nothing saved yet.** "No plan saved yet. Open Floorplan Studio in the sidebar to draw one." with a link to the Studio for admins.
-- **Follows a save.** A save in the Studio fires `floorplan_studio_updated`; an open card reloads the plan. Home Assistant lets only
-  admins subscribe to a custom event, so a card signed in as a non-admin user loads once and needs a page reload to see a save.
+- **Follows a save.** An open card reloads the plan after a save in the Studio, for any user, through the integration's
+  `floorplan_studio/subscribe`. Against an integration older than that, only admin sessions follow a save (Home Assistant lets only admins
+  subscribe to the `floorplan_studio_updated` event); anyone else needs a page reload.
 - **A page older than the server.** If the plan is refused and the installed version differs from the page's, the card says "Floorplan
   Studio was updated. Reload this page."
 
@@ -273,6 +274,10 @@ dots stop shrinking with it and grow instead, so they stay legible in a big
 house. `icon_size` scales them further on top of that, from half size to
 three times, for a plan that still reads small, or a tablet viewed from
 across the room.
+
+## Language
+
+The card's own text (buttons, the Overview, the room panel, search, the View menu) follows `hass.language`: Italian, Spanish, Portuguese (`pt` and `pt-BR`), French, German, Dutch, Simplified Chinese (`zh-Hans`) and Polish. Any other language, and Traditional Chinese for now, reads English. Home Assistant's own words (state names, units, area and entity names) are left as Home Assistant gives them. Each language is a small file (about 3 KB) fetched when needed, so an English dashboard loads nothing extra. Change the profile language and the card follows at the next update, with no reload. No native speaker has reviewed the translations yet.
 
 ## Studio and card
 
@@ -495,11 +500,14 @@ Zoom 1 is the whole floor at fit.
 
 | Level | Zoom | What is drawn |
 |---|---|---|
-| far | below 1.6 | rooms, room names and room badges; a device that is on, alerting or unavailable stays as a dot, and so does one the Overview lists under Attention (an unlocked or jammed lock, a low battery, an open contact; it wears a thin ink outline so it never reads as a lit lamp); other idle devices go |
+| far | below 1.6, and the plan under 400 px wide (below) | rooms, room names and room badges; a device that is on, alerting or unavailable stays as a dot, and so does one the Overview lists under Attention (an unlocked or jammed lock, a low battery, an open contact; it wears a thin ink outline so it never reads as a lit lamp); other idle devices go |
 | mid | 1.6 to below 3.2 | device icons, room names and badges; no device names or readings |
 | near | 3.2 and up | everything, with device names and readings |
 
-The thresholds are fixed. **Detail** (a section of the ⋯ menu) picks the mode: **Auto** follows the zoom,
+The thresholds are fixed. In `auto`, the plan draws icons (the `mid` level) at zoom 1 too, and drops to dots (`far`) only
+when the floor at fit is under 400 px wide on screen. That width is the floor's own rendered width, not the window's
+and not the card's: a wide card in a tall, narrow house can still be small. A card on a phone is dots; one in a 1280 px
+dashboard is icons. `full`, `minimal`, a `detail` key and the viewer's menu pick all win over the width. **Detail** (a section of the ⋯ menu) picks the mode: **Auto** follows the zoom,
 **Full** is always near, **Minimal** is always far. The config key `detail: auto | full | minimal` sets the card's
 default (anything else counts as no key; the Edit-card form has a Detail select). With no key the default is `auto`, unless the viewer could not change the level: with `kiosk`, or with `active_list: false` and `zoom: false` (no Detail item, no zoom buttons), it is `full`, so no idle device is out of reach. A key you write always wins, `detail: auto` in a kiosk included. A viewer's own pick is remembered in that
 browser and wins over the YAML; Reset view clears it. With storage blocked the pick lasts until the page closes. Live 3D
@@ -912,6 +920,8 @@ The popup stays inside the card (on a short card its sliders scroll; the name, t
 second tap of the same icon. Tapping another icon moves it. It is a non-modal `role="dialog"` named after the device;
 focus goes to its primary button and comes back to what opened it. A **hold** (long press) still opens more-info
 directly, as before.
+
+A device that names a `view` (a path such as `/lovelace/terrace`, set in the editor) does not open the popup: a tap goes to that dashboard view, whatever `tap_action` says, and a hold keeps its own action. During a replay a tap does nothing; in kiosk the view is ignored.
 
 - **Turning something OFF asks first**, for every type except a light (a lock and a cover act at once; a media player or speaker has no on/off button): the button turns into **Confirm turn off**
   next to Cancel. Turning ON is immediate. A light's OFF is immediate too. A lock and a cover keep their own

@@ -9,6 +9,7 @@ import ts from "typescript";
 const PRE_3D_CARD = 90780;
 const CARD_GROWTH_LIMIT = 33870; // card file ≤ 124,650 gz (+550 for the leader search, S23.F1, 2026-10-21, Diego to confirm; 124,100 was +300 for task/card-gaps, 2026-10-21, Diego to confirm; 123,800 was +800 for the card's load, merged with the camera thumbnail, 2026-10-21, Diego to confirm; S16.3 camera thumbnail, 2026-10-21, docs/DECISIONS.md; was 121,000, Diego, 2026-10-17; Sprint 34 favourites and heat map, Sprint 35 car)
 const CHUNK_LIMIT = 233000; // Diego, 2026-10-06
+const LANG_CHUNK_LIMIT = 5000; // S37.5: one language of the card's own words, gzip; about 3.1-3.5 KB each when written, with room for the strings that follow
 /** The size `gzip -9` gives, the figure this budget is written in (node's zlib at level 9 differs by about 0.3 percent). */
 const gz = (file: string) => execFileSync("gzip", ["-9", "-c"], { input: readFileSync(file), maxBuffer: 1 << 26 }).length;
 
@@ -51,7 +52,7 @@ function comments(src: string): string[] {
   return [...at.values()];
 }
 
-test("the 3D chunk is at most 200 KB gzipped, and it is the only chunk", () => {
+test("the 3D chunk is at most 200 KB gzipped, and it is the only 3D chunk", () => {
   const chunks = readdirSync("dist").filter((f) => /^floorplan-studio-3d-.*\.js$/.test(f));
   expect(chunks).toHaveLength(1);
   const size = gz(`dist/${chunks[0]}`);
@@ -89,4 +90,109 @@ test("the test build does carry it (so the grep above can fail)", () => {
   const chunk = readdirSync("dist-test").find((n) => /^floorplan-studio-3d-.*\.js$/.test(n));
   expect(chunk).toBeTruthy();
   expect(readFileSync(`dist-test/${chunk}`, "utf8")).toContain("__fp3d");
+});
+
+// S37.5: each language of the card's own words is a chunk of its own (floorplan-studio-lang-<code>-<hash>.js), loaded by import()
+// for `hass.language`. A user who reads English downloads none of them.
+const LANG_CODES = ["it", "es", "pt", "pt-BR", "fr", "de", "nl", "zh-Hans", "pl"];
+const langChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-lang-.+-.+\.js$/.test(f));
+// The hash may itself hold a "-" (lang-de-dK--_IPn.js), so the code is read from the front, not trimmed from the back.
+const codeOf = (f: string) => f.match(/^floorplan-studio-lang-(pt-BR|zh-Hans|[a-z]{2})-/)?.[1] ?? f;
+
+test("there is one language chunk for each language the card speaks, and no other", () => {
+  expect(langChunks().map(codeOf).sort()).toEqual([...LANG_CODES].sort());
+});
+
+test(`each language chunk is at most ${LANG_CHUNK_LIMIT} bytes gzipped`, () => {
+  for (const f of langChunks()) {
+    const size = gz(`dist/${f}`);
+    expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(LANG_CHUNK_LIMIT);
+  }
+});
+
+test("the card does not carry the language chunks: a word of each is only in its own file, and the card asks for it by import()", () => {
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  // One word of each language that the card's English does not hold. A card that has it has inlined a catalogue.
+  // The build writes every non-ASCII character of a string as \\uXXXX, so the Chinese word is looked for in that form.
+  const esc = (s: string) => s.replace(/[^\x00-\x7f]/g, (c) => `\\u${c.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}`);
+  const word: Record<string, string> = { it: "Annulla", es: "Cancelar", pt: "Cancelar", "pt-BR": "Cancelar", fr: "Annuler", de: "Abbrechen", nl: "Annuleren", "zh-Hans": esc("取消"), pl: "Anuluj" };
+  for (const f of langChunks()) expect(readFileSync(`dist/${f}`, "utf8"), `${f} holds its Cancel`).toContain(word[codeOf(f)]!);
+  for (const w of ["Annulla", "Annuler", "Abbrechen", "Annuleren", esc("取消"), "Anuluj"]) expect(card, `the card holds ${w}`).not.toContain(w);
+  for (const code of LANG_CODES) expect(card, code).toMatch(new RegExp(`import\\(["']\\./floorplan-studio-lang-${code}-[^"']+\\.js["']\\)`));
+});
+
+test("a language chunk imports nothing: it is data", () => {
+  for (const f of langChunks()) expect(readFileSync(`dist/${f}`, "utf8"), f).not.toMatch(/\bfrom\s*["'][^"']+["']|\bimport\s*\(/);
+});
+
+// S38.0 (docs/DECISIONS.md, 2026-10-27): the Edit-card form is a chunk of its own (floorplan-studio-form-<hash>.js), fetched by import()
+// from getConfigElement(). Home Assistant loads the form only when someone edits the card, so no viewer pays for it in the card file.
+const FORM_CHUNK_LIMIT = 26000; // gzip; 24.8 KB when written (the form is a bundle of its own: it carries its copy of lit and of the validator), with room for the fields that follow
+const formChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-form-.+\.js$/.test(f));
+
+test("the card file does not hold the Edit-card form: its element name and a label of its markup are only in the form chunk", () => {
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  // The card names the tag once, to create the element after the import. It does not define it: the definition (the class, its
+  // markup and the define call) is the form's.
+  expect(card.split("floorplan-studio-card-editor")).toHaveLength(2);
+  expect(card).toContain('createElement("floorplan-studio-card-editor")');
+  expect(card).not.toContain("Switcher shows"); // a label only the form draws
+  expect(card).not.toContain("config-changed"); // the event only the form fires
+  expect(formChunks()).toHaveLength(1);
+  const form = readFileSync(`dist/${formChunks()[0]}`, "utf8");
+  expect(form).toContain("floorplan-studio-card-editor");
+  expect(form).toContain("Switcher shows");
+  // Named by a relative path, so it loads from /hacsfiles/... or /floorplan_studio_static/... as the language chunks do. It is a file of its
+  // own, not a rollup chunk of the card (that would import the card's code back from a hoisted third file).
+  expect(card).toMatch(/"\.\/floorplan-studio-form-[\w-]+\.js"/);
+  expect(form).not.toMatch(/\bfrom\s*["'][^"']*floorplan-studio-(card|3d)/);
+});
+
+test(`the form chunk is at most ${FORM_CHUNK_LIMIT} bytes gzipped, and it is not counted as the 3D chunk`, () => {
+  const [f] = formChunks();
+  expect(f, "there is a form chunk").toBeTruthy();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(FORM_CHUNK_LIMIT);
+  expect(readdirSync("dist").filter((n) => /^floorplan-studio-3d-.*\.js$/.test(n))).toHaveLength(1);
+});
+
+// S39.2: the history parser is a lazy chunk (src/card/replay/history.ts), loaded the first time Replay opens. Nobody who never opens it pays for it.
+const REPLAY_CHUNK_LIMIT = 6000; // gzip; 728 when written, 1,455 before replay 2 (docs/specs/replay-2.md item 21 raises it for the events, the filters and the request)
+const replayChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-replay-.+\.js$/.test(f));
+
+test(`there is exactly one replay chunk, it is at most ${REPLAY_CHUNK_LIMIT} bytes gzipped, and the card names it by import() only`, () => {
+  expect(replayChunks()).toHaveLength(1);
+  const [f] = replayChunks();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(REPLAY_CHUNK_LIMIT);
+  const chunk = readFileSync(`dist/${f}`, "utf8");
+  expect(chunk, "the parser lives in the chunk").toContain("history/history_during_period");
+  expect(chunk).not.toMatch(/\bfrom\s*["'][^"']*floorplan-studio-(card|3d)/);
+  expect(readFileSync("dist/floorplan-studio-card.js", "utf8")).toMatch(/"\.\/floorplan-studio-replay-[\w-]+\.js"/);
+});
+
+test("the card file does not carry the parser: REPLAY_CHUNK's marker and the history command are only in the chunk", () => {
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  expect(card).not.toContain("fp-replay-v1");
+  expect(card).not.toContain("history/history_during_period");
+  expect(readFileSync(`dist/${replayChunks()[0]}`, "utf8")).toContain("fp-replay-v1"); // so the two checks above can fail
+});
+
+// R2.2 (docs/specs/replay-2.md, criterion 14): the event table is the replay chunk's, not the card's.
+test("the card file does not carry the event table: EVENTS_MARKER is only in the replay chunk", () => {
+  expect(readFileSync("dist/floorplan-studio-card.js", "utf8")).not.toContain("fp-events-v1");
+  expect(readFileSync(`dist/${replayChunks()[0]}`, "utf8")).toContain("fp-events-v1"); // so the check above can fail
+});
+
+// S41.0 (docs/DECISIONS.md, 2026-10-30): Vite's default build target ("modules", with chrome87 and edge88) makes esbuild print every `a?.b` as
+// `a==null?void 0:a.b`, which cost the card 2.8 KB gzipped. The build now names its own target (vite.config.ts, BUILD_TARGET). Lit and three ship
+// `?.` as written, so a match in any shipped file is our target slipping back, not a dependency. `===null?void 0` is a different thing (our own
+// "null becomes undefined") and is left alone: the lookbehind keeps it out.
+test("no shipped file carries optional chaining printed out as `==null?void 0`", () => {
+  const files = [...readdirSync("dist").filter((n) => n.endsWith(".js") || n === "editor.html")];
+  expect(files.length, "the build produced files").toBeGreaterThan(10);
+  for (const f of files) {
+    const hits = readFileSync(`dist/${f}`, "utf8").match(/(?<![=!])==null\?void 0/g) ?? [];
+    expect(hits.length, `${f} holds ${hits.length} downlevelled optional chains; build.target is too old for \`?.\` (vite.config.ts)`).toBe(0);
+  }
 });

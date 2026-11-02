@@ -1,4 +1,4 @@
-import { DEVICE_ICONS, FURNITURE } from "./icons";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE } from "./icons";
 import { dist, edgeKindsNear, stairSteps } from "./geometry";
 import { stairMarks } from "./stair-marks";
 import { playerOf } from "./attachments";
@@ -28,12 +28,20 @@ import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
+/** S38.8: the type in a device's `<title>`: its id, or, when the host translates, the label's translation (`DEVICE_TYPE_LABELS`, whose
+ *  texts are catalogue keys). A type that is not one of ours, from a layout we did not write, stays as it is. Escaped by the caller. */
+function typeName(type: unknown, tr?: (en: string) => string): string {
+  const id = String(type);
+  return tr && Object.hasOwn(DEVICE_TYPE_LABELS, id) ? tr(DEVICE_TYPE_LABELS[id as DeviceType]) : id;
+}
 export interface RenderOpts {
   /** G9: the host's text for a sensor reading (display precision and unit). Omitted, or returning nothing, the plan prints the raw state and its unit. A non-number still reads "–". */
   formatState?: (entity: string) => string | undefined;
   /** S11.3: the room the card has picked (its left panel shows it); drawn with an outline, class `picked`. The editor draws its own selection in an overlay and never passes this. */
   selectedRoom?: number;
   scale: number; selection?: PlanSel | null; showNames?: boolean;
+  /** S38.8: the host's translator for the type names in a device's `<title>` (`t` in the card). Omitted (the Studio), the title keeps the type id, in English. */
+  tr?: (en: string) => string;
   /** S24.6: the families not drawn (`layers.ts`): their devices, unlinked appliances and, for "furniture", every piece.
    *  What `selection` or `keep` names is drawn anyway. Omitted or empty, everything is drawn, byte for byte as before. */
   hiddenLayers?: readonly LayerId[];
@@ -73,6 +81,8 @@ export interface RenderOpts {
   trace?: boolean;
   /** S7.6: after sunset. Every room gets a `room-night` overlay, `lit` when a light inside it is on; the root carries class `night`. */
   night?: boolean;
+  /** S38.3: the sun's `azimuth` and `elevation` (degrees, from the `sun` entity) and the layout's `north`, for the 3D view only; the 2D plan never reads it. Omitted or junk: today's fixed light. */
+  sun?: { azimuth: number; elevation: number; north?: number } | null;
   /** "2d" (default, also when omitted) is the flat plan, byte for byte as ever; "2.5d" adds depth (see OBLIQUE). */
   view?: PlanView;
   /** `false` draws no text at all: room, zone, extra and device names, sensor values and the leader lines. Icons, tap targets and state stay. Default `true`; absent output is byte for byte as before. */
@@ -89,6 +99,9 @@ export interface RenderOpts {
   plugHeat?: [number, number];
   /** S34.7: the heat map. `temperature` or `humidity` fills every room that reads that kind (`roomHeat`) by its place on the fixed scale: class `heat heat-<kind>` and `--fp-heat` (0..1) on the polygon, the value in the room's readout line (also under `labels: false`), and no night veil. Omitted, `off` or junk, the markup is byte for byte as before. */
   heat?: HeatKind;
+  /** S42 (docs/specs/temp-range.md): rooms that warn, by room id, as `tempWarn` decided. The plan tints them (S42.2); Attention lists them
+   *  (S42.3). The card and the studio compute it; omitted, the markup is byte for byte as before. */
+  tempWarn?: Readonly<Record<string, "hot" | "cold">>;
   /** S16.3: the camera thumbnail. With `on`, a camera whose state has an `entity_picture` draws that picture beside its icon (`size`, `pos`), in class `fp-cam-thumb` (a tap target `data-cam`, not in the editor); `bust` is the cache buster, `failed` the cameras whose picture did not load. A camera that is unavailable, has no picture or failed draws nothing. Omitted, off or junk, the markup is byte for byte as before. */
   camThumb?: CamThumbOpts;
   /** S25.5: a stack of devices fanned out. Each entry moves device `i`'s icon to `at` (plan units), with a leader line to its true
@@ -341,6 +354,14 @@ ${THEME_EXTRAS}
    .room{pointer-events:all} — a presentation attribute loses to any author rule, so the attribute alone would
    make the ring a click target with no data-r the day the editor renders live state. Two classes beat one. */
 .room.ring{pointer-events:none}
+/* S42.2: a room out of its temperature range. The wash is a second polygon over the room's fill (a texture or a colour cannot be
+   tinted from the room itself), at low opacity, in the theme's --fp-hot or --fp-cold. Under the temperature heat map the room is
+   already coloured by its reading, so the wash is not drawn; a steady 2 px border is, after the walls (a stroke on the room itself
+   sits under the wall halo, finding 16). Not the motion border: that one is red and pulses. Both take pointer-events from a class
+   rule (finding 18): an attribute would lose to any author rule. Not .tw: the studio's outline twisty owns that
+   name in the same shadow root (finding 8). */
+.temp-wash{pointer-events:none;stroke:none;fill-opacity:.3} .temp-wash-hot{fill:var(--fp-hot)} .temp-wash-cold{fill:var(--fp-cold)}
+.temp-edge{pointer-events:none;fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round} .temp-edge-hot{stroke:var(--fp-hot)} .temp-edge-cold{stroke:var(--fp-cold)}
 /* A room with a triggered motion sensor in it: one thin line inside its walls, in the sensor's own colour (a radar in
    the radar colour), for as long as the sensor is on. renderFloor masks the wide stroke down to the line; the editor's
    .room{pointer-events:all} does not touch it, being a different class, and a class rule beats the attribute (finding 18). */
@@ -1355,6 +1376,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const heatKind = o.heat === "temperature" || o.heat === "humidity" ? o.heat : null;
   const heated = new Map<number, { text: string; t: number }>();
   if (heatKind) f.rooms.forEach((_, i) => { const h = roomHeat(f, i, heatKind, o.state); if (h) heated.set(i, h); });
+  // S42.2: rooms out of their temperature range, by room id (untrusted: own keys only, two values only, ids the floor lacks are ignored).
+  const warned = new Map<number, "hot" | "cold">();
+  const tw = o.tempWarn;
+  if (tw && typeof tw === "object") f.rooms.forEach((r, i) => {
+    const w = typeof r.id === "string" && Object.prototype.hasOwnProperty.call(tw, r.id) ? tw[r.id] : undefined;
+    if (w === "hot" || w === "cold") warned.set(i, w);
+  });
   if (o.roomGlow || o.night)
     for (const d of f.devices) {
       if (d.type !== "light" || classOf(d, o) !== "on") continue;
@@ -1375,7 +1403,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const glow = o.roomGlow && glowRooms.has(i) ? " glow" : "";
     const on = !r.area && entityOn(o, r.entity, plugs) ? " on" : "";
     const h = heated.get(i), heat = h ? ` heat heat-${heatKind}` : "", heatStyle = h ? ` style="--fp-heat:${num(h.t)}"` : "";
-    out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}${heat}"${own}${heatStyle} points="${pts(r.pts)}"/>`);
+    out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}${heat}${warned.has(i) ? ` temp-${warned.get(i)}` : ""}"${own}${heatStyle} points="${pts(r.pts)}"/>`);
+    // S42.2: the wash, unless the temperature heat map already colours the room by its reading (the border below says it then).
+    if (warned.has(i) && heatKind !== "temperature") out.push(`<polygon class="temp-wash temp-wash-${warned.get(i)}" data-tw="${i}" points="${pts(r.pts)}"/>`);
   });
 
   f.stairs.forEach((t, i) => out.push(stairsGroup(t, i, o.around)));
@@ -1480,6 +1510,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (r.area || !entityOn(o, r.entity, plugs)) return;
     out.push(`<polygon class="room on ring" fill="none" pointer-events="none" points="${pts(r.pts)}"/>`);
   });
+  // S42.2: under the temperature heat map, a steady border in the warning colour, after the walls like the ring above. No data-r: never a pick target.
+  if (heatKind === "temperature") warned.forEach((w, i) => out.push(`<polygon class="temp-edge temp-edge-${w}" data-tr="${i}" points="${pts(f.rooms[i]!.pts)}"/>`));
   // S11.3: the room the card has picked, a dashed line just inside its walls (the motion perimeter's band, under its own class),
   // drawn after the wall lines: a stroke on the room's own polygon sits under the wall halo and is not seen (finding 16).
   // No data-r: it is never a pick target.
@@ -1886,7 +1918,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const bound = d.type === "light" && d.bound ? d.bound : "";
     const bname = bound ? o.state?.[bound]?.attributes.friendly_name : undefined;
     const w = d.type === "plug" ? plugWatts(d, o) : null;
-    const title = `${esc(d.type)}: ${esc(label)}${w === null ? "" : `, ${num(Math.round(w * 10) / 10)} W`}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
+    const title = `${esc(typeName(d.type, o.tr))}: ${esc(label)}${w === null ? "" : `, ${num(Math.round(w * 10) / 10)} W`}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
     // The group turns by `rot` about the icon's centre; the icon turns back so the glyph stays upright (only what else is drawn in the group turns).
     const rot = !person && typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
     // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) does not.
@@ -1989,7 +2021,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // placed object like furniture: `rot` turns the glyph itself, and it turns again with the plan when the
     // plan is rotated (no counter-rotation) — found by looking at the render (npm run shots), not by the unit
     // test alone: a copy of the device's "icon stays upright" logic left `rot` with no visible effect at all.
-    out.push(`<g data-u="${i}" class="dev unl${playing ? ` on dev-${u.type}` : ""}${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(String(u.type))}: ${esc(label)}</title>${icon}</g>`);
+    out.push(`<g data-u="${i}" class="dev unl${playing ? ` on dev-${u.type}` : ""}${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(typeName(u.type, o.tr))}: ${esc(label)}</title>${icon}</g>`);
     if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * kt)}">${esc(label)}</text>`);
   });
 

@@ -6,6 +6,7 @@ import { doorStateOf } from "./door-state";
 import { entitiesOfDevice, entitiesOfDoor } from "./attachments";
 import { colorVarFor, nameFor, type ActiveOpts } from "./active";
 import { meanReading, stateOf } from "./readings";
+import { mark, t } from "./i18n";
 
 export { meanReading };
 
@@ -57,7 +58,7 @@ export interface RoomSummary {
   entities: ReadonlySet<string>;
 }
 
-const NO_STATE = "no state";
+const NO_STATE = mark("no state");
 const finite = (p: unknown): p is Pt => Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]);
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((e): e is string => typeof e === "string" && e.length > 0) : []);
 
@@ -72,27 +73,27 @@ export function roomAreaM2(pts: unknown): number | null {
 /** "state unit", the way the panel prints it; `no state` when the entity is unknown to Home Assistant. */
 function stateText(state: StateOverlay | undefined, entity: string, format?: (entity: string) => string | undefined): string {
   const s = stateOf(state, entity);
-  if (!s) return NO_STATE;
+  if (!s) return t(NO_STATE);
   const unit = typeof s.attributes?.unit_of_measurement === "string" ? s.attributes.unit_of_measurement : "";
   return format?.(entity) || (unit ? `${s.state} ${unit}` : s.state); // the card's formatter already catches what HA throws
 }
 
 /** ISO date and 24-hour time in the viewer's zone ("2026-10-04 19:40:08"); "unknown" for anything that is not a date. */
 export function formatChanged(iso: unknown): string {
-  const t = typeof iso === "string" ? Date.parse(iso) : NaN;
-  return Number.isFinite(t) ? new Date(t).toLocaleString("sv-SE") : "unknown";
+  const ms = typeof iso === "string" ? Date.parse(iso) : NaN;
+  return Number.isFinite(ms) ? new Date(ms).toLocaleString("sv-SE") : t("unknown");
 }
 
 /** S24.7: how long ago, short, for an Attention row: "now" under a minute, then "12 min", "3 h", "2 d", rounded down.
  *  "" for anything that is not a date in the past (untrusted, finding 1): a row then shows no age rather than a wrong one. */
 export function formatAge(iso: unknown, now: number = Date.now()): string {
-  const t = typeof iso === "string" ? Date.parse(iso) : NaN;
-  const s = (now - t) / 1000;
+  const ms = typeof iso === "string" ? Date.parse(iso) : NaN;
+  const s = (now - ms) / 1000;
   if (!Number.isFinite(s) || s < 0) return "";
-  if (s < 60) return "now";
-  if (s < 3600) return `${Math.floor(s / 60)} min`;
-  if (s < 86400) return `${Math.floor(s / 3600)} h`;
-  return `${Math.floor(s / 86400)} d`;
+  if (s < 60) return t("now");
+  if (s < 3600) return t("{n} min", { n: Math.floor(s / 60) });
+  if (s < 86400) return t("{n} h", { n: Math.floor(s / 3600) });
+  return t("{n} d", { n: Math.floor(s / 86400) });
 }
 
 /** S22.1, S22.F4: a lamp lit only by its bound relay reads as the plan draws it, on, and names what keeps it on:
@@ -103,7 +104,7 @@ export function relayText(d: Device, state: StateOverlay | undefined): string | 
   const rs = relay ? stateOf(state, relay) : undefined;
   if (!rs || rs.state !== "on" || stateOf(state, d.entity)?.state === "on") return null;
   const friendly = rs.attributes?.friendly_name;
-  return `on · via ${typeof friendly === "string" && friendly ? friendly : relay}`;
+  return t("on · via {name}", { name: typeof friendly === "string" && friendly ? friendly : relay });
 }
 
 /** Where a device stands on the plan: its point, or a line device's middle; null when not finite. Shared with search. */
@@ -132,8 +133,8 @@ export function lampOffEntities(d: Device, state: StateOverlay | undefined): str
   return out;
 }
 
-export const ALL_OFF_TITLE = "Turn off the lights that are on here";
-export const ALL_OFF_SHARED = `${ALL_OFF_TITLE} (a shared relay also turns off lamps elsewhere)`;
+export const ALL_OFF_TITLE = mark("Turn off the lights that are on here");
+export const ALL_OFF_SHARED = mark("Turn off the lights that are on here (a shared relay also turns off lamps elsewhere)");
 
 /** Sprint 22 review: the All off button's title. A relay it switches off also darkens every other lamp bound to it, so
  *  when such a lamp stands outside `s` (elsewhere on `floorKey`, or on another floor) the title says so. */
@@ -142,7 +143,7 @@ export function allOffTitle(floors: Record<string, Floor>, floorKey: string, s: 
   const inside = new Set(s.devices.filter((r) => !r.piece).map((r) => r.index));
   const shared = Object.entries(floors).some(([k, f]) => Array.isArray(f?.devices) && f.devices.some((d, i) =>
     d?.type === "light" && typeof d.bound === "string" && off.has(d.bound) && !(k === floorKey && inside.has(i))));
-  return shared ? ALL_OFF_SHARED : ALL_OFF_TITLE;
+  return t(shared ? ALL_OFF_SHARED : ALL_OFF_TITLE);
 }
 
 const ringOf = (r: Room): Pt[] => (Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every(finite) ? r.pts : []);
@@ -266,13 +267,13 @@ export function deviceInfo(entity: string, hass: InfoHass, format?: (entity: str
   const rows: InfoRow[] = [];
   const add = (label: string, value: string) => { if (value) rows.push({ label, value }); };
   if (device && typeof device === "object") {
-    add("Manufacturer", text(device.manufacturer));
-    add("Model", text(device.model));
-    add("Firmware", text(device.sw_version));
+    add(t("Manufacturer"), text(device.manufacturer));
+    add(t("Model"), text(device.model));
+    add(t("Firmware"), text(device.sw_version));
   }
-  add("Area", text(own(hass.areas, areaId)?.name));
-  rows.push({ label: "Entity", value: entity });
-  rows.push({ label: "State", value: stateText(hass.states, entity, format) });
-  rows.push({ label: "Last changed", value: formatChanged(stateOf(hass.states, entity)?.last_changed) });
+  add(t("Area"), text(own(hass.areas, areaId)?.name));
+  rows.push({ label: t("Entity"), value: entity });
+  rows.push({ label: t("State"), value: stateText(hass.states, entity, format) });
+  rows.push({ label: t("Last changed"), value: formatChanged(stateOf(hass.states, entity)?.last_changed) });
   return rows;
 }

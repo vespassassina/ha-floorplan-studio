@@ -15,6 +15,7 @@ export const TOUCH_CSS = css`
   @media (pointer: coarse) {
     .fp-head-btn, .fp-floors button { min-height: 44px; min-width: 44px; }
     .fp-stack button { width: 44px; height: 44px; }
+    svg.fp-zoomable.fp-clear-stack { width: calc(100% - 60px); }
     .fp-back, .fp-sheet-top .fp-back, .fp-active-collapse { min-width: 44px; min-height: 44px; }
     .fp-rail-open { width: 44px; height: 44px; }
     .fp-rail-count { top: -4px; right: -4px; }

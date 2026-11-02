@@ -511,6 +511,8 @@ export interface AddCandidate {
   floorKey?: string;
   room?: string;
   area?: string;
+  /** S40.4: an entity row of the search's "Entities" group: the name of the HA device it belongs to. */
+  device?: string;
 }
 
 /**
@@ -579,6 +581,43 @@ export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
   }
   out.push(...devCandidates);
   return out;
+}
+
+/** S40.4: the most rows the "Entities" group of Add device shows. */
+export const ENTITY_ROWS_MAX = 50;
+
+/**
+ * S40.4: while Add device has search text, the single entities of an HA device whose own name or entity id matches
+ * (a hub of 172 entities has one device row, and the one sensor wanted is not that row's name). Only an entity with
+ * an HA device: a device-less one is a plain `ha:` row of `addCandidates` already. Not listed: one that is on the
+ * plan, attached to a door or a heater, or in the catalog (`addHaEntity` refuses it, and a catalogued device is
+ * placed from its own catalog row), and one `existing` (the list `addCandidates` gave) already has as a row: a
+ * device's main entity, a gang. The rest of a device whose main entity is placed stays findable here.
+ * A row's `key` is `ha-ent:<entity id>`, its `device` the registry's name for the device. Sorted by name.
+ * An empty search lists nothing. HA data is untrusted: anything that is not the expected shape is skipped, never thrown on.
+ */
+export function entityCandidates(l: Layout, ha: HaData | null, query: string, existing: readonly AddCandidate[]): AddCandidate[] {
+  const q = typeof query === "string" ? query.trim().toLowerCase() : "";
+  if (!q || !ha || !Array.isArray(ha.entities)) return [];
+  const taken = new Set<string>([...placedEntities(l), ...attachedEntities(l), ...l.catalog.map((c) => c.entity)]);
+  for (const c of existing) if (typeof c?.entity === "string") taken.add(c.entity);
+  const deviceName = new Map<string, string>();
+  if (Array.isArray(ha.devices)) for (const d of ha.devices) if (typeof d?.id === "string" && typeof d.name === "string") deviceName.set(d.id, d.name);
+  const out: AddCandidate[] = [];
+  for (const e of ha.entities) {
+    if (typeof e?.id !== "string" || !e.id || typeof e.dev !== "string" || !e.dev || taken.has(e.id)) continue;
+    const name = typeof e.name === "string" && e.name ? e.name : e.id;
+    if (!name.toLowerCase().includes(q) && !e.id.toLowerCase().includes(q)) continue;
+    const device = deviceName.get(e.dev);
+    out.push({ key: `ha-ent:${e.id}`, source: "ha", id: e.id, entity: e.id, name, type: typeForEntity(e, ha), ...locateEntity(l, ha, e.id), ...(device ? { device } : {}) });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name) || a.entity.localeCompare(b.entity));
+}
+
+/** S40.4: the first `ENTITY_ROWS_MAX` rows, the real count, and the line to show when rows were cut ("" otherwise). */
+export function capEntityRows<T>(rows: readonly T[]): { rows: T[]; total: number; note: string } {
+  const total = rows.length;
+  return { rows: rows.slice(0, ENTITY_ROWS_MAX), total, note: total > ENTITY_ROWS_MAX ? `${ENTITY_ROWS_MAX} of ${total}. Type more to narrow it.` : "" };
 }
 
 /**

@@ -107,7 +107,7 @@ describe("lampOp: Turn on through the relay (S22.F2)", () => {
   const d = lamp("light.pendant", 100, "switch.relay");
   it("bulb unavailable, relay off: Turn on calls switch.turn_on on the relay", () => {
     expect(lampOp(d, { "light.pendant": st("unavailable"), "switch.relay": st("off") })).toEqual({
-      label: "Turn on", domain: "switch", service: "turn_on", confirm: null,
+      label: "Turn on", ask: "Confirm turn on", domain: "switch", service: "turn_on", confirm: null,
       calls: [{ domain: "switch", service: "turn_on", data: { entity_id: ["switch.relay"] } }],
     });
   });

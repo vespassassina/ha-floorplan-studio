@@ -3,12 +3,13 @@
 // other place calls this, so "48 %" is never "48.0 %" in one of them. Everything read here is untrusted (finding 1).
 
 import { carStatus, carText } from "./car-status";
+import { mark, t } from "./i18n";
 
 /** G9: the host's text for an entity's state ("21.5 °C", "Heat/Cool"), or undefined to fall back to the raw state. The card wraps `hass.formatEntityState`; core never sees hass. */
 export type StateFormatter = (entity: string) => string | undefined;
 
 const DECIMAL =/^-?\d+(\.\d+)?$/;
-const NO_STATE = "no state";
+const NO_STATE = mark("no state");
 
 interface Reading { state?: unknown; attributes?: unknown }
 const attrsOf = (s: Reading): Record<string, unknown> => (s.attributes && typeof s.attributes === "object" ? (s.attributes as Record<string, unknown>) : {});
@@ -32,7 +33,7 @@ export function stateText(type: string, st: Reading | undefined, extra?: string,
     const line = carText(carStatus({ entity }, { [entity]: st }));
     if (line) return extra ? `${line} · ${extra}` : line;
   }
-  if (!st || typeof st.state !== "string") return NO_STATE;
+  if (!st || typeof st.state !== "string") return t(NO_STATE);
   const a = attrsOf(st), s = st.state;
   let text = DECIMAL.test(s.trim()) ? readingText(s, a.unit_of_measurement) : s;
   // G9: the host's own wording (display precision, translated enum states) wins over the raw state; the light and cover lines below still win over it.

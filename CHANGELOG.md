@@ -1,5 +1,86 @@
 # Changelog
 
+## 0.41.0 - 2026-11-01
+
+Replay shows what happened, not only how it looked. Ticks on the slider mark lamps, doors and windows and alarms, a band shows motion, and two buttons jump to the previous and next event. The bar reaches 48 hours or 7 days back, and a filter list narrows the ticks and jumps to the groups and rooms you choose.
+
+- Card: ticks above the replay slider mark when a lamp went on, a door, window, cover or lock opened, or an alarm went off; close ticks join into one. A soft band shows how much motion there was. A tick's tooltip counts what it holds; a click jumps there.
+- Card: Previous event and Next event buttons, and Shift with the arrow keys, jump to the event before or after the moment on show. A jump pauses play and the time says what happened ("21:14, door opened").
+- Card: the bar offers 24 h, 48 h and 7 d. It opens at 24 h. At 48 h the time names the weekday, at 7 d the date. Arrows move 5, 10 or 30 minutes; Page Up and Down one or six hours. Play stays at 24 hours a minute.
+- Card: if Home Assistant has purged part of the window, the strip greys it and says from when history is kept.
+- Card: a filter button opens a list of the event groups and the rooms that had events. Turning one off removes its ticks and skips it in jumps; the plan is always drawn whole. A door counts in both rooms it joins. Filters stay when you change the length.
+- Card: the replay asks Home Assistant for less: devices whose attributes the plan draws (lamps, covers, climate and the like) send every change; the rest send only significant changes in the compact form.
+
+## 0.40.0 - 2026-10-31
+
+A room that is too cold or too hot now shows it: a cold or hot tint on the plan and a line in Attention. Set one range for the house in the Studio; a room may have its own.
+
+- Card: a room whose temperature stays under its min or over its max for the hold (default 5 minutes) gets a cold or hot tint and an Attention line, such as "Kitchen 27.4 °C, above 26"; the row taps to the room. It clears at once 0.5 °C back inside the bound. Under the heat map the tint is a 2 px border instead. The reading is the heat map's own. Not in 3D, and not yet in a replay. After a page load a room already out waits the hold again.
+- Studio: the floor panel has Temperature range (house min, max and hold). A room's panel has "Use house range", or its own min and max; off with both empty, the room never warns. Values are shown in your Home Assistant unit and stored in °C. One undo step each. The live view shows the warning too.
+- Layout: `tempRange` on the layout (`min`, `max`, `hold`) and on a room (`min`, `max`). Older cards ignore it; `validate` refuses junk with the room's name.
+- Card: on a phone, a late click from a tap outside the room sheet no longer presses a control inside it (such as Lights off).
+- Card: about 3 KB smaller (gzip). The build targets Chrome and Edge 91, Firefox 98 and Safari 15.4, so optional chaining ships as written; Chrome and Edge 80 to 90 still run it.
+
+## 0.39.0 - 2026-10-30
+
+Replay is one tap away: a button under the plan opens the bar, an X closes it. A device can open another dashboard view. In the Studio, the trace image moves and turns to line up with your walls, and Add device finds a single entity of a hub by its own name.
+
+- Card: a slim Replay button sits under the plan while the replay bar is closed (icon only under 640 px). A tap opens the bar and focus goes to its play button. The bar's Live button is now an X (Close replay); Escape or the X closes it and focus returns to the Replay button.
+- Card: a device with a `view` (a path such as `/lovelace/terrace`) opens that dashboard view on a tap, whatever `tap_action` says. A hold keeps its own action. Older cards ignore the key; a bad path is refused by `validate` and dropped by `migrate`.
+- Studio: the device panel has a "Dashboard view" field under the entity. A bad path shows the validator's message and is not written; empty removes the key; one undo step.
+- Card: Enter or Space on a focused device with a `view` opens that view, as a tap does.
+- Studio: the Trace image panel has Move (drag the image; arrows nudge 1 cm, Shift 10 cm) and Rotation (-180 to 180 degrees). Escape, Scale, Hide, Remove, Draw, Align, Place and a floor switch end Move. One undo step per drag, nudge or change.
+- Studio: while you type in Add device, an Entities group lists unplaced entities of your HA devices by their own name or id, at most 50. A pick places that entity with its type. An empty search lists what it did before.
+
+## 0.38.2 - 2026-10-29
+
+Replay is easier to find, and its first frame is the live plan. Replay is now the first item of the ⋯ menu. At the end of the slider the plan is exactly the live one; earlier, a lamp whose colour Home Assistant did not record shows the default lamp colour.
+
+- Card: Replay is the first section of the ⋯ menu, above View.
+- Card: at the end of the slider the plan is the live one; a past lamp shows the default colour when Home Assistant did not record its colour.
+
+## 0.38.1 - 2026-10-28
+
+The 3D sun now follows the replay. Home Assistant does not record where the sun stood, so the card works it out from the replayed time and your Home Assistant location.
+
+- Card: in a replay, the 3D sun and its patches of light are computed from the replayed moment and `hass.config` latitude and longitude (in 0.38.0 it did not follow, because HA does not record the sun's position).
+
+## 0.38.0 - 2026-10-28
+
+The card can look back. Open the ⋯ menu, choose Replay, and a bar appears under the plan: drag it, or press play, and the plan shows how the last 24 hours looked, lamps, motion, the sun and the night included. Live returns to now. The history is read from Home Assistant when you open it, one call per floor.
+
+- Card: "Replay" in the ⋯ menu (not in kiosk, not in the Studio). A slider over the last 24 hours with the time in your language and your Home Assistant time format, play and pause (24 hours in one minute), and Live. Keys on the bar: arrows 5 minutes, Page Up and Page Down an hour, Home and End the ends, Space plays, Escape closes.
+- Card: while replaying, a tap acts on nothing and opens no popup; a short "Replaying" note shows instead. Changes that arrive from Home Assistant are kept and shown when you press Live.
+- Card: zoom, floor, view and selection are kept when you open and close the bar. The 3D view follows the replayed moment, the sun and the pools of light too.
+- Card: the history parser is a lazy file of its own, `floorplan-studio-replay-<hash>.js`, about 0.7 KB gzipped. The card file grows by about 4.1 KB gzipped. Update the integration as well as the card.
+
+## 0.37.0 - 2026-10-28
+
+The 3D view follows the sun. By day the light comes from where `sun.sun` puts the sun, weaker and warmer when it is low, and a soft patch of sunlight falls on the floor behind each window the sun shines through (at most 24, the largest first). At night, with no sun, or on the floors below, the light is as before.
+
+- Card: the hover title of a device names its type in the card's language ("Licht: Küche"). In English, and in the Studio, it reads as before.
+- Card: the switch between device icons and dots has a dead band. Icons from a plan 420 px wide, dots at 380 and under, the last level in between, so a plan resting near the bound stops flipping.
+- Card: the 3D view takes the sun's `azimuth` and `elevation` from `sun.sun` (or the entity named in `sun:`) and the plan's `north`, and lights the house from there; a hass update that moves only the sun moves the light. With no usable sun the light is the old fixed one.
+- Card: on a floor you turned with Hand align (`rotation`), the 3D sun now shines from the right side of the house. It used to ignore the floor's turn.
+- Card: an error line ("The plan could not be used", "Could not load the plan") follows a change of Home Assistant language without a reload.
+- Card: the Edit-card form loads only when you open Edit card, as a file of its own beside the card (`floorplan-studio-form-<hash>.js`). The card file is 5.3 KB smaller gzipped. Nothing changes in how the form works. Update the integration as well as the card: the card needs the new file in `www/`.
+- Card: if the Edit-card form fails to load once (a network blip), Edit card works again on the next try instead of staying broken until you reload the page; if it keeps failing, the dialog says to reload the page.
+
+## 0.36.0 - 2026-10-25
+
+A first plan from your Home Assistant areas, and a card in your language. With no saved plan, the Studio offers the demo home, your areas or a blank plan. The card now speaks nine more languages, shows device icons at its default size, and wall tablets signed in as a normal user follow a saved plan. Update the integration as well as the card.
+
+- Studio: the first time you open it with no saved plan, it offers three ways in: load the demo home, start from your Home Assistant areas, or a blank plan. Start from your areas draws one 4 x 4 m room per area that has a device the plan can draw, with those devices inside; drag the corners afterwards. Undo takes the whole thing back in one step.
+- Studio: when the Studio is under 700 px wide it now says "The Studio needs a wider screen." (with a link to the dashboard in Home Assistant) instead of showing a cramped, half-working layout. The plan, selection, zoom and undo history are kept and come back when the window is wider; nothing is saved or changed meanwhile.
+- Card: the 2D plan now draws device icons at the default zoom, idle devices included. Dots only when the plan is under 400 px wide (a phone). A `detail` key (`full`, `minimal`) or a Detail pick in the menu still wins.
+- Card: speaks your Home Assistant language: Italian, Spanish, Portuguese (also Brazilian), French, German, Dutch, Simplified Chinese and Polish. Other languages read English. The translations were written without a native speaker's review; corrections are welcome. The Studio is still English.
+- Card: wall tablets signed in as a normal user now follow a saved plan, without a page reload. Update the integration as well as the card.
+- Studio: messages ("Plan unlocked", "Saved") now show low in the plan, above the status bar. At the top they covered the open Floors menu (Add floor) and, when the toolbar wraps on a narrow window, the search box.
+- Studio: the length label of a wall is drawn over the handle dots, not under them. A short wall has its two end dots on its own label.
+- Studio (standalone page): the page behind the Studio takes the Studio's theme, so a light Studio is no longer framed in dark.
+- Studio: the Align panel's buttons are a little shorter, so its angle-step row shows in full on an 800 px high window instead of being cut off at the bottom.
+- Card: with "Floor below" on, the plan stops short of the zoom buttons, so they no longer sit on the faint outline of the floor below. The plan is 40 px narrower then (60 px on a touch screen).
+
 ## 0.35.0 - 2026-10-24
 
 A demo home to start from: File > Load demo in the Studio now opens a furnished house with a basement and two floors. The README and every picture are rebuilt from it. Home Assistant 2026.6's card picker offers the card when you pick an entity it can draw. Smaller things: a selected zone has a dashed outline, the room panel prints Home Assistant's own state text, and hover contrast is fixed.

@@ -196,3 +196,37 @@ async def test_a_save_fires_floorplan_studio_updated_and_a_refused_one_does_not(
     await ws.receive_json()
     await hass.async_block_till_done()
     assert len(seen) == 1
+
+
+async def test_a_non_admin_subscribes_and_follows_an_admin_save_until_it_unsubscribes(hass, entry, hass_ws_client, hass_read_only_access_token):
+    """HA lets a non-admin subscribe to a whitelist of bus events only, so a wall tablet needs its own command."""
+    tablet = await hass_ws_client(hass, hass_read_only_access_token)
+    admin = await hass_ws_client(hass)
+    await tablet.send_json({"id": 5, "type": "floorplan_studio/subscribe"})
+    msg = await tablet.receive_json()
+    assert msg["id"] == 5 and msg["success"] is True
+
+    await admin.send_json({"id": 1, "type": "floorplan_studio/save", "layout": DEMO})
+    assert (await admin.receive_json())["success"] is True
+    event = await tablet.receive_json()
+    assert event["id"] == 5 and event["type"] == "event"
+    assert event["event"] == {"rev": 1}
+
+    await tablet.send_json({"id": 6, "type": "unsubscribe_events", "subscription": 5})
+    assert (await tablet.receive_json())["success"] is True
+    await admin.send_json({"id": 2, "type": "floorplan_studio/save", "layout": DEMO})
+    assert (await admin.receive_json())["result"]["rev"] == 2
+    await hass.async_block_till_done()
+    # The next thing the tablet hears is the answer to this ping, not an event for the second save.
+    await tablet.send_json({"id": 7, "type": "ping"})
+    assert (await tablet.receive_json())["type"] == "pong"
+
+
+async def test_a_refused_save_sends_the_subscriber_nothing(hass, entry, hass_ws_client):
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "floorplan_studio/subscribe"})
+    assert (await ws.receive_json())["success"] is True
+    await ws.send_json({"id": 2, "type": "floorplan_studio/save", "layout": {"version": 1}})
+    assert (await ws.receive_json())["success"] is False
+    await ws.send_json({"id": 3, "type": "ping"})
+    assert (await ws.receive_json())["type"] == "pong"

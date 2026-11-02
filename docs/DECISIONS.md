@@ -2,6 +2,760 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-01: Opus review of Sprint 44 (R2.5 to R2.7), fixes
+
+Branch `task/s44-review`. Bytes: card 124,059 to 124,096 gzip (cap 124,168; 72 left), replay chunk 5,941 to 5,991 (limit 6,000; 9 left, so the next change to the
+chunk must make room first), largest language chunk pl 4,196 (limit 5,000).
+
+- **The gate now holds two things (supersedes the R2.7 CI-test paragraph).** The R2.7 claim "a 2x slowdown reads about 2.1x the clean ratio" was true of the whole
+  load only. One stage twice as slow does not move the whole ratio enough: parse doubled reads 5.71 to 6.67 here against clean 3.48 to 4.05 (the review saw
+  6.08 to 6.71, 9 to 20 % over the old 5.6), onsets doubled 4.74 to 5.39, under the ceiling. `onsets` is a third of the load (about 15 of 45 ms), so
+  doubling it adds a third. CI makes it worse: its one figure, 3.22 for the whole load, is below the Mac's clean range, so only the whole load doubled (about
+  6.4) fails there.
+  Chosen with evidence: **keep the whole ratio, and add the balance of the two stages**, `parse and index / onsets` timed inside the same load, the median of 25
+  samples (`STAGE_LOW` 1.25, `STAGE_HIGH` 2.62). The machine's speed cancels in it, so no calibrate and no dependence on a runner's layout-to-JS balance.
+  Tried and dropped: each stage against `calibrate` (parse: clean max 2.83 against doubled min 4.16, only 47 % apart, the 25 % each way needs 56 %); each stage
+  against a new pure-JS calibrate (parse: 5.40 against 8.08, 50 %; the median of paired ratios 5.70 against 7.72, 35 %). Those spreads come from the machine drifting
+  by 40 % over a minute, which the in-load ratio does not see. The JS calibrate was removed again.
+  Measured, Diego's Mac, Chromium, unthrottled, fresh page per run, the real test (`replay-gate.spec.ts -g "CI:"`, `FP_GATE_SLOW` runs a stage twice):
+
+  | | runs | whole ratio (ceiling 5.5) | parse/onsets (bounds 1.25 to 2.62) |
+  |---|---|---|---|
+  | clean | 30 | 3.48 to 4.05, median 3.83 | 1.67 to 2.08, median 1.99 |
+  | parse doubled | 15 | 5.71 to 6.67 | 3.31 to 3.93 |
+  | onsets doubled | 15 | 4.74 to 5.39 | 0.79 to 0.93 |
+  | both doubled | 15 | 6.93 to 8.15 | 1.84 to 2.26 |
+
+  Room: balance high bound 26 % over the worst clean and 26 % under the best parse-doubled; low bound 34 % under the lowest clean and 34 % over the best
+  onsets-doubled. Whole ceiling 5.5 (was 5.6; both doubled reads 6.93 at best, 24 % over 5.6): 36 % over this clean worst, 26 % under the best both-doubled; against
+  the earlier worst clean 4.43 it is 24 %. Under load (`--repeat-each=10 --workers=4`, the replay-bar spec alongside): whole 3.42 to 3.79, balance 1.95 to 2.10, green.
+  **On CI:** the whole ceiling holds (3.22 is 41 % under it, and doubled it fails). The balance is not known there: only the total (94.4 ms) was recorded. It
+  needs no calibrate, but a runner whose engine shifts allocation against lookups would move it; the first CI run prints it (`GATE CI ... parse/onsets`), and if it sits
+  outside 1.67 to 2.08 by much, widen before trusting it. Not known and not claimed.
+- **The time cell reserves its width (`min-width` 10ch at 48 h, 14ch at 7 d, `data-h` on the cell, CSS in the chunk).** The slider's grid column follows the head,
+  and the head followed the weekday's glyphs (480.5, 484.7, 479.9 px on Mon, Tue, Wed at 1000 px) or "Nov 1" against "Oct 31". Tests scrub across a weekday and
+  across a 1- and 2-digit day and hold the slider's width to 0.5 px; both failed first (0.67 px and 6.45 px). `ch` is the width of a zero; the longest English forms fit.
+  Not checked: a language whose short weekday or month is longer than four letters.
+- **The strip's accessible name says the purge** ("1 lamp. History is kept from Oct 27, 00:00"), the existing string, so Info is no longer the only place.
+- **Filters survive a new length (Diego, 2026-11-01), superseding R2.6's "filters reset on a floor change and on a new length".** `ReplayState.filters` keeps each floor's
+  `FilterState` by floor key when the histories are dropped, and the new history of that floor takes it back. A floor never opened has none and starts with all on.
+  A room off with no onset in the new window stays off (and counts in "N off", though it has no toggle there); it reappears off. Card +37 bytes (the state stays in the
+  chunk). Test: Lights and a room off at 24 h, 7 d, 24 h: the strip, the jumps and the button's "2 off" held; it failed with the keeping removed.
+- **Two stubs were not HA's shape (finding 21).** The purge stub (`replay-window.spec.ts`, `scripts/shots.mjs`) gave every entity a row at the cut; a purged recorder has no
+  start-time row, each entity starts at its first change kept, and a quiet entity is not in the reply. The filters spec put the start row 100 s before the start;
+  HA puts it at the start. Both stubs now say where the shape comes from and send it. Consequence worth knowing: the first kept row after a purge is read as the
+  start state, not as an onset, so the first change an entity kept after the cut is not a tick or a jump. Left, not changed here (it is the card's rule, "the first
+  row is the start state", and a purge is rare); say if it should change.
+- **Spec criterion 14 and the sizes table** now state the working cap, 124,168 (+600 over 123,568, the card after Sprint 42, per R2.1's entry), not "+600 of 121,511".
+- **Shots:** `card-replay-{48h,7d}-{blueprint,light}-{1280,380}` re-rendered with the new purge stub and looked at.
+
+## 2026-11-01: R2.7, 7 days ships; the gate and its CI ratio
+
+Spec `docs/specs/replay-2.md` items 10 to 12, criterion 9. The gate passed by a wide margin, so `{ hours: 168, arrow: 30, page: 360 }` is in `WINDOWS`.
+
+- **The fixture** (`tests/card/replay-gate-fixture.ts`, deterministic): 180,000 rows over 93 entities, 7 days: one power sensor with the remainder
+  (about 91,000 rows, lean rows, `a` on the first only), 20 temperatures, 14 humidities, 24 motion sensors, 14 contacts, and 20 attribute-domain entities (lights,
+  climate, a media player) with `a` on every row. 16 rooms, 6 doors. Shapes copied from `history/websocket_api.py`,
+  `recorder/models/state.py`, `recorder/history/modern.py` (said in the file). It goes through the real `fetchHistory` (both calls' parse, merged), `onsets` and
+  `purgedFrom`, served from vite's dev server as source. 10,440 onsets come out.
+- **Mac figures** (Chromium, 4x CPU throttle through CDP, `FP_GATE_MAC=1 npx playwright test tests/card/replay-gate.spec.ts -g Mac`, five fresh pages,
+  2026-11-01): first run (code cold) median 61 ms, worst 63 ms; second run median 40, worst 49 ms. Index heap after a GC, reply dropped: 12.9 MB
+  median, 13.0 worst. Limits 1,500 ms and 60 MB: 24x and 4.6x to spare. Not part of the gate but printed: the websocket client's own `JSON.parse` of the
+  reply (7 MB of text) 57 ms median, 61 worst, at 4x.
+- **CI test** (same file, always runs; redesigned after the coordinator's run showed 0.71 to 0.93 against a 1.0 ceiling): the fastest of 15 samples of the
+  workload (each 4 loads, about 45 ms) over the fastest of 15 `calibrate` calls, taken alternately, unthrottled. The same statistic on both sides; noise only adds
+  time. Clean Mac, 30 runs: ratio 3.45 to 4.30, median 3.93. With the whole load (fetchHistory, onsets, purgedFrom) run twice: 15 runs, 7.36 to 9.93, median 8.39,
+  so a 2x slowdown reads about 2.1x the clean ratio. **Ceiling 5.6**: 30 % above the worst clean run, and the best slowed run 31 % above it. Under a shard's
+  load (`--workers=4` with the replay-bar and replay-window specs alongside, 10 runs): 3.55 to 4.09, all green. Not known: CI's own baseline; the first CI run tells.
+  The separation is just the 30 % each way; if CI's ratio sits higher than the Mac's, widen the ceiling before the slowed side is lost.
+  Heap: after two forced GCs either side, the index kept referenced; asserted only against the 60 MB upper bound (one earlier reading went to -0.7 MB, so a lower
+  bound would be noise); typical 12.9 MB. `calibrate` moved to `tests/card/calibrate.ts` (a pure move) so both specs share it.
+- **Keys and play:** arrows 30 min, Page 6 h; play stays 24 h per minute.
+- **Reading the time at 7 days:** the weekday repeats only past 7 days, but the window is exactly 7 days, so Home and End share weekday and clock time. Past
+  48 h the bar's time and `aria-valuetext` show the date instead (`dayAndTime`: "Oct 28, 12:00", the card's language and 12/24 h setting). At 48 h the weekday stays.
+  The window is 168 real hours, so across a clock change Home reads one hour off a round time; it is true, left.
+- **Label:** "7 d", the existing key "{n} d" (already in the nine catalogues, so no new string); the button shows days for any length over 48 h.
+- **Tests changed because the spec said so:** the two R2.5 tests that pinned "two lengths only" and the 380 px fit now include 7 d. The bar at 380 keeps its slider (about 180 px, over 80).
+- **Bytes:** card 124,060 to 124,059 gzip (cap 124,168; 109 left), replay chunk 5,906 to 5,941 (limit 6,000; 59 left), largest language chunk pl 4,196 (limit 5,000).
+- **Shots:** `card-replay-7d-{blueprint,light}-{1280,380}` added and looked at.
+
+## 2026-11-01: R2.6, replay filters by group and room
+
+Spec `docs/specs/replay-2.md` items 14, 15 and criteria 11, 12. Card 123,959 to 124,060 gzip (+101, over the +80 aim; the cap for the whole
+spec is 124,168, so 108 are left for R2.7), replay chunk 4,770 to 5,906 (limit 6,000, so 94 left), largest language chunk pl 4,196 (limit 5,000).
+Choices the spec left open:
+
+- **The state lives in the chunk.** `replay/filters.ts` holds `FilterState` (the sets of what is OFF, the open flag, the toggles) and the card keeps one
+  per `FloorHistory`. A first version kept it in the card: +336. Filters therefore reset on a floor change and on a new length; nothing is remembered.
+- **Rooms are indexes into `floor.rooms`,** never names, so a room called `__proto__` is safe. A room without a string name counts as no room and gets
+  no toggle. `doorRoomIndexes` in `core/active.ts` returns every room a door stands on; `doorRoomIndex` is its first. A junk door that `onEdge` throws
+  on gets no rooms. Rooms are computed once per fetch, in `onsets()`.
+- **Filter rule** (`allows`): the group must be on; an event with rooms passes when any of them is on; an event with no room passes only when every
+  room with an onset is on. `neighbour` takes the predicate, and the prev/next disabled state follows it.
+- **The button sits in the head row** (`.fp-rp-head`, after the 24 h and 48 h buttons), so the grid is untouched; at 380 px the slider keeps about 190 px
+  (test: over 80). The list is `position:absolute` above the bar, inside the card, `max-width:calc(100% - 16px)`, scrolling past 16 em.
+- **A click outside includes the rest of the bar,** a literal reading: a jump button closes the list and does its jump. It is a capture-phase `click`
+  (finding 22), so nothing moves under the finger; it only closes. A list left open when the bar closes removes its listener on the next click.
+- **Escape** closes the list first and gives focus back to the filter button; a second Escape closes the bar.
+- **Strip name:** "motion in N rooms" replaces "motion on N sensors" (counted in distinct rooms; plain "motion" when no sensor has a room). All nine
+  catalogues changed; three pinned assertions in `replay-markers` followed. The Playwright bar width default went from 900 to 1000 in
+  `replay-markers.spec.ts`: the filter button takes 40 px of the slider, and at 900 two clusters merged that the test counts apart.
+- **Not done:** the guard against a late click was not run under CPU throttle (nothing moves on pointerup here).
+- **Opus re-check, fixed:** the bar's close (`closeReplay`) closes each floor's open list, so a card detached or reconfigured with the list open leaves no
+  document listener; the value text names only an onset the filters let through; the filter button's name says "Filter events, N off" while anything is off
+  (a menu button takes no `aria-pressed`; one new key in the nine catalogues).
+- **Known, left:** a zone's motion sensor gets a zone toggle in the list (spec item 15 says rooms and zones are rooms of the plan); one malformed door
+  drops every door's rooms (`validate` keeps bad doors out of a loaded layout, so it is a layout the card was never given); the list is rebuilt on each
+  play frame (only while it is open, and Play keeps repainting the bar anyway).
+
+## 2026-11-01: at 48 h the replay time names its day (Diego)
+
+A 48-hour window shows each clock time twice, so "09:00" did not say which day. Above 24 h the bar's time and its
+`aria-valuetext` carry the short weekday in the card's language ("Wed 09:00"); at 24 h they stay the time alone. `weekday`
+lives in `replay/window.ts`, so the card does not grow: card 123,958 to 123,959 gzip (the chunk's file name), replay chunk
+4,725 to 4,770 (limit 6,000).
+
+## 2026-11-01: R2.5, the 48 h window and the length selector
+
+Spec `docs/specs/replay-2.md`, items 10, 11, 13 and criteria 8, 10. Card 123,845 to 123,958 gzip (+113, under the +150 aim; replay 2 may reach
+124,168, so 210 are left for R2.6 and R2.7), replay chunk 4,046 to 4,725 (limit 6,000), largest language chunk pl 4,137 (limit 5,000). The
+baseline measured here was 123,845, five above the 123,840 recorded in the last entry. Choices the spec left open:
+
+- **The lengths are a table**, `WINDOWS` in `replay/window.ts`: `{ hours, arrow, page }` for 24 and 48. R2.7 adds 7 days with one entry
+  (30 and 360) and the bar, the keys and the slider follow. 7 days is not shown. Unknown hours fall back to the first entry.
+- **The selector is two pressed-state buttons** ("24 h", "48 h"), not a native select: a select cannot be driven by a real mouse in
+  Chromium. It sits in the time cell (`.fp-rp-head`, same grid area as the time), so the card's grid is untouched and, at 380 px, it shares
+  row one with the time. The slider keeps about 190 px at 380 (test: over 80).
+- **A new length drops every floor's history** (`r.floors.clear()`) and the shown floor is asked again by the usual `syncReplay`. Each
+  request owns its own `FloorHistory`, so a slow 24 h reply that lands after 48 h was chosen writes to an object nobody reads. No guard
+  code; a test holds the 24 h calls, answers 48 h, then releases 24 h. Play stops on a change (Play is the user's).
+- **The moment on show stays if inside, else goes to the new window's start** (`seek` clamps). The end stays the moment the bar opened.
+- **Play speed is unchanged**: 1,440 minutes per 60 s at every length, so half of 48 h passes in 60 s.
+- **Purge** is the earliest first row over all entities when it lies more than 60 s after the window's start (`purgedFrom`). One entity
+  with its start-time row means the window is whole, so a new sensor does not grey the strip. The grey is `.fp-rp-purge` in `--fp-idle`
+  (a quarter of the strip for 12 h of 48 h); the info line adds "History is kept from 27 Oct, 00:00" after the missing-entities sentence
+  (`dayAndTime`, in the chunk, from the card's language and clock setting). New keys "History is kept from {when}" and "Window" in all nine
+  languages; "{n} h" already existed.
+- **The motion band keeps 96 buckets**, now 30 min at 48 h. The marker memo is keyed by the window length too (a test fails without it).
+- **Tests**: `keyMinute` gained optional arrow, max and page arguments (defaults are the 24 h bar's); two bar fixtures in the R2.3 and R2.4
+  unit tests gained `hours` and `length` so they type-check, no assertion changed. Each key test was seen red with its fix reverted:
+  keep-moment, steps, purge, memo, and the race (by sharing one history object across lengths). The play-speed test has nothing to revert;
+  it fails if speed is scaled to the window (seen at 2,880).
+
+## 2026-11-01: replay 2 spec, clusters measured from their first tick (Diego)
+
+Diego approved changing `docs/specs/replay-2.md` item 6 and criterion 5 to match the Sprint 43 review fix. A tick joins a cluster
+when it is under 6 px from the cluster's first tick, not from the tick before it. Ticks at 0, 5, 7 and 20 px now give clusters of
+2, 1 and 1 (the spec said two clusters, the first of three). Why: the chained rule turned a real day of 474 onsets into one
+cluster at 07:00. Code and tests already follow this (PR 23).
+
+## 2026-11-01: Sprint 43 review fixes (replay 2, R2.1 to R2.4)
+
+Opus review of `docs/specs/replay-2.md` items 5 to 9. Card 123,833 to 123,840 gzip (+7: +26 for the spoken jump, -19 for two grid rules moved
+to the chunk), replay chunk 3,985 to 4,046 (limit 6,000). Eight fixes, each test first:
+
+1. **Clusters are measured from the cluster's first tick**, not from the tick before it. This supersedes the R2.3 entry's "a cluster joins the
+   one before it ... chained": a run of close ticks chained into one cluster drawn at its start (474 onsets from 07:00 to 24:00 became one
+   cluster at 07:00). A strip `w` px wide now holds up to about `w / 6` clusters, each near where it happened. 0, 5, 7 and 20 px give 2, 1
+   and 1 (were 3 and 1); that R2.3 unit test was changed for it.
+2. **A button jump is spoken through the bar's status line** (the one `role="status"`; no second live region). Focus stays on the button after
+   a click, so `aria-valuetext` is never read. `ReplayState.said` holds the onset's ms; the line shows "21:14, door opened" while the thumb is
+   still on it, so a move off it clears it. A click on Info clears it, so Info shows its line (the Opus re-check found Info looked dead after a jump). A Shift+arrow on the slider is not repeated there (the
+   slider reads its own value text); on a button it is.
+3. **`doorOnsets` walks each entity's rows with one forward index**, not a filter of every row per moment. The unit test uses 60,000 rows on one
+   sensor, bound 1,000 ms: the old code took 7,962 ms, the new one runs the whole test file in 35 ms (20,000 rows left the old code at
+   1,468 ms, too close to the bound for a faster machine). Same output.
+4. **The tick's hit area is 3 px past each side** (`inset:-4px -3px`, was -1px). A real click 4.5 px from the centre hits; a computed-style pair pins it.
+5. **Two hollow tests**: the entity-named-like-markup test now checks that no entity id appears anywhere in the markup (it fails if the
+   id reaches a title); the click-on-the-strip test was deleted (no handler exists there to fail; the real-pixel Playwright test "a click
+   between ticks moves nothing" covers it). Two `frames()` checks in the jump-pauses-play test were dropped (the Play label proves it).
+6. **The "cluster of five" stub** gives light rows `a` on every row (lights come in the full call).
+7. **`.fp-rp-prev` and `.fp-rp-next` grid areas moved into the chunk's stylesheet**: the shell drawn before the chunk loads has neither button.
+8. **The motion band opacity is `0.1 + 0.4 * n / top`** (0.1 to 0.5), which supersedes the R2.3 entry's "opacity 0.2 to 1": blueprint drew
+   the busiest bucket solid white over the ticks.
+
+## 2026-11-01: furniture, worktops, room badges, floor heating, energy counters and the 3D Studio planned
+
+Spec `docs/specs/batch-s52.md`, approved by Diego with its defaults. Sprints 52 to 61 in `docs/PLAN.md`, after Sprint 51.
+Planning only; no code yet. His answers in the interview:
+
+- **Card room first.** The batch needs about +3,720 gzip on the card, and 978 bytes are left. Sprint 52 moves the popup,
+  the dialogs or the overview into lazy chunks and must free at least 4,000. The cap stays 124,650.
+- **A worktop is furniture with points** (`symbol: "worktop"`, `pts`), not a room kind. A room kind would have reused
+  the room's point editing; Diego chose furniture, so the point editing is shared with rooms rather than reused as is.
+- **Underfloor heating is a device flag** (`underfloor` on `climate` and `heater`), not a room field.
+- **The charging car gets a glow and a 2.4 s breath**, still under reduced motion.
+- **Badges:** a tap on touch opens the hover bubble; power and water come from room sensor lists, not from the
+  devices in the room.
+- **Energy counters:** HA's Energy preferences and 5-minute statistics, in their own lazy chunk. The device tree
+  comes a sprint later. Chips with sparklines, and a draggable, see-through chart of 5-minute bars.
+- **`replay: always`** is planned as a card key; B56.1 writes its surface-freeze reason. No sync with other cards'
+  graphs in this batch.
+- **The 3D Studio** goes up to editing in 3D, in stages: a preview pane, then pick and move, then structure. Diego
+  reviews after each stage, and any stage can be the last.
+
+## 2026-11-01: R2.4, jump to the previous and next event
+
+Spec `docs/specs/replay-2.md`, item 9 and criterion 7. `neighbour(onsets, t, dir, allow)` in `replay/events.ts` is the pure search; the bar
+(`replay/bar.ts`) draws two buttons beside Play and names the event in `aria-valuetext`; the card routes Shift+ArrowLeft and
+Shift+ArrowRight and pauses play (`jumpBy` in `card-replay.ts`). Card 123,672 to 123,833 gzip (+161, over the +30 to +80 estimate; replay 2
+may add 485 more in all, so 324 are left for R2.5 to R2.7), replay chunk 3,656 to 3,985 (limit 6,000), largest language chunk 4,093 (pl, limit 5,000).
+Choices the spec left open:
+
+- **The predicate takes the onset** (`allow: (o: Onset) => boolean`, default all). An onset has no room yet, so `(group, room)` is not
+  possible today; R2.6 adds `room` to `Onset` and passes a predicate that reads `o.group` and `o.room`. A test proves a rejected group is skipped.
+- **The moment on show is `drawnT`** (the exact ms), not the slider's minute. Standing on an onset (after a jump or a tap on a tick) the next
+  press moves on; between two, a jump goes to the neighbour on that side.
+- **The value text names an onset only when the thumb sits exactly on it** ("09:00, light on"); anywhere else it is the time alone. Two onsets
+  at one moment: the first in the list is named.
+- **Event phrases** (`eventSaid`): `light on`, `motion`, `door opened` (door, window, contact), `cover opened`, `unlocked` (lock; already
+  a key), `alarm` (alarm, siren, vibration, hazard sensor). Seven new keys in all nine languages. The onset does not carry what an alarm panel
+  went to, so "alarm" does not say armed or triggered.
+- **A button that goes disabled under the finger would take the keyboard with it** (Escape and Shift+arrows stopped working; found by a test).
+  `paintBar` moves focus to the bar when the focused button is disabled by the repaint (+30 bytes).
+- **A key with nowhere to go does nothing, play included.** Shift+arrow on the bar or on one of its buttons.
+- **Two buttons cost the strip 96 px** (2 x 40 px and 2 gaps). The R2.3 Playwright tests that needed a narrow strip moved from a 330 px to a 426 px card
+  (same strip). The catalogue test's "same word" list gained `alarm` for nl and pl.
+
+## 2026-10-31: R2.3, markers on the slider and what the spec left open
+
+Spec `docs/specs/replay-2.md`, items 5 to 8 and criteria 5, 6, 12 to 15. `src/card/replay/markers.ts` clusters lamp, opening and alarm
+onsets by pixel; `bar.ts` draws the strip (CSS in the chunk, as a `<style>` in the bar). The card computes the onsets once per floor
+when the history arrives (`doorStateOf` and `coverActive` handed over), measures the strip after each paint and draws again if its
+width moved. Card 123,557 to 123,672 gzip (+115, over the +50 to +100 estimate; replay 2 may add 600 in all), chunk 2,665 to 3,656.
+Choices the spec left open:
+
+- **A cluster joins the one before it** when its x is under 6 px from the previous tick (chained, not from the first): 0, 5, 7 and 20 px
+  give 3 and 1. Ticks 6 px apart or more are separate.
+- **The motion band is 96 buckets of 15 minutes in `--fp-text`**, opacity 0.2 to 1 by count against the busiest bucket. Not
+  `--fp-dev-motion`: in most themes that is the same red as open doors and alarms, and the band sits under them.
+- **"Motion in N rooms" is "motion on N sensors" for now.** An onset has no room yet; the room map arrives with the filters (R2.6),
+  which need it too. The strip's name then reads "12 lamps, 4 doors or windows, 1 alarm, motion on 9 sensors".
+- **Tick classes are `fp-rp-t-*`.** `.opening`, `.alarm` and `.lamp` collide with the plan's own rules: a first version had
+  `pointer-events:none` from the plan's stylesheet and no real click reached it (found by `page.mouse`, finding 3).
+- **The tooltip is the native `title`** (counts only, never a name); a headless screenshot cannot draw it, so the hover shots show only
+  the hovered cluster. The strip is 8 px high with ticks of 8, 12 or 16 px growing upward; its 8 px side margins stand for the
+  thumb's half width (exact in Chromium; Firefox's thumb is a little wider).
+- **No ResizeObserver of our own.** A resize already draws the card again, which repaints the bar and measures it; the Playwright test
+  fails if the measuring is removed.
+- **A tap on a tick seeks to the onset's exact time** (not rounded to the minute), so the stateAt row of that very moment is drawn;
+  it does not pause play (only the jumps of R2.4 do).
+
+## 2026-10-31: R2.2, the event table and what the spec left open
+
+Spec `docs/specs/replay-2.md`, item 4 and criteria 4 and 14. `src/card/replay/events.ts` holds `EVENT_RULES` (ten device types) and
+`NO_EVENT` (twenty-three, each with the spec's reason); `onsets(index, floor, tools)` returns `{entity, t (ms), group, kind}` in time
+order. Marker `fp-events-v1`; the card file lacks it, the chunk has it (`size-budget.spec.ts`). The chunk is 2,665 gzip (was 1,653),
+the card 123,557 (was 123,558). Choices the spec left open:
+
+- **The baseline is the entity's first row.** No `startMs` is passed: HA sends the start-time state as the first row, and a row
+  needs a row before it to be an onset. An entity with no state before its first change (or a dead one) gives no onset for that row.
+- **Classes, not states.** A rule sorts a state into a class and an onset is entering a class in `fires` from a different one. So
+  `armed_home` to `armed_away` is not an event, `jammed` after `unlocked` is not a second one, and a row the rule calls null
+  (`arming`, `pending`) says nothing: disarmed, arming, armed_away is one onset. Dead rows (`unavailable`, `unknown`) are skipped
+  the same way, so the state after them is compared with the last known one.
+- **A door is read through `doorStateOf` on the states its sensors, locks and cover held, dead rows left out.** Onset when
+  `open || cover` goes false to true; the entity is the one whose row changed it. A door's vibration sensor and a jammed door lock are
+  not onsets (`doorStateOf` does not call jammed open); the spec lists neither for doors.
+- **`kind`** is the device type, `door` for a door or window, `room` for a room's motion sensor. An entity placed twice (two icons, or
+  a device and a door sensor) is one onset.
+- **Handed over, not imported:** `doorStateOf` and `coverActive` come in as `EventTools` (the chunk imports nothing of the card).
+  `MOTION_TYPES` is not handed over: the table names `motion` and `radar` itself, and the all-types test keeps it honest.
+  The hazard classes are copied from `core/attention.ts` (four strings) rather than exported from the card.
+
+## 2026-10-31: R2.1, the leaner fetch and what its byte rule means
+
+Spec `docs/specs/replay-2.md`, item 1 and criteria 1 to 3. A floor asks for its history in two calls: `light`, `climate`,
+`media_player`, `cover`, `fan`, `vacuum`, `water_heater` and `humidifier` in full, every other entity with
+`significant_changes_only` and `minimal_response`; each entity is in one call, a floor with only one kind sends one, none sends none.
+The request and the split live in the replay chunk (`fetchHistory`); the card passes a `send` that times each call out on its own, so
+the second call going silent fails the floor though the first answered. The websocket command is unchanged
+(`history/history_during_period`).
+
+- **Criterion 14 read against today's card.** The spec says "within +600 of 121,511". Sprint 42 already moved the card to 123,568
+  (entry below), so replay 2 may add at most +600 over 123,568, and the card stays under the 124,650 cap. R2.1 moved the card
+  to 123,558 (-10).
+- **Chunk limit 6,000** (was 1,500; spec item 21), in `tests/card/size-budget.spec.ts`. The chunk is 1,653 gzip (was 1,455, +198).
+- **Tests that pinned one call.** Four Playwright claims in `replay-bar.spec.ts` counted one history message per open; they now count
+  two (the demo floors hold lights and sensors) and check the split. The `historyRequest` unit test became `historyRequests`.
+
+## 2026-10-31: Sprint 42 review fixes
+
+An Opus review of Sprint 42 found four defects. Each was fixed test-first. The fixes cost 131 bytes gzip (123,437 to 123,568), so
+the sprint spends +1,883 over cc59805, not the 1,752 recorded below; the cap holds with 1,082 to spare.
+
+- **The warning is per floor.** Room ids are unique only within a floor, so `TempWatch.warn` is now floor key, then room id, and the
+  onset memory is keyed the same way. `RenderOpts.tempWarn` stays one floor's record (`TempWatch.warnFor(floor)`, own keys only);
+  `attention` takes the whole map and reads each floor's own entry. This changes the shape of `_tempWarn` and of the fourth
+  argument of `attention`; the tests that pinned the flat shape were updated to the nested one, claims unchanged.
+- **A range edit decides at once in the studio.** The editor's writers mutate the layout in place, so the watch's memo saw the same
+  reference. `changed()` now calls `TempWatch.stop()`, which forgets the memo and keeps the onsets: an edit does not restart a hold.
+- **No heat read without a range.** `tempRangeOf` (`src/core/temp-range.ts`) resolves the range that applies to a room; `tempWarn` and
+  `TempWatch` both use it, and the watch skips `roomHeat` when it is undefined (no range, `{}`, or no finite bound).
+- **A detached card arms no timer.** `willUpdate` syncs only when `isConnected`; connecting already requests an update.
+
+## 2026-10-31: Sprint 42 spends 1,752 bytes, not 1,000 (Diego)
+
+Supersedes spec decision 4 (`docs/specs/temp-range.md`). `gzip -9` of `dist/floorplan-studio-card.js`: 121,685 at cc59805,
+before the sprint; 123,437 after S42.4, +1,752. S42.1 to S42.3 took 1,098 of it, S42.4 654. Diego accepted the figure over a
+trim, which would have cut into code just reviewed. The 124,650 cap holds with 1,213 to spare; replay 2 needs 600 of that.
+`size-budget.spec.ts` is unchanged: its limit is the cap, and the cap did not move.
+
+## 2026-10-31: S42.4, where the onset lives and how a hold wakes the card
+
+Spec decision 8 left the mechanism open.
+
+- **One class in core, `TempWatch` (`src/core/temp-watch.ts`).** The card and the studio's live view each hold one. It keeps the
+  onset per room id in memory, calls `tempWarn` with `roomHeat(...).c` for every room of every floor, and keeps the same `warn`
+  object while nothing changed, so a host compares it by reference and a quiet hass update draws nothing new. Finding 8: one
+  code path, so the card and the studio cannot differ.
+- **It runs in `willUpdate`, memoised on the layout and the states.** Not in the `hass` setter: a layout change (a range edited in
+  the studio) must decide again too, and `willUpdate` sees both. A render for any other reason finds the same two references and
+  does nothing. `roomHeat` gains `c` (temperature only) for this; the readout, the map and the warning read one number.
+- **The hold is a timer, not a poll.** A room out but not yet held would otherwise warn only on the next state change, and a
+  sensor that reports on change may not report for an hour. `sync` returns the ms until the nearest held room warns and sets one
+  `setTimeout` for it (+1 ms); it asks the host for a render, which runs `sync` again. At most one timer, no interval, cleared
+  on disconnect (a test counts the timers). A timer that fires early finds the room not held and sets the next one.
+- **The plan is drawn without the warning while a replay shows past states** (`tempWarn: undefined`): the memory is of live
+  states, and Sprint 43 passes the flag frame to frame. Attention keeps the live warning, as it keeps live states then.
+- **Not in 3D.** The 3D view takes no heat map either; it has no render opts for the wash.
+- **Two S42.3 tests changed their set-up, not their claims.** `card-temp-attention` set `_tempWarn` by hand "until S42.4"; the card
+  now owns that field (getter only), so they use `hold: 0` and a reading out of range. Existing `roomHeat` temperature tests
+  moved from `toEqual` to `toMatchObject` for `text` and `t`; `c` has its own tests.
+
+## 2026-10-31: Review fixes for S42.2, S42.3 and S42.5
+
+From the Opus re-check of PRs 9 to 11. Each has a test that failed first.
+
+- **A room's warning is badged on its own room.** `floorRollups` read every item that was not a door or a device as furniture, so a `room` item landed on the room holding furniture piece *i*, or nowhere.
+- **The wash and border classes are `temp-wash` and `temp-edge`.** `.tw` was already the studio outline's twisty (`opacity:.75`) in the same shadow root, so the studio's wash would have been fainter than the card's (finding 8). A test checks every class the warning adds against the editor's stylesheet.
+- **A range write clears a stale plan-lock refusal**, like every other setter: an unchanged value after a refused drag no longer shows "The plan is locked".
+- **Not changed:** a range typed in °F is stored in °C rounded to 0.1, so 78 °F reads back as 78.1. Kept: the layout stays readable, and the error is under 0.1 °F.
+
+## 2026-10-31: Sprint 41 review fixes
+
+- **The sheet drops the click of a press made outside it** (supersedes the handle-only entry below). The handle-only flag
+  went stale after a finger drag, which sends no click, and the late click also pressed controls inside the sheet: Lights
+  off is a service call. The card records, on its host in the capture phase, the pointer id of the last press; a press
+  inside the sheet clears it. The sheet drops a pointer click whose id equals a press made outside it. The rule fails open:
+  the first version required a matching press in the sheet, and WebKit's tap is a touch press with id 0 and a mouse click
+  with id 1, so every tap in the sheet would have been dropped on iOS (Opus re-check, seen in Playwright WebKit). Firefox
+  gives every touch id 0, which the new rule still catches. A keyboard click (detail 0) and a click with no pointer id
+  (Safari before 17.4) count. `tests/card/sheet-guard.test.ts` feeds each engine's event shapes.
+- **Held history replies are a queue.** `release` in `replay-bar.spec.ts` waits for the n-th held call and answers all
+  unanswered; one hook could let a closed bar's release answer the next open.
+- **The freeze parser reads required, readonly, quoted and `$` keys**, and refuses mismatched quotes.
+- **The budget times the machine before and after the steps** and uses the mean; CI ratios recorded next to the Mac's.
+  The comment no longer claims a renderFloor 2.5x slower fails: the node checks pin S25.6, the time is a gross ceiling.
+- **Replay 2's 7-day gate** is an absolute figure once on the Mac and a `calibrate` ratio in CI.
+- **Scenes are Home Assistant scenes** (Diego, 2026-10-30, f5364fd): Sprint 50 saves `scene.*` through HA's scene config
+  instead of a room field in the layout. This changes where scenes live, so it is recorded here.
+
+## 2026-10-30: The sheet's handle takes only a click it was pressed for
+
+A finger on a room picks it on pointerup and the phone's sheet rises to half. Chromium sends the tap's click afterwards,
+hit-tested where the finger was; on a slow machine the risen handle is there by then, and the click took the sheet back
+to peek. CI shard 3 caught it twice in `touch-targets.spec.ts`; an 8x CPU throttle reproduced it in 6 of 20 runs. The
+handle now acts on a pointer click only when the press began on it; a keyboard click (detail 0) still acts. Fixed in the
+card, not the test: a slow phone does the same.
+
+## 2026-10-30: The surface freeze (S41.d)
+
+No new theme, no new car model; a new card config key needs a removed one or an entry here saying why. Frozen as of
+today: 37 config keys, 13 themes, 9 car models, listed in `tests/card/surface-freeze.test.ts`, which reads the keys
+from `FloorplanStudioCardConfig` itself. A probe key and a probe theme each failed it; removed, it passed. Studio layout
+settings are not frozen. Sprint 49's trace on the card is a layout setting for this reason.
+
+## 2026-10-30: The 2D update budget is a ratio to the machine's speed
+
+Supersedes "Time is a ceiling against a `renderFloor` slowdown" in "2026-10-27: S38.5, the performance budget".
+The ms ceilings failed on CI by chance: the 400-device all off ran 102 to 150 ms over eight CI runs against 130 (PR 4,
+shard 2, 135.5), because GitHub's runners are 3 to 6x slower than the Mac, not the 2 to 3x the ceiling assumed. Not a
+sharding effect: two runs on main had failed the same way. Now `calibrate` (tests/card/plan-incremental.spec.ts) times a
+fixed 2,000-group SVG string set as innerHTML and laid out, none of our code in it, and the ceiling is the update's time
+over that. Mac ratios 1.4 to 3.0, up to 5.4 under ten parallel repeats; ceilings 2.5x the quiet Mac ratios (400 devices
+4 / 7.5 / 5.5, stress ground 4 / 5 / 5). A 60 ms busy loop in `renderFloor` failed both tests (ratios 5.7 to 9.7);
+removed, they passed 30 of 30. S25.6 stays pinned by structure.
+
+## 2026-10-30: Playwright runs in four CI shards (S41.c)
+
+CI on main took 22 min, Playwright 20 of them, on one runner. `.github/workflows/ci.yml` now runs `web` (lint and unit
+tests), `e2e` (a matrix of four, `--shard=i/4 --reporter=blob`, `fail-fast: false`, each building `dist/` in its own
+globalSetup), and `e2e-report`, which merges the blobs into one HTML report and only reads: the shards decide red.
+Measured on PR 4: the four shards list 2,700 tests, the same as the whole suite; the run took 10.5 min; a planted
+failing test failed shard 3 and the run, then was reverted. The shards split by file and are uneven (3.4 to 10.2 min);
+shard 1 holds the slow specs. If CI grows, rebalance before adding runners.
+
+## 2026-10-30: Brainstorm picks (S41.b)
+
+Diego picked eleven of 25 candidates (the list rated value, cost and risk; sources were the reviews, PLAN, DECISIONS and
+the four deferred field requests). Order, by Claude, from cost and dependency: Sprints 46 (follow renames, area check,
+HA floors, the Studio at small sizes), 47 (Attention to notify, Attention snooze), 48 (history chart, a value icon on
+`other`, a plan legend), 49 (trace on the card, scenes into HA). History chart after replay 2, because it shares its
+fetch. Card bytes: reclaimed only when a picked feature does not fit, not as a sprint of its own. Dropped: vacuum
+position, several houses, the 2D sun wedge, the car card popover, SVG import, an Attention sensor in Python. Studio
+translations wait for the editor split.
+
+## 2026-10-30: Replay 2 approved (S41.r)
+
+Diego approved `docs/specs/replay-2.md` with its defaults.
+
+- **Fetch.** Today's history call carries every attribute on every row; on Diego's largest floor cameras are 77 % of the
+  bytes. Two calls per floor, attributes only where the card draws them, cut 24 h from 298 to 53 KiB on the wire.
+- **Range.** HA keeps 10 days by default; statistics hold numbers, not events, so the replay never reaches past the
+  purge. 48 h ships; 7 days ships only if the R2.7 gate passes.
+- **Events.** Motion is too dense for marks (about 2,500 a day on one floor) and becomes a band; lamps, openings and
+  alarms are clustered marks. A lamp's event is its turning on; arming and disarming are alarm events. Play speed stays
+  24 hours per minute at any length.
+- **Bytes.** The replay chunk limit rises from 1,500 to 6,000 gzip in R2.1; the card spends at most 600 bytes of its
+  3.1 KB room on replay 2. Temperature warnings (Sprint 42) come first.
+- **Cut.** Statistics past the purge, a busy-room tint, separate live cues for open doors and recent motion (both exist).
+
+## 2026-10-30: The build names its own target (S41.0)
+
+Room for the card. 0.39.0 shipped at 124,649 bytes gzip against a cap of 124,650.
+
+- **Cause.** Vite's default `build.target` is `modules`: `es2020, edge88, firefox78, chrome87, safari14`. esbuild counts optional
+  chaining as safe only from Chrome and Edge 91, so with chrome87 in the list it prints every `a?.b` as
+  `a==null?void 0:a.b`, with a `var _a` temp for chains. Proved by transforming `a?.b?.c` with each browser alone: edge88,
+  chrome87 and chrome80 downlevel it; es2020, firefox78, safari14, safari15.4 and firefox98 keep it. Not the minify pass
+  (`scripts/minify-output.mjs`, no target, keeps `?.`) and not a dependency (lit and three ship `?.` as written: with
+  `target: esnext` the only `==null?void 0` left in the card is `===null?void 0`, our own code). The count was 467 in the
+  card, 71 in the 3D chunk, 45 in the form, 434 in the panel, 411 in the editor; the plan's "22" was a different grep.
+- **Home Assistant's floor.** `https://raw.githubusercontent.com/home-assistant/frontend/dev/.browserslistrc` (read
+  2026-10-30). `[modern]`: `unreleased versions`, `last 2 years`, `not dead`, `not QQAndroid > 0`, `not UCAndroid > 0`.
+  `[legacy]`: `Chrome >= 67`, `ChromeAndroid >= 67`, `Edge >= 79`, `Firefox >= 98`, `FirefoxAndroid >= 98`, `iOS >= 15.4`,
+  `Safari >= 15.4`, `Samsung >= 9`. HA transpiles for its legacy floor; a custom card is not transpiled, and the card
+  already needed Chrome 80 for `??` (esbuild keeps it from chrome80). No ES2020 target can reach Chrome 67.
+- **Target.** `["es2020", "chrome91", "edge91", "firefox98", "safari15.4"]` in `vite.config.ts` (`BUILD_TARGET`), for the
+  form, card, panel and editor builds; the lazy 3D, replay and language chunks come out of the card build. Firefox and
+  Safari take HA's legacy floors (both already keep `?.`). Chrome and Edge 91 are the oldest esbuild keeps `?.` for,
+  newer than HA's 67 and 79. **Cost: none found.** Chrome 80 parses `?.`; esbuild waits for 91 because of one V8 bug
+  (issue 11558, fixed in Chrome 91: spread arguments in an optional call, `a?.b(...c)`, the case Babel's
+  `bugfix-v8-spread-parameters-in-optional-chaining` handles). Our source has no such call (grep, 2026-10-30), and lit
+  and three already shipped `?.` as written. So Chrome and Edge 80 to 90 run the card as before. Chrome 67 to 79 could
+  not run it before either (`??`). A new `?.(...x)` in our source would bring the bug back for those versions.
+- **Bytes, gzip -9 (before to after, saved).** card 124,623 to 121,511 (3,112); form 24,993 to 24,665 (328); 3D chunk
+  164,216 to 163,703 (513); panel 192,593 to 189,483 (3,110); editor.html 188,646 to 185,708 (2,938); replay and the
+  nine language chunks unchanged. Raw card 384,857 to 373,200.
+- **Test.** `tests/card/size-budget.spec.ts`, "no shipped file carries optional chaining printed out as `==null?void 0`":
+  every dist `.js` and `editor.html`, `(?<![=!])==null\?void 0` (so `===null?void 0` passes). Failed first (editor.html: 410),
+  passes now.
+- **Cap.** The card is 121,511 against 124,650: 3,139 bytes of headroom.
+  Diego, 2026-10-30: the cap stays 124,650. The 3.1 KB is room for temperature warnings and the next card features;
+  each sprint states what it spends in its own entry.
+
+## 2026-10-30: five flaky 3D specs were budgets, not races
+
+In a full run (default workers) four 3D specs failed now and then; each passes alone. With `--repeat-each=40 --workers=8` the base reproduced seven failures in 160 runs. Nothing in the product raced: every frame is real software WebGL, so a spec's wall clock scales with how many Chromiums share the CPU (the labels drag: 4.5 s alone, 14 s at 8 workers, one run at 52 s). No wait or retry was added.
+
+- **Labels, "a drag never flips a label".** Not a race. 60 `mouse.move` steps each wait for a stress-scene frame (2 s alone, 11 s at 8 workers) and the 30 s test timeout fell on a loaded run. The drag is 12 steps now: still more than five frames, each one sampled in the page, and the assertion that the faded set never changes is untouched.
+- **Pick, 5000 pieces.** The 1 s budget ran across Playwright round trips (`Date.now()` around `mouse.click` plus a 1 s poll). It is now stamped in the page, from the `pointerup` to the `data-ring` change, still under 1 s; the poll only waits (15 s) for the ring to appear.
+- **Framing, floor switch mid-glide.** A race in the test: a 400 ms glide can end between two polls of `data-easing`, so the premise was not always there. The glide is slowed to 20 s (`__fp3d.glideMs`, as the neighbouring tests do) until the switch has landed.
+- **Perf, 2000 trees.** The 10 s budget counted `serve`, `goto` and polling. It is now the page's own time from `setConfig` to the first frame (0.1 to 1 s measured at 8 workers), asserted under 10 s. The canvas is waited for in the page too: after the first frame its main thread stalls for seconds in native software GL (profile: JS under 100 ms), and a poll from outside queued behind it.
+- **Framing, a glide draws three frames** (added 2026-10-31). The fifth: 400 ms held two frames at eight workers, 25 of 40 runs on main. The glide is 2 s in this test; a 1 ms glide still fails it, 40 of 40 pass.
+- **Not done:** a serial Playwright project. In-page timing made it unnecessary.
+
+## 2026-10-30: Sprint 40 review fixes, and the card lane's calls
+
+From the Opus review of the integrated sprint. Each defect has a test that failed first.
+
+- **The card lane's calls, not written down before.** Kiosk ignores `view`: a kiosk tap does what it did. The idle
+  Replay button is named by its `title` and has no `aria-label`; the card had a few bytes of gzip left, and the accessible
+  name is the same. The open bar's markup lives in the lazy replay chunk; until it loads, a shell bar with the X and
+  the reason shows, so Escape and the X work even when the chunk fails. "Live" left the catalogues with the button.
+- **Enter and Space follow `view` too.** A tap on a device with a view navigates; the keyboard opened the popup and
+  had no way to the view. The key now does what the tap does, through the same check at the moment of the key.
+  Supersedes spec item C13 for keyboard users only: the popup is still reached by hold or from Attention.
+- **`view` refuses `.` and `..` segments.** `/..//evil.com` passed the `//` rule and resolved to `//evil.com`.
+  `pushState` cannot leave the origin, so it was no redirect, but a reload asked HA for that path. One rule,
+  `isViewPath`, still serves validate, migrate, the editor and the tap.
+- **The bar takes focus only when nothing else has it.** It moved focus to Play when the history arrived, even after
+  the user had moved on. Focus moves now only when it is inside the bar (the Replay button turns into it) or on the page's body;
+  focus anywhere else, inside the card or in another card, the sidebar or a search box, stays. "Spacebar", a key
+  name only old Edge sent, is gone from the card's key handlers; it paid for the check.
+- **Rotation is rounded before it wraps.** -0.04 was stored as 360, which `validate` refuses, so Save failed later
+  with no link to the field (finding 12). The field now shows the stored value in -180..180.
+- **Move gives way.** Draw, Align, Place and a floor switch turn Move off; with Move on a click never placed a draw
+  point. Escape during a drag cancels it, as for devices. The Move hint sits in the Trace panel, which covered the
+  status bar.
+
+## 2026-10-30: Sprint 40, the editor lane (trace Move, single entities)
+
+Details the spec left open. Spec: `docs/specs/quick-wins-s40.md`, items 6 to 9 and 14 to 17.
+
+- **Move takes the whole plan, not only the image's pixels.** With Move on, any left press on the plan drags the image:
+  the image sits under rooms drawn see-through, so asking "is the pointer on the image" would make the drag miss
+  where the user is lining up walls. Middle button, right button and Ctrl/Cmd still pan. A fixed plan refuses Move
+  with the usual "plan is fixed" message, since `trace` is part of the plan.
+- **Rotation is shown -180..180 and stored 0..360.** `validate` refuses a negative `rot`, so the field normalises
+  (-90 is stored 270). Values outside the range, or an empty box, are refused with a message and the box shows the
+  layout again. The schema is unchanged.
+- **Positions round to 0.1 cm** (a drag), nudges are whole centimetres.
+- **The Entities group skips catalogued entities.** `addHaEntity` refuses an entity already in the catalog, and a
+  catalogued device is placed from its catalog row, so listing it would offer a pick that does nothing.
+- **Only entities of an HA device.** A device-less entity is a plain row of Add device already; listing it again
+  would be a second row for the same thing.
+
+## 2026-10-29: Sprint 40, quick wins from a field report
+
+A user asked for five things; Diego took the four small ones first, and asked for a replay button. Spec:
+`docs/specs/quick-wins-s40.md`.
+
+- **A Replay button under the plan, and an X.** Replay was only in the ⋯ menu. The button sits where the bar opens,
+  so the bar replaces it. "Live" becomes an X, "Close replay": closing has always meant back to live, and the end of
+  the slider already is live. No config key: the button follows `canReplay`, so kiosk never shows it.
+- **A per-device `view`, not a card `navigate` tap action.** S33.3 refused `navigate` because a card has one target and
+  a plan has hundreds of icons. A path per device has one target per icon. It wins over the card's `tap_action` for that
+  icon only. A path inside Home Assistant only; anything with a scheme or `//` is refused, so a layout from a stranger
+  cannot send a tap off-site (finding 1).
+- **The trace image still never reaches the card.** Moving it is editor-only. Showing it on the card is a later sprint,
+  since it changes what the server sends to non-admins.
+- **Single entities in Add device only while searching.** With the search empty the list stays one row per HA device; a
+  hub of 172 entities would otherwise drown it.
+
+## 2026-10-28: Replay at the top of the menu; the end of the slider is live
+
+Two defects from Diego's real Home Assistant on 0.38.1.
+
+- **Replay is the first section of the ⋯ menu**, above View. The menu is long (View, Theme, Labels, Detail, Layers, Heat map, Camera thumbnail with size and position, Rotate, Reset view) and Replay, pushed last, sat below the fold of its scroll area; he could not find it. Supersedes the order in the Sprint 39 card entry (Replay last). A Playwright test with the Overview on and a floor with a camera asserts the item is inside the menu's box without scrolling.
+- **At the end of the slider the plan is the live one.** Spec item 3 says the first frame is the live plan, and it was not: the recorder kept no `rgb_color`, `hs_color`, `color_mode` or `brightness` for `light.laundry` (a Hue group; the real rows' attributes held only dynamics, entity_id, friendly_name, hue_scenes, hue_type, is_hue_group, lights). At "now" the replay drew the lit lamp in the default warm yellow while the live plan drew it purple. While the thumb is at the end (`drawnT >= end`), `replayStates` returns nothing, which every reader already treats as live: `_stateForRender` reads `hass.states`, `_now` the real clock, the motion timer and the sun their live sources, `overviewStates` the live states. Play from the end still restarts from the start. A `hass` update now shows at the end of the slider; one step back, it does not move the plan (spec item 8 holds for every past moment).
+- **Earlier moments draw only what the recorder kept.** A lit lamp with no recorded colour draws the default lamp colour. We never borrow today's attributes for the past: that would paint a colour the lamp may not have had. The spec's item 6 says so.
+- **Tests.** `replay-bar.spec.ts` (menu position; purple at the end, default colour one step back, purple again on End, rows copied from the real reply) and `replay-bar.test.ts` (`replayStates` at and before the end) failed first. The `night: auto` test pinned the old end (a replayed day at 12:00 while live said night); it now expects the live night at End and the replayed day one step back.
+
+## 2026-10-28: the replayed sun is computed
+
+Field report on 0.38.0: during a replay the 3D view had no sun. Home Assistant's recorder keeps `sun.sun`'s state but not its `azimuth` and `elevation`: a real `history/history_during_period` reply (291 rows over 24 h) held `friendly_name` in the first row's attributes and none after. `_sun()` read the attributes, so it returned null. Night was fine: it reads only the state. The Playwright stub had invented the two attributes, which is why nothing caught it.
+
+- **The replay computes the sun** from the replayed moment (`_now()`) and Home Assistant's location (`hass.config.latitude` and `longitude`, the frontend's `HassConfig`), with `sunPosition` in `src/core/sun-position.ts` (NOAA's low-precision series, about 1 degree, no refraction, no dependency). Recorded attributes, if a row has them, win. No location, or junk, is no sun.
+- **Live is unchanged.** A live sun entity with no attributes is still no sun; nothing is computed outside a replay.
+- **Tests.** The stub rows are now the real shape; `tests/card/card-sun-replay.test.ts` and a 3D test in `replay-bar.spec.ts` (east in the morning, west in the afternoon, none at night) fail without the change.
+
+## 2026-10-28: Sprint 39 review fixes
+
+From the Opus review of the history replay. Each defect has a test that failed first (`tests/card/replay-bar.spec.ts`, `replay-bar.test.ts`, `replay-history.test.ts`).
+
+- **Other floors stay live during a replay (S4).** Attention and the Overview run over every floor, and the replay holds the shown floor only. The floor menu's alert badges, the Attention list and "All floors" read the shown floor from the replay and every other floor from `hass` (`overviewStates` in `card-replay.ts`): an alarm upstairs now must not vanish because the ground floor is in the past. A shown-floor entity with no row at that moment is absent, as on the plan.
+- **Supersedes** the Sprint 39 card entry's "floors drawn below it (3D) and ghost floors have no history and are drawn as they are live". They carry no state at all, only geometry and the replayed sun, so the picture is right; the live part was never true of the picture, only of the badges and the Overview, which the decision above settles.
+- **Person positions stay out of the fetch.** `Device.room` of a person is not asked for: person positions are a non-goal of the spec. Every other entity the floor draws is: furniture `entity` and a car's `attached`, the power sensor linked to a plug, and the battery sensors on the HA device behind a placed entity (the sources `attention` reads). A test iterates `DEVICE_TYPES` and `FURNITURE_SYMBOLS` so a new member needs a line.
+- **Nothing acts from the past (B1).** The guard sits at the two choke points, `callService` and `openSubject`, so Lights off, favourites, scenes, Overview rows, search and Enter on a focused device are all covered, and a new button is too. The words (Active row, tooltip, favourites, focus line) and the favourite's label read the states on show (`subjectText`, `subjectOp`).
+- **A plan that is live has a live clock (S2).** While the history loads or has failed, `_now()` and the motion timer are the real ones; a floor switched to while playing pauses the play until its history is ready.
+- **The Overview redraws for a minute only when an Attention row shows an age (N1).** Supersedes the Sprint 39 card entry's "or the sheet shown (its ages)": with nothing in Attention a minute changes nothing on the sheet, and play no longer redraws the card 24 times a second.
+- **The replay closes on `setConfig` and on disconnect (S6, N5).** A new config, or a card attached again later, does not show a stale window. This replaces the earlier pause that kept the place.
+- **The replay chunk retries like the 3D one (N2).** A failed import is retried under a new query; the bar says the page is stale. The history parser drops times a Date cannot hold (B2).
+- **Camera pictures are probably not recorded (N4).** The recorder keeps a camera's state (`idle`, `recording`), not its `entity_picture` token, so a camera thumbnail may vanish during a replay. Not checked against the HA source; seen in a real replay before it is called a defect.
+- **Spec criterion 10 is reworded.** "60 s of play covers 24 h within 2 s (fake clock)" cannot be timed in real time under Playwright (the earlier entry says why). The test checks the replay's own clock (half the slider after 30 s of clock time, the end after 60 s) and a bounded draw count; `docs/specs/replay-s39.md` says so.
+
+## 2026-10-28: Sprint 39 card, what the spec left open
+
+Choices made building S39.2 to S39.4 (`src/card/card-replay.ts`). Each is the simplest reading of `docs/specs/replay-s39.md`.
+
+- **Replay is offered only with a `hass.connection`** (and a layout, and not in kiosk). Without a connection there is nothing to ask, and
+  the menu tests that have none stay as they were.
+- **The plan is drawn again for a minute only when the minute can change the picture:** a motion fade still running, or the sheet shown
+  (its ages). Otherwise only the bar's time is painted, by `lit.render` into its own place. This narrows "one draw per minute" (item 11) to
+  "no more than one per frame, and only when something visible changed". A minute of play does not redraw an unchanged plan.
+- **Time is the browser's zone.** `locale.time_format` "12" or "24" is honoured; otherwise the language decides.
+- **Only the shown floor is fetched.** Floors drawn below it (3D) and ghost floors have no history and are drawn as they are live.
+- **The bar is not chrome for `fitHeight`:** the plan letterboxes in the room left when it opens.
+- **A hidden tab pauses play:** a frame step is capped at 500 ms, so the replay does not jump when the tab returns.
+- **Entities with no history are absent** from the replayed states, as the spec says; the info button shows how many.
+- **Replayed states carry `entity_id` and `last_updated`,** which Home Assistant's formatters read.
+- **The 60 s run is not timed in real time.** Playwright's fake clock costs 17 s of real time for 60 s of an empty `requestAnimationFrame` loop,
+  so "24 h in 60 s" is tested as clock time (value after 30 s, stop at the end) and the draw count is bounded instead.
+
+## 2026-10-28: Sprint 39 plan, history replay and plan D
+
+Diego's answers, each the proposed default. Spec: `docs/specs/replay-s39.md`.
+
+- **Card only.** The Studio has no live state, so the replay is an exception to the parity rule, stated, as the sun was.
+- **A bar under the plan, from the ⋯ menu.** No config key (the surface freeze, review item 17), and no timeline taking
+  room on every dashboard. It opens paused at now, so the first frame is the live plan.
+- **The whole shown floor, 2D and 3D,** through `_stateForRender()` and the card's one clock, so the past is drawn by
+  the same path as the present (finding 8). Taps do not act while replaying.
+- **Plan D, one item per sprint,** as the review said: the card file split in Sprint 39 (before the replay touches the
+  card), CI shards and the surface freeze in 40, the editor-app split in 41.
+
+## 2026-10-28: Sprint 38 Opus review
+
+- **One sun for the whole house.** The floors below (ghost or solid) are lit by the same moving sun as the floor shown.
+  Supersedes the non-goal in `docs/specs/sun-s38.md` "Floors below keep today's fixed light": a second light for them
+  costs bytes and draw time and gives a less true picture. They still get no patches.
+- **The sun's north is the floor's.** The card passes `north − rotation` of the current floor (wrapped into [0, 360)),
+  since the 3D view draws a floor in its stored frame (SPEC, `floor.rotation`). Without it a turned floor was lit, and
+  took patches, from the wrong side.
+- **The icons-or-dots level settles one render late.** The card keeps the last level (S38.7) and corrects it in
+  `updated()` from the new measure. After a floor switch, a turn or a return from 3D, the first render may use the old
+  level for one frame. Accepted: the alternative recomputes the band in render and loses the hysteresis.
+- **A failed form load retries, then says to reload.** Edit card's form is fetched with the 3D chunk's retry; a file
+  that stays missing (a tab open across an update) shows the stale-page message instead of HA's YAML fallback.
+
+## 2026-10-28: S38.7 and S38.8, two card nits
+
+- **Dots at 380 and under, not under 380.** A 380 px box gives a plan exactly 380 wide; with "under 380" it sat in the
+  dead band and the S37.6 straddle test saw no switch. The band is strictly between 380 and 420. Supersedes the plan
+  entry's "dots under 380" and S37.6's single bound of 400 (`ICONS_MIN_PLAN_PX` stays for `detailFor`'s own callers).
+  An unmeasured card shows icons, as before.
+- **English keeps the type id in a title.** The card passes its translator only when a language other than English is
+  active, so an English title still reads "plug: TV plug" and no existing pin changed; German reads "Licht: Küche". The
+  Studio passes none. Only the type is translated; the rest of a title is the layout's own name, a number and a unit.
+
+## 2026-10-28: S38.4, sun patches
+
+- **Outdoor kinds are not rooms.** Garden, terrace, pavement, water, zone and fill take no patch and do not count as
+  "inside" when an edge is tested for the outside; a window onto the garden is an outer window.
+- **Core knows the openings.** `scene-build.ts` gives `Scene.apertures` and a `WallSeg.outline` flag, so the chunk finds
+  outer openings without reading the layout. Pure geometry, unit tested in core.
+- **First exit clips.** A patch is clipped along each ray at the first point it leaves the room, so an L-shaped room's
+  patch stops at the inner corner rather than crossing the notch.
+- **Lowered walls keep their patches.** The patch is the sun through the opening as built; lowering walls for the view
+  does not move the sun.
+- **Strength.** Dark themes add light: gain 0.45 x `strength`, thinning to 40 % at the far edge, feathered over 25 %
+  across and 20 % along. Light themes mix instead: normal blending toward a warm tint (about 245/240/228 on screen) at
+  alpha `min(1.4 x strength x feather, 0.8)`, so a pale floor never clips to white. Supersedes spec item 7's "a light
+  theme caps it as `LIGHT_GLOW_CAP` caps a wall glow": the additive cap of 0.35 on a floor at about 0.85 clipped the
+  kitchen in the demo to flat white. The light-theme patch is subtle by design (centre about 7 % over the floor).
+
+## 2026-10-27: S38.0, the card form is a file of its own
+
+- **A bundle, not a Rollup chunk.** A dynamic import of `config-editor.ts` made Rollup hoist the card's shared code
+  (lit, core) into a third file named like the 3D chunk. The form is now its own Vite build (mode `form`, built before
+  the card), `floorplan-studio-form-<hash>.js`, whose name the card compiles in. `getConfigElement()` is async; HA
+  awaits it (`hui-element-editor.ts`, cited in `tests/card/card.test.ts`).
+- **The cost moves to the editor.** The form carries its own lit and validator: 24,828 gz, loaded only when someone
+  opens Edit card. The card file went from 124,495 to 119,214 gz, 5,435 under the cap. The form has a limit of its
+  own, 26,000 gz. The release requires exactly one form file, as it does one 3D chunk.
+
+## 2026-10-27: S38.1 and S38.3, the 3D sun light
+
+- **`north` travels with the sun.** The 3D view cannot read the layout, so the live sun is `{ azimuth, elevation, north? }`
+  (default 0). The card passes `layout.north` beside the two raw attributes (S38.2). Supersedes "the card passes the two
+  raw numbers" in `docs/specs/sun-s38.md` criterion 9 by one field.
+- **A low sun lights a wall more than a roof.** At 10° elevation a flat top reads darker than the sunlit face (blueprint
+  85 against 96); at 50° the top is lighter (109 against 94). The SPEC rule asks that tops, sun faces and shade faces
+  step apart by 6 %; they do, at about 13 %, so the order may flip and the test asserts the step, not the order, below
+  30°. Real light does the same; no change to the hemisphere light for it.
+
+## 2026-10-27: S38.9, duplicate area names
+
+`layoutFromAreas` keeps the first room's name and numbers the next ones with the same name ("Office 2", "Office 3"), so `catalog.room`, which is the room's name, tells rooms apart. Case-insensitive, as `render.ts` matches room names; a real area named "Office 2" keeps its name and a generated one takes the next free number.
+
+## 2026-10-27: S38.5, the performance budget
+
+Supersedes the line in the Sprint 38 plan entry below: "each budget set between the incremental and the full render so
+the test fails without S25.6".
+
+- **The two cost the same.** Median of 5, ms, Diego's Mac, incremental / full (the plan replaced, `innerHTML`). 400
+  devices: one 19.0 / 23.4, all on 36.4 / 35.1, all off 25.8 / 24.0. Stress ground (182 devices): one 17.1 / 18.3, all
+  on 21.1 / 21.1, all off 19.3 / 19.0. Forcing layout in the timed span changed nothing. `renderFloor` building the
+  markup dominates; the DOM patch is a small part. No time budget can tell the two apart.
+- **Time is a ceiling against a `renderFloor` slowdown.** About 5x today's incremental number, for CI at 2 to 3x slower:
+  400 devices 100 / 200 / 130 ms, stress ground 90 / 110 / 100 ms (one change / all on / all off). Raise one only with
+  new numbers here.
+- **S25.6 is pinned by structure, not time.** After all on: the plan's root `<svg>` is not written, and (stress) a
+  device node is the same node; plus a write ceiling just above today's count (400 devices 2461 -> 2710, stress
+  ground 421 -> 465). A replaced plan shows as one record on the root, so the root and node checks are what fail
+  when S25.6 is removed; the ceiling guards a patch that writes too much.
+
+## 2026-10-27: Sprint 38 plan, the sun, a performance budget, the S37 nits
+
+Diego's answers, 2026-10-27. Spec `docs/specs/sun-s38.md`; plan `docs/PLAN.md`, Sprint 38.
+
+- **The sun is direction, warmth and patches, in 3D only.** The light comes from the `sun` entity's azimuth plus the
+  layout's `north`, at its elevation, warmer under 15°, and shines through windows that face it as soft patches on the
+  floor. The 2D wedge (S15.3d) stays later. Supersedes the S15.3 plan of 2026-10-06 for this sprint: `sunDir` lives in
+  the 3D chunk, not in core, because the card is 155 gzip bytes under its cap.
+- **No new config key.** The sun follows the `sun` entity `night: auto` already reads. With no usable azimuth and
+  elevation, or at night, the light is today's fixed daylight. Fits review item 17 (freeze the surface).
+- **The Studio has no live 3D view, so the sun is card-only.** A stated exception to the parity rule.
+- **Room before features.** The card form moves to a lazy chunk (S38.0) before any card-side task. Chosen over raising
+  the cap: HA loads the form only when someone edits the card, so no viewer should pay for it.
+- **The performance budget is on the 2D state update**, the stress house and the 400-device case, median of 5, each
+  budget set between the incremental and the full render so the test fails without S25.6. 3D is a hand check on
+  Diego's tablet once per release, the number in the CHANGELOG: 3D timings under CI's software renderer are too noisy.
+- **The four S37 nits are fixed as proposed**: errors translated when drawn; a 380/420 px band on the icons bound;
+  `renderFloor` takes an optional translator for `<title>` names (the Studio stays English); duplicate area names get
+  a number.
+
+## 2026-10-25: S37 review fixes
+
+Corrections from the Opus review of Sprint 37. Supersedes the S37.5 line "may be retried on the next `hass` update".
+
+- **One key, one meaning.** `Home|car` (the car at home: "W domu", "在家") is separate from `Home` (the breadcrumb root: "Dom", "家"). `Area|size` (a room's surface: "Fläche", "Powierzchnia") is separate from `Area` (the HA area name). English strips the context, so the English card is unchanged. Polish "Nothing on" is "Nic nie jest włączone".
+- **A translated word is never lower-cased.** A German noun loses its capital that way. The layer in "Layers: lights hidden" is its own key per family, `lights|layer` and ten more, written in the form the sentence needs (English: lower case, German: capital). Chosen over whole phrases (three sentences by eleven families, thirty keys in the card file) because the card is 157 gzip bytes under its cap. The sentence stays one phrase per language. The row confirm is a whole phrase per action (`Confirm unlock`, eight keys), carried on the op as `PopupOp.ask`; the `Confirm {action}` template is gone, and every op sets `ask` so a lock cannot reach a row with no confirm text.
+- **Counts go through `tn`.** `{n} heating`, `{n} playing`, `{n} other` and `Layers: {n} of {total} hidden`, with the plural forms of each language (Polish four). pt-BR used European Portuguese for heating and playing; fixed.
+- **A failed language chunk is not retried.** Chromium caches a failed dynamic import for the life of the page; the next `hass` update asks again and gets the same failure. The card stays English until a reload. The comment in `src/card/i18n.ts` now says so; no retry code.
+- **The release zip is checked for exactly nine `floorplan-studio-lang-*.js` files**, as it is for one 3D chunk.
+- **First-run areas button, two reasons**: no Home Assistant, or Home Assistant with no areas.
+- **Not reproduced: the clipped "Turn off on this floor…" button.** In `de-4-menu.png` and `pl-2-overview.png` the whole text shows, the trailing "…" is part of the string. Measured at 390, 320, 240 and 200 px in German and Polish, nothing is clipped and the text wraps to a second line when it has to. No CSS changed. `tests/card/card-i18n-fit.spec.ts` guards it.
+
+## 2026-10-25: S37.1 and S37.2, the first-run choice and rooms from areas
+
+Implements the 2026-10-25 "Sprint 37 defaults". Supersedes nothing.
+
+- **When it shows.** A new editor property `firstRun`, set by the host. The panel sets it when `floorplan_studio/load` replies `{ layout: null }` (the reply shape is `ws_load` in `websocket.py`); the editor shows the choice while `firstRun` is true and the plan is blank. Any choice ends it, and so does drawing anything. It is bound only in the panel's "no stored plan" template branch, inside the existing `guard([loadId])`, so a `hass` update never brings it back.
+- **Standalone.** The standalone page never sets `firstRun`. It always opens on a plan (the remembered one, else `demo/layout.json`), so there is no "no saved layout" state to ask about; File > Load demo is still there. The choice is therefore HA-only in practice. If a host sets `firstRun` without HA data, the areas button is disabled with a tooltip.
+- **Doors.** Load the demo calls `loadDemo()`, as File > Load demo does (one undo step, plan locked as for any plan with rooms). Blank only closes it: no undo step, today's empty plan. Start from your areas calls `roomsFromAreas()`.
+- **The builder.** `layoutFromAreas(ha)` in `src/editor/from-areas.ts`. One 400 cm square per area, areas by name, `ceil(sqrt(n))` columns, rooms touching, a `wall` on every edge, `area` = the HA area id (the existing room-to-area link), `name` = the area name (the id when blank). The outline is the box round the rooms. One floor, "Ground". Entities come from `placeableDevicesInArea`, run on a scratch `EditorState` through `placeArea`, so they are exactly what "Place" gives a room: one icon per HA device, `typeForEntity`, noise (`other`, `battery`, `person`) left out, an entity's own area before its device's (`haData` resolves that), plugs get their power sensor, 60 cm cells round the centre, shrinking for a crowded room. An area with nothing drawable gets no room.
+- **No layout for 0 rooms.** With 0 areas, or none with a drawable entity, the builder returns `null`: a layout with no rooms has no outline and is not valid. The editor then changes nothing and says "No Home Assistant area has anything the plan can draw".
+- **Applying.** `applyLayout` (validate, one undo step, the list of problems and no change on failure), with the plan left unlocked: the next thing a user does is drag a corner, and a locked plan refuses that. Tests: unit (0, 1, 13, 40 and 200 entities, `"><script>`, duplicate and blank areas, own area against device area read through `haData`) and Playwright with real mouse clicks for each door, including the undo step.
+- **Walls (coordinator check, same day; supersedes "the outline is the box round the rooms" and "a `wall` on every edge" above).** The outline is the union of the room cells: a rectangle, or an L (6 points, `validate` takes any polygon of 3 or more) when the last row is short, so an empty corner is not walled in. Each wall is data once: a perimeter edge is `external` on its room (as the outline, the demo's convention), a shared edge is `wall` on the earlier room and `none` on the later one (closed, not drawn). Toggling a wall in the Studio sets every room that has the edge, so the pair stays consistent. The outline edges still lie on room edges, as in every plan.
+- Not done: one plan floor per HA floor. Everything lands on one floor; the Floors menu can still link an HA floor.
+
+## 2026-10-25: S37.3, under 700 px the Studio shows a message
+
+Refines "S37.3" in the Sprint 37 defaults below.
+
+- **Measured on the Studio itself.** `FloorplanStudioEditor` watches its own host with a `ResizeObserver` (`NARROW_PX = 700`; narrow is `0 < width < 700`). Not `window`: in Home Assistant the panel sits beside the sidebar, so a 900 px window can hold a 600 px Studio. A width of 0 (not laid out yet) is not narrow.
+- **The message.** "The Studio needs a wider screen." and, in the panel only, a link "Open the dashboard". The link is `href="/"`, set by the panel through the `dashboard-href` attribute (a string, so the render `guard` and Lit's re-set of object properties do not touch it). Why `/`: Home Assistant routes it to the user's default dashboard; `/lovelace/0` exists only when the default dashboard still has its first view. The standalone page has no dashboard, so it shows the message alone.
+- **Hidden, not removed.** Under the bound the host gets `data-narrow`; `.bar` (toolbar), `.errors` and `.ed` are `display:none`, the notice is `display:block`. The editor element, its `EditorState` (plan, selection, zoom, undo history) and its DOM stay; widening shows what was there. Nothing is emitted, autosaved or reloaded by the notice. `measure()` already ignores a 0 x 0 plan, so the view is not refitted to nothing while hidden.
+- **Keys and focus.** `onKey` returns at once while narrow, Save chord included: a key must not act on what the person cannot see. `onFocusOut` also returns while narrow: hiding the editor blurs whatever was focused inside it, and that blur would otherwise clear the selection (the finding 13 race). Tests remove each guard and fail.
+- **The stacked layout stays for 700 to 900 px.** The `@media (max-width:900px)` single-column rule is what the Studio uses between the two bounds, where it works (full-width plan). Under 700 px nothing reaches it any more. Not removed; only its comment changed.
+- **Tests that pinned narrow widths.** See the commit: tests that ran the editor at 380, 480 or 600 px wide now run it at 700 or wider.
+
+## 2026-10-25: S37.6, the 2D plan draws icons unless it is small
+
+Supersedes the S25 default that `auto` is dots at zoom 1 (the 2026-10-09 thresholds stay for zoom).
+
+- Today the card's `detail` mode `auto` read the zoom alone: below 1.6, level `far`, so an idle device was not drawn and an on device was a bare disc. The review of 2026-10-22 found a first look at 2D did not say "light, speaker, motion".
+- Now `detailFor(fit, shown, mode, planPx)` (`src/core/detail.ts`): in `auto`, where zoom says `far`, a plan `planPx >= ICONS_MIN_PLAN_PX` (400) reads `mid`, icons without names. Under 400 it stays `far`: dots. `full`, `minimal`, the YAML `detail` key and the viewer's menu pick are untouched and win: explicit config wins over the width. No YAML changed meaning for anyone who wrote one; a card on `auto` (the default) is the only one that changes.
+- The measure: the whole floor at fit, `_px * fit.w` in the card (`_measurePx`, already run by the ResizeObserver): the svg's rendered size and the floor's aspect, not the window, not the card box, not the zoom. A card in a 1280 px window but a 360 px column is dots. A plan not measured yet (nothing laid out) reads icons: when we cannot tell, show.
+- One draw path: the card passes `planPx`; `renderFloor` writes `data-detail` and the stylesheet hides. The card draws no icon itself.
+- No oscillation, no hysteresis: the level only toggles CSS `display`; it changes no layout, so the width that decided it cannot move. The bound is a pure function of that width. A Playwright test straddles it 6 times (380/420 px boxes) and sees one switch per resize and nothing at rest. A later change that lets the level alter layout must add hysteresis.
+- The phone sheet: a phone-wide card is under 400 px, so it keeps dots; the plan above the sheet is small and crowded already. Zoom to 1.6 gives icons as before.
+- The Studio does not pass `planPx` and starts on `full`; its Auto is the zoom rule as before.
+
+## 2026-10-25: S37.5, the card speaks the user's language
+
+- The card translates its own strings, keyed on `hass.language` (HA's frontend code: `it`, `pt-BR`, `zh-Hans`). Now: it, es, pt, pt-BR, fr, de, nl, zh-Hans, pl. zh-Hant has no file yet and reads English. The Studio stays English.
+- English stays in the source as the key and the fallback, so the English card loads nothing. Each other language is one lazy chunk (`floorplan-studio-lang-<code>-<hash>.js`, about 3 KB gzip), fetched by dynamic import beside the card. Lookup is exact code, then base (`pt-PT` reads `pt`), then English. A failed fetch leaves English and may be retried on the next `hass` update.
+- Gettext style: `t("Cancel")`, `tn("{n} alert", "{n} alerts", n)` through `Intl.PluralRules` (Polish has four forms), `Light|theme` for a word with two meanings (the text after the bar is context, stripped in English). Placeholders are filled in one pass, so a value that looks like `{x}` is not expanded again. Label tables stay English and are translated at the call site.
+- HA's own text (state names, units, area and entity names) stays HA's. The 3D chunk may not import card code, so its two fallback messages are translated by the card.
+- A language change is a `hass` update: the card re-renders without a reload, and zoom, selection and the layout object survive.
+- Lit escapes every translation; string-built SVG still goes through `esc`. A test feeds a catalogue holding `<b>` and a script and checks they render as letters.
+- The size cap is unchanged (124,650 gzip for the card). Lang chunks do not count as the one 3D chunk the release checks for.
+- **No native speaker has reviewed any of these translations.** Claude wrote them in HA's wording. Review is on the backlog (`docs/PLAN.md`, S37.5).
+
+## 2026-10-25: S37.4, any user follows a save
+
+Supersedes the 2026-10-21 line "A `floorplan_studio/subscribe` command would fix that; not done".
+
+- `floorplan_studio/subscribe` (any user): answers with a bare result, then sends an event `{ rev }` to that connection after each save. It listens to the bus event, so the event stays and other listeners are untouched. The unsubscribe is HA's own `unsubscribe_events`, through `connection.subscriptions`. `ws_save` now fires the bus event with `{ rev }`.
+- Why: HA lets a non-admin subscribe only to a whitelist of bus events, so a wall tablet signed in as a normal user never heard `floorplan_studio_updated` and showed the old plan until reloaded.
+- The card tries `conn.subscribeMessage({ type: "floorplan_studio/subscribe" })` first. Only `unknown_command` (an integration older than this, 0.34.x and 0.35.0) falls back to `subscribeEvents("floorplan_studio_updated")`, as before; any other error leaves a card that loads once. One subscription per element: `_sub` guards it, so a `hass` update adds none; disconnect unsubscribes, reconnect subscribes again. The JS library resubscribes both kinds itself after a websocket reconnect; a save made while the socket was down is not replayed (unchanged from before).
+
+## 2026-10-25: S37.7, the Studio's message banner sits low in the plan
+
+Supersedes "the editor shows it at the top" (2026-09, banners). The banner moved from `position:fixed;top:64px` to the bottom of the plan, 40 px above its edge (above the status bar), inside `.canvas`. Why: a menu opens downward from the toolbar, so any place under the toolbar is where an open menu goes. "Plan unlocked" covered "Add floor" in the Floors menu, and at 1024 px wide, where the toolbar wraps, it covered the search box. The bottom is the one strip no menu uses. Text, levels, 20 s and the close button are unchanged; the banner still takes no pointer events except its own buttons.
+
+## 2026-10-25: Sprint 37 defaults (Diego: "yes to the defaults")
+
+- S37.1 the first-run choice (Load demo, From your areas, Blank) shows only when there is no saved layout.
+- S37.2 rooms from areas are 4 x 4 m on a grid; an area with no entities is skipped.
+- S37.3 under 700 px wide the Studio shows a message and a link to the card, not the stacked layout.
+- S37.5 the card speaks it, es, pt, pt-BR, fr, de, nl, zh-Hans and pl now; zh-Hant later.
+- S37.6 the 2D plan draws icons, and dots only when the plan is under about 400 px wide.
+
 ## 2026-10-24: the demo home is a Load demo target only
 
 `demo/home.json` is what File > Load demo loads (panel and standalone). The standalone still starts on

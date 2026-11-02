@@ -132,7 +132,7 @@ describe("attention: items", () => {
       ["alarm-armed", "Panel"], ["open", "Fridge"], ["unlocked", "A lock"], ["unlocked", "B lock"], ["leak", "Sink"], ["smoke", "Smoke"], ["battery-low", "Remote"],
     ]);
     expect(a.items[1]).toMatchObject({ floor: "g", at: { what: "device", index: 4, id: "id-binary_sensor.c" }, entity: "binary_sensor.c", room: "Hall", type: "contact", state: "on", lastChanged: "2026-10-08T09:00:00Z" });
-    expect(ATTENTION_KINDS).toEqual(["alarm-triggered", "alarm-armed", "open", "jammed", "unlocked", "leak", "smoke", "battery-low", "unavailable"]);
+    expect(ATTENTION_KINDS).toEqual(["alarm-triggered", "alarm-armed", "open", "jammed", "unlocked", "leak", "smoke", "too-hot", "too-cold", "battery-low", "unavailable"]);
   });
 
   it("a triggered alarm comes first and flags its floor; an armed one does not flag it", () => {

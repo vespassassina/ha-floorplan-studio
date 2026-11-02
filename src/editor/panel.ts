@@ -4,6 +4,7 @@ import type { Layout } from "../core";
 import demo from "../../demo/home.json";
 import "./editor-app";
 import { haData } from "./hass-pickers";
+import { tempUnitOf } from "./temp-range-ops";
 import { makeWriter } from "./hass-write";
 import { panelVar } from "./theme";
 import type { HaData } from "../core";
@@ -23,6 +24,7 @@ function draftTime(iso: string): string {
 interface PanelHass {
   callWS<T>(msg: { type: string; [k: string]: unknown }): Promise<T>;
   themes?: { darkMode?: boolean };
+  config?: { unit_system?: { temperature?: string } };
   states?: Record<string, { state: string; attributes: Record<string, unknown>; last_changed: string }>;
   callService?(domain: string, service: string, data: Record<string, unknown>): Promise<unknown>;
 }
@@ -196,6 +198,8 @@ export class FloorplanStudioPanel extends LitElement {
     const ed = this.editor();
     // The theme is pushed here, not through the guarded template: a flip must not render the editor again (that is a fresh load).
     if (ed && ed.haDark !== this.hass?.themes?.darkMode) ed.haDark = this.hass?.themes?.darkMode;
+    const unit = tempUnitOf(this.hass?.config?.unit_system?.temperature);
+    if (ed && ed.tempUnit !== unit) ed.tempUnit = unit; // a primitive, so setting it never re-runs the layout setter
     if (ed && this.ha && ed.ha !== this.ha) ed.ha = this.ha;
     if (ed && this.hass && !ed.writer) ed.writer = makeWriter({ callWS: (m) => this.hass!.callWS(m as never), callApi: (m, p, d) => (this.hass as never as { callApi: (...a: unknown[]) => Promise<never> }).callApi(m, p, d) }); // late-bound: hass is replaced on every state change
     // Live device state, imperative like `ha`/`writer` above, not a template binding: the render `guard` below
@@ -322,8 +326,8 @@ export class FloorplanStudioPanel extends LitElement {
     // again, which it takes for a fresh load (zoom reset, selection gone, unsaved edits reverted, undo history wiped).
     // No stored plan: leave `layout` unset. A blank plan is not a valid layout (an outline needs 3 points), so the editor's own blank start is used.
     const editor = guard([this.loadId], () => this.layout
-      ? html`<floorplan-studio-editor .layout=${this.layout} .demo=${demoLayout} .haDark=${dark} @save-request=${this.onSave}></floorplan-studio-editor>`
-      : html`<floorplan-studio-editor .demo=${demoLayout} .haDark=${dark} @save-request=${this.onSave}></floorplan-studio-editor>`);
+      ? html`<floorplan-studio-editor dashboard-href="/" .layout=${this.layout} .demo=${demoLayout} .haDark=${dark} @save-request=${this.onSave}></floorplan-studio-editor>`
+      : html`<floorplan-studio-editor dashboard-href="/" .demo=${demoLayout} .firstRun=${true} .haDark=${dark} @save-request=${this.onSave}></floorplan-studio-editor>`); // S37.1: nothing stored, so the editor offers its three first choices
     return html`${this.bar()}${this.banner()}${this.draftBanner()}${this.conflictBanner()}${editor}`;
   }
 

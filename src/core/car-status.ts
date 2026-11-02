@@ -1,6 +1,7 @@
 // S35.3: what a car's entities say about the car (docs/specs/car-s35.md, C5). Read by domain, device class and state, never by
 // integration. Every state read here is untrusted (finding 1): nothing throws, junk reads as "nothing to report".
 import { isEntityId, type Device } from "./schema";
+import { t } from "./i18n";
 
 /** A car piece or a car device: its main `entity` and the other entities attached to it. Loose on purpose, a layout is untrusted. */
 export interface CarLike { entity?: unknown; attached?: unknown }
@@ -80,6 +81,6 @@ export function carStatus(m: CarLike | null | undefined, states: States): CarSta
 
 /** One line: `Home`, `Away`, `Away · Work`, then `Charging`, then `78 %`. Plain text; the caller escapes it where it is markup (finding 2). */
 export function carText(s: CarStatus): string {
-  const place = s.place === "home" ? "Home" : s.place === "away" ? (s.zone ? `Away · ${s.zone}` : "Away") : s.place === "unknown" ? "Unknown" : "";
-  return [place, s.charging ? "Charging" : "", s.level === null ? "" : `${s.level} %`].filter(Boolean).join(" · ");
+  const place = s.place === "home" ? t("Home|car") : s.place === "away" ? (s.zone ? t("Away · {zone}", { zone: s.zone }) : t("Away")) : s.place === "unknown" ? t("Unknown") : "";
+  return [place, s.charging ? t("Charging") : "", s.level === null ? "" : `${s.level} %`].filter(Boolean).join(" · ");
 }

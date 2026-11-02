@@ -63,7 +63,8 @@ for (const [name, size] of Object.entries(SIZES) as [keyof typeof SIZES, TouchSi
     });
 
     test("K5 operate a lit device seen on the plan: its icon, Turn off (2 taps)", async ({ page }) => {
-      await bootTouch(page, size);
+      // S37.6: auto now draws all 437 stress devices at 768 px, and the kitchen spot lies in a stack that fans out on its first tap: pin the old far-at-fit picture.
+      await bootTouch(page, size, { detail: "minimal" });
       await tapPlan(page, `svg g[data-x="${deviceIndex("ground", "light.kitchen_spot_1")}"]`);
       await tapRole(page, "button", "Turn off");
       expect(taps(page)).toBe(2);

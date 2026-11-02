@@ -1819,8 +1819,8 @@ test("the toolbar order is Add, Floors, View, Edit, File; Device… is a button 
 
 // ---- S8.10: the toolbar's right-aligned cluster (menus, Undo/Redo, status) --------------------------------------
 
-test("S8.10: the toolbar's Redo button sits flush against the toolbar's right edge; the floor chips stay left; no horizontal scroll at 380", async ({ page }) => {
-  for (const width of [1280, 380]) {
+test("S8.10: the toolbar's Redo button sits flush against the toolbar's right edge; the floor chips stay left; no horizontal scroll at 700 wide", async ({ page }) => {
+  for (const width of [1280, 748]) { // S37.3: 748, not 380 (see s37-3-narrow.spec.ts)
     await page.setViewportSize({ width, height: 800 });
     const bar = await page.locator(".bar").first().boundingBox();
     const chip = await page.locator(".bar .chip").first().boundingBox();
@@ -1877,8 +1877,8 @@ test("S8.10 follow-up: the right-aligned cluster is tight — equal gaps, Redo f
   expect(filterXAfter, "Add's x must not move when the status text changes").toBeCloseTo(filterXBefore, 0);
 });
 
-test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-width row below the floor chips, right-aligned, chips top-aligned", async ({ page }) => {
-  await page.setViewportSize({ width: 380, height: 900 });
+test("S8.10 follow-up: at 700 wide the right-aligned cluster takes its own full-width row below the floor chips, right-aligned, chips top-aligned", async ({ page }) => {
+  await page.setViewportSize({ width: 748, height: 900 }); // S37.3: the narrowest the Studio still draws (700 px wide)
   const bar = (await page.locator(".bar").boundingBox())!;
   const chip = (await page.locator(".bar .chip").first().boundingBox())!;
   const clusterBox = (await page.locator(".bar-right").boundingBox())!;
@@ -1889,9 +1889,9 @@ test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-
   expect(clusterBox.width, "cluster spans (near) the full toolbar width").toBeGreaterThanOrEqual(bar.width * 0.9);
   // The chips sit at the toolbar's own top padding, not centred across the combined (chips + wrapped cluster) height.
   const barPadTop = await page.locator(".bar").evaluate((el) => parseFloat(getComputedStyle(el).paddingTop));
-  expect(Math.abs(chip.y - (bar.y + barPadTop)), "the floor chips are top-aligned on the toolbar's first row").toBeLessThan(2);
+  expect(Math.abs(chip.y - (bar.y + barPadTop)), "the floor chips are top-aligned on the toolbar's first row").toBeLessThan(4); // S37.3: 4, was 2: at 700 the chips share their row with the taller search box and sit 2 px off the padding; centring on the whole wrapped toolbar would be 20 px or more
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
-  expect(overflow, "no horizontal scroll at 380px").toBe(false);
+  expect(overflow, "no horizontal scroll at 700px").toBe(false);
   // Determinism check (the Chromium width-instability bug found earlier in S8.10): the cluster's own width must not
   // change between two renders of the same content, run twice to catch a non-deterministic layout result.
   const widthsAcrossRenders: number[] = [];
@@ -1910,7 +1910,7 @@ test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-
 // at 380 (View -96..128px) and even 600 (Filter -10..214px). Every menu, every width the toolbar actually uses.
 test("S8.10 follow-up (Opus review): every menu's dropdown box stays inside the viewport at every toolbar width", async ({ page }) => {
   const menus = ["mAdd", "mFloors", "mOpt", "mEdit", "mFile"]; // S24.6: no Filter menu
-  for (const width of [380, 600, 769, 1280]) {
+  for (const width of [748, 769, 1280]) { // S37.3: 748 is a 700 px wide Studio; under it there is no toolbar
     await page.setViewportSize({ width, height: 800 });
     for (const id of menus) {
       await page.locator(`#${id} > summary`).click();
@@ -1935,7 +1935,7 @@ test("S8.10 follow-up (Opus review): every menu's dropdown box stays inside the 
 // S8.10 follow-up (Opus review): at 380 wide, Undo and Redo used to be two separate flex items, so the row that
 // already held View, Edit, File and Help had room for Undo but not Redo, splitting the pair across two rows.
 test("S8.10 follow-up (Opus review): Undo and Redo wrap onto a new row together, the pair never splits", async ({ page }) => {
-  await page.setViewportSize({ width: 380, height: 900 });
+  await page.setViewportSize({ width: 748, height: 900 }); // S37.3
   const undo = (await page.locator("#undo").boundingBox())!;
   const redo = (await page.locator("#redo").boundingBox())!;
   expect(Math.abs(undo.y - redo.y), "Undo and Redo must land on the same row").toBeLessThan(3);
@@ -1944,7 +1944,7 @@ test("S8.10 follow-up (Opus review): Undo and Redo wrap onto a new row together,
 // S8.10 follow-up (Opus review): a floating panel (Device colours, Home Assistant, Place, Add device) opened at a
 // hardcoded top:90px, which a taller, wrapped narrow toolbar (380px: up to 5 rows) can reach past and cover.
 test("S8.10 follow-up (Opus review): a floating panel opens below the toolbar's real bottom edge, not a fixed 90px", async ({ page }) => {
-  await page.setViewportSize({ width: 380, height: 900 });
+  await page.setViewportSize({ width: 748, height: 900 }); // S37.3
   await page.locator("#mEdit > summary").click();
   await page.locator("#devcols").click();
   const bar = (await page.locator(".bar").boundingBox())!;
@@ -7729,7 +7729,7 @@ test("S5.5 CSS: the guide panel's own text reads against its own background in e
 });
 
 test("S5.5: on a narrow window the guide's own steps don't scroll away under the toolbar — the panel column stays reachable", async ({ page }) => {
-  await page.setViewportSize({ width: 480, height: 700 });
+  await page.setViewportSize({ width: 748, height: 700 }); // S37.3: was 480; under 700 px wide the Studio shows a notice
   await page.locator("#help").click();
   const last = page.locator("#panel .guide > li").last();
   await last.scrollIntoViewIfNeeded();
@@ -7872,7 +7872,7 @@ test("S7.2: the floor panel says Need help and its button opens Help", async ({ 
   await expect(page.locator("#panel .guide")).toBeVisible();
 });
 
-test("messages are banners at the top, not text in the toolbar: Save still says Saved there, with a close button", async ({ page }) => {
+test("messages are banners over the plan, not text in the toolbar: Save still says Saved there, with a close button", async ({ page }) => {
   await expect(page.locator(".bar #status")).toHaveCount(0);
   if (await page.locator("#bannerClose").count()) await page.locator("#bannerClose").click(); // whatever the page said while loading
   await expect(page.locator("#status")).toHaveCount(0);
@@ -7883,8 +7883,9 @@ test("messages are banners at the top, not text in the toolbar: Save still says 
   const status = page.locator("#status");
   await expect(status).toHaveText("Saved");
   await expect(page.locator(".banner.info")).toBeVisible();
-  const b = (await page.locator(".banner").boundingBox())!, bar = (await page.locator(".bar").boundingBox())!;
-  expect(b.y).toBeLessThan(bar.y + bar.height + 20); // at the top of the editor, just under the toolbar
+  const b = (await page.locator(".banner").boundingBox())!, bar = (await page.locator(".bar").boundingBox())!, sb = (await page.locator("#statusBar").boundingBox())!;
+  expect(b.y).toBeGreaterThan(bar.y + bar.height); // S37.7: low in the plan, clear of the toolbar and its open menus, not on top of them
+  expect(b.y + b.height).toBeLessThanOrEqual(sb.y); // and above the status bar
   await page.locator("#bannerClose").click();
   await expect(status).toHaveCount(0);
 });

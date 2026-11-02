@@ -1,5 +1,6 @@
 import { CATEGORIES, CATEGORY_OF, type CategoryId } from "./categories";
 import type { DeviceType, Floor } from "./schema";
+import { mark, t, tn } from "./i18n";
 
 /**
  * S24.6 (U6): Layers, what the plan draws by family. The families are the card's categories (`CATEGORIES`, so the
@@ -70,14 +71,21 @@ export function layerCounts(f: Floor): Record<LayerId, number> {
   return out;
 }
 
-const lower = (id: LayerId) => (LAYERS.find((l) => l.id === id)?.label ?? id).toLowerCase();
+/** A family's name as it reads in the middle of a sentence ("Layers: lights hidden"). A key of its own per family, so a language writes
+ * the form it needs (a German noun keeps its capital); the card never lower-cases a translated word. English is lower-case here. */
+const LAYER_WORD: Record<LayerId, string> = {
+  lights: mark("lights|layer"), climate: mark("climate|layer"), security: mark("security|layer"), media: mark("media|layer"), power: mark("power|layer"),
+  covers: mark("covers|layer"), computing: mark("computers and network|layer"), sensors: mark("sensors|layer"), people: mark("people|layer"),
+  other: mark("other|layer"), furniture: mark("furniture|layer"),
+};
+export const layerWord = (id: LayerId): string => t(LAYER_WORD[id]);
 
 /** The one line that says what is hidden; empty when nothing is. */
 export function layersSummary(hidden: readonly LayerId[]): string {
   const h = parseLayers(hidden);
   if (!h.length) return "";
-  if (h.length === 1) return `Layers: ${lower(h[0])} hidden`;
-  if (h.length === IDS.length) return "Layers: all hidden";
-  if (h.length === IDS.length - 1) return `Layers: only ${lower(IDS.find((id) => !h.includes(id))!)} shown`;
-  return `Layers: ${h.length} of ${IDS.length} hidden`;
+  if (h.length === 1) return t("Layers: {layer} hidden", { layer: layerWord(h[0]) });
+  if (h.length === IDS.length) return t("Layers: all hidden");
+  if (h.length === IDS.length - 1) return t("Layers: only {layer} shown", { layer: layerWord(IDS.find((id) => !h.includes(id))!) });
+  return tn("Layers: {n} of {total} hidden", "Layers: {n} of {total} hidden", h.length, { total: IDS.length });
 }

@@ -58,9 +58,9 @@ test("the menu has Detail: Auto, Full and Minimal as radios; the active one is c
   expect(await stateOf(page, "detail:auto")).toBe("false");
 });
 
-test("no YAML key and no stored choice: auto. Fit is far; zooming in goes to near; the choices pin or free it", async ({ page }) => {
+test("no YAML key and no stored choice: auto. Fit is mid on a wide plan; zooming in goes to near; the choices pin or free it", async ({ page }) => {
   await open(page);
-  expect(await level(page)).toBe("far");
+  expect(await level(page)).toBe("mid");
   await zoom(page, "Zoom in", 12);
   expect(await level(page)).toBe("near");
   await pick(page, "minimal");
@@ -69,7 +69,7 @@ test("no YAML key and no stored choice: auto. Fit is far; zooming in goes to nea
   await pick(page, "full");
   expect(await level(page), "full is near at fit").toBe("near");
   await pick(page, "auto");
-  expect(await level(page)).toBe("far");
+  expect(await level(page)).toBe("mid");
 });
 
 test("the viewer's choice survives a reload", async ({ page }) => {
@@ -92,7 +92,7 @@ test("YAML detail is the card's default; junk falls back to auto and does not th
     await page.evaluate(() => { document.getElementById("card")!.remove(); localStorage.clear(); }); // the zoom above is remembered too, and a card writes its memory as it leaves
     await page.reload();
     await boot(page, { detail: junk as unknown });
-    expect(await level(page), `junk ${JSON.stringify(junk)} reads as auto`).toBe("far");
+    expect(await level(page), `junk ${JSON.stringify(junk)} reads as auto`).toBe("mid");
   }
 });
 
@@ -108,7 +108,7 @@ test("a stored viewer choice beats the YAML default", async ({ page }) => {
 test("storage that throws: the card renders and the choice holds for the session", async ({ page }) => {
   await page.addInitScript(() => { Object.defineProperty(window, "localStorage", { get() { throw new Error("blocked"); } }); });
   await open(page);
-  expect(await level(page)).toBe("far");
+  expect(await level(page)).toBe("mid");
   await pick(page, "full");
   expect(await level(page)).toBe("near");
 });

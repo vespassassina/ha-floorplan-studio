@@ -60,13 +60,13 @@ describe("popupOp: the default operation per device type", () => {
   // G12: script, scene, button and valve have a service that does one thing. Neither a scene nor a button has an on/off: HA reports the
   // time it was last used, or `unknown` before the first use, so `unknown` must not hide the button here as it does for a switch.
   it("G12: a scene activates, a button presses, a script runs, a valve opens or closes by state; none asks first", () => {
-    expect(popupOp("other", "scene.movie", "unknown")).toEqual({ label: "Activate", domain: "scene", service: "turn_on", confirm: null });
+    expect(popupOp("other", "scene.movie", "unknown")).toEqual({ label: "Activate", ask: "Confirm activate", domain: "scene", service: "turn_on", confirm: null });
     expect(popupOp("other", "scene.movie", "2026-10-04T09:30:15+00:00")).toMatchObject({ label: "Activate", domain: "scene", service: "turn_on" });
-    expect(popupOp("other", "button.bell", "unknown")).toEqual({ label: "Press", domain: "button", service: "press", confirm: null });
-    expect(popupOp("other", "script.goodnight", "off")).toEqual({ label: "Run", domain: "script", service: "turn_on", confirm: null });
+    expect(popupOp("other", "button.bell", "unknown")).toEqual({ label: "Press", ask: "Confirm press", domain: "button", service: "press", confirm: null });
+    expect(popupOp("other", "script.goodnight", "off")).toEqual({ label: "Run", ask: "Confirm run", domain: "script", service: "turn_on", confirm: null });
     expect(popupOp("other", "script.goodnight", "on")).toMatchObject({ domain: "script", service: "turn_on" });
-    expect(popupOp("other", "valve.water", "closed")).toEqual({ label: "Open", domain: "valve", service: "open_valve", confirm: null });
-    expect(popupOp("other", "valve.water", "open")).toEqual({ label: "Close", domain: "valve", service: "close_valve", confirm: null });
+    expect(popupOp("other", "valve.water", "closed")).toEqual({ label: "Open", ask: "Confirm open", domain: "valve", service: "open_valve", confirm: null });
+    expect(popupOp("other", "valve.water", "open")).toEqual({ label: "Close", ask: "Confirm close", domain: "valve", service: "close_valve", confirm: null });
     for (const e of ["scene.movie", "button.bell", "script.goodnight", "valve.water"]) expect(popupOp("other", e, "unavailable"), `${e} unavailable`).toBeNull();
   });
   it("G12 (finding 17, 20): over every device type, the new domains get a button exactly when the type is not NO_TOGGLE", () => {

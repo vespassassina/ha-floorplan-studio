@@ -5,27 +5,36 @@ import { test, expect, type Page } from "@playwright/test";
 
 const EDITOR = "floorplan-studio-editor";
 const switching = (page: Page) => page.locator(`${EDITOR} svg`).first().evaluate((svg) => svg.getAnimations().filter((a) => (a as CSSAnimation).animationName?.startsWith("fp-floor-in")).length);
-const wait = (page: Page, n: number) => expect.poll(() => switching(page)).toBe(n);
-/** Holds the running switch animation half way, so a click lands in the middle of it; returns what it is. */
-const hold = (page: Page) => page.locator(`${EDITOR} svg`).first().evaluate((svg) => {
-  const a = svg.getAnimations().find((x) => (x as CSSAnimation).animationName?.startsWith("fp-floor-in")) as CSSAnimation;
-  a.pause(); a.currentTime = 110;
-  return { name: a.animationName, from: String((a.effect as KeyframeEffect).getKeyframes()[0].transform), state: a.playState, attr: svg.getAttribute("data-switch") };
-});
+/** The n-th switch animation, as the page recorded it when it started (see beforeEach), already held half way; polled, so no race with its start. */
+const started = async (page: Page, n: number) => {
+  await expect.poll(() => page.evaluate(() => (window as any).__sw.length)).toBe(n);
+  return page.evaluate((i) => (window as any).__sw[i - 1], n);
+};
 const release = (page: Page) => page.locator(`${EDITOR} svg`).first().evaluate((svg) => Promise.all(svg.getAnimations().map((a) => { a.play(); return a.finished; })).then(() => svg.getAttribute("data-switch")));
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/standalone.html");
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
+  // The animation starts 55-95 ms after the click and lasts 220 ms: a test that first looks after that sees nothing (finding 13). So the page
+  // itself records every switch animation and holds it half way the moment it starts; the test then reads the record, no race, no wait.
+  await page.evaluate((tag) => {
+    const log: unknown[] = ((window as any).__sw = []);
+    (document.querySelector(tag) as any).renderRoot.addEventListener("animationstart", (e: AnimationEvent) => {
+      if (!e.animationName.startsWith("fp-floor-in")) return;
+      const svg = e.target as SVGElement;
+      const a = svg.getAnimations().find((x) => (x as CSSAnimation).animationName === e.animationName) as CSSAnimation;
+      a.pause(); a.currentTime = 110;
+      log.push({ name: a.animationName, from: String((a.effect as KeyframeEffect).getKeyframes()[0].transform), state: a.playState, attr: svg.getAttribute("data-switch") });
+    }, true);
+  }, EDITOR);
 });
 
 test("default motion: a chip click animates the plan root, up from above, down from below, and a real click during it selects on the new floor", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   expect(await switching(page)).toBe(0);
   await page.locator('.chip[data-f="first"]').click();
-  await wait(page, 1);
-  expect(await hold(page)).toEqual({ name: "fp-floor-in-up", from: "translateY(-16px)", state: "paused", attr: "up" });
+  expect(await started(page, 1)).toEqual({ name: "fp-floor-in-up", from: "translateY(-16px)", state: "paused", attr: "up" });
   // a real click, mid-animation, on a room of the new floor
   // (a point where the room itself is the top element, not a device icon: finding 3)
   const pt = await page.locator(`${EDITOR} svg polygon[data-r]`).first().evaluate((poly) => {
@@ -47,16 +56,13 @@ test("default motion: a chip click animates the plan root, up from above, down f
   // finished: the attribute is cleared (animationend follows `finished` by a task), so the next switch can start again
   await expect.poll(() => page.locator(`${EDITOR} svg`).first().getAttribute("data-switch")).toBeNull();
   await page.locator('.chip[data-f="ground"]').click();
-  await wait(page, 1);
-  expect(await hold(page)).toMatchObject({ name: "fp-floor-in-down", from: "translateY(16px)", attr: "down" });
+  expect(await started(page, 2)).toMatchObject({ name: "fp-floor-in-down", from: "translateY(16px)", attr: "down" });
   await release(page);
   // the same direction twice restarts it
   await page.locator('.chip[data-f="first"]').click();
-  await wait(page, 1);
-  expect(await hold(page)).toMatchObject({ name: "fp-floor-in-up" });
+  expect(await started(page, 3)).toMatchObject({ name: "fp-floor-in-up" });
   await page.locator('.chip[data-f="test"]').click();
-  await wait(page, 1);
-  expect(await hold(page)).toMatchObject({ name: "fp-floor-in-up", state: "paused", attr: "up" });
+  expect(await started(page, 4)).toMatchObject({ name: "fp-floor-in-up", state: "paused", attr: "up" });
   await release(page);
 });
 

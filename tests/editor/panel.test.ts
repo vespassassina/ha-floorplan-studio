@@ -30,6 +30,22 @@ const settle = async (el: FloorplanStudioPanel) => { for (let i = 0; i < 4; i++)
 const editorOf = (el: FloorplanStudioPanel) => el.shadowRoot!.querySelector("floorplan-studio-editor") as FloorplanStudioEditor | null;
 
 describe("<floorplan-studio-panel>", () => {
+  it("S37.1: the first-run choice is asked for only when nothing is stored", async () => {
+    // `floorplan_studio/load` replies { layout: null } with no saved plan, { layout } otherwise (websocket.py ws_load).
+    const none = await mount(stubHass(() => ({ layout: null })));
+    expect(editorOf(none)!.firstRun).toBe(true);
+    const some = await mount(stubHass(() => ({ layout: L })));
+    expect(editorOf(some)!.firstRun).toBe(false);
+  });
+
+  it("S37.1: a state update after the first-run choice was taken does not bring it back", async () => {
+    const hass = stubHass(() => ({ layout: null }));
+    const el = await mount(hass);
+    editorOf(el)!.firstRun = false; // Blank was clicked
+    for (let i = 0; i < 3; i++) { el.hass = { ...hass, states: { "sensor.x": { state: String(i), attributes: {} } } } as never; await settle(el); }
+    expect(editorOf(el)!.firstRun).toBe(false);
+  });
+
   it("asks Home Assistant for the saved layout once, and the editor shows it", async () => {
     const hass = stubHass(() => ({ layout: L }));
     const el = await mount(hass);
@@ -174,6 +190,17 @@ describe("<floorplan-studio-panel>", () => {
     expect(editorOf(el)!.haDark).toBe(false);
   });
 
+  it("S42.5: the temperature fields follow HA's unit system, Celsius when it says nothing", async () => {
+    // Shape from HA's frontend `HassConfig`: config.unit_system.temperature is the string "°C" or "°F".
+    const hass = stubHass(() => ({ layout: L }));
+    const el = await mount({ ...hass, config: { unit_system: { temperature: "°F" } } } as never);
+    expect(editorOf(el)!.tempUnit).toBe("°F");
+    el.hass = { ...hass, config: { unit_system: { temperature: "°C" } } } as never;
+    await settle(el);
+    expect(editorOf(el)!.tempUnit).toBe("°C");
+    expect(editorOf(await mount(hass))!.tempUnit).toBe("°C");
+  });
+
   describe("update banner", () => {
     const withUpdate = (states: Record<string, State>, install?: () => unknown) => stubHass(() => ({ layout: L }), false, states, install);
 
@@ -300,5 +327,14 @@ describe("<floorplan-studio-panel>", () => {
       const dev = await mountBuilt(asked(() => "0.16.4"), "dev");
       expect(staleBox(dev)).toBeNull();
     });
+  });
+
+  it("S37.3: the editor knows the dashboard link, with a saved plan and without one", async () => {
+    // "/" is routed by Home Assistant to the default dashboard; /lovelace/0 may not exist.
+    for (const reply of [() => ({ layout: L }), () => ({ layout: null })]) {
+      const el = await mount(stubHass(reply));
+      expect(editorOf(el)!.getAttribute("dashboard-href")).toBe("/");
+      el.remove();
+    }
   });
 });

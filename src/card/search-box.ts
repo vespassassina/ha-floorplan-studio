@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type PropertyValues } from "lit";
 import { buildSearchIndex, entryDetail, searchIndex, type SearchEntry, type SearchIndex } from "../core/search";
 import { SEARCH_TOUCH_CSS } from "./touch-css";
+import { t } from "../core/i18n";
 
 export { isSearchChord } from "./view-keys";
 export type { SearchEntry } from "../core/search";
@@ -48,8 +49,8 @@ export class FpSearch extends LitElement {
     super();
     this.entries = [];
     this.limit = 10;
-    this.label = "Search";
-    this.placeholder = "Search rooms and devices";
+    this.label = t("Search");
+    this.placeholder = t("Search rooms and devices");
     this.query = "";
     this.active = -1;
     this.focused = false;
@@ -158,7 +159,7 @@ export class FpSearch extends LitElement {
             @click=${() => this.pick(e)}
           ><span class="name">${e.name}</span><span class="detail">${entryDetail(e)}</span></li>`)}
         </ul>` : nothing}
-      ${this.focused && this.query.trim() !== "" && !this.results.length ? html`<div class="list empty" role="status">No match</div>` : nothing}
+      ${this.focused && this.query.trim() !== "" && !this.results.length ? html`<div class="list empty" role="status">${t("No match")}</div>` : nothing}
     `;
   }
 

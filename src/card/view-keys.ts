@@ -22,7 +22,7 @@ export function viewKeyOf(ev: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey">
     case "]": return "rotateRight";
     case "ArrowLeft": return "panLeft";
     case "ArrowRight": return "panRight";
-    case " ": case "Spacebar": return "reset";
+    case " ": return "reset";
     default: return null;
   }
 }

@@ -4,6 +4,7 @@ import { DEVICE_TYPE_LABELS } from "./icons";
 import { nameFor } from "./active";
 import { deviceCentre } from "./room-info";
 import { pieceDevice } from "./solids";
+import { mark, t } from "./i18n";
 
 /**
  * S24.1 (F1, U9): one search for the Studio and the card. An entry is a thing a host can go to: a floor, a room, a
@@ -41,7 +42,7 @@ export function normalize(s: string): string {
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null;
 const text = (x: unknown): string => (typeof x === "string" ? x : "");
-const typeLabel = (t: unknown): string => (typeof t === "string" && Object.hasOwn(DEVICE_TYPE_LABELS, t) ? DEVICE_TYPE_LABELS[t as DeviceType] : "Device");
+const typeLabel = (k: unknown): string => (typeof k === "string" && Object.hasOwn(DEVICE_TYPE_LABELS, k) ? DEVICE_TYPE_LABELS[k as DeviceType] : mark("Device"));
 
 /**
  * Every floor, named room and device of `layout`, floors in the layout's key order, each floor's rooms then devices
@@ -55,10 +56,10 @@ export function layoutEntries(layout: Layout, state: StateOverlay | undefined): 
     if (!isObj(f)) continue;
     const floorName = text(f.title) || key;
     const at = { floor: key, floorName };
-    out.push({ kind: "floor", id: key, name: floorName, floor: key, typeLabel: "Floor" });
+    out.push({ kind: "floor", id: key, name: floorName, floor: key, typeLabel: mark("Floor") });
     const rooms = Array.isArray(f.rooms) ? f.rooms : [];
     rooms.forEach((r, i) => {
-      if (isObj(r) && text(r.name)) out.push({ kind: "room", id: text(r.id) || `${key}:${i}`, name: r.name, ...at, room: i, typeLabel: "Room" });
+      if (isObj(r) && text(r.name)) out.push({ kind: "room", id: text(r.id) || `${key}:${i}`, name: r.name, ...at, room: i, typeLabel: mark("Room") });
     });
     // `roomAt` is the one rule for which room a point is in (render.ts); it skips a junk room itself.
     const safe = { ...f, rooms } as Floor;
@@ -87,9 +88,9 @@ export function layoutEntries(layout: Layout, state: StateOverlay | undefined): 
 
 /** "room · floor · type" under an option's name, leaving out what an entry does not have. */
 export function entryDetail(e: SearchEntry): string {
-  if (e.kind === "command") return "Command";
-  if (e.kind === "floor") return "Floor";
-  return [e.roomName, e.floorName, e.typeLabel].filter(Boolean).join(" · ");
+  if (e.kind === "command") return t("Command");
+  if (e.kind === "floor") return t("Floor");
+  return [e.roomName, e.floorName, e.typeLabel ? t(e.typeLabel) : ""].filter(Boolean).join(" · ");
 }
 
 interface Prepared { e: SearchEntry; name: string; words: string[]; entity: string; hay: string; order: number }

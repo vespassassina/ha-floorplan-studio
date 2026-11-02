@@ -35,15 +35,18 @@ export function roomNameAt(f: Floor, p: Pt): string | undefined {
   return typeof name === "string" && name ? name : undefined;
 }
 
-/** The index of the first room (layout order) that may own a device (`ROOM_OWNS`) and has door `index` on one of its edges, or -1. */
-export function doorRoomIndex(f: Floor, index: number): number {
-  return roomList(f).findIndex((r) => {
+/** The indexes of the rooms (layout order) that may own a device (`ROOM_OWNS`) and have door `index` on one of their edges: two for a door between rooms. */
+export function doorRoomIndexes(f: Floor, index: number): number[] {
+  return roomList(f).flatMap((r, i) => {
     const ring: unknown[] = Array.isArray(r?.pts) ? r.pts : [];
-    if (!r || !ROOM_OWNS[r.kind] || ring.length < 3 || !ring.every(finitePt) || typeof r.name !== "string" || !r.name) return false;
+    if (!r || !ROOM_OWNS[r.kind] || ring.length < 3 || !ring.every(finitePt) || typeof r.name !== "string" || !r.name) return [];
     const pts = ring as Pt[];
-    return pts.some((a, i) => onEdge(f, a, pts[(i + 1) % pts.length]!).doors.includes(index));
+    return pts.some((a, k) => onEdge(f, a, pts[(k + 1) % pts.length]!).doors.includes(index)) ? [i] : [];
   });
 }
+
+/** The index of the first of them, or -1. */
+export const doorRoomIndex = (f: Floor, index: number): number => doorRoomIndexes(f, index)[0] ?? -1;
 
 /** The name of the first room (layout order) that may own a device (`ROOM_OWNS`) and has door `index` on one of its edges. */
 export function doorRoomName(f: Floor, index: number): string | undefined {

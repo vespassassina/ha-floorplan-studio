@@ -53,9 +53,9 @@ const pointOf = (d: Device): [number, number] | null => {
  * What room `i` of floor `f` reads in heat mode `kind`, or null (no heat: the room keeps its own fill and prints nothing).
  * H2: the room's own `temps` (or `humidity`) list when any of it is readable, so the colour and the printed number are the
  * ones the readout builds; else the sensor devices of that kind whose floor point `roomAt` puts in this room. A kind that
- * `ROOM_OWNS` denies (fill, structure, zone) never heats. `text` is the mean in the sensors' own unit (°F stays °F; a sensor with no unit is read as the scale's, so it prints °C or %); `t` is its place on `HEAT_SCALE`, in °C for temperature, clamped to 0..1 and rounded to 0.001.
+ * `ROOM_OWNS` denies (fill, structure, zone) never heats. `text` is the mean in the sensors' own unit (°F stays °F; a sensor with no unit is read as the scale's, so it prints °C or %); `t` is its place on `HEAT_SCALE`, in °C for temperature, clamped to 0..1 and rounded to 0.001. `c` (temperature only, S42.4) is the mean in °C, unrounded: what `tempWarn` takes, so the readout, the map and the warning cannot disagree.
  */
-export function roomHeat(f: Floor, i: number, kind: HeatKind, state: StateOverlay | undefined): { text: string; t: number } | null {
+export function roomHeat(f: Floor, i: number, kind: HeatKind, state: StateOverlay | undefined): { text: string; t: number; c?: number } | null {
   const sc = scaleOf(kind);
   const r = Array.isArray(f?.rooms) && Number.isInteger(i) ? f.rooms[i] : undefined;
   if (!sc || (kind !== "temperature" && kind !== "humidity") || !r || typeof r !== "object" || !ROOM_OWNS[r.kind]) return null;
@@ -71,7 +71,7 @@ export function roomHeat(f: Floor, i: number, kind: HeatKind, state: StateOverla
   const v = m && inScale(kind, m.n, m.unit);
   if (!m || v === null || v === undefined) return null;
   const t = Math.min(1, Math.max(0, (v - sc.from) / (sc.to - sc.from)));
-  return { text: `${meanText(m.n)}${NB}${m.unit || sc.unit}`, t: Math.round(t * 1000) / 1000 };
+  return { text: `${meanText(m.n)}${NB}${m.unit || sc.unit}`, t: Math.round(t * 1000) / 1000, ...(kind === "temperature" ? { c: v } : {}) };
 }
 
 /** True when any room of `f` reads in heat mode `kind`: the one check behind "no readings" in the Studio's status bar and the card's legend. */

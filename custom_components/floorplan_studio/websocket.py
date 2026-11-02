@@ -1,7 +1,9 @@
-"""floorplan_studio/load and floorplan_studio/version (any user), floorplan_studio/save (admin only).
+"""floorplan_studio/load, floorplan_studio/version and floorplan_studio/subscribe (any user), floorplan_studio/save (admin only).
 
 load replies `{layout, rev}`; save replies `{ok, rev}`. A save may carry `expected_rev`; when it is not the stored
-revision the reply is the error `conflict` and nothing is written. Without it the save overwrites, as before."""
+revision the reply is the error `conflict` and nothing is written. Without it the save overwrites, as before.
+subscribe answers with a bare result, then sends an event `{rev}` after each save. HA lets a non-admin subscribe only to a
+whitelist of bus events, so this is how a wall tablet signed in as a normal user follows a save."""
 from __future__ import annotations
 
 from typing import Any
@@ -19,6 +21,7 @@ from .storage import InvalidLayout, LayoutStore, RevConflict
 def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_load)
     websocket_api.async_register_command(hass, ws_save)
+    websocket_api.async_register_command(hass, ws_subscribe)
     websocket_api.async_register_command(hass, ws_version)
 
 
@@ -64,7 +67,7 @@ async def ws_save(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
     except RevConflict as err:
         connection.send_error(msg["id"], "conflict", f"The plan was saved elsewhere (revision {err.current}, you have {msg['expected_rev']}). Reload it, or overwrite it with yours.")
         return
-    hass.bus.async_fire("floorplan_studio_updated")  # open cards reload
+    hass.bus.async_fire("floorplan_studio_updated", {"rev": rev})  # open cards reload
     connection.send_result(msg["id"], {"ok": True, "rev": rev})
 
 
@@ -73,3 +76,17 @@ async def ws_save(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
 async def ws_version(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """The installed version, so an open page that is older than it can ask for a reload."""
     connection.send_result(msg["id"], {"version": str((await async_get_integration(hass, DOMAIN)).version)})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "floorplan_studio/subscribe"})
+@callback
+def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Pushes `{rev}` to this connection after every save. Open to any user: the bus event itself is admin-only to subscribe to."""
+    msg_id = msg["id"]
+
+    @callback
+    def forward(event: Any) -> None:
+        connection.send_message(websocket_api.event_message(msg_id, {"rev": event.data.get("rev")}))
+
+    connection.subscriptions[msg_id] = hass.bus.async_listen("floorplan_studio_updated", forward)
+    connection.send_result(msg_id)

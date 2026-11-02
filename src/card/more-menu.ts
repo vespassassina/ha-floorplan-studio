@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues } from "lit";
+import { t } from "../core/i18n";
 
 export type MenuItemKind = "radio" | "check" | "action" | "select";
 export interface MenuOption { label: string; value: string }
@@ -55,7 +56,7 @@ export class FpMenu extends LitElement {
   constructor() {
     super();
     this.items = [];
-    this.label = "More";
+    this.label = t("More");
     this.opened = false;
   }
 

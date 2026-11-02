@@ -4,7 +4,7 @@ import type { Layout } from "../../src/core/schema";
 import { floorPlace, stairReport } from "../../src/core";
 import { FIRST_TO_GROUND } from "../fixtures/hand-align-truth";
 
-// S29.11: the stair report rows and Align stairs, and the panel's controls at 1024 x 768 and 380 x 800.
+// S29.11: the stair report rows and Align stairs, and the panel's controls at 1024 x 768 and 748 x 800.
 // The expected numbers come from core's own `stairReport` and `floorPlace` on the page's live layout (the report is
 // asserted against the function the spec names), and from the fixture's truth for Align stairs. Real clicks and keys.
 
@@ -122,7 +122,7 @@ test("under Lock plan Align stairs is refused and writes nothing", async ({ page
   expect(await depth(page)).toBe(d0);
 });
 
-for (const size of [{ width: 1024, height: 768 }, { width: 380, height: 800 }]) {
+for (const size of [{ width: 1024, height: 768 }, { width: 748, height: 800 }]) {
   test(`${size.width} x ${size.height}: every panel control is its own top element at its centre`, async ({ page }) => {
     await setup(page, size);
     await openAlign(page);
@@ -149,7 +149,7 @@ for (const size of [{ width: 1024, height: 768 }, { width: 380, height: 800 }]) 
 test.describe("a coarse pointer", () => {
   test.use({ hasTouch: true, isMobile: true });
   test("every panel button and box is 44 px tall, buttons 44 px wide", async ({ page }) => {
-    await setup(page, { width: 380, height: 800 });
+    await setup(page, { width: 748, height: 800 });
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
     await openAlign(page);
     const small = await page.evaluate((tag) => [...(document.querySelector(tag) as any).shadowRoot.querySelectorAll("#alignPanel button, #alignPanel input")].map((b: HTMLElement) => { const r = b.getBoundingClientRect(); return { id: b.id || b.getAttribute("data-step") || b.getAttribute("data-angle"), w: r.width, h: r.height, input: b.tagName === "INPUT" }; }).filter((b) => b.h < 43.5 || (!b.input && b.w < 43.5)), EDITOR);

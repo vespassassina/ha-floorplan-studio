@@ -4612,25 +4612,379 @@ feature: this sprint shows what exists. Lanes branch off it as `task/s36-<lane>`
       Then the phone sheet, the Studio, the 13 themes, a new `demo.gif` from the demo home. Every image regenerated
       from `home.json`; the "from before 0.29" notes go.
 - [x] S36.9 Forum and Reddit drafts in `docs/ANNOUNCE.md` for Diego to post. Coordinator. Posting is Diego's.
-- [ ] S36.10 Integrate, full suite, Opus review, release 0.35.0 on a Friday after Diego's yes.
-  - 2026-10-24: integrated on `task/s36-phase-a`; Opus review found no defects (lint 0, unit 0, Playwright 2503 passed, 1 skipped). Nits fixed: a guard that the 3D chunk imports nothing from the card, the CHANGELOG opening paragraph, no "preview" claim for the picker. Open: the release itself.
-
+- [x] S36.10 Integrate, full suite, Opus review, release 0.35.0 on a Friday after Diego's yes.
+  - 2026-10-24: released 0.35.0 (a Saturday, Diego's call); HA reads 0.35.0 back on 2026-10-25. Integrated on `task/s36-phase-a`; Opus review found no defects (lint 0, unit 0, Playwright 2503 passed, 1 skipped). Nits fixed: a guard that the 3D chunk imports nothing from the card, the CHANGELOG opening paragraph, no "preview" claim for the picker. 
 Not in this sprint: GitHub Discussions (a repository setting, Diego's yes), the remote branches.
 
-## Sprint 37: phase B, the first five minutes (backlog, not started)
+## Sprint 37: phase B, the first five minutes
 
-From the review's plan B. Starts after Sprint 36 ships. Each item is a design question for Diego before it is a task.
+From the review's plan B. Diego took the defaults on 2026-10-25 (`docs/DECISIONS.md`). S37.4 and S37.7 started first.
 
-- [ ] S37.1 Studio first run: three doors on a blank plan, Load the demo, Start from your Home Assistant areas, Blank.
-- [ ] S37.2 Rooms from areas: one rectangle per HA area on a grid, its entities placed inside as icons, walls on every
+- [x] S37.1 Studio first run: three doors on a blank plan, Load the demo, Start from your Home Assistant areas, Blank.
+      Done on task/s37.1-first-run; the choice is HA-only (standalone always opens on a plan), see DECISIONS.
+- [x] S37.2 Rooms from areas: one rectangle per HA area on a grid, its entities placed inside as icons, walls on every
       edge; the user drags corners after.
-- [ ] S37.3 The Studio under 700 px wide says it is a desktop tool, instead of a stacked layout that half works.
-- [ ] S37.4 Non-admin wall tablets follow a save: `floorplan_studio/subscribe` in `websocket.py`; the card re-reads.
-- [ ] S37.5 Card translations for its own strings, keyed on `hass.language`: it, es, pt, fr, de, nl, zh (Diego,
-      2026-10-22). Open: zh-Hans and zh-Hant, pt and pt-BR, Polish.
-- [ ] S37.6 2D icons on at the card's default size; dots only when the plan is small.
-- [ ] S37.7 Small layout defects from the S36.6 walk (2026-10-24): the "Plan unlocked" toast covers "Add floor"; wall
+- [x] S37.3 The Studio under 700 px wide says it is a desktop tool, instead of a stacked layout that half works.
+      Done on task/s37.3-narrow: the Studio's own width, a message and (in the panel) a dashboard link; the editor stays underneath.
+- [x] S37.4 Non-admin wall tablets follow a save: `floorplan_studio/subscribe` in `websocket.py`; the card re-reads.
+- [x] S37.5 Card translations for its own strings, keyed on `hass.language`: it, es, pt, fr, de, nl, zh (Diego,
+      2026-10-22). Defaults: add pt-BR, zh-Hans and pl; zh-Hant later.
+      Done on task/s37.5-i18n. Backlog: a native speaker reviews each of the nine catalogues (none has); zh-Hant; the Studio is still English.
+- [x] S37.6 2D icons on at the card's default size; dots only when the plan is small.
+- [x] S37.7 Small layout defects from the S36.6 walk (2026-10-24): the "Plan unlocked" toast covers "Add floor"; wall
       handle dots hide part of the length labels; at 1024 wide the toolbar wraps and the toast sits on the search box;
       the light Studio sits on the standalone page's dark body; at 1024 the card's zoom buttons cover the ghost
       outline; the Align aside cuts off its angle-step row at 800 px high.
-- Later (plan C): vacuum position and trail; sun on the 3D house; a 24 h history replay.
+      Done on task/s37.7-layout. Not fixed: at 1024 the toolbar still wraps (the toast no longer lands on it); the Align panel
+      still scrolls below 800 px high.
+- [x] S37 review fixes (Opus, 2026-10-25): one key per meaning (Home, Area), whole phrases instead of lower-cased words, plural-aware
+      chips, the release checks the nine language chunks, the first-run button gives two reasons. Done on task/s37-review-fixes.
+- Deferred from the S37 review (nits, not done):
+  - A stored error text is translated when it is set, not when it is drawn, so a language change leaves the old message in the old language.
+  - The plan's measured size reads width only near the 400 px bound (ghost-floor clearance can move it), and has no hysteresis.
+  - The raw-English lint covers 5 files, and misses the SVG `<title>` type names in `src/core/render.ts`.
+  - Two HA areas with the same name give equal `catalog.room` values.
+- Later (plan C): vacuum position and trail; a 24 h history replay. The sun and the four nits above: Sprint 38.
+
+## Sprint 38: Release 0.37.0, the sun, a performance budget, the S37 nits
+
+Branch `task/s38-sun`. Diego, 2026-10-27: "Plan Sprint 38: sun on the 3D house, the performance budget test, and the
+four S37 nits." His answers: sun direction, low-sun warmth and sun patches through the windows; no new config key; the
+budget on the 2D update of the stress house, 3D checked by hand; the nits fixed as proposed. Spec:
+`docs/specs/sun-s38.md` (criteria 1 to 13). Decisions: `docs/DECISIONS.md`, 2026-10-27.
+
+The card file is 124,495 gz against a cap of 124,650 (155 bytes). S38.2, S38.6, S38.7 and S38.8 each add card bytes, so
+S38.0 makes room first. Every lane reports `gzip -9` of the card and the chunks before and after. No lane raises the cap.
+
+Lanes, each in its own worktree and `PW_PORT`: **room** S38.0, then **card** S38.2, S38.6, S38.7, S38.8 (one coder,
+in order, since all touch the card file); **sun** S38.1, S38.3, S38.4 (starts at once, the chunk only; S38.3 joins
+S38.2 at integration); **perf** S38.5; **areas** S38.9.
+
+- [x] S38.0 Room in the card (2026-10-27: card 124,495 -> 119,214 gzip -9, 5,281 B of room under the 124,650 cap; the form is `floorplan-studio-form-<hash>.js`, 24,828 gz, a bundle of its own beside the card; `tests/card/size-budget.spec.ts` caps it at 26,000; the release zip checks for exactly one). The card form (`src/card/config-editor.ts`, imported statically today) becomes a lazy
+      chunk, loaded by `static async getConfigElement()`. HA awaits that call; copy the shape from the HA frontend
+      source and say where in the test (finding 21). The release zip check counts the new chunk as it counts the 3D
+      one. No behaviour change: `tests/card/config-editor.spec.ts` and the full suite are the test, plus one new test
+      that the card file no longer holds the form's element name. Report gz before and after.
+- [x] S38.1 (2026-10-27) `sunDir(azimuth, elevation, north)` in `src/card/three/sun.ts` (S15.3b, moved from core to the chunk so the
+      card does not carry it). Spec criterion 1.
+- [x] S38.2 (2026-10-27) The card hands the sun to 3D: `azimuth` and `elevation` of the `sun` entity (config `sun`, default
+      `sun.sun`) go into `setLive`, or nothing. Day only, as `_night()` decides. Spec criterion 2.
+- [x] S38.3 (2026-10-27) The 3D sun light follows `sunDir`: direction, strength by elevation, warmth under 15°; no sun is today's
+      light, pixel for pixel. Spec criteria 3 to 7.
+- [x] S38.4 (2026-10-27) Sun patches through windows that face the sun, clipped to the room, at most 24, built only when the floor,
+      the theme or the sun moves. Spec criteria 8 to 13. Shots looked at in three themes, the patches at 4x.
+- [x] S38.5 Performance budget (review item 18). In `tests/card/plan-incremental.spec.ts`, the 400-device case and the
+      stress house (`tests/fixtures/stress-layout.json`, 3 floors, 437 devices) on its largest floor: one sensor update,
+      all lights on, all off, each the median of 5 runs, under a fixed budget in ms. Today, on Diego's Mac: one change
+      23.2 ms, all on 40.4 ms, all off 27.8 ms (2026-10-27). The coder measures a forced full render too, and sets each
+      budget between the two, with CI headroom, so the test fails with S25.6's incremental path reverted (revert it once
+      and show the failure). If CI cannot tell the two apart, stop and report. `docs/WORKFLOW.md`, Release: the release
+      report asks Diego for one 3D number from his tablet (time to first frame), and it goes in the CHANGELOG.
+      Done 2026-10-27, changed from the plan: the incremental and the full render cost the same (renderFloor's markup
+      dominates), so time cannot pin S25.6. ms, median of 5, Diego's Mac, incremental / full. 400 devices: one 19.0 / 23.4,
+      all on 36.4 / 35.1, all off 25.8 / 24.0. Stress ground (182 devices): one 17.1 / 18.3, all on 21.1 / 21.1, all off
+      19.3 / 19.0. Time is a ceiling at about 5x (400: 100 / 200 / 130; stress: 90 / 110 / 100). S25.6 is pinned by the
+      root untouched, the same device node, and a write ceiling (2461 nodes -> 2710; stress 421 -> 465). See DECISIONS.
+- [x] S38.6 (2026-10-27) Nit: a stored error is translated when it is drawn. The card stores the key and its values
+      (`{ key, vars }`), not the text. Test: an error set in English, then `hass.language` to `de`, shows German without
+      a new error.
+- [x] S38.7 (2026-10-28) Nit: hysteresis on the icons-or-dots bound. Icons from a plan 420 px wide, dots under 380, the last level
+      kept in between. The S37.6 straddle test (380/420 boxes) still sees one switch per resize; a new one at 400 sees
+      none in either direction. Built with dots at a plan of 380 and under (a 380 px box makes a 380 px plan, and the
+      straddle test needs it to read dots).
+- [x] S38.8 (2026-10-28) Nit: the `<title>` type names in `src/core/render.ts` are translated in the card. `renderFloor` takes an
+      optional `tr` function; the card passes `t`, the Studio passes nothing and stays English. The raw-English lint
+      covers `render.ts`. Test: a German card's device `<title>` reads the German type name; a payload `"><script>` in a
+      name is still escaped (finding 2). Only the type name is translated; the rest of a title is a name from the layout,
+      a number and a unit. English (the card in English, and the Studio) keeps the type id, so no title text changed.
+- [x] S38.9 (2026-10-27) Nit: two HA areas with the same name. `layoutFromAreas` names the second room "Office 2", the third
+      "Office 3", so `catalog.room` values differ. Unit test with three areas named "Office" and one blank.
+- [x] S38.10 (2026-10-28) Integrate on `task/s38-sun`, full suite, shots, Opus review, release 0.37.0 after Diego's yes. Released 0.37.0; HA reads v0.37.0 back. Tablet 3D first frame: waits for Diego.
+
+Not in this sprint: the 2D sun wedge (S15.3d); the card file split beyond the form (review item 15); CI shards.
+
+## Sprint 39: Release 0.38.0, history replay, the card file split
+
+Branch `task/s39-replay`. Diego, 2026-10-28: "ok, do the replay", "then plan D". His answers: card only; a bar under
+the plan, opened from the ⋯ menu; the whole shown floor in 2D and 3D; plan D one item per sprint, the card split in
+this one. Spec: `docs/specs/replay-s39.md` (criteria 1 to 15). Decisions: `docs/DECISIONS.md`, 2026-10-28.
+
+The card file is 119,612 gz against a cap of 124,650. The replay's maths goes in a lazy chunk; the bar and the wiring
+stay in the card. Every lane reports `gzip -9` of the card and the chunks before and after. No lane raises the cap.
+
+Lanes, each in its own worktree and `PW_PORT`: **split** S39.0 first, alone on the card file; **replay** S39.1 (the
+chunk only, starts at once); **card** S39.2, S39.3, S39.4 after S39.0 lands (one coder, in order); then S39.5.
+
+- [x] S39.0 Split the card file (2026-10-28: element source 275,489 -> 142,657 B, seven modules `card-menu`, `card-sheet`, `card-overview`, `card-dialogs`, `card-popup`, `card-view-state`, `card-zoom`; card gzip -9 119,612 -> 119,638, +26 B, cap 124,650; vitest 5517 passed; the 3D host glue and the sun and night logic stay on the element). (review item 15). `src/card/floorplan-studio-card.ts` is 275 KB of source. Move whole
+      concerns out into modules beside it (the 3D host glue, the sheet and popup wiring, the header and menu, the floor
+      row, the measuring and level logic), each a plain function or a small helper class over the element; the element
+      keeps its state and lifecycle. No behaviour change, no new public name, and the card's gzip bytes do not grow by
+      more than 1 %. The full suite is the test; report source size of the element before and after, and the gzip.
+- [x] S39.1 (2026-10-28) The replay chunk: `src/card/replay/history.ts` with `parseHistory(reply, asked)` and `stateAt(index, t)`,
+      built as `floorplan-studio-replay-<hash>.js` (the Vite chunk naming rule today calls every non-language chunk
+      `3d`; give the replay its own name). Spec criteria 1, 2. Pure, unit tests only.
+- [x] S39.2 (2026-10-28) The bar and the fetch: "Replay" in the ⋯ menu, the bar (slider, time, play/pause, Live), the
+      `history/history_during_period` call per floor, busy and error states. Spec items 1 to 4, 10; criteria 3, 10 to
+      13.
+- [x] S39.3 (2026-10-28) One draw path for the past: `_stateForRender()`, motion fade, `_night()`, `_sun()` and the 3D `now` read
+      the replayed moment; `hass` updates held; taps off. Spec items 6 to 9; criteria 4 to 9.
+- [x] S39.4 (2026-10-28) Words and pictures: the new strings in all ten catalogues, the raw-English lint over the new files, the
+      release zip check for the replay chunk, the shots of criterion 15 looked at. Criteria 14, 15.
+- [ ] S39.5 Integrate on `task/s39-replay`, full suite, shots, Opus review, release 0.38.0 after Diego's yes. The tablet's
+      3D first frame in the CHANGELOG.
+
+Not in this sprint: CI shards, the surface freeze, the editor-app split (Sprints 40 and 41); vacuum position.
+
+## Sprint 40: Release 0.39.0, quick wins from a field report
+
+Branch `task/s40-quick-wins`. Diego, 2026-10-29: "Quick wins first", and "can we have a replay button at the bottom
+(where the replay bar would be) if i click the button replay bar shows and i can use it. then a X button to close the
+replay bar." Spec: `docs/specs/quick-wins-s40.md` (items 1 to 17, criteria 1 to 15).
+
+Lanes, each in its own worktree and `PW_PORT`, one Sonnet coder each: **card** S40.1 then S40.3 (both touch the card's
+tap and bar code); **editor** S40.2 then S40.4 (both in the editor's panels). S40.3's editor field waits for S40.2 to
+land, since both edit the device and trace panels' file. Every card lane reports `gzip -9` of the card before and
+after; no lane raises the cap.
+
+- [x] S40.1 Replay button and X: the button under the plan while the bar is closed, the X in place of Live, focus going
+      to play and back to the button. Spec A, items 1 to 5; criteria 1 to 3.
+- [x] S40.2 Move and turn the trace image: Move toggle, drag, arrow nudge, the Rotation field, Move off on Escape,
+      Scale, Hide and Remove. Spec B, items 6 to 9; criteria 5 to 8.
+- [x] S40.3 A device's `view`: schema and `validate` (unit first, the hostile list of criterion 9), the card's tap,
+      then the device panel's field. Spec C, items 10 to 13; criteria 9 to 11. Docs: `docs/schema.md`, `docs/SPEC.md`.
+- [x] S40.4 Single entities in Add device: the Entities group while searching, the 50-row cap, the pick placing one
+      entity. Spec D, items 14 to 17; criteria 12 to 14.
+- [ ] S40.5 Words and pictures, integrate, review: the strings in all ten catalogues and the lint (criterion 4), the
+      shots of criterion 15 looked at, the full suite on the merge, the Opus review, release 0.39.0 after Diego's yes.
+
+Not in this sprint: the trace image on the card, a combined history chart in the popup, temperature range warnings, a
+generic value sensor with its own icon. Each needs its own design; they are next after this one.
+
+## Sprint 41 (outline): room for the card, replay review, a brainstorm, CI shards and the surface freeze
+
+S41.0 first. Then two discovery tasks, asked by Diego on 2026-10-30; their output is a spec and a plan for Sprint 42 on, not
+code. Then Plan D, items 16 and 17. Detailed when Sprint 40 closes.
+
+- S41.0 Room for the card, first (Diego, 2026-10-30, after 0.39.0). The card ships at 124,649 bytes gzip against a cap of
+  124,650, so no card feature fits. Find what turns `?.` into `==null?void 0:` in `dist/floorplan-studio-card.js`
+  (22 places in 0.39.0: Vite's lib default, the esbuild pass in `scripts/minify-output.mjs`, or a dependency's own
+  output); set the target to the oldest that Home Assistant's frontend itself requires (read its browserslist, cite it
+  in DECISIONS) for the card, form, replay, language and 3D chunks. Done when the saving is measured in DECISIONS, the
+  full suite passes, the cap's headroom is a written decision, and a test fails if a shipped chunk carries
+  `==null?void 0` from our own source. If the saving is under 1 KB gzip, the task lists the three next-largest savings
+  with sizes and Diego picks. Alone: every other task runs the build.
+- S41.r Review the replay to widen it. Read the S39 and S40 replay code and DECISIONS, use it on Diego's HA, and
+  answer with evidence: event markers on the slider (lamps, motion, doors, alarms), clustered when they crowd;
+  a longer window (48 h, 7 days: what HA's recorder keeps, `purge_keep_days`, the cost of one history call per floor,
+  and statistics for long ranges); jump to the next event; filters by type or room. Also more cues on the live plan
+  that a replay can then show: open doors and windows, recent motion trails, a room that was busy, a value out of its
+  range. Output: `docs/specs/replay-2.md` with criteria, sizes measured against the card's gzip cap, and the order.
+  Done 2026-10-30: `docs/specs/replay-2.md`, approved by Diego with its defaults; tasks in Sprints 43 and 44.
+- S41.b Brainstorm with Diego (build-flow design interview), from what is built: new features, and improvements to
+  usability, readability and integration with Home Assistant (areas, labels, the dashboard, Assist, notifications).
+  Prepared beforehand: a list of candidates from the field reports, open DECISIONS items and the four deferred field
+  requests (trace on the card, a combined history chart, temperature range warnings, a generic value sensor), each
+  with value, cost and risk. Output: a ranked list in `docs/ROADMAP.md` or PLAN outlines, and Diego's picks.
+  Done 2026-10-30: Diego picked eleven items; they are Sprints 46 to 49 below; the scene editor Diego added the same day is Sprints 50 and 51.
+
+- S41.c Shard the Playwright job in `.github/workflows/ci.yml` (a matrix of 4, `--shard=i/4`), a merged report, and
+  `globalSetup` building once per shard. Done when CI on `main` is under half today's wall time with the same count of
+  tests, and a deliberately failing test still turns CI red.
+  Done 2026-10-30 (PR 4): CI 22 min to 10.5 min, 2,700 tests in four shards; a planted failing test turned shard 3 red.
+- S41.d The surface freeze in `docs/WORKFLOW.md`: no new theme, no new car model, a new config key needs a removed one
+  or a DECISIONS entry that says why. A unit test lists today's config keys and themes, so a new one fails until the
+  list and the reason are written down (finding 17).
+  Done 2026-10-30: `docs/WORKFLOW.md` "Surface freeze", `tests/card/surface-freeze.test.ts` (37 keys, 13 themes, 9 cars).
+
+## Sprint 42: temperature range warnings
+
+Spec: `docs/specs/temp-range.md`, approved by Diego on 2026-10-31 with its defaults. A room too cold or too
+hot gets a tint and an Attention line; one house range in the layout, a room may override it; a 0.5 °C band and a hold,
+default 5 minutes; at most 1,000 bytes gzip on the card. Tasks S42.1 to S42.6 are in the spec. S42.1 first; S42.2, S42.3
+and S42.5 in parallel after it; S42.4 after S42.1 to S42.3.
+Done 2026-10-31: S42.1 to S42.5 merged (PRs 8 to 15). The sprint spends +1,752 bytes gzip, accepted by Diego over the
+1,000 set (DECISIONS). S42.6: README, then the Opus review.
+
+## Sprint 43 (outline): replay 2, part 1
+
+Spec: `docs/specs/replay-2.md`, approved by Diego on 2026-10-30 with its defaults (24 h per minute at any length, arming
+and disarming are alarm events, a lamp's event is its turning on, 7 days behind the gate). After Sprint 42, so the card's
+room serves temperature warnings first. The card spends at most +600 bytes gzip across both sprints; the rest goes into
+the replay chunk, whose limit rises from 1,500 to 6,000 in R2.1.
+
+- R2.1 Leaner fetch: two history calls per floor (attribute domains in full, the rest with `significant_changes_only`
+  and `minimal_response`), the request moved into the chunk, the chunk limit raised.
+  Done 2026-10-31: `fetchHistory` and `historyRequests` in `src/card/replay/history.ts`; card 123,568 to 123,558 gzip, replay
+  chunk 1,455 to 1,653, limit 6,000.
+- R2.2 The event table per device type and the onsets, no UI; a test iterates `DEVICE_TYPES` (finding 17).
+  Done 2026-10-31: `src/card/replay/events.ts` (`EVENT_RULES`, `NO_EVENT`, `onsets`); card 123,558 to 123,557 gzip, replay
+  chunk 1,653 to 2,665, limit 6,000.
+- R2.3 Markers on the slider, the motion band, clusters, a tap on a marker.
+  Done 2026-10-31: `src/card/replay/markers.ts` (`clusters`, `motionBuckets`), the strip in `bar.ts`; card 123,557 to 123,672 gzip, replay
+  chunk 2,665 to 3,656, limit 6,000.
+- R2.4 Jump to the previous and next event: buttons and Shift+arrows.
+  Done 2026-11-01: `neighbour` in `replay/events.ts`, the buttons and value text in `bar.ts`, Shift+arrows and pause in `card-replay.ts`; card 123,672 to
+  123,833 gzip, replay chunk 3,656 to 3,985, limit 6,000.
+
+## Sprint 44 (outline): replay 2, part 2
+
+- R2.5 48 h and the length selector.
+  Done 2026-11-01: `replay/window.ts` (`WINDOWS`, `purgedFrom`, `dayAndTime`), the length buttons and the purge grey in `bar.ts`, `setHours` and the
+  window-aware keys in `card-replay.ts`; card 123,845 to 123,958 gzip (+113), replay chunk 4,046 to 4,725, limit 6,000.
+- R2.6 Filters by group and room; they change markers and jumps, never the plan.
+  Done 2026-11-01: `replay/filters.ts` (state), `allows` and `Onset.rooms` in `replay/events.ts`, `doorRoomIndexes` in `core/active.ts`, the button and
+  list in `bar.ts`; card 123,959 to 124,060 gzip (+101), replay chunk 4,770 to 5,906, limit 6,000.
+- R2.7 The 7-day gate: a 180k-row fixture parsed and indexed in under 1.5 s at 4x CPU throttle and under 60 MB of heap,
+  or 7 days is cut and the reason goes into DECISIONS.
+  Done 2026-11-01: the gate passed (61 ms and 12.9 MB at 4x throttle on the Mac), so 7 days ships: one `WINDOWS` entry, "7 d" button, date in the time past
+  48 h; `tests/card/replay-gate*.ts` hold the fixture and the CI ratio test; card 124,060 to 124,059 gzip, replay chunk 5,906 to 5,941, limit 6,000.
+
+## Sprint 45 (outline): split editor-app
+
+Plan D, item 15, second half. `src/editor/editor-app.ts` (220 KB of source) split as S39.0 split the card: whole
+concerns into modules, no behaviour change, the full suite as the test.
+
+## After the 2026-10-30 brainstorm (S41.b): Sprints 46 to 51
+
+Diego's picks from 25 candidates, each rated for value, cost and risk. Not picked: vacuum position (the research said
+no), several houses, a 2D sun wedge, the car card popover, ha-floorplan SVG import, Studio translations (after the
+split), an Attention sensor in Python (the rules would exist twice, finding 8). Card bytes: no sprint of its own; the
+first picked feature that does not fit the cap moves the popup, dialogs or overview into lazy chunks first. Each sprint
+gets its spec before it starts.
+
+### Sprint 46 (outline): the plan and Home Assistant agree
+
+All in the Studio, 0 card bytes. Every registry write is confirmed by the admin, one click per change.
+- Follow renames: when HA renames or removes an entity, the layout follows the new id, or the Studio lists the
+  orphans with a fix for each.
+- Area check: devices whose HA area differs from their plan room, rooms with no area; fix each in one click.
+- Plan floors to HA floors: create or assign HA floors from the plan's floors.
+- Studio at 1024 wide and under 800 high: the toolbar does not wrap, the Align panel fits.
+
+### Sprint 47 (outline): Attention acts
+
+- Attention to notify: from an Attention row, create an automation that sends a notification, built by
+  `src/editor/automations.ts`.
+- Attention snooze: mark an item as meant (a window open on purpose) so Attention stops listing it until it changes.
+  Lives in core so the Overview and the plan agree (finding 8); the spec decides where the snooze is stored.
+
+### Sprint 48 (outline): history and readability on the card
+
+- History chart: one popup chart for a room's or a device's sensors, in a lazy chunk that shares replay 2's fetch.
+- Value icon on `other`: the generic value sensor request, as an icon choice on the existing type, not a new type.
+- Plan legend: what rings, glow and Attention colours mean, lazy.
+
+### Sprint 49 (outline): trace on the card
+
+- Trace on the card: the Studio's trace image under the plan, off unless the layout turns it on (it reaches every
+  tablet). Under the surface freeze, a layout setting, not a card config key.
+- (Moved to Sprint 50: every scene saved is a Home Assistant scene.)
+
+### Sprint 50 (outline): the scene editor in the card
+
+Diego, 2026-10-30: "a scene editor popup. lazy. that has a nice wysiwyg editor for light/cover/switches/music scenes in
+a room. then scenes are saved for the rooms." The spec answers the open points before the sprint starts.
+- One editor, two hosts: a lazy chunk the card opens from a room's Scenes section, and the Studio opens in place of the
+  S17 popup, so the two cannot drift (one draw path, finding 8; parity with the Studio).
+- The popup shows the room magnified, drawn by `renderFloor` cropped to the room. A tap on a device opens its control
+  in place: on/off, brightness, kelvin and colour for a light; position (and tilt) for a cover; on/off for a switch or
+  plug; volume and source for a speaker; mode and target for climate; speed for a fan.
+- WYSIWYG without touching the house: the plan draws the scene's states the way a replay draws past states. "Try it"
+  sends it to the real devices and "Restore" puts the room back (S17.7).
+- New per-item fields: `transition` (seconds, lights), cover `tilt`, climate fan mode; "Capture the room now" fills a
+  scene from the current states.
+- Saving makes a Home Assistant scene (Diego, 2026-10-30: "scenes need to be HA scenes. so i can run them from my
+  room screens"). Save writes a `scene.*` through HA's scene config, in the room's area, so a room screen, Assist or an
+  automation runs it; the room lists it as it lists HA scenes today. Sprint 49's "scenes into HA" moves here. The spec
+  decides what happens to the custom scenes already stored on rooms (a one-time move, offered, never silent). Writing
+  HA config is admin only; non-admins see the editor read-only with Try it. HA's scene config writes to `scenes.yaml`
+  and works only where `configuration.yaml` has `scene: !include scenes.yaml` (a default install has it); the spec says
+  what the editor shows when it is missing. Card bytes: the button and the loader only.
+
+### Sprint 51 (outline): dynamic scenes
+
+- Steps: a scene is a list of steps, each a set of items, a duration and a transition (a wake-up ramp, an evening
+  dimming, a party cycle), with play once or loop.
+- Runs in Home Assistant, not in the card: an HA scene holds one state, so a dynamic scene is saved as a `script.*`
+  (delays and transitions) in the room's area. It runs with the dashboard closed, and room screens, Assist and
+  automations start it.
+- Effects the lights already have (`effect_list`: candle, fire, colour loop) are offered first: no Zigbee traffic.
+- A traffic budget: a loop step under 2 s per light, or more than a set number of calls a minute, is refused with the
+  reason, so a scene cannot flood the Zigbee network.
+- The card shows a playing scene and stops it.
+
+
+## After the 2026-11-01 interview: Sprints 52 to 61
+
+Spec: `docs/specs/batch-s52.md`, approved by Diego on 2026-11-01 with its defaults. Comes after Sprint 51. Sprint 52 frees card bytes first; no
+feature task starts before it has measured what it freed. The card spends about +3,720 gzip across the batch. Each
+task measures its real figure and records it in DECISIONS.
+
+### Sprint 52: room for the card
+
+- B52.1 Measure the popup, the dialogs and the overview as lazy chunks (gzip saved, and first open at 4x CPU throttle).
+  Diego picks from the figures.
+- B52.2 Move the picked parts into chunks, loaded on first open with the retry-by-URL rule. They get the card's helpers
+  through deps, never by import. Done when at least 4,000 bytes are freed, the popup opens in under 300 ms at 4x, and
+  `size-budget.spec.ts` has each chunk's limit (spec criterion 1).
+
+### Sprint 53: furniture and the louder car
+
+- B53.1 `sofa-l`, `coffee-table`, `bookcase`, `buffet`: symbols, heights, sizes, picker, the 3D palette. A test walks
+  `FURNITURE_SYMBOLS` against every table (criterion 2).
+- B53.2 `mirror` on `sofa-l`, and the L as two blocks: one shape function for 2.5D and 3D (criterion 3).
+- B53.3 The charging car's glow and 2.4 s breath in 2D and 3D, still under reduced motion. Computed-style pairs, and
+  shots in both themes at 4x (criterion 7).
+
+### Sprint 54: worktop and underfloor heating
+
+- B54.1 The worktop's schema: `pts`, the box kept in step, `validate` (criterion 4).
+- B54.2 The worktop drawn in 2D, 2.5D and 3D at 90 cm.
+- B54.3 Worktop editing: draw by points, vertex handles, add, remove, move, one undo step each. The polygon code is
+  shared with rooms (criterion 5).
+- B54.4 `underfloor` on `climate` and `heater`: `--fp-floor-heat` in every theme, the wash and the pipe pattern in 2D,
+  the warm floor in 3D (criterion 6).
+
+### Sprint 55: room badges
+
+- B55.1 Schema: `badges`, `power`, `water`, with `validate`, and the room panel's settings and sensor lists.
+- B55.2 `BADGE_OF` over `DEVICE_TYPES`, and `badgeInfo` in core: rows per icon, live and at replay time (criterion 9).
+- B55.3 `renderFloor` draws the badges in the corner, with the L-room slide (criterion 8, the drawing).
+- B55.4 The bubble: hover on desktop; tap, tap away and 4 s on touch, with each engine's event shapes. The words go
+  into the ten languages (criterion 8, the bubble).
+
+### Sprint 56: replay always visible, energy counters
+
+- B56.1 `replay: always`: rests at live, fetches on the first drag back, has a Live button and returns after 5 minutes
+  idle. DECISIONS gives the freeze reason (criterion 10).
+- B56.2 First, check `energy/get_prefs` as a non-admin on Diego's HA. Then the energy chunk and its loader: the prefs
+  and one 5-minute statistics call, with stubs copied from HA's replies (criteria 11 and 15).
+- B56.3 The counter maths: the sum to t, interpolation inside a bucket, the electricity formula, and the cost rules
+  (criteria 11 and 12).
+- B56.4 The chips: icon, value and sparkline; the settings to hide each chip, choose use, cost or both, and turn the
+  sparkline off.
+
+### Sprint 57: the overlay chart and the device tree
+
+- B57.1 The see-through overlay chart: 5-minute bars, faded after t, a line at t, dragged by its header within the
+  card, one at a time (criterion 13).
+- B57.2 The device tree from `device_consumption`, nested by `included_in_stat`, with the untracked remainder
+  (criterion 14).
+
+### Sprint 58: 3D Studio, stage 1, the preview pane
+
+- B58.1 Prove the chunk loads in the HA panel and in the standalone `editor.html`, or drop the pane from `editor.html`.
+- B58.2 The split pane: rebuilt 200 ms after an edit, the selection outlined, live states in the panel, 0 card bytes
+  (criterion 16). Diego reviews before stage 2.
+
+### Sprint 59: 3D Studio, stage 2, pick and move
+
+- B59.1 One shared selection: a click in 3D selects in 2D, and the other way round.
+- B59.2 Drag on the floor plane with snap, R to rotate, Shift-drag for `z`. One undo step per drag (criterion 17).
+  Diego reviews before stage 3.
+
+### Sprints 60 and 61 (outline): 3D Studio, stage 3, structure
+
+Re-planned after Sprint 59's review. Drag wall ends, room, worktop and stair points on the floor plane; drag wall and
+room heights by their top edge; drag a door's or window's sill and head; drag the floor height and slab. Drawing new
+shapes stays in 2D unless the review says otherwise.

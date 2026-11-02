@@ -1246,6 +1246,18 @@ describe("FloorplanStudioCard", () => {
     expect(stub).toEqual({ type: "custom:floorplan-studio-card" });
   });
 
+  // S38.0, finding 21: the shape is copied from the Home Assistant frontend, home-assistant/frontend, `src/panels/lovelace/editor/card-editor/
+  // hui-card-element-editor.ts`: `getConfigElement()` is `return elClass.getConfigElement()` inside an async method, and
+  // `src/panels/lovelace/editor/hui-element-editor.ts` reads it with `let configElement = await this.getConfigElement()`. So a card may
+  // hand back a promise; the form's chunk loads on the first call. (Here the form comes from source: no built file under vitest.)
+  it("getConfigElement returns a promise of the form element, and the form is defined once it resolves", async () => {
+    const pending = FloorplanStudioCard.getConfigElement();
+    expect(typeof (pending as unknown as Promise<HTMLElement>).then).toBe("function");
+    const el = await pending;
+    expect(el.tagName.toLowerCase()).toBe("floorplan-studio-card-editor");
+    expect(customElements.get("floorplan-studio-card-editor")).toBeDefined();
+  });
+
   it("getCardSize returns a positive number", async () => {
     const el = await mount();
     el.setConfig({ layout: structuredClone(L) });

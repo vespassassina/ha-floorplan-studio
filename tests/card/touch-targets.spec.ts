@@ -49,7 +49,9 @@ async function boot(page: Page, size: Size, touch: boolean, config: Record<strin
     el.setConfig(cfg);
     el.hass = { states: s, callService: () => undefined };
     return el.updateComplete;
-  }, [{ layout, theme: "light", ...config }, STATES()] as const);
+    // S37.6: the stress house has 437 devices. At a tablet's 768 px, auto now draws every one, and the spot lies in a stack that
+    // fans out on its first tap. These tests judge the popup, not the stack, so they pin the old far-at-fit picture.
+  }, [{ layout, theme: "light", detail: "minimal", ...config }, STATES()] as const);
   if (threeD) await drawn(page);
   const env = await page.evaluate(() => ({ w: innerWidth, h: innerHeight, coarse: matchMedia("(pointer: coarse)").matches, fine: matchMedia("(pointer: fine)").matches }));
   expect(env, "the pointer of the test is the pointer the test says it is").toEqual({ w: SIZES[size].width, h: SIZES[size].height, coarse: touch, fine: !touch });

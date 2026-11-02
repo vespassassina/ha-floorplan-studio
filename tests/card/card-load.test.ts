@@ -250,3 +250,91 @@ describe("card follows a Studio save", () => {
     expect(unsub).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("card follows a save through floorplan_studio/subscribe", () => {
+  afterEach(() => { document.body.innerHTML = ""; vi.restoreAllMocks(); });
+
+  // Shapes copied from custom_components/floorplan_studio/websocket.py `ws_subscribe`: the command is answered with a bare
+  // result, then each save pushes an event whose payload is `{ rev }` (the JS library hands `msg.event` to the callback).
+  // An older integration answers with HA's own error `{ code: "unknown_command", message: "Unknown command." }`.
+  type SubConn = Conn & { subscribeMessage: ReturnType<typeof vi.fn> };
+  function subConn(): { c: SubConn; push: (rev: number) => void; unsub: ReturnType<typeof vi.fn> } {
+    const c = conn(() => reply(structuredClone(L))) as SubConn;
+    let cb: (e: { rev: number }) => void = () => undefined;
+    const unsub = vi.fn(() => { cb = () => undefined; }); // a real unsubscribe stops delivery
+    c.subscribeMessage = vi.fn(async (f: (e: { rev: number }) => void) => { cb = f; return unsub; });
+    return { c, push: (rev) => cb({ rev }), unsub };
+  }
+
+  it("one event is one reload, a hass update adds no second subscription, removal unsubscribes", async () => {
+    const { c, push, unsub } = subConn();
+    const el = await mount();
+    el.setConfig({});
+    el.hass = hassOf(c);
+    await settle(el);
+    expect(c.subscribeMessage).toHaveBeenCalledTimes(1);
+    expect(c.subscribeMessage.mock.calls[0]![1]).toEqual({ type: "floorplan_studio/subscribe" });
+    expect(c.subscribeEvents).not.toHaveBeenCalled();
+    expect(loads(c)).toHaveLength(1);
+    el.hass = hassOf(c, { states: { "light.a": {} } });
+    el.hass = hassOf(c, { states: { "light.b": {} } });
+    await settle(el);
+    expect(c.subscribeMessage).toHaveBeenCalledTimes(1);
+    expect(loads(c)).toHaveLength(1);
+    push(7);
+    await settle(el);
+    expect(loads(c)).toHaveLength(2);
+    el.remove();
+    await settle(el);
+    expect(unsub).toHaveBeenCalledTimes(1);
+    push(8);
+    await settle(el);
+    expect(loads(c)).toHaveLength(2);
+  });
+
+  it("reconnecting the element subscribes again, once", async () => {
+    const { c, unsub } = subConn();
+    const el = await mount();
+    el.setConfig({});
+    el.hass = hassOf(c);
+    await settle(el);
+    el.remove();
+    await settle(el);
+    document.body.appendChild(el);
+    await settle(el);
+    expect(unsub).toHaveBeenCalledTimes(1);
+    expect(c.subscribeMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("an older integration (unknown_command) falls back to the bus event, and that still reloads", async () => {
+    const { c } = subConn();
+    c.subscribeMessage.mockRejectedValue({ code: "unknown_command", message: "Unknown command." });
+    const unsub = vi.fn();
+    let onEvent: () => void = () => undefined;
+    c.subscribeEvents.mockImplementation(async (cb: () => void) => { onEvent = cb; return unsub; });
+    const el = await mount();
+    el.setConfig({});
+    el.hass = hassOf(c);
+    await settle(el);
+    expect(c.subscribeEvents).toHaveBeenCalledTimes(1);
+    expect(c.subscribeEvents.mock.calls[0]![1]).toBe("floorplan_studio_updated");
+    expect(el.shadowRoot!.querySelector("svg")).not.toBeNull();
+    onEvent();
+    await settle(el);
+    expect(loads(c)).toHaveLength(2);
+    el.remove();
+    await settle(el);
+    expect(unsub).toHaveBeenCalledTimes(1);
+  });
+
+  it("any other subscribe error keeps a working card and does not fall back", async () => {
+    const { c } = subConn();
+    c.subscribeMessage.mockRejectedValue({ code: "unauthorized", message: "Unauthorized" });
+    const el = await mount();
+    el.setConfig({});
+    el.hass = hassOf(c);
+    await settle(el);
+    expect(c.subscribeEvents).not.toHaveBeenCalled();
+    expect(el.shadowRoot!.querySelector("svg")).not.toBeNull();
+  });
+});

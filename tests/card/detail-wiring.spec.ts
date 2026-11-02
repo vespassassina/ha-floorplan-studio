@@ -11,7 +11,7 @@ const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 const EDITOR = "floorplan-studio-editor";
 
-test("the card: with the harness pinning full the plan is whole at every zoom; with auto, fit is far, zooming in with the + button goes mid then near, - and Fit go back", async ({ page }) => {
+test("the card: with the harness pinning full the plan is whole at every zoom; with auto, fit is mid (the plan is wide, S37.6), zooming in with the + button goes to near, - and Fit go back", async ({ page }) => {
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto(URL_);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
@@ -34,7 +34,7 @@ test("the card: with the harness pinning full the plan is whole at every zoom; w
   };
   expect(await level(), "the harness pins full").toBe("near");
   await page.evaluate(() => { const el = document.getElementById("card") as any; el.setConfig({ ...el._config, detail: "auto" }); return el.updateComplete; });
-  expect(await level()).toBe("far");
+  expect(await level()).toBe("mid");
   const seen: (string | null)[] = [];
   for (let i = 0; i < 12; i++) { await click("Zoom in"); seen.push(await level()); }
   expect(seen).toContain("mid");
@@ -43,7 +43,7 @@ test("the card: with the harness pinning full the plan is whole at every zoom; w
   const rank = { far: 0, mid: 1, near: 2 } as Record<string, number>;
   expect(seen.map((s) => rank[s!])).toEqual([...seen.map((s) => rank[s!])].sort());
   for (let i = 0; i < 12; i++) await click("Zoom out");
-  expect(await level()).toBe("far");
+  expect(await level()).toBe("mid");
 });
 
 test("the Studio: fit is far, + goes mid then near, - goes back", async ({ page }) => {

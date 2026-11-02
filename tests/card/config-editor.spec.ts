@@ -1,7 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { loadCard } from "./form-harness";
 
 // S7.7: the card config form. Same file:// injection trick as tests/card/card.spec.ts — a plain <script src>
 // fails under file:// (Chromium refuses a cross-origin module fetch between two file:// URLs), so the built
@@ -10,22 +9,18 @@ import { pathToFileURL } from "node:url";
 // config already builds (vite.config.ts: the card's entry is src/card/floorplan-studio-card.ts) — no second file.
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 
-const URL_ = pathToFileURL(resolve("tests/card/config-editor-harness.html")).href;
-const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 
 /** Loads the harness fresh, injects the built module, and waits for both custom elements to upgrade. */
 async function open(page: Page) {
-  await page.goto(URL_);
-  await page.addScriptTag({ content: CARD_JS, type: "module" });
-  await page.evaluate(() => Promise.all([customElements.whenDefined("floorplan-studio-card"), customElements.whenDefined("floorplan-studio-card-editor")]));
+  await loadCard(page);
 }
 
 /** Calls FloorplanStudioCard.getConfigElement(), appends the result to the body, calls setConfig, and returns
  * a handle to it. Collects every config-changed event fired after this point into window.__events. */
 async function mount(page: Page, config: Record<string, unknown> = {}) {
-  await page.evaluate((config) => {
-    const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): HTMLElement };
-    const el = Ctor.getConfigElement();
+  await page.evaluate(async (config) => {
+    const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): Promise<HTMLElement> };
+    const el = await Ctor.getConfigElement();
     (window as unknown as { __events: unknown[] }).__events = [];
     el.addEventListener("config-changed", (e) => {
       (window as unknown as { __events: unknown[] }).__events.push((e as CustomEvent).detail);
@@ -43,11 +38,24 @@ function events(page: Page) {
 
 test("getConfigElement returns an element tagged floorplan-studio-card-editor", async ({ page }) => {
   await open(page);
-  const tag = await page.evaluate(() => {
-    const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): HTMLElement };
-    return Ctor.getConfigElement().tagName.toLowerCase();
+  const tag = await page.evaluate(async () => {
+    const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): Promise<HTMLElement> };
+    return (await Ctor.getConfigElement()).tagName.toLowerCase();
   });
   expect(tag).toBe("floorplan-studio-card-editor");
+});
+
+// S38.0: the form is a file of its own. A dashboard that never opens Edit card never asks for it, and the first Edit card asks once, from the
+// card's own folder (/hacsfiles/floorplan_studio/ here), whatever query the card was loaded with.
+test("the form is fetched by getConfigElement, once, from beside the card; before that nothing defines it", async ({ page }) => {
+  const seen = await loadCard(page);
+  const forms = () => seen.filter((u) => /floorplan-studio-form-[\w-]+\.js/.test(u));
+  expect(forms()).toEqual([]);
+  expect(await page.evaluate(() => customElements.get("floorplan-studio-card-editor"))).toBeUndefined();
+  await page.evaluate(async () => { const C = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): Promise<HTMLElement> }; await C.getConfigElement(); await C.getConfigElement(); });
+  expect(forms()).toHaveLength(1);
+  expect(forms()[0]).toMatch(/^http:\/\/fp\.test\/hacsfiles\/floorplan_studio\/floorplan-studio-form-[\w-]+\.js$/);
+  expect(await page.evaluate(() => customElements.get("floorplan-studio-card-editor") !== undefined)).toBe(true);
 });
 
 test("setConfig fills the fields", async ({ page }) => {
@@ -672,9 +680,9 @@ test("Heat map select: Humidity writes heat_map, Off drops the key, junk shows O
 
 test("M1: a layout from the websocket is read from the { layout } reply, so floors and Favourites choices appear", async ({ page }) => {
   await open(page);
-  await page.evaluate((layout) => {
-    const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): HTMLElement };
-    const el = Ctor.getConfigElement();
+  await page.evaluate(async (layout) => {
+    const Ctor = customElements.get("floorplan-studio-card") as unknown as { getConfigElement(): Promise<HTMLElement> };
+    const el = await Ctor.getConfigElement();
     el.id = "editor";
     document.body.appendChild(el);
     (el as unknown as { setConfig(c: unknown): void }).setConfig({});

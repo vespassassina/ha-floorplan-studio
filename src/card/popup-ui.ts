@@ -2,6 +2,7 @@
 import { css, html, nothing } from "lit";
 import type { Device, Door, InfoRow } from "../core";
 import type { FanCaps, LightCaps, PopupOp } from "./popup";
+import { mark, t } from "../core/i18n";
 
 /** What a popup is about: a device, a door or an appliance, reduced to what the popup reads. `key` tells one subject from another (a second tap on the same one closes). */
 export interface PopupSubject {
@@ -82,7 +83,7 @@ export const POPUP_CSS = css`
   .fp-tip span { opacity: 0.8; }
 `;
 
-const RANGE: Record<SliderKind, { label: string; unit: string }> = { b: { label: "Brightness", unit: " %" }, t: { label: "Colour temperature", unit: " K" }, h: { label: "Colour", unit: "°" }, s: { label: "Speed", unit: " %" } };
+const RANGE: Record<SliderKind, { label: string; unit: string }> = { b: { label: mark("Brightness"), unit: " %" }, t: { label: mark("Colour temperature"), unit: " K" }, h: { label: mark("Colour"), unit: "°" }, s: { label: mark("Speed"), unit: " %" } };
 
 /** The popup, drawn from `v`. Every string reaches the page through lit's text bindings, which escape it (finding 2). */
 export function popupTemplate(v: PopupView) {
@@ -90,8 +91,8 @@ export function popupTemplate(v: PopupView) {
   const slider = (kind: SliderKind, min: number, max: number, step: number, cls = "") => {
     const val = v.level[kind];
     return html`<label>
-      <span>${RANGE[kind].label}<output>${val === null ? "–" : `${val}${RANGE[kind].unit}`}</output></span>
-      <input type="range" class=${cls} aria-label=${RANGE[kind].label} min=${min} max=${max} step=${step} .value=${String(val ?? min)}
+      <span>${t(RANGE[kind].label)}<output>${val === null ? "–" : `${val}${RANGE[kind].unit}`}</output></span>
+      <input type="range" class=${cls} aria-label=${t(RANGE[kind].label)} min=${min} max=${max} step=${step} .value=${String(val ?? min)}
         @input=${(e: Event) => v.slide(kind, Number((e.target as HTMLInputElement).value), false)}
         @change=${(e: Event) => v.slide(kind, Number((e.target as HTMLInputElement).value), true)} />
     </label>`;
@@ -99,7 +100,7 @@ export function popupTemplate(v: PopupView) {
   const label = v.doorLabel ?? v.op?.label ?? null;
   const primary = label === null ? nothing
     : v.confirming && v.op?.confirm
-      ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>Cancel</button></div>`
+      ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>${t("Cancel")}</button></div>`
       : html`<button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${label}</button>`;
   return html`<div class=${v.inSheet ? "fp-pop fp-pop-sheet" : "fp-pop"} role="dialog" aria-label=${s.name} data-pop @keydown=${v.key}>
     <div class="fp-pop-name">${s.name}</div>
@@ -111,8 +112,8 @@ export function popupTemplate(v: PopupView) {
       ${v.caps.hue ? slider("h", 0, 360, 1, "fp-pop-hue") : nothing}
     </div>` : nothing}
     ${primary}
-    ${s.entities.length && !v.kiosk ? html`<button type="button" class="fp-pop-more" @click=${v.more}>More info</button>` : nothing}
-    ${v.info.length && !v.kiosk ? html`<details class="fp-pop-info"><summary>Details</summary><dl>${v.info.map((r) => html`<div><dt>${r.label}</dt><dd>${r.value}</dd></div>`)}</dl></details>` : nothing}
+    ${s.entities.length && !v.kiosk ? html`<button type="button" class="fp-pop-more" @click=${v.more}>${t("More info")}</button>` : nothing}
+    ${v.info.length && !v.kiosk ? html`<details class="fp-pop-info"><summary>${t("Details")}</summary><dl>${v.info.map((r) => html`<div><dt>${r.label}</dt><dd>${r.value}</dd></div>`)}</dl></details>` : nothing}
   </div>`;
 }
 

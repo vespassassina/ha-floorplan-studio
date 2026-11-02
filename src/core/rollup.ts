@@ -45,6 +45,7 @@ export function floorRollups(f: Floor, state: StateOverlay | undefined, src?: At
   const seen = new Set<string>();
   for (const it of items) {
     const i = it.at.what === "door" ? doorRoomIndex(safe, it.at.index)
+      : it.at.what === "room" ? (Number.isInteger(it.at.index) && it.at.index < safe.rooms.length ? it.at.index : -1) // S42.3: a room names itself
       : it.at.what === "device" ? roomOf(safe.devices[it.at.index] ? deviceCentre(safe.devices[it.at.index]!) : null)
         : roomOf((() => { const m = safe.furniture[it.at.index]; return m && Number.isFinite(m.x) && Number.isFinite(m.y) ? ([m.x, m.y] as Pt) : null; })());
     const key = `${it.at.what}:${it.at.index}:${it.kind === "open" ? "open" : "alert"}`;

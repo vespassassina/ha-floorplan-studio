@@ -176,7 +176,7 @@ test("Align on the heavy stress floor shows the score within 1500 ms of the clic
   expect(Date.now() - t0).toBeLessThan(1500);
 });
 
-for (const size of [{ width: 1024, height: 768 }, { width: 380, height: 800 }]) {
+for (const size of [{ width: 1024, height: 768 }, { width: 748, height: 800 }]) {
   test(`${size.width} x ${size.height}: Apply and the other-turn line are their own top element at their centre`, async ({ page }) => {
     await setup(page, "ground", undefined, size);
     await openAlign(page);

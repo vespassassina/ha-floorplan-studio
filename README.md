@@ -37,6 +37,12 @@ One key, `theme:`. Every plan below is the same ground floor.
 
 ![The demo home as a live card: lights come on, the plan zooms, switches floor, turns 2.5D and 3D, darkens at dusk; then the Studio, dragging a device.](docs/img/demo.gif)
 
+## Replay the day
+
+⋯ > Replay plays back the last 24 hours from Home Assistant's history. Live leaves it.
+
+![The demo home replayed: the slider is dragged back to the morning, the kitchen lamp and the hall come on, the day plays, then the evening lamps, the TV and an open window; Live returns to now.](docs/img/replay.gif)
+
 ## What you get
 
 - An editor panel in HA: draw floors, rooms, walls, doors, windows (also slit windows), open doorways, stairs,
@@ -106,6 +112,10 @@ One key, `theme:`. Every plan below is the same ground floor.
   its own.
 - **Heat map.** A card key `heat_map` (and View, Heat map in the editor, and the card's ⋯ menu) fills each room by its
   temperature or humidity on a fixed scale, with the value and a legend. Live readings, no history.
+- **Temperature range.** Set a house min and max in the floor panel's Temperature range, and a room may override it in its
+  own panel (both fields empty with "Use house range" off: the room never warns). A room out of range for the hold
+  (default 5 minutes) gets a cold or hot tint and an Attention line, such as "Kitchen 27.4 °C, above 26". It comes back
+  in 0.5 °C inside the bound. Under the heat map the tint becomes a border. The studio's live view shows the same.
 - **Favourites.** A card key `favourites` lists entities at the top of the Overview, each with its button.
 - **View → Saved views** keeps a named view (floor, mode, turn, zoom) in the
   layout; every card offers it in its ⋯ menu.
@@ -148,7 +158,7 @@ The sidebar link is on by default. To hide it: Settings → Devices & services �
 
 Updates arrive through HACS like any other.
 
-The card is a file plus one chunk: `www/floorplan-studio-card.js` and `www/floorplan-studio-3d-<hash>.js` (the 3D view, fetched only when someone picks 3D). The HACS download holds both. If you install by hand, copy the whole `custom_components/floorplan_studio/` folder, `www/` included, never the card file alone.
+The card is a file plus chunks: `www/floorplan-studio-card.js`, `www/floorplan-studio-3d-<hash>.js` (the 3D view, fetched only when someone picks 3D), `www/floorplan-studio-form-<hash>.js` (the Edit-card form, fetched only when someone edits the card) and one small file per language. The HACS download holds them all. If you install by hand, copy the whole `custom_components/floorplan_studio/` folder, `www/` included, never the card file alone.
 
 A card config, by hand (the Edit-card form in the Lovelace UI does this for
 you, no YAML needed — see [`docs/card.md`](docs/card.md#the-edit-card-form)):

@@ -58,20 +58,25 @@ test("A: active_list false with zoom off is full as well; with zoom left on it s
   expect((await dev(page, LAMP)).display).not.toBe("none");
   await page.reload();
   await open(page, { active_list: false });
-  expect(await level(page)).toBe("far");
+  expect(await level(page)).toBe("mid");
 });
 
-test("A: a normal card keeps auto: far at fit, the idle lamp hidden; zoom off alone still has the Detail button, so auto", async ({ page }) => {
+// S37.6: the 1100 px wide plan is over 400 px, so auto at fit is mid, not far: the idle lamp is drawn. Far at fit is icons-default.spec.ts (a small plan).
+test("A: a normal card keeps auto: mid at fit on a wide plan, the idle lamp drawn; zoom off alone still has the Detail button, so auto", async ({ page }) => {
   await open(page, {});
-  expect(await level(page)).toBe("far");
-  expect((await dev(page, LAMP)).display).toBe("none");
+  expect(await level(page)).toBe("mid");
+  expect((await dev(page, LAMP)).display).not.toBe("none");
   await page.reload();
   await open(page, { zoom: false });
-  expect(await level(page)).toBe("far");
+  expect(await level(page)).toBe("mid");
 });
 
-test("A: an explicit detail wins: auto in a kiosk is far, minimal on a normal card is far, full in a kiosk with zoom off is near", async ({ page }) => {
+test("A: an explicit detail wins: auto in a kiosk is mid (not near), minimal on a normal card is far, full in a kiosk with zoom off is near", async ({ page }) => {
   await open(page, { kiosk: true, zoom: false, detail: "auto" });
+  expect(await level(page)).toBe("mid");
+  expect((await dev(page, LAMP)).display).not.toBe("none");
+  await page.reload();
+  await open(page, { kiosk: true, zoom: false, detail: "minimal" });
   expect(await level(page)).toBe("far");
   expect((await dev(page, LAMP)).display).toBe("none");
   await page.reload();
@@ -79,9 +84,9 @@ test("A: an explicit detail wins: auto in a kiosk is far, minimal on a normal ca
   expect(await level(page)).toBe("far");
 });
 
-test("F: the real default is auto: far at fit, mid then near as the card zooms in; the menu's Detail picks", async ({ page }) => {
+test("F: the real default is auto: mid at fit on a wide plan, then near as the card zooms in; the menu's Detail picks", async ({ page }) => {
   await open(page, { zoom: "wheel" });
-  expect(await level(page)).toBe("far");
+  expect(await level(page)).toBe("mid");
   const seen: string[] = [];
   const svg = await card(page).evaluate((el) => { const r = el.shadowRoot!.querySelector("svg")!.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
   await page.mouse.move(svg.x, svg.y);
@@ -91,7 +96,7 @@ test("F: the real default is auto: far at fit, mid then near as the card zooms i
     const l = (await level(page))!;
     if (seen[seen.length - 1] !== l) seen.push(l);
   }
-  expect(seen).toEqual(["far", "mid", "near"]);
+  expect(seen).toEqual(["mid", "near"]);
   await pick(page, "detail:minimal");
   expect(await level(page)).toBe("far");
   await pick(page, "detail:full");

@@ -1,5 +1,6 @@
+import { t } from "../core/i18n";
 import type { Device, Door, Furniture, Unlinked } from "../core";
-import { carEntities, carMain, carStatus, carText, entitiesOfDevice, entitiesOfDoor, pieceDevice, playerOf } from "../core";
+import { carEntities, carMain, carStatus, carText, entitiesOfDevice, entitiesOfDoor, isViewPath, pieceDevice, playerOf } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 import type { HoldAction, TapAction } from "./tap-action";
 
@@ -52,6 +53,14 @@ export type TapTarget = { device: Device; index: number; piece?: true } | { door
  * S10.4: a hold on a door or an appliance that names several entities opens `opts.openChooser(title, entities)` instead of
  * guessing. A hold on a device opens its own entity's more-info (the popup's More info link is the chooser's way in).
  */
+/** Home Assistant's own `navigate`: push, then tell its router. Used for the Studio link and a device's `view` (S40.3); a path that is not one (`isViewPath`) goes nowhere and says so (`false`). */
+export function openView(path: unknown): boolean {
+  if (!isViewPath(path)) return false;
+  history.pushState(null, "", path);
+  window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+  return true;
+}
+
 export function bindDeviceActions(
   svg: Element,
   host: DeviceActionsHost,
@@ -76,6 +85,9 @@ export function bindDeviceActions(
     /** What a press lands on, when the DOM cannot say (the 3D view picks with a ray): an element that carries `data-x`,
      *  `data-d` or `data-u`, or null. Replaces the lookup of the event's target. */
     resolve?: (e: PointerEvent) => Element | null;
+    /** S39.3: true while the card replays the past. A tap then acts on nothing and calls `onReplay`; a hold does nothing. */
+    replaying?: () => boolean;
+    onReplay?: () => void;
   },
 ): () => void {
   const longPress = opts?.longPress !== false;
@@ -134,6 +146,7 @@ export function bindDeviceActions(
     startY = pe.clientY ?? 0;
     const target = opts?.resolve ? opts.resolve(pe) : (e.target as Element | null)?.closest('g[data-x], button[data-x], line[data-d], g[data-u], g[data-f][data-linked], g[data-cam]');
     if (!target) return;
+    if (opts?.replaying?.()) { arm(() => opts.onReplay?.()); return; }
     const at = { x: startX, y: startY };
     const popupFrom = (el: Element) => (el.tagName === "BUTTON" ? el : null);
     const popup = (t: TapTarget) => () => opts?.openPopup?.(t, at, popupFrom(target));
@@ -165,7 +178,7 @@ export function bindDeviceActions(
         const main = carMain(m), d = pieceDevice(m);
         if (!main || !d) return;
         const ents = carEntities(m);
-        arm(popup({ device: d, index: i, piece: true }), () => (ents.length > 1 ? opts?.openChooser?.(m.name || "Car", ents, () => carText(carStatus(m, host.hass?.states))) : fireEvent(host, "hass-more-info", { entityId: main })));
+        arm(popup({ device: d, index: i, piece: true }), () => (ents.length > 1 ? opts?.openChooser?.(m.name || t("Car"), ents, () => carText(carStatus(m, host.hass?.states))) : fireEvent(host, "hass-more-info", { entityId: main })));
         return;
       }
       const own = m && pieceDevice(m)?.entity;
@@ -198,8 +211,11 @@ export function bindDeviceActions(
     const info = own ? () => fireEvent(host, "hass-more-info", { entityId: own }) : undefined;
     // `none` still arms a hold, doing nothing: the release of a long press must not turn into a tap.
     const onHold = holdA === "none" ? () => undefined : info;
-    const t: TapTarget = { device: d, index: i };
-    const asPopup = popup(t);
+    // S40.3: a device with a `view` opens it on a tap, whatever the card's tap_action says; hold keeps its own. Kiosk never leaves the dashboard.
+    // Checked here and again in `openView`, because the layout is untrusted.
+    if (longPress && isViewPath(d.view)) { arm(solo(() => openView(d.view)), onHold); return; } // read again on release
+    const tt: TapTarget = { device: d, index: i };
+    const asPopup = popup(tt);
     if (d.type === "vacuum") {
       // S33.4: a vacuum has no toggle; `popup` and `toggle` open its own dialog, which is the question: the robot is never started by a bare tap.
       arm(solo(tapA === "none" ? () => undefined : tapA === "more-info" && info ? info : () => opts?.openVacuumDialog?.(d)), holdA === "none" ? onHold : undefined);
@@ -208,7 +224,7 @@ export function bindDeviceActions(
     // A media player has its own, better panel: a tap is its more-info, as for a speaker or TV placed as an appliance (Diego, 2026-10-07).
     if (own?.startsWith("media_player.")) { if (longPress) arm(solo(tapA === "none" ? () => undefined : info!), onHold); return; }
     // The stack comes first for every tap action (`solo`): overlapped icons stay reachable, and a tap that fans a stack out toggles nothing.
-    const act = tapA === "none" ? () => undefined : tapA === "more-info" && info ? info : tapA === "toggle" && opts?.toggle ? () => opts.toggle!(t, at, popupFrom(target)) : asPopup;
+    const act = tapA === "none" ? () => undefined : tapA === "more-info" && info ? info : tapA === "toggle" && opts?.toggle ? () => opts.toggle!(tt, at, popupFrom(target)) : asPopup;
     arm(solo(act), onHold);
   };
 
