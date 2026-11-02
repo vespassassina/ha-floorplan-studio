@@ -19,7 +19,7 @@ const chunkName = () => ({
   name: "fp-chunk-name",
   generateBundle(_o: unknown, bundle: Record<string, { type: string; fileName: string; isEntry?: boolean; code?: string }>) {
     // S39 review N2: the replay chunk is retried the same way, under its own placeholder.
-    for (const [placeholder, name] of [["__FP3D_CHUNK__", /^floorplan-studio-3d-.+\.js$/], ["__FPREPLAY_CHUNK__", /^floorplan-studio-replay-.+\.js$/]] as const) {
+    for (const [placeholder, name] of [["__FP3D_CHUNK__", /^floorplan-studio-3d-.+\.js$/], ["__FPREPLAY_CHUNK__", /^floorplan-studio-replay-.+\.js$/], ["__FPOVERVIEW_CHUNK__", /^floorplan-studio-overview-.+\.js$/]] as const) {
       const chunk = Object.values(bundle).find((c) => c.type === "chunk" && !c.isEntry && name.test(c.fileName));
       if (!chunk) continue;
       for (const c of Object.values(bundle)) {
@@ -59,7 +59,8 @@ export default defineConfig(({ mode }) => {
       // S37.5: each language of the card's own words is a chunk too (src/card/i18n/<code>.ts, loaded by import() for `hass.language`).
       // Its own prefix keeps it from counting as the one 3D chunk the release checks for.
       // S39.1: the history replay (src/card/replay/) is a chunk of its own, loaded on the first Replay, named apart for the same reason.
-      rollupOptions: { output: { chunkFileNames: (c: { name: string; facadeModuleId?: string | null }) => (/[\\/]card[\\/]i18n[\\/]/.test(c.facadeModuleId ?? "") ? `floorplan-studio-lang-${c.name}-[hash].js` : /[\\/]card[\\/]replay[\\/]/.test(c.facadeModuleId ?? "") ? "floorplan-studio-replay-[hash].js" : "floorplan-studio-3d-[hash].js") } },
+      // B52.2: the Overview (src/card/overview/), with its stylesheet, is a chunk of its own, loaded when the card first has a layout to show.
+      rollupOptions: { output: { chunkFileNames: (c: { name: string; facadeModuleId?: string | null }) => (/[\\/]card[\\/]i18n[\\/]/.test(c.facadeModuleId ?? "") ? `floorplan-studio-lang-${c.name}-[hash].js` : /[\\/]card[\\/]replay[\\/]/.test(c.facadeModuleId ?? "") ? "floorplan-studio-replay-[hash].js" : /[\\/]card[\\/]overview[\\/]/.test(c.facadeModuleId ?? "") ? "floorplan-studio-overview-[hash].js" : "floorplan-studio-3d-[hash].js") } },
     },
   });
   if (mode === "form") return lib("src/card/config-editor.ts", "floorplan-studio-form-[hash].js");

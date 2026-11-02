@@ -14,6 +14,7 @@ const c: Catalogue = {
   "3D view unavailable: this browser has no WebGL. Showing 2D.": "Widok 3D niedostępny: ta przeglądarka nie ma WebGL. Pokazuję 2D.",
   "3D view unavailable: it could not start. Showing 2D.": "Widok 3D niedostępny: nie udało się go uruchomić. Pokazuję 2D.",
   "3D view unavailable: its code did not load. Showing 2D.": "Widok 3D niedostępny: jego kod się nie załadował. Pokazuję 2D.",
+  "Overview unavailable: its code did not load. Reload the page to try again.": "Przegląd niedostępny: jego kod się nie załadował. Odśwież stronę, aby spróbować ponownie.",
   "Unnamed room": "Pokój bez nazwy",
   "Clear the room selection": "Wyczyść wybór pokoju",
   "No devices in this room": "Brak urządzeń w tym pokoju",
