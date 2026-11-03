@@ -122,6 +122,24 @@ describe("<floorplan-studio-panel>", () => {
     expect(st.views[st.floor]).toEqual({ x: 1, y: 2, w: 300, h: 200 }); // still the person's view
   });
 
+  it("an area the editor wrote to Home Assistant survives the next state update (no repeat of the move prompt)", async () => {
+    // offerAreaMove writes the area, then patches `ed.ha` locally (editor-ha.ts). The panel's own copy is still the old
+    // one; pushing it again on every hass update undid the patch, so the mismatch note and the prompt came back.
+    const hass = stubHass((m) => {
+      if (m.type === "floorplan_studio/load") return { layout: L };
+      if (m.type === "config/area_registry/list") return [{ area_id: "living", name: "Living" }, { area_id: "bedroom", name: "Bedroom" }];
+      if (m.type === "config/entity_registry/list") return [{ entity_id: "light.lamp", area_id: "living" }];
+      throw new Error("no");
+    }, false, { "light.lamp": { state: "on", attributes: { friendly_name: "Lamp" } } });
+    const el = await mount(hass);
+    await settle(el);
+    const ed = editorOf(el)!;
+    const ha = ed.ha!;
+    ed.ha = { ...ha, entities: ha.entities.map((e) => (e.id === "light.lamp" ? { ...e, area: "bedroom" } : e)) };
+    for (let i = 0; i < 3; i++) { el.hass = { ...hass, states: { ...hass.states, "sensor.x": { state: String(i), attributes: {} } } } as never; await settle(el); }
+    expect(ed.ha?.entities.find((e) => e.id === "light.lamp")?.area).toBe("bedroom");
+  });
+
   it("with nothing saved yet, the editor opens on an empty layout and no error", async () => {
     const el = await mount(stubHass(() => ({ layout: null })));
     expect(el.shadowRoot!.textContent).not.toMatch(/could not|error/i);

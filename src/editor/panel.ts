@@ -194,13 +194,16 @@ export class FloorplanStudioPanel extends LitElement {
     try { this.ha = await haData(this.hass as never); } catch { this.ha = undefined; } // no data: the editor keeps its text fields
     this.pushHa();
   }
+  private pushed?: { ed: FloorplanStudioEditor; ha: HaData };
   private pushHa() {
     const ed = this.editor();
     // The theme is pushed here, not through the guarded template: a flip must not render the editor again (that is a fresh load).
     if (ed && ed.haDark !== this.hass?.themes?.darkMode) ed.haDark = this.hass?.themes?.darkMode;
     const unit = tempUnitOf(this.hass?.config?.unit_system?.temperature);
     if (ed && ed.tempUnit !== unit) ed.tempUnit = unit; // a primitive, so setting it never re-runs the layout setter
-    if (ed && this.ha && ed.ha !== this.ha) ed.ha = this.ha;
+    // Push only a copy the panel has not handed to this editor yet: the editor patches its own after an area or name
+    // write, and pushing the old copy on every state update would undo that patch.
+    if (ed && this.ha && (this.pushed?.ed !== ed || this.pushed.ha !== this.ha)) { ed.ha = this.ha; this.pushed = { ed, ha: this.ha }; }
     if (ed && this.hass && !ed.writer) ed.writer = makeWriter({ callWS: (m) => this.hass!.callWS(m as never), callApi: (m, p, d) => (this.hass as never as { callApi: (...a: unknown[]) => Promise<never> }).callApi(m, p, d) }); // late-bound: hass is replaced on every state change
     // Live device state, imperative like `ha`/`writer` above, not a template binding: the render `guard` below
     // deliberately excludes `hass` (it changes on every state update in the house), so a templated binding here
