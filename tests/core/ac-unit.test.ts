@@ -43,6 +43,22 @@ describe("ac placement", () => {
     }
   });
 
+  it("on a wall line it faces the indoor side: an indoor room beats the outline, which beats a terrace, garden or pavement (Opus re-check)", () => {
+    const sq = (y0: number, y1: number): [number, number][] => [[0, y0], [600, y0], [600, y1], [0, y1]];
+    const indoor = { id: "i", name: "Living", area: "", kind: "room", pts: sq(0, 500), wk: ["external", "wall", "wall", "wall"] };
+    const near = (f: Floor, n: number[], label: string) => {
+      const p = bodyPlacement(f, ac({ x: 200, y: 0 }) as never)!, t = tvPlacement(f, { id: "t", type: "tv", entity: "media_player.t", x: 200, y: 0 } as never, [0, 1])!;
+      expect(p.n.map((v) => Math.round(v) + 0), `ac ${label}`).toEqual(n);
+      expect(t.n.map((v) => Math.round(v) + 0), `tv ${label}`).toEqual(n);
+    };
+    for (const kind of ["terrace", "garden", "pavement", "water"]) near(floor({ rooms: [indoor, { id: "t", name: "T", area: "", kind, pts: sq(-300, 0), wk: ["fence", "fence", "external", "fence"] }] as never }), [0, 1], kind);
+    // An indoor room on one side and only outline space on the other: the room wins, wherever the room lies.
+    near(floor({ outline: [[0, -300], [600, -300], [600, 500], [0, 500]], owk: ["wall", "wall", "wall", "wall"], rooms: [indoor] as never }), [0, 1], "room below, outline above");
+    near(floor({ outline: [[0, -300], [600, -300], [600, 500], [0, 500]], owk: ["wall", "wall", "wall", "wall"], rooms: [{ ...indoor, pts: sq(-300, 0) }] as never }), [0, -1], "room above, outline below");
+    // No rooms at all: the outline's inside, as before.
+    near(floor(), [0, 1], "outline only");
+  });
+
   it("near a corner the body stays on its own wall's segment and clear of the neighbouring wall's face (Opus review)", () => {
     const f = floor(), q = bodyPlacement(f, ac({ x: 20, y: 30 }) as never)!;
     expect(q.base.map((b) => b[0]).every((v) => v >= 0)).toBe(true);
@@ -141,6 +157,14 @@ describe("ac on the plan", () => {
       expect(classOf(d as never, o("off"))).toBe("off");
       expect(classOf(d as never, o("unavailable"))).toBe("unavailable");
     }
+    // Any type that stands on a climate entity with an AC body: the icon and the wind agree (a heater, an "other").
+    for (const type of ["heater", "other", "climate"]) {
+      const d = ac({ type, body: "ac-floor" });
+      expect(classOf(d as never, o("fan_only", "fan")), type).toBe("on");
+      expect(classOf(d as never, o("cool", "cooling")), type).toBe("on");
+      expect(classOf(d as never, o("cool", "idle")), type).toBe("off");
+    }
+    expect(classOf(ac({ type: "heater" }) as never, o("fan_only"))).toBe("off"); // no AC body: a heater is on only while it heats
     expect(classOf(ac({ type: "climate" }) as never, o("fan_only"))).toBe("off"); // a plain thermostat is on only while it heats
     const html = flat(floor({ devices: [ac()] as never }), { state: st("fan_only", "fan") });
     expect(html).toMatch(/class="dev dev-ac [^"]*\bon\b/); // the icon says on while the wind blows
