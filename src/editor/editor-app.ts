@@ -366,6 +366,7 @@ export class FloorplanStudioEditor extends LitElement {
     .devcols-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600;cursor:move;touch-action:none}
     .devcols-head button{width:auto;padding:0 8px;font-size:1.2em;line-height:1.6}
     .devcols-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 14px;padding:10px;overflow:auto}
+    .devcols-sub{padding:6px 10px 0;font-weight:600} .devcols-walls{padding:4px 10px 8px;overflow:auto}
     .devcols-panel>.btn{margin:0 10px 10px;width:auto;align-self:flex-start}
     /* top:90px is only the fallback: installCodeView() always sets an inline top from panelTop(), which wins. */
     .installcode-panel{position:fixed;left:50%;top:90px;transform:translateX(-50%);z-index:30;width:520px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}

@@ -5,7 +5,7 @@ import { closeAlign } from "./editor-align";
 import { counted, placedNote } from "./editor-search";
 import { newDraft } from "./scene-designer";
 import { restoreScene, tryScene } from "./scene-try";
-import { type AddCandidate, DEVICE_COLOURS, type Pt, type SceneItem, viewBoxFor } from "../core";
+import { type AddCandidate, DEVICE_COLOURS, FLOOR_COLOURS, WALL_COLOUR_KEYS, type Pt, type SceneItem, viewBoxFor } from "../core";
 import { cleanSceneItem, roomSceneTargets, saveScene } from "./room-scenes-ops";
 import { placeDevice } from "./editor-draw";
 import { MAX_ZOOM } from "../card/viewport";
@@ -13,7 +13,7 @@ import { EditorState } from "./state";
 import { html, nothing } from "lit";
 import { TYPE_LABELS } from "./panels";
 import { live } from "./live-keep";
-import { setColour } from "./editor-actions";
+import { setColour, setWallColour } from "./editor-actions";
 import type { FloorplanStudioEditor } from "./editor-app";
 
 // ---- the floating panels: Place, the scene designer, Add > Device, Home Assistant, Device colours, Install code ---
@@ -261,6 +261,8 @@ export function copyCardView(ed: FloorplanStudioEditor): void {
   );
 }
 
+const WALL_COLOUR_LABELS: Record<(typeof WALL_COLOUR_KEYS)[number], string> = { wall: "Walls", external: "External walls", fence: "Fences" };
+
 /** Device colours: a floating, draggable panel (View > Device colours), a 3-column grid of every device type's colour and reset. */
 export function devColsView(ed: FloorplanStudioEditor, st: EditorState) {
   const p = ed.devColsPos!;
@@ -272,6 +274,16 @@ export function devColsView(ed: FloorplanStudioEditor, st: EditorState) {
     <div class="devcols-grid">
       ${TYPE_LABELS.map(([t, label]) => html`<div class="colrow" data-type=${t}><label>${label}<input type="color" .value=${live(st.layout.colors?.[t] ?? DEVICE_COLOURS[t])} @change=${(e: Event) => setColour(ed, t, (e.target as HTMLInputElement).value)}></label>
         <button class="btn keep" aria-label=${`Reset ${label}`} ?disabled=${!(st.layout.colors && t in st.layout.colors)} @click=${() => setColour(ed, t, null)}>Reset</button></div>`)}
+    </div>
+    <div class="devcols-sub" id="wallcols">Wall colours</div>
+    <div class="devcols-walls">
+      ${WALL_COLOUR_KEYS.map((k) => {
+        const cur = st.layout.wallColors?.[k]?.toLowerCase() ?? "";
+        const sw = (hex: string, name: string, extra = "") => html`<button class=${`sw${extra}`} type="button" title=${name} aria-label=${name} aria-pressed=${String(cur === hex)} style="background:${hex}" @click=${() => setWallColour(ed, k, hex)}></button>`;
+        return html`<div class="colrow" data-wall=${k}><label>${WALL_COLOUR_LABELS[k]}<input type="color" .value=${live(cur || "#8b8578")} @change=${(e: Event) => setWallColour(ed, k, (e.target as HTMLInputElement).value)}></label>
+          <button class="btn keep" aria-label=${`Theme default for ${WALL_COLOUR_LABELS[k].toLowerCase()}`} ?disabled=${!cur} @click=${() => setWallColour(ed, k, null)}>Theme default</button></div>
+          <div class="swatches" role="group" aria-label=${`Colours for ${WALL_COLOUR_LABELS[k].toLowerCase()}`}>${FLOOR_COLOURS.map((c) => sw(c.hex, c.name))}${(st.layout.palette ?? []).map((hex) => sw(hex, `Custom ${hex}`, " custom"))}</div>`;
+      })}
     </div>
     <button class="btn keep" id="devcolsx" ?disabled=${!st.layout.colors} @click=${() => { if (st.resetColours()) ed.changed("Device colours reset"); }}>Reset all</button>
   </div>`;
