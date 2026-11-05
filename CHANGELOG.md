@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Studio: an air conditioner now has the classic rectangular body, on a wall (default) or standing on the floor, and blows animated wind while it cools, heats or runs the fan. It is tinted blue or orange in 2D, 2.5D and 3D; the wind is drawn in 2D and 2.5D and holds still under reduced motion.
+- Studio: a new device type, Control screen, for a wall tablet or panel. A tap opens its more-info and never switches it.
+- Studio: the device panel has a Body select under Appearance, so you choose how a device is drawn in 2.5D and 3D (none, radiator, speaker, TV, AC wall or floor, control screen). A bar heater offers radiator or none. Default removes the choice.
+
 ## 0.42.0 - 2026-11-02
 
 Four new furniture pieces, a glow that breathes around a charging car, and a lighter card: the side sheet now loads after the plan.

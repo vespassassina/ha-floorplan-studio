@@ -2,6 +2,29 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-05: B53.6 to B53.8, the Body select, the AC unit and the control screen
+
+Diego asked for an air conditioner that cools and heats, with the classic rectangular shape on a wall or on the floor
+and a wind animation while it runs, and for a "control screen" device (his 9 inch panels). He also saw that a 3D look
+is hard to add when one does not know the object: a device should say how it is drawn.
+
+- **A Body select over linked furniture.** `Device.body` (`none`, `radiator`, `speaker`, `tv`, `ac-wall`, `ac-floor`,
+  `screen`) picks the solid, in the device panel under Appearance. The alternative was to link a device to a furniture
+  piece that supplies the look. That needs a piece for every device, makes two things to keep in step, and the person
+  still has to know which piece. A select names the look and stores one word. Absent means the type's own look
+  (`DEVICE_SOLID`), so no existing layout changes.
+- **A bar takes only `radiator` or `none`.** A heater drawn as a bar (`a`/`b`) has no single point to stand a box on.
+  Enforced in three places: `validate` refuses any other body on a bar (and `radiator` on a point), `bodyOf` falls
+  back to the type's look for a layout that skipped `validate`, and the select offers only what fits.
+- **A control screen never toggles.** Type `screen` is in `NO_TOGGLE`: a tap opens more-info. Its entity is often a
+  panel's backlight or a sensor, and a tap that switched it off would blank the screen the person is touching. It is
+  never in the active list, grey when idle and blue when on, category computing, area-placeable, and not offered as an
+  unlinked appliance.
+- **The AC body.** 80 x 22 x 30 cm at 195 up on a wall, or 70 x 20 x 60 standing; flush to a wall within 60 cm, else
+  free and facing by `rot`. The wind is three dashed strands, drawn only while the unit cools, heats or runs
+  `fan_only`, in 2D and 2.5D; 3D tints the body and draws no wind (the 3D chunk has no per-frame budget to spare for
+  it). A type change keeps the body, since it depends on the device's shape and not on its type.
+
 ## 2026-11-02: the card cap is 124,650 again
 
 B52.2 set the card's cap to 118,650 gz, just above what was left once the Overview moved out. That took back the
