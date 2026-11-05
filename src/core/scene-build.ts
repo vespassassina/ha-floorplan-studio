@@ -19,7 +19,7 @@ type Solids = typeof import("./solids");
 type Schema = typeof import("./schema");
 export type SceneDeps = Pick<Heights, "deviceZ" | "doorSpan" | "edgeHeight" | "floorHeight" | "floorSlab" | "furnitureBottom" | "furnitureHeight" | "openingSpan" | "radiatorSpan" | "unlinkedHeight" | "wallHeight">
   & Pick<Render, "attachedTest" | "inside"> & Pick<typeof import("./stairs"), "resolveStairDirection">
-  & Pick<Solids, "DEVICE_SOLID" | "FURNITURE_SOLID" | "FRAME_PROUD" | "FRAME_WIDTH" | "KERB_HIGH" | "KERB_OUT" | "OPENING_FILL" | "OPENING_FRAMED" | "RADIATOR_DEEP" | "SPEAKER_HEIGHT" | "SPEAKER_SIDE" | "TV_HEIGHT" | "TV_THICK" | "TV_WIDTH" | "UNLINKED_BASE" | "WELL_DEPTH" | "pieceDevice" | "stairBlocks" | "turnAbout" | "tvPlacement" | "within">
+  & Pick<Solids, "bodyOf" | "bodyPlacement" | "FURNITURE_SOLID" | "FRAME_PROUD" | "FRAME_WIDTH" | "KERB_HIGH" | "KERB_OUT" | "OPENING_FILL" | "OPENING_FRAMED" | "RADIATOR_DEEP" | "SPEAKER_HEIGHT" | "SPEAKER_SIDE" | "TV_HEIGHT" | "TV_THICK" | "TV_WIDTH" | "UNLINKED_BASE" | "WELL_DEPTH" | "pieceDevice" | "stairBlocks" | "turnAbout" | "tvPlacement" | "within">
   & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape"> & Pick<typeof import("./car"), "carParts" | "carSpec">;
 
 /**
@@ -38,7 +38,7 @@ export type SolidKind = "floor" | "room" | "wall" | "opening" | "furniture" | "u
  * ("out" is away from what the polygon holds); a free wall has both sides, as it has no inside. An opening's infill carries
  * `wall`, the `poly:index` of the wall it sits in, so a viewer that lowers that wall can lower the infill with it.
  */
-export interface SolidRef { poly?: string; index?: number; room?: number; id?: string; entity?: string; entities?: string[]; size?: [number, number]; faces?: [number, number][]; wall?: string;
+export interface SolidRef { /** A device's body (B53.8), so the viewer builds the one the device names, not its type's. */ body?: string; poly?: string; index?: number; room?: number; id?: string; entity?: string; entities?: string[]; size?: [number, number]; faces?: [number, number][]; wall?: string;
   /** A tree's crown (S28.7): its z range in the scene (lift included, as the shapes' are) and the tree's turn in degrees. The viewer draws it; the trunk is the prism. */
   crown?: { z0: number; z1: number; rot: number };
   /** A device that is a room's own sensor (its `temps`, `humidity` or `motion` list): it draws no marker, and a tap passes through it (DECISIONS S11.1, S12.5). */
@@ -83,7 +83,7 @@ const JOINT_TOLERANCE = 1;
 
 /** The scene builder, bound to the helpers of core it needs. The 3D chunk builds one per view; `core/scene.ts` binds the real ones for the tests. */
 export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) => Scene {
-  const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec } = d;
+  const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, bodyOf, bodyPlacement, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec } = d;
   const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && fin(p[0]) && fin(p[1]);
   const ring = (p: unknown): Pt[] | null => (Array.isArray(p) && p.length >= 3 && p.every(isPt) ? (p as Pt[]) : null);
@@ -410,8 +410,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     list(f.devices).forEach((d, i) => piece(() => {
       if (!isObj(d)) return;
       const dev = d as unknown as Device & { x?: number; y?: number; a?: Pt; b?: Pt; rot?: number };
-      const type = oneOf(DEVICE_TYPES, d.type) ? d.type : "other", kind = has(DEVICE_SOLID, d.type) ? DEVICE_SOLID[d.type] : "none";
-      const ref: SolidRef = { index: i, id: text(d.id), entity: text(d.entity) }, paint: Paint = { role: `device-${type}` }, id = `device:${i}`;
+      const type = oneOf(DEVICE_TYPES, d.type) ? d.type : "other", kind = bodyOf(d as unknown as Device);
+      const ref: SolidRef = { index: i, id: text(d.id), entity: text(d.entity), ...(kind === "none" ? {} : { body: kind }) }, paint: Paint = { role: `device-${type}` }, id = `device:${i}`;
       if (attached(dev)) ref.hidden = true;
       const has2 = (): boolean => fin(dev.x) && fin(dev.y);
       const before = solids.length;
@@ -428,6 +428,10 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
           const { c, n, off, z0 } = place, u: Pt = [-n[1], n[0]], at = (t: number, o: number): Pt => [c[0] + u[0] * t + n[0] * o, c[1] + u[1] * t + n[1] * o], w = TV_WIDTH / 2;
           add("device", id, type, { type: "prism", base: [at(-w, off), at(w, off), at(w, off + TV_THICK), at(-w, off + TV_THICK)], z0, z1: z0 + TV_HEIGHT }, ref, paint);
         }
+      } else if (kind === "ac-wall" || kind === "ac-floor" || kind === "screen") {
+        // B53.6/B53.7: the same box the plan draws (bodyPlacement), tagged "ac" or "screen" for the viewer. 3D has no wind.
+        const place = bodyPlacement(f, dev);
+        if (place) add("device", id, kind === "screen" ? "screen" : "ac", { type: "prism", base: place.base, z0: place.z0, z1: place.z1 }, ref, paint);
       }
       if (solids.length > before) return;
       const at: Pt | null = has2() ? [dev.x as number, dev.y as number] : isPt(dev.a) && isPt(dev.b) ? [(dev.a[0] + dev.b[0]) / 2, (dev.a[1] + dev.b[1]) / 2] : null;

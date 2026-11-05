@@ -44,7 +44,7 @@ export const EVENT_RULES: Record<string, Rule> = {
 /** Their changes are readings or routine, not things to look for. */
 export const NO_EVENT: readonly string[] = [
   "heater", "switch", "plug", "temp", "humidity", "camera", "climate", "ac", "tv", "computer", "media", "battery", "inverter", "server",
-  "access_point", "boiler", "car", "ups", "printer", "speaker", "person", "vacuum", "fan",
+  "access_point", "boiler", "car", "ups", "printer", "speaker", "person", "vacuum", "fan", "screen",
 ];
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;

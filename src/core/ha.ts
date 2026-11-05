@@ -37,6 +37,7 @@ const TYPE_RULES: Partial<Record<DeviceType, { domain: string; dcs?: string[]; n
   siren: [{ domain: "siren" }],
   alarm: [{ domain: "alarm_control_panel" }],
   fan: [{ domain: "fan" }],
+  screen: [{ domain: "light" }, { domain: "switch" }, { domain: "sensor" }, { domain: "binary_sensor" }], // a wall tablet shows up as its backlight, its power plug or a sensor
   battery: [{ domain: "sensor", dcs: ["battery"] }],
   person: [{ domain: "person" }, { domain: "device_tracker" }],
   // S7.9: the radar's own entity is its presence sensor, typically a binary_sensor.*occupancy; the target x/y pairs
@@ -130,7 +131,7 @@ function isMotionGroup(g: HaData["entities"][number], all: unknown, path: string
  * Noise: `other` is anything the plan has no icon of its own for (power, energy, illuminance, signal, a group, a
  * script...); a `battery` is a reading of another device, not a thing in the room; a `person` is not placed by area.
  */
-export const AREA_PLACEABLE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "inverter", "server", "access_point", "lock", "vibration", "boiler", "car", "ups", "printer", "speaker", "radar", "vacuum", "siren", "alarm", "fan"]);
+export const AREA_PLACEABLE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "inverter", "server", "access_point", "lock", "vibration", "boiler", "car", "ups", "printer", "speaker", "radar", "vacuum", "siren", "alarm", "fan", "screen"]);
 export const AREA_NOISE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["other", "battery", "person"]);
 
 /** S8.1: the entities of HA area `area` that are not on the plan yet and that the plan has an icon for. Never throws. */

@@ -6,7 +6,7 @@ export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
   | "battery" | "inverter" | "server" | "access_point" | "lock" | "vibration" | "other"
-  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum" | "siren" | "alarm" | "fan";
+  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum" | "siren" | "alarm" | "fan" | "screen";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "sofa-l" | "coffee-table" | "bookcase" | "buffet" | "tv" | "computer" | "speaker" | "tree" | "patio-wood" | "patio-concrete" | "car";
@@ -84,6 +84,14 @@ export interface Door { id: string; name: string; kind: DoorKind; a: Pt; b: Pt; 
 export interface Opening { id: string; a: Pt; b: Pt; locked?: boolean; height?: number; sill?: number }
 export interface Extra { id: string; name: string; a: Pt; b: Pt }
 /**
+ * B53.8: the solid a device draws in 2.5D and 3D, chosen on the device (the "Body" select). Absent is the type's own
+ * default (`DEVICE_SOLID`). "none" draws no solid; "radiator" is a heater drawn as a bar; "ac-wall", "ac-floor" and
+ * "screen" are placed on the nearest wall (`bodyPlacement`). A heater bar takes only "radiator" or "none", a device
+ * with a point takes anything but "radiator" (a radiator needs the bar's length).
+ */
+export const DEVICE_BODIES = ["none", "radiator", "speaker", "tv", "ac-wall", "ac-floor", "screen"] as const;
+export type DeviceBody = (typeof DEVICE_BODIES)[number];
+/**
  * `bound` (lights only): the switch or plug that powers the same lamp. One icon on the plan, two entities in
  * HA. Several lights may share one switch, and the switch may be an icon too.
  * `trvs`/`tempSensors` (heater only) and `linked` (ac only), S4.24: every climate/TRV or temperature-sensor
@@ -113,7 +121,7 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * `view` (S40.3): a path inside Home Assistant, such as `/lovelace/terrace` (`isViewPath`). A tap on the icon opens that dashboard view, whatever the
  * card's `tap_action`; hold keeps its own action. An older card ignores it.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; body?: DeviceBody } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /**
  * S35.1: the car models, in the order the Studio lists them. `model`, `color` (`#rrggbb`) and `attached` (at most
  * `MAX_CAR_ATTACHED` entity ids) exist on a furniture piece with symbol `car` only; `entity` is then the car's main
@@ -216,7 +224,7 @@ export const isSiren = (d: { entity?: unknown }): boolean => typeof d.entity ===
 export const drawsEffect = (d: { type?: unknown; entity?: unknown }): boolean => (FX_TYPES as readonly unknown[]).includes(d.type) || isSiren(d);
 /** The effect size as a fraction (1 = the type's own size). A missing or invalid `fx` reads as 1. */
 export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX ? d.fx / 100 : 1);
-export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan"];
+export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"];
@@ -470,6 +478,15 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       optText(d, "name");
       optHeight(d, "z");
       if (d.locked !== undefined && typeof d.locked !== "boolean") errors.push(`${at} ${d.id} locked must be true or false`);
+      // B53.8: the solid it draws. A getter that throws is a bad body, not a crash. A bar (a heater drawn from a to b) has a length and
+      // no point: it can be a radiator or nothing. A point has no length to give a radiator.
+      let body: unknown;
+      try { body = d.body; } catch { body = null; }
+      if (body !== undefined) {
+        if (typeof body !== "string" || !(DEVICE_BODIES as readonly string[]).includes(body)) errors.push(`${at} ${d.id} body must be one of ${DEVICE_BODIES.join(", ")}; leave it out for the type's own`);
+        else if (isPt(d.a) && isPt(d.b) && body !== "radiator" && body !== "none") errors.push(`${at} ${d.id} is drawn as a bar, so its body must be radiator or none`);
+        else if (body === "radiator" && !(isPt(d.a) && isPt(d.b))) errors.push(`${at} ${d.id} body radiator needs a device drawn as a bar (a and b); this one is a point`);
+      }
       let view: unknown;
       try { view = d.view; } catch { view = null; } // a getter that throws is a bad view, not a crash
       if (view !== undefined && !isViewPath(view)) errors.push(`${at} ${d.id} view must be a path inside Home Assistant that starts with one /, like /lovelace/terrace (no //, no spaces, 200 at most)`);

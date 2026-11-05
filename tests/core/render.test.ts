@@ -2081,7 +2081,7 @@ describe("unlinked appliances (S4.25)", () => {
 
   it("every DEVICE_TYPES member is decided for the Unlinked device menu, and fan is offered (spec X1: a fan with no entity is still a drawing)", () => {
     // Types a person does not place as a drawing: they need an entity to mean anything (sensors, relays, locks, people...).
-    const NOT_OFFERED = ["switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "media", "cover", "lock", "vibration", "other", "person", "radar", "vacuum", "siren", "alarm", "access_point"];
+    const NOT_OFFERED = ["switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "media", "cover", "lock", "vibration", "other", "person", "radar", "vacuum", "siren", "alarm", "access_point", "screen"];
     for (const t of DEVICE_TYPES) expect((UNLINKED_TYPES as readonly string[]).includes(t) !== NOT_OFFERED.includes(t), `${t} is in exactly one list`).toBe(true);
     expect(UNLINKED_TYPES).toContain("fan");
   });

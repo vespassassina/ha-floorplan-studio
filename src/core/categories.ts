@@ -30,7 +30,7 @@ export const CATEGORY_OF: Record<DeviceType, CategoryId> = {
   computer: "computing", server: "computing", access_point: "computing", printer: "computing",
   temp: "sensors", humidity: "sensors",
   person: "people",
-  vacuum: "other", car: "other", other: "other",
+  vacuum: "other", car: "other", other: "other", screen: "computing", // a wall tablet is a small computer
 };
 
 export interface CategoryGroup<T> { id: CategoryId; label: string; items: T[] }

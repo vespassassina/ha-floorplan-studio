@@ -31,6 +31,7 @@ export const UNLINKED_HEIGHTS: Record<DeviceType, number> = {
   light: 250, fan: 250, camera: 230, motion: 230, radar: 230, access_point: 230,
   // Small wall fittings at hand height.
   switch: 120, plug: 30, temp: 150, humidity: 150, contact: 120, vibration: 120, lock: 100,
+  screen: 160, // a panel on the wall, its top edge
   siren: 230, alarm: 120, // a siren high on the wall or ceiling; an alarm keypad at hand height
   cover: 200, // a blind or curtain motor sits up at the head of the window
 };
@@ -52,6 +53,8 @@ export const DEVICE_Z: Record<DeviceType, number> = {
   heater: 60, computer: 75, server: 60, ups: 30, printer: 90, car: 150, person: 170, vacuum: 10,
   // A siren high on the wall; an alarm keypad at hand height.
   siren: 205, alarm: 120,
+  // A control screen on the wall at hand height (a 9 inch panel by the door, centred about 148 cm).
+  screen: 140,
 };
 
 /** `storey` means the wall rises to the ceiling of its floor (or its room). */
@@ -190,9 +193,14 @@ export function unlinkedHeight(u: Unlinked): number {
   return own(u, "height") ?? (has(UNLINKED_HEIGHTS, t) ? UNLINKED_HEIGHTS[t] : FALLBACK);
 }
 
+/**
+ * B53.8: where the icon sits when the device names one of the bodies that stand at a place of their own, whatever its type:
+ * high on the wall for a split unit, on top of the 60 cm console, at hand height for a screen. An own `z` still wins.
+ */
+const BODY_ICON_Z: Record<string, number> = { "ac-wall": 195, "ac-floor": 60, screen: 140 };
 export function deviceZ(d: Device): number {
-  const t = (d as { type?: unknown } | null)?.type;
-  return own(d, "z") ?? (has(DEVICE_Z, t) ? DEVICE_Z[t] : FALLBACK);
+  const t = (d as { type?: unknown } | null)?.type, b = (d as { body?: unknown } | null)?.body;
+  return own(d, "z") ?? (typeof b === "string" && Object.prototype.hasOwnProperty.call(BODY_ICON_Z, b) ? BODY_ICON_Z[b] : has(DEVICE_Z, t) ? DEVICE_Z[t] : FALLBACK);
 }
 
 /** `z` as the user set it, or `fallback` when it is missing or invalid. For the devices whose solid has a default of its own (a radiator, a free-standing TV). */

@@ -25,6 +25,7 @@ const CASE: Record<DeviceType, { entity: string; kind: Kind }> = {
   // S18.14: a siren has a real on/off service; an alarm panel has none, so it opens more-info (NO_TOGGLE).
   siren: { entity: "siren.x", kind: "confirm-off" }, alarm: { entity: "alarm_control_panel.x", kind: "none" },
   fan: { entity: "fan.x", kind: "confirm-off" }, // S33.1: Turn on and Turn off; OFF asks first like every non-light
+  screen: { entity: "light.x", kind: "none" }, // B53.7: a control screen never toggles (NO_TOGGLE); a tap opens more-info
 };
 
 describe("popupOp: the default operation per device type", () => {

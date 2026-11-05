@@ -225,6 +225,7 @@ const c: Catalogue = {
   "Siren": "Sirena",
   "Alarm": "Alarma",
   "Fan": "Ventilador",
+  "Control screen": "Pantalla de control",
   "Security": "Seguridad",
   "Power": "Energía",
   "Covers": "Persianas",
