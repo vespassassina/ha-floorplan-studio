@@ -4084,7 +4084,7 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: Edit, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(33); // S33.1 added fan; S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum; S18.14 added siren, alarm
+  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(34); // B53.7 added screen; S33.1 added fan; S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum; S18.14 added siren, alarm
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
