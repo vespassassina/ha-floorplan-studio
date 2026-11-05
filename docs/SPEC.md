@@ -183,6 +183,9 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   and editable in the editor exactly like a room edge, kind select and orange
   Delete included, even where no room's own edge spans it (S1.52). The demo
   shows external walls where the house meets outside.
+- `floor.owc` and `room.wc` (optional) run parallel to `owk` and `wk`: the
+  colour of each edge, `null` for none (B53.9). Every edit that adds or removes
+  a point keeps them in step; a list whose length does not match is refused.
 - `room.color` (optional) overrides the fill of that room or zone; it must be
   `#rrggbb`. Stairs take `color` too.
 - `room.texture` (optional, also on stairs) is one of `wood-light`, `wood-warm`,
@@ -198,6 +201,27 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   writes one undo step for the whole drag, same as a furniture corner drag. A
   hostile or non-finite value never throws: the render wraps it into `[0, 360)`
   and treats anything that is not a finite number as 0.
+- `wallColors` (optional, top level) is the layout's colour per wall kind,
+  `{ "wall"?, "external"?, "fence"? }`, each `#rrggbb`; any other key or value
+  is refused. The renderer sets `--fp-wall` (with the cap and side-face
+  variables derived from it), `--fp-wall-external` and `--fp-wall-fence` on the
+  same group as `colors`, so 2D, 2.5D and 3D follow in every theme. A kind left
+  out keeps the theme's colour. `parapet` follows `external`; `edge` and
+  `boundary` keep their own look and cannot be coloured as a kind (a `boundary`
+  is a quiet divider, an `edge` a hairline: a colour would turn them into
+  walls). B53.9.
+- A wall's own colour beats the layout's: a free wall has `color`; a room edge
+  has `room.wc` and an outline edge `floor.owc`, each a list parallel to `wk`
+  or `owk` with `null` (no colour) or `#rrggbb` per edge, the same length as
+  `pts` or `outline`. Drawn as `style="--fp-wall-c:#rrggbb"` and a class rule,
+  not a presentation attribute. A zone has no wall, so no `wc`. Edges `none`
+  are not drawn and so not coloured. In 2.5D the faces and the cap take the
+  colour (the faces softened toward the background as a themed wall's are);
+  in 3D the wall solids do.
+- One wall drawn by two pieces (a shared edge, a room on the outline, a free
+  wall over an edge) has one colour in every view, the first one set in this
+  order: the outline, the rooms in array order, the free walls. The editor
+  paints all coincident edges together, so in practice they agree.
 - `palette` (optional, top level) is a list of `#rrggbb`, at most 24: the custom
   colours used so far. The editor adds a colour picked on the free colour input
   when it is not one of the twelve built-in swatches, and offers the list as

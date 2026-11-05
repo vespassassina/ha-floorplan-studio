@@ -20,8 +20,6 @@ const THEME_WALL = { light: "#2b2a27", midnight: "#8fb4f0" } as const;
 const THEME_EXTERNAL = { light: "#1a1917" } as const; // the light theme's external wall (editor.spec.ts "wall kinds have their colour")
 const page2d = (f: Floor, o: Record<string, unknown>) => `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><div class="fp"><svg width="600" height="500" viewBox="0 0 1000 800">${renderFloor(f, { scale: 1, ...o })}</svg></div></body></html>`;
 const strokeOf = (page: Page, sel: string) => page.locator(sel).first().evaluate((e) => getComputedStyle(e).stroke);
-const fillOf = (page: Page, sel: string) => page.locator(sel).first().evaluate((e) => getComputedStyle(e).fill);
-const PLAIN = "svg line.e.top:not(.external):not(.fence):not(.edge):not(.none), svg line.e:not(.external):not(.fence):not(.edge):not(.none):not(.top)";
 
 for (const theme of ["light", "midnight"] as const) {
   test.describe(`CSS pair, ${theme}`, () => {

@@ -2,6 +2,27 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-05: B53.9, wall colours, as built
+
+Diego asked for "an option to select the color of walls" and chose both: a layout default and a colour per wall.
+
+- **Layout default**: `Layout.wallColors` with `wall`, `external` and `fence` only. It sets the existing `--fp-wall*`
+  variables on the plan's colour group, the same path as `Layout.colors`, so every theme and all three views follow.
+  `parapet` follows `external`, because it is drawn from that token. **`edge` and `boundary` have no layout colour**:
+  an `edge` is a hairline and a `boundary` a quiet divider, and a strong colour on either turns it into a wall. They can
+  still carry a colour of their own per wall.
+- **Per wall**: `Wall.color`, `Room.wc` (parallel to `wk`), `Floor.owc` (parallel to `owk`). A per-wall colour beats the
+  layout default, which beats the theme. Drawn as an inline custom property read by a class rule.
+- **Shared-edge rule**: an edge drawn by two pieces has one colour, the first set in this order: the outline, the rooms
+  in array order, the free walls. One function (`wallColourMap`) decides for 2D, 2.5D and 3D, keyed like the 2.5D/3D
+  dedup, so the views cannot disagree. The editor paints every coincident edge together (`setEdgeColour`), so a user
+  never sees the rule decide; it only matters for a file written by hand or by an LLM.
+- **3D**: the wall solid takes the colour softened by the same share as a themed wall (not dimmed as paint is).
+  The 3D theme key includes the layout's `wallColors`, so a change rebuilds the palette.
+- **Known side effects**: the `fence` default also tints 3D `patio-wood`, which uses the same token. The stair
+  direction arrow follows `--fp-wall`.
+- **Why not a presentation attribute**: a `stroke` attribute loses to the author rule `.e` (finding 18).
+
 ## 2026-11-02: the card cap is 124,650 again
 
 B52.2 set the card's cap to 118,650 gz, just above what was left once the Overview moved out. That took back the

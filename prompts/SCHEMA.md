@@ -39,6 +39,7 @@ This page lists what you write. Leave everything else out. Heights are optional 
 - **`title`**: text, the name of the floor.
 - **`outline`**: the outer edge of the building on this floor, a closed polygon of at least 3 points, walked in either direction. Do not repeat the first point at the end; the shape closes itself.
 - **`owk`**: one entry per outline point, describing the edge from that point to the next. Use `"external"` for an outside wall. Same length as `outline`.
+- **`owc`** (optional): like `owk`, one entry per outline point, `null` or `"#rrggbb"`, the colour of that edge. Leave it out unless the owner asked for a coloured wall.
 - **`devices`** and the top-level **`catalog`**: always empty. A drawing does not know which lamp is which. The owner attaches real Home Assistant entities in the editor afterwards. Never invent an entity id.
 - Every list must be present, even when empty.
 - **`trace`**: a floor may carry one, the owner's scan drawn under the plan in the editor (an image as a `data:` URL, with its position, width, opacity and a show flag). **Never write a `trace` yourself**, and never copy one from an input file into your output. The owner loads their own image in the editor, Edit, Trace image.
@@ -54,6 +55,7 @@ Every object in `rooms`, `walls`, `stairs`, `doors`, `openings`, `extras`, `furn
 ```
 
 - **`pts`**: a closed polygon, at least 3 points, no repeated last point. A room that shares a wall with its neighbour uses **exactly the same coordinates** for the shared corners. Do not leave a gap and do not overlap.
+- **`wc`** (optional): like `wk`, **same length as `pts`**, each `null` or `"#rrggbb"`, the colour of that wall. Leave it out unless the owner asked for a coloured wall. A zone has none. The layout may also carry `"wallColors": {"wall"?: "#rrggbb", "external"?: ..., "fence"?: ...}`, a default colour per wall kind; a free wall in `walls` may carry `"color": "#rrggbb"`.
 - **`wk`**: one entry per point, describing the edge from that point to the next. **Same length as `pts`.** Each is one of:
   - `"external"` an outside wall, `"wall"` an inside wall, `"boundary"` a thin line (garden edges, zones), `"fence"`, `"edge"`, or `"none"` (not drawn).
 - **`area`**: always `""`. The owner links it to a Home Assistant area later.

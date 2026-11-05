@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Studio and card: wall colours. Edit, Device colours has a Wall colours section (walls, external walls, fences) that replaces the theme's colour in 2D, 2.5D and 3D. A single wall, room edge or perimeter edge also has its own Colour row in its panel, with Default to go back. A shared wall changes on both rooms. Colours you pick join the swatches.
+
 ## 0.42.0 - 2026-11-02
 
 Four new furniture pieces, a glow that breathes around a charging car, and a lighter card: the side sheet now loads after the plan.

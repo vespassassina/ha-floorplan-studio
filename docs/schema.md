@@ -41,7 +41,7 @@ export const MAX_ROOM_SENSORS = 20;
 `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each.
 
 ```ts
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; /** B53.9: a colour per edge, parallel to `wk`; null is the layout's or the theme's. Absent: none set. */ wc?: (string | null)[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
 ```
 
 ## MAX_ROOM_SCENES
@@ -105,7 +105,7 @@ export type EdgeKind = WallKind | "none";
 `locked` (S4.9): the segment's length is fixed. Dragging an endpoint then only pivots it, on an arc around the other endpoint.
 
 ```ts
-export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean; height?: number }
+export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean; height?: number; /** B53.9: `#rrggbb`; absent is the layout's or the theme's. */ color?: string }
 ```
 
 ## StairDirection
@@ -190,7 +190,7 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
 
 ```ts
 export interface Floor {
-  ha?: string; height?: number; slab?: number; offset?: [number, number]; rotation?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
+  ha?: string; height?: number; slab?: number; offset?: [number, number]; rotation?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; /** B53.9: a colour per outline edge, parallel to `owk`; null is the layout's or the theme's. */ owc?: (string | null)[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 ```
@@ -238,7 +238,7 @@ export interface SavedView { id: string; name: string; floor: string; mode?: "2d
 `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned.
 
 ```ts
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; /** B53.9: the colour of every wall of a kind, `#rrggbb`; absent is the theme's. `parapet` follows `external`. */ wallColors?: { wall?: string; external?: string; fence?: string }; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 ```
 
 ## MAX_TRACE_BYTES
