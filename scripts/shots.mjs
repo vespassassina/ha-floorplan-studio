@@ -241,7 +241,7 @@ Object.assign(tg.find((r) => r.name === "Hall"), { texture: "wood-dark" });
 
 // B53.9: `npm run shots -- --walls` renders the wall colours to shots/current/walls/: the demo ground floor with a layout default
 // (walls, external walls, fences) and one painted wall (the partition between the two top rooms), in 2D, 2.5D and 3D, light and
-// midnight, plus a 4x crop of the painted wall in 2D and 2.5D, and the Studio's Device colours panel and wall panel. The demo has
+// midnight, plus a 4x crop of the painted wall in 2D and 2.5D, and the Studio's Colours panel and wall panel. The demo has
 // no fence, so one is added to the page's copy of the layout; demo/layout.json is not touched.
 if (args.has("--walls")) {
   const DIR = "shots/current/walls";
@@ -301,7 +301,7 @@ if (args.has("--walls")) {
       }
       await ctx.close();
     }
-    // the Studio: Device colours > Wall colours, and a wall's own Colour row
+    // the Studio: Colours > Wall colours, and a wall's own Colour row
     for (const theme of ["light", "blueprint"]) {
       const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
       const page = await ctx.newPage();

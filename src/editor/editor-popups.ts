@@ -263,14 +263,15 @@ export function copyCardView(ed: FloorplanStudioEditor): void {
 
 const WALL_COLOUR_LABELS: Record<(typeof WALL_COLOUR_KEYS)[number], string> = { wall: "Walls", external: "External walls", fence: "Fences" };
 
-/** Device colours: a floating, draggable panel (View > Device colours), a 3-column grid of every device type's colour and reset. */
+/** Colours: a floating, draggable panel (Edit > Colours): Devices, a 3-column grid of every device type's colour and reset, then Wall colours. */
 export function devColsView(ed: FloorplanStudioEditor, st: EditorState) {
   const p = ed.devColsPos!;
   return html`<div class="devcols-panel" style="left:${p.x}px;top:${p.y}px">
     <div class="devcols-head" @pointerdown=${ed.devColsHead.down} @pointermove=${ed.devColsHead.move} @pointerup=${ed.devColsHead.up} @pointercancel=${ed.devColsHead.up}>
-      <span>Device colours</span>
+      <span>Colours</span>
       <button class="btn keep" id="devcolsClose" aria-label="Close" @click=${() => toggleDevCols(ed)}>&times;</button>
     </div>
+    <div class="devcols-sub" id="devcolsDevices">Devices</div>
     <div class="devcols-grid">
       ${TYPE_LABELS.map(([t, label]) => html`<div class="colrow" data-type=${t}><label>${label}<input type="color" .value=${live(st.layout.colors?.[t] ?? DEVICE_COLOURS[t])} @change=${(e: Event) => setColour(ed, t, (e.target as HTMLInputElement).value)}></label>
         <button class="btn keep" aria-label=${`Reset ${label}`} ?disabled=${!(st.layout.colors && t in st.layout.colors)} @click=${() => setColour(ed, t, null)}>Reset</button></div>`)}
@@ -285,7 +286,7 @@ export function devColsView(ed: FloorplanStudioEditor, st: EditorState) {
           <div class="swatches" role="group" aria-label=${`Colours for ${WALL_COLOUR_LABELS[k].toLowerCase()}`}>${FLOOR_COLOURS.map((c) => sw(c.hex, c.name))}${(st.layout.palette ?? []).map((hex) => sw(hex, `Custom ${hex}`, " custom"))}</div>`;
       })}
     </div>
-    <button class="btn keep" id="devcolsx" ?disabled=${!st.layout.colors} @click=${() => { if (st.resetColours()) ed.changed("Device colours reset"); }}>Reset all</button>
+    <button class="btn keep" id="devcolsx" ?disabled=${!st.layout.colors} @click=${() => { if (st.resetColours()) ed.changed("Colours reset"); }}>Reset all</button>
   </div>`;
 }
 

@@ -166,7 +166,16 @@ test.describe("the Studio", () => {
     expect((await groundOf(page)).rooms.every((r) => (r as unknown as { wc?: unknown }).wc === undefined)).toBe(true); // one undo was enough
   });
 
-  test("View, Device colours > Wall colours: a swatch sets the layout default on the plan; Theme default takes it off", async ({ page }) => {
+  test("the dialog and the Edit menu entry that open it are called Colours; its device section is headed Devices, the wall one Wall colours", async ({ page }) => {
+    await page.locator("details.menu > summary", { hasText: /^Edit$/ }).click();
+    await expect(page.locator(`${EDITOR} #devcols`)).toHaveText("Colours");
+    await page.locator(`${EDITOR} #devcols`).click();
+    await expect(page.locator(`${EDITOR} .devcols-head > span`)).toHaveText("Colours");
+    const heads = await page.locator(`${EDITOR} .devcols-panel .devcols-sub`).allTextContents();
+    expect(heads).toEqual(["Devices", "Wall colours"]);
+  });
+
+  test("Edit, Colours > Wall colours: a swatch sets the layout default on the plan; Theme default takes it off", async ({ page }) => {
     await page.locator("details.menu > summary", { hasText: /^Edit$/ }).click();
     await page.locator(`${EDITOR} #devcols`).click();
     const row = page.locator(`${EDITOR} .devcols-panel [data-wall="wall"]`);

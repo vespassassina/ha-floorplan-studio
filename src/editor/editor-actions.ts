@@ -18,7 +18,7 @@ export function setColour(ed: FloorplanStudioEditor, t: DeviceType, hex: string 
   if (ed.st.setColour(t, hex)) ed.changed(hex ? `${t} colour set` : `${t} colour reset`);
 }
 
-/** B53.9: View > Device colours > Wall colours: the layout's colour of one wall kind, `null` back to the theme's. */
+/** B53.9: Edit > Colours > Wall colours: the layout's colour of one wall kind, `null` back to the theme's. */
 export function setWallColour(ed: FloorplanStudioEditor, key: WallColourKey, hex: string | null) {
   if (ed.st.setWallColour(key, hex)) ed.changed(hex ? `${key} wall colour set` : `${key} wall colour reset`);
 }

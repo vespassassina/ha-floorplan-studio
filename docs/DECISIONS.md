@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-05: the Device colours dialog is now "Colours" (B53.9)
+
+It holds wall colours as well as device colours, so the title and the Edit menu entry say Colours. Its two sections are
+headed Devices and Wall colours. Supersedes the name "Device colours" in the entries below; behaviour and ids
+(`#devcols`, `.devcols-panel`) are unchanged.
+
 ## 2026-11-05: B53.9, wall colours, as built
 
 Diego asked for "an option to select the color of walls" and chose both: a layout default and a colour per wall.

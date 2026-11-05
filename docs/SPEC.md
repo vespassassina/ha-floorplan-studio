@@ -994,7 +994,7 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
   View, Re-center: zoom and pan go back to show everything on the floor (rooms,
   stairs, walls, furniture, devices), not only the outline as Fit to window
   does; nothing is written to the layout.
-  Edit, Device colours: one colour input per device type with a reset, and
+  Edit, Colours (headed Devices and Wall colours; was Device colours): one colour input per device type with a reset, and
   Reset all; each change is one undo step and is saved in `colors`.
   All floors turn together. Names and icons stay upright.
   Edit, Trace image… (S7.11): a panel for this floor's `trace`. Load reads a

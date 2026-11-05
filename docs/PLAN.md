@@ -4956,7 +4956,7 @@ task measures its real figure and records it in DECISIONS.
   shots in both themes at 4x (criterion 7).
 
 - [x] 2026-11-05 B53.9 Wall colour: `Layout.wallColors` (wall, external, fence) and a colour per wall (`Wall.color`, `Room.wc`, `Floor.owc`),
-  in 2D, 2.5D and 3D, in the Studio (Device colours panel, a Colour row on a wall) and the card. One shared-edge rule.
+  in 2D, 2.5D and 3D, in the Studio (Colours panel, a Colour row on a wall) and the card. One shared-edge rule.
   Computed-style pairs in two themes (Diego, 2026-11-05: "also add an option to select the color of walls").
 
 ### Sprint 54: worktop and underfloor heating

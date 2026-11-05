@@ -1942,7 +1942,7 @@ test("S8.10 follow-up (Opus review): Undo and Redo wrap onto a new row together,
   expect(Math.abs(undo.y - redo.y), "Undo and Redo must land on the same row").toBeLessThan(3);
 });
 
-// S8.10 follow-up (Opus review): a floating panel (Device colours, Home Assistant, Place, Add device) opened at a
+// S8.10 follow-up (Opus review): a floating panel (Colours, Home Assistant, Place, Add device) opened at a
 // hardcoded top:90px, which a taller, wrapped narrow toolbar (380px: up to 5 rows) can reach past and cover.
 test("S8.10 follow-up (Opus review): a floating panel opens below the toolbar's real bottom edge, not a fixed 90px", async ({ page }) => {
   await page.setViewportSize({ width: 748, height: 900 }); // S37.3
@@ -4022,7 +4022,7 @@ test("S1.35 break it: a colour typed in the free input still works, and a swatch
 // ---- S1.36 device colours by type ----
 const colourRow = (page: Page, type: string) => page.locator(`${EDITOR} .devcols-panel [data-type="${type}"]`);
 const openDevCols = async (page: Page) => {
-  await menu(page, "Edit"); // S8.1: Device colours moved from View to Edit
+  await menu(page, "Edit"); // S8.1: Colours moved from View to Edit
   await page.locator(`${EDITOR} #devcols`).click();
 };
 const setColourInput = (page: Page, type: string, hex: string) =>
@@ -4030,7 +4030,7 @@ const setColourInput = (page: Page, type: string, hex: string) =>
 const camFill = (page: Page) => page.locator("svg .dev-camera path:not(.cone):not(.halo)").first().evaluate((el) => getComputedStyle(el).fill);
 const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first().evaluate((el, n) => getComputedStyle(el).getPropertyValue(n).trim(), name);
 
-test("S1.36: Edit, Device colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
+test("S1.36: Edit, Colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
   await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(33); // S33.1 added fan; S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum; S18.14 added siren, alarm
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
@@ -4038,7 +4038,7 @@ test("S1.36: Edit, Device colours has a row per type with a colour input and a r
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
 });
 
-test("S1.36: Device colours opens as a floating panel — a 3-column grid, closed by its own X, not by clicking elsewhere", async ({ page }) => {
+test("S1.36: Colours opens as a floating panel — a 3-column grid, closed by its own X, not by clicking elsewhere", async ({ page }) => {
   await openDevCols(page);
   const panel = page.locator(`${EDITOR} .devcols-panel`);
   await expect(panel).toBeVisible();
@@ -4056,7 +4056,7 @@ test("S1.36: Device colours opens as a floating panel — a 3-column grid, close
   await expect(panel).toHaveCount(0);
 });
 
-test("S1.36: Escape closes the Device colours panel", async ({ page }) => {
+test("S1.36: Escape closes the Colours panel", async ({ page }) => {
   await openDevCols(page);
   const panel = page.locator(`${EDITOR} .devcols-panel`);
   await expect(panel).toBeVisible();
@@ -7891,7 +7891,7 @@ test("messages are banners over the plan, not text in the toolbar: Save still sa
   await expect(status).toHaveCount(0);
 });
 
-test("S7.2: an open menu draws above the Device colours panel, so File, Save is still the top element under the mouse", async ({ page }) => {
+test("S7.2: an open menu draws above the Colours panel, so File, Save is still the top element under the mouse", async ({ page }) => {
   await menu(page, "Edit");
   await page.locator("#devcols").click();
   await expect(page.locator(".devcols-panel")).toBeVisible();
@@ -8125,7 +8125,7 @@ test("Opus review finding 2: deleting the light while Create automation is still
 
 // ---- S8.1: the toolbar rework — Names in View, an Edit menu after View ------------------------------------------------
 
-test("S8.1: Names sits in View with the theme; Edit holds Home Assistant, Group, Link lights to switches, Rotate, Device colours and Trace image, in that order", async ({ page }) => {
+test("S8.1: Names sits in View with the theme; Edit holds Home Assistant, Group, Link lights to switches, Rotate, Colours and Trace image, in that order", async ({ page }) => {
   await expect(page.locator(".bar > #names")).toHaveCount(0);
   await menu(page, "View");
   await expect(page.locator("#mOpt #labelsSub")).toBeVisible(); // S26.17: Names sits in the Labels submenu
