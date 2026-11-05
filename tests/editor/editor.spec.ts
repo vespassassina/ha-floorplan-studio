@@ -3295,6 +3295,58 @@ test("the wall and opening angle fields turn them; an unchanged value is no undo
   expect([o.a, o.b]).toEqual([[10, 650], [110, 650]]);
 });
 
+/** B53.8: adds a point AC and returns its index on the ground floor. */
+async function addAc(page: Page): Promise<number> {
+  return page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any;
+    const l = JSON.parse(JSON.stringify(el.layout));
+    const n = l.floors.ground.devices.push({ id: "ac-body-t", type: "ac", name: "Test AC", entity: "climate.test_ac", x: 300, y: 330 });
+    el.layout = l;
+    return n - 1;
+  }, EDITOR);
+}
+const bodyOf = async (page: Page, i: number) => (await groundOf(page)).devices[i] as { body?: string; type: string };
+
+test("B53.8 the Body select offers what fits the device, stores one undo step per change, none when unchanged, and Default removes the key", async ({ page }) => {
+  const i = await addAc(page);
+  await selectDev(page, i);
+  const sel = page.locator("#vbody");
+  await expect(sel).toBeVisible();
+  const opts = await sel.locator("option").evaluateAll((os) => os.map((o) => [(o as HTMLOptionElement).value, o.textContent]));
+  expect(opts[0]).toEqual(["", "Default (AC, wall unit)"]);
+  expect(opts.map((o) => o[0])).toEqual(["", "none", "speaker", "tv", "ac-wall", "ac-floor", "screen"]); // a point never offers radiator
+  await sel.selectOption("ac-floor");
+  expect((await bodyOf(page, i)).body).toBe("ac-floor");
+  await expect(page.locator(`svg g.dsolid.ac, svg polygon.ac-body`).first()).toBeAttached();
+  await sel.selectOption("ac-floor"); // unchanged: no step
+  await page.locator("#undo").click();
+  expect("body" in (await bodyOf(page, i))).toBe(false); // one click undid the one change
+  await selectDev(page, i); // undo clears the selection
+  await sel.selectOption("screen");
+  await sel.selectOption("");
+  expect("body" in (await bodyOf(page, i))).toBe(false); // Default deletes the key
+  await sel.selectOption(""); // unchanged: no step
+  await page.locator("#undo").click();
+  await selectDev(page, i);
+  expect((await bodyOf(page, i)).body).toBe("screen");
+  await savedValid(page);
+});
+
+test("B53.8 a bar heater offers radiator and none only; a body kept across a type change stays valid", async ({ page }) => {
+  const g = await groundOf(page);
+  const h = g.devices.findIndex((d) => d.type === "heater" && "a" in d);
+  expect(h).toBeGreaterThanOrEqual(0);
+  await selectDev(page, h);
+  const sel = page.locator("#vbody");
+  const vals = await sel.locator("option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+  expect(vals).toEqual(["", "radiator", "none"]);
+  await sel.selectOption("none");
+  expect((await bodyOf(page, h)).body).toBe("none");
+  await page.locator("#vtype").selectOption("light");
+  expect((await bodyOf(page, h)).body).toBe("none"); // still a bar, still valid
+  await savedValid(page);
+});
+
 test("a device rotation is stored, drawn on the group and undone; the glyph stays upright in the browser; the real pointer still hits it", async ({ page }) => {
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
   await page.locator("#vrot90").click();

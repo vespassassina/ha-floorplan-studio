@@ -35,6 +35,7 @@ const FURNITURE: Record<string, string> = {
 // A device with a body in the scene (radiator, speaker, TV) is drawn at rest here; the live tints are the LIVE roles below. Every other type is a point.
 const DEVICE: Record<string, string> = {
   heater: mix("--fp-idle", 55, "--fp-bg"), tv: mix("--fp-on-light", 62, "--fp-furniture"), speaker: mix("--fp-on-light", 62, "--fp-furniture"),
+  ac: mix("--fp-idle", 30, "--fp-bg"), screen: mix("--fp-on-light", 62, "--fp-furniture"), // B53.6, B53.7
 };
 
 const TABLE = new Map<string, RoleStyle>();
@@ -55,6 +56,8 @@ TABLE.set("open-door", solid("var(--fp-open-door)"));
 TABLE.set("door-band", { css: "var(--fp-open-door)", opacity: 0.6 }); // the slab in an open doorway while it is tripped: glass-like, alert colour
 TABLE.set("door-cover", solid("var(--fp-dev-cover)"));
 TABLE.set("body-heating", solid(mix("--fp-heater", 75, "--fp-bg")));
+TABLE.set("body-cool", solid(mix("--fp-dev-ac-cool", 40, "--fp-bg"))); // B53.6: an AC unit that is cooling or heating, the plan's body tints
+TABLE.set("body-heat", solid(mix("--fp-dev-ac-heat", 40, "--fp-bg")));
 TABLE.set("screen-on", solid("var(--fp-dev-tv)"));
 TABLE.set("driver-off", solid(mix("--fp-ink", 55, "--fp-furniture")));
 TABLE.set("driver-on", solid("var(--fp-dev-speaker)"));
