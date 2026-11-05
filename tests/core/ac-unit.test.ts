@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { OBLIQUE, renderFloor } from "../../src/core/render";
+import { classOf, OBLIQUE, renderFloor } from "../../src/core/render";
 import type { Floor } from "../../src/core/schema";
 import { bodyPlacement, deviceSolidTop, tvPlacement } from "../../src/core/solids";
 import { buildScene } from "../../src/core/scene";
@@ -129,6 +129,22 @@ describe("ac on the plan", () => {
     expect(wind(flat(f, { state: st("fan_only", "fan") }))).toMatch(/^<g class="ac-wind">/);
     // The body takes the mode too, so it can be tinted.
     expect(body(flat(f, { state: st("cool", "cooling") }))![0]).toMatch(/class="ac-body[^"]* cool"/);
+  });
+
+  it("an AC running only its fan reads as on, so the icon and the wind agree (Opus review); idle with the compressor off stays off", () => {
+    const o = (state: string, hvac_action?: string) => ({ scale: 1, state: st(state, hvac_action) });
+    for (const d of [ac(), ac({ type: "climate", body: "ac-wall" })]) {
+      expect(classOf(d as never, o("fan_only", "fan")), String(d.type)).toBe("on");
+      expect(classOf(d as never, o("fan_only")), String(d.type)).toBe("on");
+      expect(classOf(d as never, o("cool", "cooling"))).toBe("on");
+      expect(classOf(d as never, o("cool", "idle"))).toBe("off");
+      expect(classOf(d as never, o("off"))).toBe("off");
+      expect(classOf(d as never, o("unavailable"))).toBe("unavailable");
+    }
+    expect(classOf(ac({ type: "climate" }) as never, o("fan_only"))).toBe("off"); // a plain thermostat is on only while it heats
+    const html = flat(floor({ devices: [ac()] as never }), { state: st("fan_only", "fan") });
+    expect(html).toMatch(/class="dev dev-ac [^"]*\bon\b/); // the icon says on while the wind blows
+    expect(wind(html)).not.toBe("");
   });
 
   it("blows from the front face into the room, three strands, about 70 cm", () => {
