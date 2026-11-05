@@ -136,6 +136,7 @@ export function migrate(x: unknown): Layout {
   const out: any = { version: 2, unit: "cm", north: src.north ?? 0, rotate: src.rotate ?? 0, floors, catalog: src.catalog };
   if (src.palette !== undefined) out.palette = src.palette;
   if (src.colors !== undefined) out.colors = src.colors; // passed through; validate judges it. Never invented.
+  if (src.wallColors !== undefined) out.wallColors = src.wallColors; // B53.9: the same
   if (src.tempRange !== undefined && !tempRangeProblems(src.tempRange, true).length) out.tempRange = src.tempRange; // S42.1: a range is a convenience; a bad one is dropped, never the plan
   if (Array.isArray(src.views)) out.views = keepViews(src.views, floors); // S33.6: a view is a convenience; a bad one is dropped, never the plan
   if (Array.isArray(out.catalog) && v === 1) for (const c of out.catalog) c.type = RENAME[c.type] ?? c.type;

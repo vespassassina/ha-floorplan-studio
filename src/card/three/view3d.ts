@@ -14,7 +14,7 @@ import { lowerWalls, wallBodies, wallZ, type WallBody, type Walls } from "./cut"
 import { Orbit } from "./orbit";
 import { glide } from "./frame3d";
 import { MARKER_R, Picker, type Pick } from "./pick";
-import { dimRgb, parsePaintDim, roleStyle, type PaintDim } from "./palette";
+import { dimRgb, parsePaintDim, roleStyle, wallOwnCss, type PaintDim } from "./palette";
 import { MAX_POOLS, outwardSign, pickLights, roomLifts, roomOfPoint, WALL_REACH, type Poly, type Rgb, type RoomShape } from "./light";
 import { createPools, createRings } from "./fx";
 import { createGlow, type GlowSide, type GlowSpec } from "./glow";
@@ -429,8 +429,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     const key = `${role}|${color ?? ""}`;
     let p = palette.get(key);
     if (!p) {
-      const s = roleStyle(role), own = color !== undefined ? resolveColour(probe, color) : null, c = own ?? resolveColour(probe, s.css) ?? 0x888888;
-      const d = own !== null ? dimOf() : null;
+      const s = roleStyle(role), wall = color !== undefined ? wallOwnCss(role, color) : null, own = color !== undefined ? resolveColour(probe, wall ?? color) : null, c = own ?? resolveColour(probe, s.css) ?? 0x888888;
+      const d = own !== null && wall === null ? dimOf() : null; // B53.9: a wall's own colour is shaded like its kind, not dimmed as paint
       const rgb = d ? dimRgb([(c >> 16) & 255, (c >> 8) & 255, c & 255], d).map(Math.round) : null;
       p = { colour: new Color(rgb ? `#${hex((rgb[0] << 16) | (rgb[1] << 8) | rgb[2])}` : `#${hex(c)}`), opacity: s.opacity };
       palette.set(key, p);

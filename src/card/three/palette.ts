@@ -28,6 +28,13 @@ const side = (wall: string, extra: string) => `color-mix(in srgb, var(${wall}) $
 const WALL: Record<string, string> = {
   wall: side("--fp-wall", SHARE), boundary: side("--fp-wall", SHARE), external: side("--fp-wall-external", `calc(${SHARE} + 5%)`), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)", parapet: side("--fp-wall-external", `calc(${SHARE} + 5%)`),
 };
+/** B53.9: a wall's own colour (`#rrggbb`) shaded as its kind is, so a coloured wall reads like a themed one and not like a slab of raw ink. */
+export const wallOwnCss = (role: string, hex: string): string | null => {
+  const kind = role.slice(5);
+  if (!role.startsWith("wall-") || !(kind in WALL)) return null;
+  if (kind === "fence" || kind === "edge") return hex;
+  return `color-mix(in srgb, ${hex} ${kind === "external" || kind === "parapet" ? `calc(${SHARE} + 5%)` : SHARE}, var(--fp-bg))`;
+};
 const FURNITURE: Record<string, string> = {
   tree: "var(--fp-tree-edge)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),
   sink: mix("--fp-window", 25, "--fp-furniture"), toilet: mix("--fp-window", 25, "--fp-furniture"), shower: mix("--fp-window", 25, "--fp-furniture"), bathtub: mix("--fp-window", 25, "--fp-furniture"),

@@ -12,6 +12,8 @@ export type { DetailLevel, DetailMode } from "./detail";
 export { SPIDER_GAP_PX, SPIDER_MAX, SPIDER_MIN_R_PX, STACK_PX, spiderLayout, stackGroups } from "./spider";
 export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS } from "./icons";
 export * from "./render";
+export { WALL_COLOUR_KEYS, wallColourMap, wallColourVars, wallEdgeKey, wallHex } from "./wall-colour";
+export type { WallColourKey } from "./wall-colour";
 export { badges, floorRollups, roomRollup } from "./rollup";
 export type { BadgeCtx, Rollup } from "./rollup";
 export { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "./bind";

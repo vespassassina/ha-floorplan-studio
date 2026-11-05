@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { TempWatch, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { TempWatch, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, wallColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { CamThumb, HeatKind, LayerId, OffRow, SearchEntry } from "../core";
 import type { Attention, ThingRef, PowerCandidate, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -1862,11 +1862,12 @@ export class FloorplanStudioCard extends LitElement {
       keep: keptHere(this),
       heat: this._heatKind(), // S34.8: rooms with a reading of that kind are filled by it; `off` draws the plan as before
       camThumb: this._camOpts(), // S16.3: a picture beside each camera icon; off asks for none
+      wallColors: this._layout!.wallColors,
       colors: this._layout!.colors, // S19.E3: the studio's per-type colours, as the editor draws them
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" tabindex="0" role="group" aria-label=${t("Floor plan, {floor}", { floor: floorTitle(this, this._floorKey() ?? "") })} @focus=${this._onStageFocus} @blur=${this._onStageBlur} @pointerdown=${this._dropFocus} ${planPatch(body)}></svg>`;
+    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${[...deviceColourVars(this._layout!.colors), ...wallColourVars(this._layout!.wallColors)].map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" tabindex="0" role="group" aria-label=${t("Floor plan, {floor}", { floor: floorTitle(this, this._floorKey() ?? "") })} @focus=${this._onStageFocus} @blur=${this._onStageBlur} @pointerdown=${this._dropFocus} ${planPatch(body)}></svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${t(this._fallback3d)}</p>` : null;
     measureFrame(this);
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label=${t("Reset camera")} title=${t("Reset camera")} @click=${() => { this._forgetCamera(); saveViewNow(this); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;

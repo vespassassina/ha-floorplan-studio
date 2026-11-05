@@ -69,7 +69,7 @@ export function sync3d(h: FloorplanStudioCard, d: Deps3D): void {
   }
   const view = h._view3d, g = givenOf(view);
   // A theme change (or Home Assistant's dark mode) re-reads the colours; a new floor, or one the layout reload replaced, rebuilds the scene.
-  view.setTheme(`${h._theme()}|${h._haDark()}`);
+  view.setTheme(`${h._theme()}|${h._haDark()}|${JSON.stringify(h._layout?.wallColors ?? null)}`);
   view.setWalls(h._walls());
   const layout = h._layout!, key = h._floorKey()!;
   const around = d.floorsAroundKey(layout, key), aroundKey = JSON.stringify(around);

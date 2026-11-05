@@ -18,7 +18,7 @@ type Render = typeof import("./render");
 type Solids = typeof import("./solids");
 type Schema = typeof import("./schema");
 export type SceneDeps = Pick<Heights, "deviceZ" | "doorSpan" | "edgeHeight" | "floorHeight" | "floorSlab" | "furnitureBottom" | "furnitureHeight" | "openingSpan" | "radiatorSpan" | "unlinkedHeight" | "wallHeight">
-  & Pick<Render, "attachedTest" | "inside"> & Pick<typeof import("./stairs"), "resolveStairDirection">
+  & Pick<Render, "attachedTest" | "inside"> & Pick<typeof import("./stairs"), "resolveStairDirection"> & Pick<typeof import("./wall-colour"), "wallColourMap" | "wallEdgeKey">
   & Pick<Solids, "DEVICE_SOLID" | "FURNITURE_SOLID" | "FRAME_PROUD" | "FRAME_WIDTH" | "KERB_HIGH" | "KERB_OUT" | "OPENING_FILL" | "OPENING_FRAMED" | "RADIATOR_DEEP" | "SPEAKER_HEIGHT" | "SPEAKER_SIDE" | "TV_HEIGHT" | "TV_THICK" | "TV_WIDTH" | "UNLINKED_BASE" | "WELL_DEPTH" | "pieceDevice" | "stairBlocks" | "turnAbout" | "tvPlacement" | "within">
   & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape"> & Pick<typeof import("./car"), "carParts" | "carSpec">;
 
@@ -83,7 +83,7 @@ const JOINT_TOLERANCE = 1;
 
 /** The scene builder, bound to the helpers of core it needs. The 3D chunk builds one per view; `core/scene.ts` binds the real ones for the tests. */
 export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) => Scene {
-  const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec } = d;
+  const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec, wallColourMap, wallEdgeKey } = d;
   const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && fin(p[0]) && fin(p[1]);
   const ring = (p: unknown): Pt[] | null => (Array.isArray(p) && p.length >= 3 && p.every(isPt) ? (p as Pt[]) : null);
@@ -103,7 +103,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     return [[p[0] + nx, p[1] + ny], [q[0] + nx, q[1] + ny], [q[0] - nx, q[1] - ny], [p[0] - nx, p[1] - ny]];
   }
 
-  interface WallSeg { a: Pt; b: Pt; h: number; kind: string; poly: string; index: number; external: boolean; faces: Pt[]; outline: boolean }
+  interface WallSeg { a: Pt; b: Pt; h: number; kind: string; poly: string; index: number; external: boolean; faces: Pt[]; outline: boolean; /** B53.9: the wall's own colour, by the shared rule of `wallColourMap`. */ color?: string }
 
   /** Every edge and free wall that has a height and a length, once each. The rule of `collectWalls` in solids.ts, without the cutaway. */
   function collectWalls(f: Floor): WallSeg[] {
@@ -137,13 +137,15 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     // The same edge twice (a room's wall on the outline, two rooms side by side) is one wall: the taller wins, and the external kind.
     const seen = new Map<string, WallSeg>();
     for (const w of out) {
-      const k = [w.a, w.b].map((p) => `${Math.round(p[0])},${Math.round(p[1])}`).sort().join("|"), o = seen.get(k);
+      const k = wallEdgeKey(w.a, w.b), o = seen.get(k);
       if (!o) { seen.set(k, { ...w, faces: [...w.faces] }); continue; }
       o.faces.push(...w.faces);
       o.outline ||= w.outline;
       if (w.h > o.h) { o.h = w.h; o.kind = w.kind; o.poly = w.poly; o.index = w.index; }
       if (w.kind === "external") o.kind = "external";
     }
+    const colours = wallColourMap(f);
+    for (const [k, w] of seen) { const c = colours.get(k); if (c) w.color = c; }
     return [...seen.values()];
   }
 
@@ -322,7 +324,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       let n = 0;
       const block = (a0: number, a1: number, z0: number, z1: number) => {
         const t0 = a0 <= 0 ? -ext0 : a0, t1 = a1 >= len ? len + ext1 : a1;
-        if (a1 > a0 && z1 > z0) add("wall", `wall:${w.poly}:${w.index}:${n++}`, w.kind, { type: "prism", base: slab(w.a, w.b, t0, t1, thick), z0, z1 }, ref, { role: `wall-${w.kind}` });
+        if (a1 > a0 && z1 > z0) add("wall", `wall:${w.poly}:${w.index}:${n++}`, w.kind, { type: "prism", base: slab(w.a, w.b, t0, t1, thick), z0, z1 }, ref, { role: `wall-${w.kind}`, ...(w.color ? { color: w.color } : {}) });
       };
       const here = spans.map((s) => ({ s, r: within(w, s) })).filter((x): x is { s: Span; r: [number, number] } => x.r !== null).sort((p, q) => p.r[0] - q.r[0]);
       let cursor = 0;

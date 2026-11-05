@@ -1,4 +1,5 @@
 import { TEXTURE_IDS } from "./textures";
+import { WALL_COLOUR_KEYS } from "./wall-colour";
 export type Pt = [number, number];
 export type RoomKind = "room" | "garden" | "pavement" | "fill" | "terrace" | "structure" | "zone" | "water";
 export type DoorKind = "door" | "glass" | "window" | "sealed" | "slit" | "fullwindow" | "open";
@@ -28,7 +29,7 @@ export const MAX_ROOM_SENSORS = 20;
  *  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The
  *  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border
  *  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each. */
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; /** B53.9: a colour per edge, parallel to `wk`; null is the layout's or the theme's. Absent: none set. */ wc?: (string | null)[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
 /** Most custom scenes one room may keep, and most lights or switches one scene may set. */
 export const MAX_ROOM_SCENES = 12;
 export const MAX_SCENE_ITEMS = 40;
@@ -59,7 +60,7 @@ export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge" | "pa
 /** A room edge is a wall kind, or "none": not drawn. The room stays closed for area and snapping. */
 export type EdgeKind = WallKind | "none";
 /** `locked` (S4.9): the segment's length is fixed. Dragging an endpoint then only pivots it, on an arc around the other endpoint. */
-export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean; height?: number }
+export interface Wall { id: string; a: Pt; b: Pt; kind: WallKind; locked?: boolean; height?: number; /** B53.9: `#rrggbb`; absent is the layout's or the theme's. */ color?: string }
 export type StairShape = "straight" | "round";
 /** Where a flight goes from this floor. Optional: absent reads from the floors around it (see `stairDirection` in stairs.ts). "both" is stacked stairs. */
 export type StairDirection = "up" | "down" | "both";
@@ -147,7 +148,7 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
  *  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture
  *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height. `offset` (S27.2, cm, x right and y down) is where the floor sits in the house: a point's place in the house is its stored point plus the offset. Stored coordinates never change; absent means [0, 0], and writers delete the key at [0, 0]. `rotation` (S29.1, degrees, clockwise on screen with y pointing down, from -180 to 180) turns the floor about its stored origin [0, 0] before the offset: a stored point p sits in the house at R(rotation) · p + offset. Absent means 0, and writers delete the key at 0. */
 export interface Floor {
-  ha?: string; height?: number; slab?: number; offset?: [number, number]; rotation?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
+  ha?: string; height?: number; slab?: number; offset?: [number, number]; rotation?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; /** B53.9: a colour per outline edge, parallel to `owk`; null is the layout's or the theme's. */ owc?: (string | null)[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
@@ -166,7 +167,7 @@ export const MAX_VIEW_ZOOM = 8;
 /** A named way of looking at the plan, saved in the Studio and offered by every card. `floor` is a key of `floors`; `mode` is how it opens (left out: the viewer's choice); `rotation` is the turn in degrees, a multiple of 45 from 0 to 315; `zoom` (1 to 8) and `center` (cm) come together or not at all. No 3D camera. */
 export interface SavedView { id: string; name: string; floor: string; mode?: "2d" | "2.5d" | "3d"; rotation?: number; zoom?: number; center?: Pt }
 /** `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned. */
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; /** B53.9: the colour of every wall of a kind, `#rrggbb`; absent is the theme's. `parapet` follows `external`. */ wallColors?: { wall?: string; external?: string; fence?: string }; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 
 /** S7.11: the most characters a floor's `trace.src` may hold, the whole data URL: 4 MB. */
 export const MAX_TRACE_BYTES = 4 * 1024 * 1024;
@@ -278,6 +279,13 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       else if (!(typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v))) errors.push(`colors.${t} must be a colour like #aabbcc`);
     }
   }
+  if (x.wallColors !== undefined) {
+    if (!isObj(x.wallColors)) errors.push("wallColors must be an object");
+    else for (const [t, v] of Object.entries(x.wallColors)) {
+      if (!(WALL_COLOUR_KEYS as readonly string[]).includes(t)) errors.push(`wallColors.${t}: not one of ${WALL_COLOUR_KEYS.join(", ")}`);
+      else if (!(typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v))) errors.push(`wallColors.${t} must be a colour like #aabbcc`);
+    }
+  }
   if (!isObj(x.floors)) errors.push("floors must be an object");
   if (x.tempRange !== undefined) for (const p of tempRangeProblems(x.tempRange, true)) errors.push(`tempRange ${p}`);
   if (x.views !== undefined) {
@@ -312,6 +320,13 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     const name = (o: any) => { if (typeof o.name !== "string") errors.push(`${at} ${o.id} needs a name (text)`); };
     const optText = (o: any, k: string) => { if (o[k] !== undefined && typeof o[k] !== "string") errors.push(`${at} ${o.id} ${k} must be text`); };
     // Heights: optional, finite, 0 to 1000 cm. `o` is a floor or an item of it; a floor has no id of its own.
+    /** B53.9: `wc`/`owc`, a list as long as the polygon, each entry null or a strict #rrggbb. */
+    const edgeColours = (label: string, v: unknown, pts: unknown) => {
+      if (!Array.isArray(v)) { errors.push(`${label} must be a list of colours or null`); return; }
+      const n = Array.isArray(pts) ? pts.length : 0;
+      if (v.length !== n) { errors.push(`${label} must have ${n} entries, one per edge`); return; }
+      v.forEach((c: unknown, i: number) => { if (c !== null && !(typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c))) errors.push(`${label}[${i}] must be a colour like #aabbcc, or null`); });
+    };
     const optHeight = (o: any, k: string) => {
       if (o[k] !== undefined && !(typeof o[k] === "number" && Number.isFinite(o[k]) && o[k] >= 0 && o[k] <= 1000))
         errors.push(`${at} ${o === f ? "" : `${o.id} `}${k} must be a number from 0 to 1000 (cm); leave it out for the default`);
@@ -352,6 +367,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (!Array.isArray(f.outline) || !Array.isArray(f.owk) || f.owk.length !== f.outline.length) errors.push(`${at} owk must have ${Array.isArray(f.outline) ? f.outline.length : 0} entries`);
       else if (f.owk.some((k: unknown) => typeof k !== "string" || !EDGE_KINDS.includes(k as EdgeKind))) errors.push(`${at} owk entries must be one of ${EDGE_KINDS.join(", ")}`);
     }
+    if (f.owc !== undefined) edgeColours(`${at} owc`, f.owc, f.outline);
     // `domains` (S11.1): when given, the id must also start with one of them; `max`: a count cap.
     const entityList = (o: any, k: string, label: string, domains?: string[], max?: number, strict = false) => {
       if (o[k] === undefined) return;
@@ -417,10 +433,12 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         else if (r.kind === "zone" && r.wk.some((k: unknown) => k !== "boundary"))
           errors.push(`${at} ${r.id} is a zone and cannot have a wall edge: every wk entry must be boundary`);
       }
+      if (r.wc !== undefined) edgeColours(`${at} ${r.id} wc`, r.wc, r.pts);
     });
     each("walls", (w) => {
       oneOf(`${w.id} kind`, w.kind, WALL_KINDS);
       optHeight(w, "height");
+      if (w.color !== undefined && !(typeof w.color === "string" && /^#[0-9a-fA-F]{6}$/.test(w.color))) errors.push(`${at} ${w.id} color must be a colour like #aabbcc`);
       if (!isPt(w.a) || !isPt(w.b)) errors.push(`${at} ${w.id} needs points a and b`);
       if (w.locked !== undefined && typeof w.locked !== "boolean") errors.push(`${at} ${w.id} locked must be true or false`);
     });

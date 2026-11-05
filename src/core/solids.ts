@@ -3,6 +3,7 @@
 // numbers: they arrive in a `Proj`, so this file never imports render.ts.
 import { deviceZ, deviceZOr, doorSpan, edgeHeight, floorHeight, furnitureBottom, furnitureHeight, furnitureTop, openingSpan, radiatorSpan, unlinkedHeight, wallHeight } from "./heights";
 import { esc, num, pts, tag } from "./fmt";
+import { wallColourMap, wallEdgeKey } from "./wall-colour";
 import { TREE_CROWN } from "./icons";
 import { treeShadeSvg, treeShape } from "./tree";
 import { edgeKindAt, nearestEdge, stairSteps } from "./geometry";
@@ -130,6 +131,8 @@ export interface WallSeg {
   a: Pt; b: Pt; h: number; /** 0..1: how far it is lowered toward the cutaway. */ cut: number; kind: string;
   /** Unit outward normals of the room edges that made this piece, in the screen frame; none for a free wall. */
   faces: Pt[];
+  /** B53.9: the wall's own colour (lower-case `#rrggbb`), by the shared rule of `wallColourMap`; absent is the layout's or the theme's. */
+  color?: string;
 }
 
 /** The height a wall is drawn at: its model height lowered toward the cutaway by its cut. */
@@ -216,7 +219,7 @@ export function collectWalls(f: Floor, px: Proj, mode: WallsMode = "cut"): WallS
   // exposed (the most cut) and the external kind win, so a doubled edge never draws doubled.
   const seen = new Map<string, WallSeg>();
   for (const w of out) {
-    const k = [w.a, w.b].map((p) => `${Math.round(p[0])},${Math.round(p[1])}`).sort().join("|");
+    const k = wallEdgeKey(w.a, w.b);
     const o = seen.get(k);
     if (!o) { seen.set(k, { ...w }); continue; }
     o.cut = Math.max(o.cut, w.cut);
@@ -224,6 +227,8 @@ export function collectWalls(f: Floor, px: Proj, mode: WallsMode = "cut"): WallS
     if (w.h > o.h) { o.h = w.h; o.kind = w.kind; }
     if (w.kind === "external") o.kind = "external";
   }
+  const colours = wallColourMap(f);
+  for (const [k, w] of seen) { const c = colours.get(k); if (c) w.color = c; }
   const walls = [...seen.values()];
   if (mode === "cut") evenRuns(walls);
   else for (const w of walls) w.cut = mode === "low" ? 1 : 0;
@@ -311,9 +316,10 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
     // Seen from straight above (no lift) a wall has no face: it is drawn exactly as it always was.
     const solid = px.rise > 0, hh = drawnHeight(w, px), { tone, toward } = solid ? lighting(w, px, ux, uy) : { tone: "", toward: [0, 0] as Pt };
     const at = (t: number): Pt => [w.a[0] + ux * t, w.a[1] + uy * t];
+    // B53.9: a wall with its own colour wears class wc and the variable; only its own faces do (not a frame, a pane or a door leaf).
+    const wall = `ws${kindClass(w.kind)}${w.color ? " wc" : ""}${tone}`, colour = w.color ? `--fp-wall-c:${w.color}` : "";
     const quad = (t0: number, t1: number, z0: number, z1: number, cls: string) =>
-      z1 > z0 && t1 > t0 ? `<polygon class="${cls}" points="${pts([px.lift(at(t0), z0), px.lift(at(t1), z0), px.lift(at(t1), z1), px.lift(at(t0), z1)])}"/>` : "";
-    const wall = `ws${kindClass(w.kind)}${tone}`;
+      z1 > z0 && t1 > t0 ? `<polygon class="${cls}" points="${pts([px.lift(at(t0), z0), px.lift(at(t1), z0), px.lift(at(t1), z1), px.lift(at(t0), z1)])}"${cls === wall && colour ? ` style="${colour}"` : ""}/>` : "";
     // S28.6: a frame lies on the face the viewer sees, FRAME_PROUD toward him. A header the lowered wall has cut away has no head bar, and a
     // sill at or above the wall top no sill bar, so a lowered wall lowers its frame. `sill` and `head` are clipped to the wall; `ownSill` and `ownHead` are not.
     const proud: Pt = [toward[0] * FRAME_PROUD, toward[1] * FRAME_PROUD];
@@ -364,11 +370,13 @@ export function wallSolids(f: Floor, px: Proj, mode: WallsMode = "cut", state?: 
     // Only a wall and an external wall are thinned; a fence or an edge is a line already. The halo is 2 wider, as in 2D.
     const thin = solid && (w.kind === "wall" || ext) ? Math.min(1, px.rise / CAP_FULL_RISE) : 0, flat = ext ? FLAT_WIDTH_EXTERNAL : FLAT_WIDTH;
     const width = (halo: number) => (thin ? ` style="stroke-width:${num(flat + (cap - flat) * thin + halo)}"` : "");
+    // The cap's line is coloured, its halo is not; the cap's style carries the variable as well as its width.
+    const capStyle = (halo: number) => { const parts = [thin ? `stroke-width:${num(flat + (cap - flat) * thin + halo)}` : "", colour].filter(Boolean); return parts.length ? ` style="${parts.join(";")}"` : ""; };
     const lines = tops.map(([t0, t1]) => {
       const a = px.lift(at(t0), hh), b = px.lift(at(t1), hh), g = `x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"`;
       // The lit edge of the face: a thin line on the cap's near edge, drawn after the cap so it shows.
       const o: Pt = [(toward[0] * cap) / 2, (toward[1] * cap) / 2], ha = px.lift([at(t0)[0] + o[0], at(t0)[1] + o[1]], hh), hb = px.lift([at(t1)[0] + o[0], at(t1)[1] + o[1]], hh);
-      return `<line class="eh${kc} top" ${g}${width(2)}/><line class="e${kc} top" ${g}${width(0)}/>${solid ? `<line class="wl" x1="${num(ha[0])}" y1="${num(ha[1])}" x2="${num(hb[0])}" y2="${num(hb[1])}"/>` : ""}`;
+      return `<line class="eh${kc} top" ${g}${width(2)}/><line class="e${kc} top${w.color ? " wc" : ""}" ${g}${capStyle(0)}/>${solid ? `<line class="wl" x1="${num(ha[0])}" y1="${num(ha[1])}" x2="${num(hb[0])}" y2="${num(hb[1])}"/>` : ""}`;
     });
     return { key: nearest(px, [w.a, w.b]), svg: faces.join("") + lines.join("") };
   });

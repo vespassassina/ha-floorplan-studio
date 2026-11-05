@@ -23,6 +23,7 @@ import { attentionDevices, type AttentionSource } from "./attention";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
 import { devsHave, layerHides, type LayerId, type PlanSel } from "./layers";
 import type { DetailLevel } from "./detail";
+import { wallColourMap, wallColourVars, wallEdgeKey } from "./wall-colour";
 import { DEVICE_SOLID, STEM_MIN_Z, turnAbout, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, collectWalls, shadeMarkup, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
@@ -71,6 +72,8 @@ export interface RenderOpts {
   rotate?: { deg: number; pivot: Pt };
   /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
   colors?: Layout["colors"];
+  /** B53.9 `layout.wallColors`: the colour of every wall of a kind, set on the same group as `--fp-wall`, `--fp-wall-external` and `--fp-wall-fence`. Omitted: the theme's. */
+  wallColors?: Layout["wallColors"];
   /** Names this plan's theme, regardless of its host's; omitted inherits the host's, and with no host theme at all the plan is blueprint. Nothing else in core reads it. */
   theme?: Theme;
   /** With `theme: "ha"`: true when Home Assistant itself is in dark mode, so the tokens HA's CSS variables do not cover (device colours, glow, the on-room stroke) are the dark ones. */
@@ -455,6 +458,15 @@ ${THEME_EXTRAS}
 .ws.lit{fill:color-mix(in srgb,var(--fp-wall-side) 80%,var(--fp-on-dark))} .ws.dim{fill:color-mix(in srgb,var(--fp-wall-side) 78%,var(--fp-on-light))}
 .wfoot{fill:var(--fp-on-light);fill-opacity:.16;stroke:none} .wl{stroke:var(--fp-on-dark);stroke-opacity:.55;stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
+/* B53.9, wall colours. A wall piece with its own colour is class wc with --fp-wall-c in its style (a class rule, never a
+   presentation attribute, which any author rule outranks). These sit after every kind rule above and carry [style], so a
+   per-wall colour beats the layout's default (a group variable, or the wcx rule) and the default beats the theme's token.
+   A face reads --fp-wall-side and --fp-wall-top, so they are redeclared on the element itself from the same colour: lit and
+   dim faces keep their shading. The layout's external colour reaches the external faces through .wcx, set on its group. */
+.e.wc[style]{stroke:var(--fp-wall-c)}
+.wcx .ws.external,.wcx .ws.parapet{--fp-wall-top:var(--fp-wall-external);--fp-wall-side:color-mix(in srgb,var(--fp-wall-external) calc(var(--fp-wall-side-share,55%) + 5%),var(--fp-bg))}
+.ws.wc[style]{--fp-wall-top:var(--fp-wall-c);--fp-wall-side:color-mix(in srgb,var(--fp-wall-c) var(--fp-wall-side-share,55%),var(--fp-bg))}
+.ws.fence.wc[style]{fill:var(--fp-wall-c);stroke:var(--fp-wall-c)}
 .frame{fill:var(--fp-frame);stroke:var(--fp-frame);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
 /* An opening that is open (a contact sensor on, a lock left unlocked) is red on the wall face as it is in 2D, an alarm the
@@ -1475,7 +1487,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline, wk: f.owk }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];
   // Every edge has a white twin drawn first (the line version of the text outline), so a dark line stays visible on a dark floor.
-  const edgeLines: { cls: string; attr: string; a: Pt; b: Pt }[] = [], guides: typeof edgeLines = [];
+  const edgeLines: { cls: string; attr: string; a: Pt; b: Pt; col?: string }[] = [], guides: typeof edgeLines = [];
+  const wcol = wallColourMap(f); // B53.9: one colour per drawn edge, however many pieces draw it
+  const colOf = (a: Pt, b: Pt) => wcol.get(wallEdgeKey(a, b));
   for (const P of polys)
     P.pts.forEach((a, i) => {
       // The outline defaults external (the house perimeter, S1.52); a room with no wk yet is never valid, so "wall" is only a defensive fallback.
@@ -1484,9 +1498,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const outdoor = kind === "boundary" && P.id !== "o" && OUTDOOR_KINDS.includes(f.rooms[Number(P.id.slice(1))]?.kind);
       if (kind === "none" || outdoor) { if (o.editor) guides.push({ cls: "e none", attr: ` data-e="${P.id}:${i}"`, a, b }); return; } // not drawn: the editor keeps a faint guide so it can be picked again
       if (x25 && !P.zone && edgeHeight(f, P.id === "o" ? null : f.rooms[Number(P.id.slice(1))], i) > 0) return; // a wall with height is drawn as a solid below
-      edgeLines.push({ cls: edgeClass(kind) + (P.zone ? " zn" : ""), attr: ` data-e="${P.id}:${i}"`, a, b });
+      edgeLines.push({ cls: edgeClass(kind) + (P.zone ? " zn" : ""), attr: ` data-e="${P.id}:${i}"`, a, b, col: P.zone ? undefined : colOf(a, b) });
     });
-  f.walls.forEach((w, i) => { if (!(x25 && wallHeight(f, w) > 0)) edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b }); });
+  f.walls.forEach((w, i) => { if (!(x25 && wallHeight(f, w) > 0)) edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b, col: colOf(w.a, w.b) }); });
   const seg = (a: Pt, b: Pt) => `x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"`;
   // S8.11: every halo and stroke line, of every kind (including external and the free-wall/outline lines above),
   // is what an opening's mask cuts a hole through — collected here instead of pushed straight to `out` so the whole
@@ -1494,7 +1508,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // output to before) when there is not.
   const wallLines: string[] = [];
   for (const l of edgeLines) wallLines.push(`<line class="eh${l.cls.slice(1)}" ${seg(l.a, l.b)}/>`);
-  for (const l of [...guides, ...edgeLines]) wallLines.push(`<line class="${l.cls}"${l.attr} ${seg(l.a, l.b)}/>`);
+  for (const l of [...guides, ...edgeLines]) wallLines.push(`<line class="${l.cls}${l.col ? " wc" : ""}"${l.attr} ${seg(l.a, l.b)}${l.col ? ` style="--fp-wall-c:${l.col}"` : ""}/>`);
   if (maskId) out.push(`<g mask="url(#${maskId})">${wallLines.join("")}</g>`);
   else out.push(...wallLines);
 
@@ -2038,8 +2052,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const body = out.join("\n");
   const turned = turn ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>` : body;
   // Custom properties inherit, so one style on a group reaches every device. Only known types and strict #rrggbb go in: the value ends up in an attribute.
-  const vars = deviceColourVars(o.colors);
-  const coloured = vars.length ? `<g class="dev-colours" style="${vars.join(";")}">${turned}</g>` : turned;
+  const wallVars = wallColourVars(o.wallColors), vars = [...deviceColourVars(o.colors), ...wallVars];
+  // B53.9: `wcx` says the layout paints external walls, so their 2.5D faces and caps follow --fp-wall-external (a rule below).
+  const coloured = vars.length ? `<g class="dev-colours${wallVars.some((v) => v.startsWith("--fp-wall-external:")) ? " wcx" : ""}" style="${vars.join(";")}">${turned}</g>` : turned;
   // A plan-level theme, so one plan can differ from its host. No o.theme writes nothing and inherits the host's. o.theme is checked against THEMES:
   // it lands in an attribute, and a caller's stray string must not.
   const night = o.night ? ' class="night"' : "";
