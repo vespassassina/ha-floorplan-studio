@@ -199,8 +199,13 @@ export function unlinkedHeight(u: Unlinked): number {
  */
 const BODY_ICON_Z: Record<string, number> = { "ac-wall": 195, "ac-floor": 60, screen: 140 };
 export function deviceZ(d: Device): number {
+  return own(d, "z") ?? deviceZDefault(d);
+}
+
+/** What `deviceZ` gives a device whose `z` is missing: its body's icon height, else its type's. The editor's height placeholder. */
+export function deviceZDefault(d: Device): number {
   const t = (d as { type?: unknown } | null)?.type, b = (d as { body?: unknown } | null)?.body;
-  return own(d, "z") ?? (typeof b === "string" && Object.prototype.hasOwnProperty.call(BODY_ICON_Z, b) ? BODY_ICON_Z[b] : has(DEVICE_Z, t) ? DEVICE_Z[t] : FALLBACK);
+  return typeof b === "string" && Object.prototype.hasOwnProperty.call(BODY_ICON_Z, b) ? BODY_ICON_Z[b] : has(DEVICE_Z, t) ? DEVICE_Z[t] : FALLBACK;
 }
 
 /** `z` as the user set it, or `fallback` when it is missing or invalid. For the devices whose solid has a default of its own (a radiator, a free-standing TV). */

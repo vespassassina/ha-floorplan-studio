@@ -501,9 +501,10 @@ export const DEVICE_SOLID: Record<DeviceType, DeviceBody> = {
 export function bodyOf(d: Device): DeviceBody {
   const o = d as { type?: unknown; body?: unknown; a?: unknown; b?: unknown } | null;
   const own: DeviceBody = has(DEVICE_SOLID, o?.type) ? DEVICE_SOLID[o.type] : "none", b = o?.body;
-  if (typeof b !== "string" || !(DEVICE_BODIES as readonly string[]).includes(b)) return own;
-  if (finite(o?.a) && finite(o?.b)) return b === "radiator" || b === "none" ? b : own;
-  return b === "radiator" ? own : (b as DeviceBody);
+  const bar = finite(o?.a) && finite(o?.b), fit = bar || own !== "radiator" ? own : "none"; // a radiator needs the bar's length: a point draws nothing
+  if (typeof b !== "string" || !(DEVICE_BODIES as readonly string[]).includes(b)) return fit;
+  if (bar) return b === "radiator" || b === "none" ? b : own;
+  return b === "radiator" ? fit : (b as DeviceBody);
 }
 
 /** cm. A radiator is 8 deep. A speaker cabinet is 20 x 20 x 30, its drivers 7 across on a face 20 wide. */
