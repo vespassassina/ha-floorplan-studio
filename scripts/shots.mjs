@@ -239,6 +239,105 @@ Object.assign(tg.find((r) => r.name === "Kitchen"), { texture: "wood-light" });
 Object.assign(tg.find((r) => r.name === "Living"), { texture: "checker-classic", textureRot: 30, textureScale: 1.5 });
 Object.assign(tg.find((r) => r.name === "Hall"), { texture: "wood-dark" });
 
+// B53.9: `npm run shots -- --walls` renders the wall colours to shots/current/walls/: the demo ground floor with a layout default
+// (walls, external walls, fences) and one painted wall (the partition between the two top rooms), in 2D, 2.5D and 3D, light and
+// midnight, plus a 4x crop of the painted wall in 2D and 2.5D, and the Studio's Device colours panel and wall panel. The demo has
+// no fence, so one is added to the page's copy of the layout; demo/layout.json is not touched.
+if (args.has("--walls")) {
+  const DIR = "shots/current/walls";
+  mkdirSync(DIR, { recursive: true });
+  for (const f of readdirSync(DIR)) rmSync(`${DIR}/${f}`, { force: true });
+  const wl = structuredClone(layout);
+  wl.wallColors = { wall: "#b5651d", external: "#2a6f97", fence: "#2e7d32" };
+  wl.palette = ["#e0245e"];
+  const g0 = wl.floors.ground;
+  g0.rooms[0].wc = [null, "#e0245e", null, null];
+  g0.rooms[1].wc = [null, null, null, "#e0245e"];
+  g0.walls.push({ id: "wall-ground-fence", a: [860, 60], b: [860, 340], kind: "fence" });
+  const problems = [], files = [];
+  const browser = await chromium.launch();
+  try {
+    for (const t of [{ id: "light", theme: "light", page: "#fff" }, { id: "midnight", theme: "midnight", page: "#0d1522" }]) for (const view of ["2d", "2.5d", "3d"]) {
+      const base = `${view}-${t.id}`;
+      const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
+      const page = await ctx.newPage();
+      page.on("pageerror", (e) => problems.push(`${base}: ${e}`));
+      page.on("console", (m) => { if (m.type() === "error") problems.push(`${base}: console.error ${m.text()}`); });
+      const config = { layout: wl, floor: "ground", theme: t.theme, view: view === "3d" ? "3d" : view === "2d" ? "2d" : "2.5d", active_list: false, ...(view === "2.5d" ? { tilt: 0.5 } : {}) };
+      const hass = hassFor("off", false);
+      if (view !== "3d") {
+        await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${t.page}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
+        await page.addScriptTag({ content: cardJs, type: "module" });
+      } else {
+        const ORIGIN = "http://fp.test";
+        await page.route("**/*", (route) => {
+          const url = new URL(route.request().url());
+          if (url.origin !== ORIGIN) return route.abort();
+          if (url.pathname === "/") return route.fulfill({ contentType: "text/html", body: `<!doctype html><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=shots"></script><body style="margin:0;padding:12px;background:${t.page}"><floorplan-studio-card id="c"></floorplan-studio-card></body>` });
+          const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
+          if (!m || !existsSync(resolve(DIST, m[1]))) return route.fulfill({ status: 404, body: "not found" });
+          return route.fulfill({ contentType: "text/javascript", body: readFileSync(resolve(DIST, m[1])) });
+        });
+        await page.goto(`${ORIGIN}/`);
+      }
+      await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+      await page.evaluate(([c, h]) => { const el = document.getElementById("c"); el.setConfig(c); el.hass = h; return el.updateComplete; }, [config, hass]);
+      if (view === "3d") {
+        try { await page.waitForFunction(() => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1, null, { timeout: 30000 }); }
+        catch { problems.push(`${base}: the 3D view never drew a frame`); await ctx.close(); continue; }
+        await page.waitForTimeout(900);
+      }
+      await page.mouse.move(0, 0);
+      await page.locator("floorplan-studio-card").screenshot({ path: `${DIR}/${base}.png` });
+      files.push(`${base}.png`);
+      if (view !== "3d") {
+        // 4x of the painted partition and a fence: the element's own box, through a second context at DPR 4 would redraw; clip at 2x then is enough to see the hue
+        const sel = view === "2d" ? 'svg line.e[data-e="r0:1"]' : "svg line.e.top.wc";
+        const box = await page.locator(`#c ${sel}`).first().boundingBox();
+        if (box) {
+          await page.screenshot({ path: `${DIR}/crop-${base}.png`, clip: { x: Math.max(0, box.x + box.width / 2 - 90), y: Math.max(0, box.y + box.height / 2 - 90), width: 180, height: 180 } });
+          files.push(`crop-${base}.png`);
+        } else problems.push(`${base}: the painted wall was not found`);
+      }
+      await ctx.close();
+    }
+    // the Studio: Device colours > Wall colours, and a wall's own Colour row
+    for (const theme of ["light", "blueprint"]) {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
+      const page = await ctx.newPage();
+      page.on("pageerror", (e) => problems.push(`editor-${theme}: ${e}`));
+      await page.addInitScript((t) => { localStorage.setItem("floorplan-studio:theme", t); }, theme);
+      await page.goto(pathToFileURL(resolve(EDITOR)).href);
+      await page.locator("floorplan-studio-editor svg polygon[data-r]").first().waitFor();
+      await page.evaluate((l) => { document.querySelector("floorplan-studio-editor").layout = l; }, wl);
+      await page.locator("details.menu > summary", { hasText: /^Edit$/ }).click();
+      await page.locator("floorplan-studio-editor #devcols").click();
+      await page.locator("floorplan-studio-editor .devcols-panel").waitFor();
+      await page.mouse.move(0, 0);
+      await page.screenshot({ path: `${DIR}/editor-colours-${theme}.png` });
+      files.push(`editor-colours-${theme}.png`);
+      await page.locator("floorplan-studio-editor #devcolsClose").click();
+      const pt = await page.evaluate(([x, y]) => {
+        const svg = document.querySelector("floorplan-studio-editor").shadowRoot.querySelector("svg");
+        const g = svg.querySelector(":scope > g.plan-turn"), q = new DOMPoint(x, y).matrixTransform((g ?? svg).getScreenCTM());
+        return { x: q.x, y: q.y };
+      }, [500, 200]);
+      await page.mouse.click(pt.x, pt.y);
+      await page.locator("#ecol").waitFor();
+      await page.mouse.move(0, 0);
+      await page.screenshot({ path: `${DIR}/editor-wall-${theme}.png` });
+      files.push(`editor-wall-${theme}.png`);
+      await ctx.close();
+    }
+  } finally {
+    await browser.close();
+  }
+  for (const n of files) if (!existsSync(`${DIR}/${n}`) || readFileSync(`${DIR}/${n}`).length < 4000) problems.push(`${n}: missing or blank`);
+  console.log(`${files.length} wall images in ${DIR}/`);
+  if (problems.length) { console.error(`\n${problems.length} problem(s):\n${problems.join("\n")}`); process.exit(1); }
+  process.exit(0);
+}
+
 // S28.1: `npm run shots -- --polish` renders only the Sprint 28 set to shots/current/polish/: the demo ground and first floor in
 // 2.5D (tilt .5) and 3D (default camera and one orbit), blueprint, light and ha-dark, day and night, at deviceScaleFactor 4,
 // plus 4x crops of a door, a window, a tree and a wall foot in both views. The demo has no tree, so two are added to the demo
