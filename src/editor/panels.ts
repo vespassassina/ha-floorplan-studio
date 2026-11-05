@@ -2,11 +2,11 @@ import { html, nothing, type TemplateResult } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { repeat } from "lit/directives/repeat.js";
-import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
+import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, deviceZDefault, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, validate } from "../core/schema";
-import { DEVICE_SOLID } from "../core";
+import { bodyOf } from "../core";
 import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -962,7 +962,7 @@ function bodyField(c: PanelCtx, i: number) {
     if (v === value) return;
     c.commit((f) => { if (v) f.devices[i].body = v as DeviceBody; else delete f.devices[i].body; });
   };
-  return select("Body", "vbody", value, ["", ...choices], set, { ...BODY_NAMES, "": `Default (${BODY_NAMES[DEVICE_SOLID[d.type]]})` });
+  return select("Body", "vbody", value, ["", ...choices], set, { ...BODY_NAMES, "": `Default (${BODY_NAMES[bodyOf({ ...d, body: undefined })]})` });
 }
 
 function devicePanel(c: PanelCtx, i: number) {
@@ -992,7 +992,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${areaDiffField(c, i)}
     ${heading("Appearance")}
     ${lockBox(c, "vlock", "devices", i)}
-    ${heightField(c, "mount height (cm)", "vz", d.z, DEVICE_Z[d.type] ?? 100, heightSetter(c, "devices", i, "z"))}
+    ${heightField(c, "mount height (cm)", "vz", d.z, deviceZDefault(d), heightSetter(c, "devices", i, "z"))}
     ${drawsEffect(d) ? fxField(c, d.fx, heightSetter(c, "devices", i, "fx")) : nothing}
     ${bodyField(c, i)}
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}

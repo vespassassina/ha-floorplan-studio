@@ -877,6 +877,9 @@ export function acMode(d: Device, o: RenderOpts): "cool" | "heat" | null {
   return v === "cooling" ? "cool" : v === "heating" ? "heat" : null;
 }
 
+/** An AC unit is running when it cools or heats, or blows with its fan alone (`fan_only`): the wind and the icon read this one answer. */
+export const acRuns = (d: Device, o: RenderOpts): boolean => acMode(d, o) !== null || o.state?.[d.entity]?.state === "fan_only";
+
 /** The sensor that measures plug `d`: its own `power`, else the one the card linked at runtime. Own `power` wins. */
 function powerEntity(d: Device, o: RenderOpts): string | undefined {
   if (typeof d.power === "string" && d.power) return d.power;
@@ -910,7 +913,7 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   const s = o.state?.[d.entity];
   if (!s) return "off";
   if (dead(s.state)) return "unavailable"; // S23.5: every type, a light, switch or plug too: "I don't know" is not "off"
-  if (d.type === "ac") return acMode(d, o) ? "on" : "off";
+  if (d.type === "ac" || (d.type === "climate" && bodyAir(d))) return acRuns(d, o) ? "on" : "off";
   if (d.type === "plug") return plugOn(d, o, s) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
   // S9.4: a speaker is a media_player like any other — playing is the only "on", same as media.
@@ -1992,7 +1995,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     {
       const bk = bodyOf(d), air = bk === "ac-wall" || bk === "ac-floor", m = air ? acMode(d, o) ?? "" : "";
       if (!x25 && (air || bk === "screen")) out.push(bodyFlat(f, d, cls, m));
-      if (air && (m || o.state?.[d.entity]?.state === "fan_only")) out.push(bodyWind(f, d, m, x25 ? px : null));
+      if (air && acRuns(d, o)) out.push(bodyWind(f, d, m, x25 ? px : null));
     }
     const dim = o.dimmed?.has(d.entity) ? " dim" : "";
     // S16.3: the camera's picture, in the screen frame beside its icon and upright in a turned plan, over every icon (pushed after the loop).

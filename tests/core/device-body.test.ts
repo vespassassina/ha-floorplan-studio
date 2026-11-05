@@ -4,7 +4,7 @@ import { DEVICE_BODIES, DEVICE_TYPES, validate, type Layout } from "../../src/co
 import { OBLIQUE, renderFloor } from "../../src/core/render";
 import type { Floor } from "../../src/core/schema";
 import { DEVICE_SOLID, bodyOf, deviceSolidTop } from "../../src/core/solids";
-import { deviceZ } from "../../src/core/heights";
+import { deviceZ, deviceZDefault } from "../../src/core/heights";
 import { buildScene } from "../../src/core/scene";
 
 // B53.8: a device's `body` says which solid it draws. Absent is its type's default (DEVICE_SOLID); the Body select writes it.
@@ -87,6 +87,9 @@ describe("bodyOf", () => {
     expect(bodyOf(dev("heater", { ...bar, body: "none" }) as never)).toBe("none");
     expect(bodyOf(dev("media", { body: "radiator" }) as never)).toBe("speaker");
     expect(bodyOf(null as never)).toBe("none");
+    // A point heater cannot draw a radiator, so its default is nothing (the Body select names what the device really gets).
+    expect(bodyOf(dev("heater") as never)).toBe("none");
+    expect(bodyOf(dev("heater", bar) as never)).toBe("radiator");
   });
 });
 
@@ -121,6 +124,10 @@ describe("a body decides what 2.5D and 3D draw", () => {
     expect(deviceZ(dev("ac") as never)).toBe(195);
     expect(deviceZ(dev("ac", { body: "ac-floor" }) as never)).toBe(60); // the icon sits on top of the console, as a speaker's does
     expect(deviceZ(dev("ac", { body: "ac-floor", z: 20 }) as never)).toBe(20);
+    // The editor's height placeholder is the default a missing `z` resolves to, body included, and ignores a z that is set.
+    expect(deviceZDefault(dev("climate", { body: "ac-wall" }) as never)).toBe(195);
+    expect(deviceZDefault(dev("ac", { body: "ac-floor", z: 20 }) as never)).toBe(60);
+    for (const d of [dev("climate", { body: "screen" }), dev("ac", { body: "ac-floor" }), dev("media", { body: "tv" }), dev("ac"), dev("light")]) expect(deviceZDefault(d as never)).toBe(deviceZ(d as never));
   });
 
   it("2.5D lifts a floor console's icon onto its top (60 cm), though that is under the stem threshold", () => {

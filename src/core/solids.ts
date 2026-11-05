@@ -509,9 +509,10 @@ export const DEVICE_SOLID: Record<DeviceType, DeviceBody> = {
 export function bodyOf(d: Device): DeviceBody {
   const o = d as { type?: unknown; body?: unknown; a?: unknown; b?: unknown } | null;
   const own: DeviceBody = has(DEVICE_SOLID, o?.type) ? DEVICE_SOLID[o.type] : "none", b = o?.body;
-  if (typeof b !== "string" || !(DEVICE_BODIES as readonly string[]).includes(b)) return own;
-  if (finite(o?.a) && finite(o?.b)) return b === "radiator" || b === "none" ? b : own;
-  return b === "radiator" ? own : (b as DeviceBody);
+  const bar = finite(o?.a) && finite(o?.b), fit = bar || own !== "radiator" ? own : "none"; // a radiator needs the bar's length: a point draws nothing
+  if (typeof b !== "string" || !(DEVICE_BODIES as readonly string[]).includes(b)) return fit;
+  if (bar) return b === "radiator" || b === "none" ? b : own;
+  return b === "radiator" ? fit : (b as DeviceBody);
 }
 
 /** cm. A radiator is 8 deep. A speaker cabinet is 20 x 20 x 30, its drivers 7 across on a face 20 wide. */
@@ -522,6 +523,35 @@ export const TV_WIDTH = 100, TV_THICK = 6, TV_HEIGHT = 60;
 const TV_BEZEL = 3, TV_WALL_REACH = 150, TV_STAND = 30;
 /** Half a wall's thickness (plan: 10 cm, 20 external, kept here because render.ts imports this file): where its room face lies. */
 export const wallFace = (kind: string) => (kind === "external" || kind === "parapet" ? 10 : kind === "wall" ? 5 : 0);
+
+type EdgeHit = NonNullable<ReturnType<typeof nearestEdge>>;
+const insideRing = (p: Pt, ring: readonly Pt[]): boolean => {
+  let c = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+};
+/** The unit normal of a wall hit that points into the room: toward the device's side; on the wall line itself (a dot product of 0) toward the inside of the containing room, else of the outline. */
+function wallNormal(f: Floor, p: Pt, hit: EdgeHit): Pt {
+  const side: Pt = [hit.u[1], -hit.u[0]], dot = (p[0] - hit.q[0]) * side[0] + (p[1] - hit.q[1]) * side[1];
+  if (Math.abs(dot) > 1e-9) return dot < 0 ? [-side[0], -side[1]] : side;
+  const at = (s: number): Pt => [hit.q[0] + side[0] * s, hit.q[1] + side[1] * s], ring = (r: { pts?: unknown } | undefined) => (Array.isArray(r?.pts) ? (r!.pts as Pt[]) : []);
+  const rooms = f.rooms.filter((r) => r.kind !== "zone"), test = (a: Pt) => rooms.some((r) => insideRing(a, ring(r))) || insideRing(a, f.outline);
+  const near = test(at(1)), far = test(at(-1));
+  return near || !far ? side : [-side[0], -side[1]];
+}
+/** Where along the hit edge the centre of a body `w` wide may sit: inside the segment, clear of the neighbouring wall's face; a segment shorter than the body centres it. */
+function alongEdge(f: Floor, hit: EdgeHit, w: number): Pt {
+  const m = /^r(\d+)$/.exec(hit.poly), ring: Pt[] | undefined = hit.poly === "o" ? f.outline : m ? f.rooms[+m[1]]?.pts : undefined;
+  const a: Pt | undefined = ring ? ring[hit.i] : f.walls[hit.i]?.a, b: Pt | undefined = ring ? ring[(hit.i + 1) % ring.length] : f.walls[hit.i]?.b;
+  if (!a || !b) return hit.q;
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]), face = (i: number) => (ring ? wallFace(edgeKindAt(f, hit.poly, (i + ring.length) % ring.length)) : 0);
+  const lo = face(hit.i - 1) + w / 2, hi = len - face(hit.i + 1) - w / 2;
+  const t = (hit.q[0] - a[0]) * hit.u[0] + (hit.q[1] - a[1]) * hit.u[1], c = hi < lo ? len / 2 : Math.min(hi, Math.max(lo, t));
+  return [a[0] + hit.u[0] * c, a[1] + hit.u[1] * c];
+}
 
 /**
  * B53.6/B53.7: the bodies that snap to a wall, in cm. `w` runs along the wall, `d` is the depth off it, `h` the height.
@@ -570,8 +600,7 @@ export function tvPlacement(f: Floor, d: Device, down: Pt): { c: Pt; n: Pt; off:
   if (!("x" in d) || ![d.x, d.y].every((v) => typeof v === "number" && Number.isFinite(v))) return null;
   const p: Pt = [d.x, d.y], hit = nearestEdge(f, p, TV_WALL_REACH, { walls: true });
   if (!hit) return { c: p, n: down, off: -TV_THICK / 2, z0: deviceZOr(d, TV_STAND), hit };
-  const side: Pt = [hit.u[1], -hit.u[0]], flip = (p[0] - hit.q[0]) * side[0] + (p[1] - hit.q[1]) * side[1] < 0;
-  return { c: hit.q, n: flip ? [-side[0], -side[1]] : side, off: wallFace(edgeKindAt(f, hit.poly, hit.i)), z0: deviceZ(d), hit };
+  return { c: alongEdge(f, hit, TV_WIDTH), n: wallNormal(f, p, hit), off: wallFace(edgeKindAt(f, hit.poly, hit.i)), z0: deviceZ(d), hit };
 }
 
 /** A flat panel `TV_THICK` thick on a wall of the room the TV is in, or standing free when no wall is near. */
@@ -637,8 +666,7 @@ export function bodyPlacement(f: Floor, d: Device): BodyPlace | null {
   const z0 = bodyBottom(d, k);
   let c: Pt, n: Pt, off: number;
   if (hit) {
-    const side: Pt = [hit.u[1], -hit.u[0]], flip = (p[0] - hit.q[0]) * side[0] + (p[1] - hit.q[1]) * side[1] < 0;
-    c = hit.q; n = flip ? [-side[0], -side[1]] : side; off = wallFace(edgeKindAt(f, hit.poly, hit.i));
+    c = alongEdge(f, hit, w); n = wallNormal(f, p, hit); off = wallFace(edgeKindAt(f, hit.poly, hit.i));
   } else {
     const rot = typeof d.rot === "number" && Number.isFinite(d.rot) ? (d.rot * Math.PI) / 180 : 0;
     c = p; n = [Math.sin(rot), -Math.cos(rot)]; off = -depth / 2;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { OBLIQUE, renderFloor } from "../../src/core/render";
+import { classOf, OBLIQUE, renderFloor } from "../../src/core/render";
 import type { Floor } from "../../src/core/schema";
-import { bodyPlacement, deviceSolidTop } from "../../src/core/solids";
+import { bodyPlacement, deviceSolidTop, tvPlacement } from "../../src/core/solids";
 import { buildScene } from "../../src/core/scene";
 
 // An air conditioner has a body: a split unit high on the wall, or a console on the floor, and it blows while it runs.
@@ -29,6 +29,32 @@ describe("ac placement", () => {
     expect([p.z0, p.z1]).toEqual([195, 225]);
     expect(p.n.map((v) => Math.round(v) + 0)).toEqual([0, 1]);
     expect(p.floor).toBe(false);
+  });
+
+  it("a device exactly on a wall line still hangs inside the room, on all four walls (Opus review: the flip did nothing at a dot product of 0)", () => {
+    const cases: [number, number, [number, number]][] = [[200, 0, [0, 1]], [600, 250, [-1, 0]], [0, 250, [1, 0]], [200, 500, [0, -1]]];
+    const inRoom = (q: number[]) => q[0] >= 0 && q[0] <= 600 && q[1] >= 0 && q[1] <= 500;
+    for (const [x, y, n] of cases) for (const f of [floor(), floor({ rooms: [{ name: "R", kind: "living", pts: [[0, 0], [600, 0], [600, 500], [0, 500]] }] as never })]) {
+      const p = bodyPlacement(f, ac({ x, y }) as never)!;
+      expect(p.n.map((v) => Math.round(v) + 0), `n at ${x},${y}`).toEqual(n);
+      expect(p.base.every(inRoom), `base at ${x},${y}`).toBe(true);
+      const t = tvPlacement(f, { id: "t", type: "tv", entity: "media_player.t", x, y } as never, [0, 1])!;
+      expect(t.n.map((v) => Math.round(v) + 0), `tv n at ${x},${y}`).toEqual(n);
+    }
+  });
+
+  it("near a corner the body stays on its own wall's segment and clear of the neighbouring wall's face (Opus review)", () => {
+    const f = floor(), q = bodyPlacement(f, ac({ x: 20, y: 30 }) as never)!;
+    expect(q.base.map((b) => b[0]).every((v) => v >= 0)).toBe(true);
+    const ys = q.base.map((b) => b[1]);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(5); // the top wall's room face is 5 in
+    expect(span(ys)[1] - span(ys)[0]).toBe(80); // still 80 wide, only shifted
+    const far = bodyPlacement(f, ac({ x: 590, y: 490 }) as never)!;
+    expect(Math.max(...far.base.map((b) => b[0]))).toBeLessThanOrEqual(595);
+    expect(Math.max(...far.base.map((b) => b[1]))).toBeLessThanOrEqual(495);
+    // a wall shorter than the unit centres it instead of overrunning either end
+    const short = bodyPlacement(floor({ outline: [[0, 0], [60, 0], [60, 500], [0, 500]] }), ac({ x: 10, y: 0 }) as never)!;
+    expect(span(short.base.map((b) => b[0]))).toEqual([-10, 70]);
   });
 
   it("is a floor console when its body says so, not by height: 70 wide, 20 deep, 60 tall, from the floor", () => {
@@ -103,6 +129,22 @@ describe("ac on the plan", () => {
     expect(wind(flat(f, { state: st("fan_only", "fan") }))).toMatch(/^<g class="ac-wind">/);
     // The body takes the mode too, so it can be tinted.
     expect(body(flat(f, { state: st("cool", "cooling") }))![0]).toMatch(/class="ac-body[^"]* cool"/);
+  });
+
+  it("an AC running only its fan reads as on, so the icon and the wind agree (Opus review); idle with the compressor off stays off", () => {
+    const o = (state: string, hvac_action?: string) => ({ scale: 1, state: st(state, hvac_action) });
+    for (const d of [ac(), ac({ type: "climate", body: "ac-wall" })]) {
+      expect(classOf(d as never, o("fan_only", "fan")), String(d.type)).toBe("on");
+      expect(classOf(d as never, o("fan_only")), String(d.type)).toBe("on");
+      expect(classOf(d as never, o("cool", "cooling"))).toBe("on");
+      expect(classOf(d as never, o("cool", "idle"))).toBe("off");
+      expect(classOf(d as never, o("off"))).toBe("off");
+      expect(classOf(d as never, o("unavailable"))).toBe("unavailable");
+    }
+    expect(classOf(ac({ type: "climate" }) as never, o("fan_only"))).toBe("off"); // a plain thermostat is on only while it heats
+    const html = flat(floor({ devices: [ac()] as never }), { state: st("fan_only", "fan") });
+    expect(html).toMatch(/class="dev dev-ac [^"]*\bon\b/); // the icon says on while the wind blows
+    expect(wind(html)).not.toBe("");
   });
 
   it("blows from the front face into the room, three strands, about 70 cm", () => {

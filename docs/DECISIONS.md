@@ -39,6 +39,22 @@ Diego asked for "an option to select the color of walls" and chose both: a layou
   direction arrow follows `--fp-wall`.
 - **Why not a presentation attribute**: a `stroke` attribute loses to the author rule `.e` (finding 18).
 
+## 2026-11-05: B53.6 review fixes, wall line, corner, fan, 3D tint
+
+Opus reviewed the integrated build. What changed, each with a test:
+
+- **On a wall line the body goes inside.** A device exactly on a wall had a zero dot product, so the flip did nothing
+  and the unit hung outside. The tie now goes to the containing room, else the outline. The TV shares the code.
+- **Near a corner the body stays on its wall.** Its centre is clamped to the segment, clear of the neighbouring
+  wall's face; a wall shorter than the unit centres it. The TV is clamped the same way, so a TV placed within 50 cm
+  of a corner moves along its wall (it used to poke through the next one).
+- **Fan only reads as on.** `acRuns` (cools, heats or `fan_only`) feeds both the icon class and the wind, for `ac`
+  and for a `climate` device with an AC body. A plain `climate` still turns on only while it heats.
+- **3D tints by the body**, as 2D does: a `climate` device with an AC body carries cool/heat in 3D too.
+- **The panel shows what is drawn.** The mount height placeholder is `deviceZDefault` (body-aware) and the Body
+  select's Default names `bodyOf`, so a point heater says None, not Radiator. `bodyOf` returns `none` for a point
+  that would be a radiator; it drew nothing before either.
+
 ## 2026-11-05: B53.6 to B53.8, the Body select, the AC unit and the control screen
 
 Diego asked for an air conditioner that cools and heats, with the classic rectangular shape on a wall or on the floor
@@ -49,7 +65,8 @@ is hard to add when one does not know the object: a device should say how it is 
   `screen`) picks the solid, in the device panel under Appearance. The alternative was to link a device to a furniture
   piece that supplies the look. That needs a piece for every device, makes two things to keep in step, and the person
   still has to know which piece. A select names the look and stores one word. Absent means the type's own look
-  (`DEVICE_SOLID`), so no existing layout changes.
+  (`DEVICE_SOLID`). That is a change on purpose for one type: an existing `ac` device now draws the wall unit,
+  and Body = None returns the old look (the icon alone).
 - **A bar takes only `radiator` or `none`.** A heater drawn as a bar (`a`/`b`) has no single point to stand a box on.
   Enforced in three places: `validate` refuses any other body on a bar (and `radiator` on a point), `bodyOf` falls
   back to the type's look for a layout that skipped `validate`, and the select offers only what fits.

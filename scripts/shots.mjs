@@ -174,9 +174,9 @@ Object.assign(STATES.on, { "vacuum.demo_hall": "cleaning" });
 Object.assign(STATES.gone, { "vacuum.demo_hall": "unavailable" });
 // B53.6/B53.7: AC units on the wall and on the floor, cooling and heating (off: all idle), and a control screen on a wall.
 // (The devices are pushed after the curtain below: the popup shots click devices by index.)
-Object.assign(STATES.off, { "climate.shot_ac_wall_cool": "off", "climate.shot_ac_wall_heat": "off", "climate.shot_ac_floor_cool": "off", "climate.shot_ac_floor_heat": "off", "light.shot_screen": "off" });
-Object.assign(STATES.on, { "climate.shot_ac_wall_cool": "cool", "climate.shot_ac_wall_heat": "heat", "climate.shot_ac_floor_cool": "cool", "climate.shot_ac_floor_heat": "heat", "light.shot_screen": "on" });
-Object.assign(STATES.gone, { "climate.shot_ac_wall_cool": "unavailable", "climate.shot_ac_wall_heat": "unavailable", "climate.shot_ac_floor_cool": "unavailable", "climate.shot_ac_floor_heat": "unavailable", "light.shot_screen": "unavailable" });
+Object.assign(STATES.off, { "climate.shot_ac_wall_cool": "off", "climate.shot_ac_wall_heat": "off", "climate.shot_ac_floor_cool": "off", "climate.shot_ac_floor_heat": "off", "light.shot_screen": "off", "climate.shot_ac_line": "off", "climate.shot_ac_corner": "off" });
+Object.assign(STATES.on, { "climate.shot_ac_wall_cool": "cool", "climate.shot_ac_wall_heat": "heat", "climate.shot_ac_floor_cool": "cool", "climate.shot_ac_floor_heat": "heat", "light.shot_screen": "on", "climate.shot_ac_line": "cool", "climate.shot_ac_corner": "heat" });
+Object.assign(STATES.gone, { "climate.shot_ac_wall_cool": "unavailable", "climate.shot_ac_wall_heat": "unavailable", "climate.shot_ac_floor_cool": "unavailable", "climate.shot_ac_floor_heat": "unavailable", "light.shot_screen": "unavailable", "climate.shot_ac_line": "unavailable", "climate.shot_ac_corner": "unavailable" });
 // S10.3: the front door also carries a vibration sensor, added here rather than to demo/layout.json itself (that
 // fixture is shared with migrate.test.ts's v1-equals-v2 check, which a real schema change would need to touch on
 // both sides — not worth it just to have one more shot). Spread from STATES.off only now, after every assign
@@ -207,6 +207,8 @@ monLayout.floors.ground.devices.push(
   { id: "shot-ac-wall-heat", type: "ac", entity: "climate.shot_ac_wall_heat", name: "AC wall heat", x: 640, y: 20 },
   { id: "shot-ac-floor-cool", type: "ac", body: "ac-floor", entity: "climate.shot_ac_floor_cool", name: "AC floor cool", x: 30, y: 120 },
   { id: "shot-ac-floor-heat", type: "ac", body: "ac-floor", entity: "climate.shot_ac_floor_heat", name: "AC floor heat", x: 200, y: 340, rot: 180 },
+  { id: "shot-ac-line", type: "ac", entity: "climate.shot_ac_line", name: "AC on the wall line", x: 480, y: 0 }, // exactly on the wall: the body still hangs inside
+  { id: "shot-ac-corner", type: "ac", entity: "climate.shot_ac_corner", name: "AC at a corner", x: 20, y: 30 }, // snaps to the left wall and slides clear of the top wall
   { id: "shot-screen", type: "screen", entity: "light.shot_screen", name: "Control screen", x: 30, y: 215 });
 // Only the Hall's motion sensor on: its room gets the thin inner line. With the curtain open and the kitchen light on
 // beside it, so one picture shows the line, an idle open cover and a lit lamp.

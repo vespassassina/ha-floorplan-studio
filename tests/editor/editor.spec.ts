@@ -3332,6 +3332,23 @@ test("B53.8 the Body select offers what fits the device, stores one undo step pe
   await savedValid(page);
 });
 
+test("B53.8 the mount height placeholder follows the body, and the Default label names what the device really draws (Opus review)", async ({ page }) => {
+  const i = await addAc(page);
+  await selectDev(page, i);
+  await expect(page.locator("#vz")).toHaveAttribute("placeholder", "195"); // wall unit
+  await page.locator("#vbody").selectOption("ac-floor");
+  await expect(page.locator("#vz")).toHaveAttribute("placeholder", "60"); // console: the icon sits on top of it
+  await page.locator("#vbody").selectOption("screen");
+  await expect(page.locator("#vz")).toHaveAttribute("placeholder", "140");
+  // A heater drawn as a point cannot draw a radiator: its default reads None, not Radiator.
+  await page.locator("#vtype").selectOption("heater");
+  await page.locator("#vbody").selectOption("");
+  await expect(page.locator("#vbody option").first()).toHaveText("Default (None)");
+  const bar = (await groundOf(page)).devices.findIndex((d) => d.type === "heater" && "a" in d);
+  await selectDev(page, bar);
+  await expect(page.locator("#vbody option").first()).toHaveText("Default (Radiator)");
+});
+
 test("B53.8 a bar heater offers radiator and none only; a body kept across a type change stays valid", async ({ page }) => {
   const g = await groundOf(page);
   const h = g.devices.findIndex((d) => d.type === "heater" && "a" in d);
