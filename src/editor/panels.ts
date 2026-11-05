@@ -697,7 +697,7 @@ function roomPanel(c: PanelCtx, i: number) {
       const room = f.rooms[i];
       if (room.kind === v) return;
       room.kind = v as typeof r.kind;
-      if (v === "zone") room.wk = room.pts.map((): WallKind => "boundary"); // a zone has no wall edge
+      if (v === "zone") { room.wk = room.pts.map((): WallKind => "boundary"); delete room.wc; } // a zone has no wall edge, so no wall colour
       // A kind `roomAt` cannot pick shows no sensors and has no Sensors section to remove them: drop them in this same step.
       if (!ROOM_OWNS[room.kind]) for (const [field] of ROOM_SENSORS) delete room[field];
     }))}

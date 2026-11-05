@@ -134,6 +134,7 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
     // point count as before (the old kinds still line up corner for corner), external otherwise, since
     // a reshaped outline has no way to know which old edge a new one corresponds to.
     g.owk = g.owk && g.owk.length === pts.length ? g.owk : pts.map((): EdgeKind => "external");
+    if (g.owc && g.owc.length !== pts.length) delete g.owc; // B53.9: colours follow like the kinds, or go
     g.outline = pts;
     sel = { t: "edge", poly: "o", i: 0 };
   } else if (s.kind === "room" || s.kind === "zone" || s.kind === "water") {
