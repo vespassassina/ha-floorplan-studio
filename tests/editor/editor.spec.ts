@@ -4933,6 +4933,60 @@ test("Opus review CSS pair: a lamp's aura fills with --fp-aura at .55, screens o
   await expect(page.locator("#ra")).toHaveValue("living");
 });
 
+/** B53.6: puts the AC pieces renderFloor draws (class names from src/core/solids.ts bodyWind/bodyFlat) on the live stylesheet, plus a reference path per token to compare against. */
+async function addAcPieces(page: Page) {
+  await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const ns = "http://www.w3.org/2000/svg";
+    const add = (parent: Element, name: string, attrs: Record<string, string>) => { const e = document.createElementNS(ns, name); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); parent.appendChild(e); return e; };
+    const root = add((svg.querySelector("g[data-theme]") as Element | null) ?? svg, "g", { id: "ac-fixture" }); // inside the themed group, where the --fp-* tokens are declared
+    for (const mode of ["cool", "heat", ""]) {
+      const w = add(root, "g", { class: `ac-wind ${mode}`.trim(), "data-mode": mode || "idle" });
+      for (let s = 0; s < 3; s++) add(w, "path", { d: `M${200 + s * 24} 150 L${200 + s * 24} 220`, pathLength: "1" });
+      add(root, "polygon", { class: `ac-body ${mode}`.trim(), "data-body": mode || "idle", points: "10,10 90,10 90,32 10,32" });
+    }
+    for (const t of ["ac-cool", "ac-heat", "idle"]) add(root, "path", { "data-ref": t, d: "M0 0", style: `stroke:var(--fp-${t === "idle" ? "idle" : `dev-${t}`});fill:var(--fp-${t === "idle" ? "idle" : `dev-${t}`})` });
+  }, EDITOR);
+}
+const acPaint = (page: Page, mode: string) => page.evaluate((m) => {
+  const root = document.querySelector("floorplan-studio-editor")!.shadowRoot!;
+  const p = root.querySelector(`g.ac-wind[data-mode="${m}"] path`)!, b = root.querySelector(`polygon.ac-body[data-body="${m}"]`)!;
+  const ref = (t: string) => getComputedStyle(root.querySelector(`path[data-ref="${t}"]`)!).stroke;
+  const ps = getComputedStyle(p), bs = getComputedStyle(b);
+  return { stroke: ps.stroke, anim: ps.animationName, dash: ps.strokeDasharray, op: ps.opacity, pe: ps.pointerEvents, bodyStroke: bs.stroke, bodyFill: bs.fill, bodyPe: bs.pointerEvents, ref: { cool: ref("ac-cool"), heat: ref("ac-heat"), idle: ref("idle") } };
+}, mode);
+
+test("Opus review CSS pair: B53.6 the AC wind strokes cool blue, heat orange or idle grey, runs the fp-wind dash and takes no click; the body's outline follows the mode", async ({ page }) => {
+  await setTheme(page, "light"); // blueprint collapses cool and heat into its one accent; light keeps them apart
+  await addAcPieces(page);
+  const cool = await acPaint(page, "cool"), heat = await acPaint(page, "heat"), idle = await acPaint(page, "idle");
+  expect(cool.stroke).toBe(cool.ref.cool);
+  expect(heat.stroke).toBe(heat.ref.heat);
+  expect(idle.stroke).toBe(idle.ref.idle);
+  expect(new Set([cool.stroke, heat.stroke, idle.stroke]).size).toBe(3); // three different colours, or the rule is a no-op
+  for (const w of [cool, heat, idle]) { expect(w.anim).toBe("fp-wind"); expect(w.dash).not.toBe("none"); expect(w.op).toBe("0.65"); expect(w.pe).toBe("none"); expect(w.bodyPe).toBe("none"); }
+  expect(cool.bodyStroke).toBe(cool.ref.cool);
+  expect(heat.bodyStroke).toBe(heat.ref.heat);
+  expect(idle.bodyStroke).toBe(idle.ref.idle);
+  expect(new Set([cool.bodyFill, heat.bodyFill, idle.bodyFill]).size).toBe(3);
+  const delays = await page.locator('g.ac-wind[data-mode="cool"] path').evaluateAll((ps) => ps.map((p) => getComputedStyle(p).animationDelay));
+  expect(new Set(delays).size).toBe(3); // the strands are out of step
+  // a real click through the wind lands on the room under it
+  const c = await screenOf(page, 212, 185);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#rk")).toHaveValue("room");
+});
+
+test("Opus review CSS pair: B53.6 under reduced motion the wind holds still: no animation, a solid stroke, 45 % opacity", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await addAcPieces(page);
+  const w = await acPaint(page, "cool");
+  expect(w.anim).toBe("none");
+  expect(w.dash).toBe("none");
+  expect(w.op).toBe("0.45");
+  expect(w.stroke).toBe(w.ref.cool); // still blue: only the motion goes
+});
+
 // S23.4: an on sensor is a solid disc with an ink glyph; the fade now drives the glyph of a sensor that has gone off.
 test("Opus review CSS pair: a motion sensor that went off still fades: the fill follows --fp-fade (render.test.ts:107)", async ({ page }) => {
   const g = page.locator("svg g.dev-motion").first();
