@@ -11,7 +11,7 @@ import { doorStateOf, type DoorState } from "./door-state";
 import type { StateOverlay } from "./render";
 import { carMain, type CarDevice, type CarLike } from "./car-status";
 import { carParts, carSpec, carTop, type CarLook, type CarPoly } from "./car";
-import type { Device, DeviceType, DoorKind, Floor, Furniture, FurnitureSymbol, Pt, StairDirection, Stairs, Unlinked } from "./schema";
+import { DEVICE_BODIES, type Device, type DeviceBody, type DeviceType, type DoorKind, type Floor, type Furniture, type FurnitureSymbol, type Pt, type StairDirection, type Stairs, type Unlinked } from "./schema";
 
 /** A device mount at or above this height gets a stem up from its icon (a ceiling light yes, a plug no). */
 export const STEM_MIN_Z = 100;
@@ -488,18 +488,31 @@ export function unlinkedSolid(u: Unlinked, px: Proj): Solid | null {
 }
 
 /**
- * What each device type becomes in 2.5D, beside its icon (which stays the tap target and keeps its lift). "radiator" is the
- * heater bar as a box under a window; "speaker" a small cabinet with two drivers (speaker and media_player); "tv" a flat
- * panel on the nearest wall. One entry per DeviceType, so a new type fails the test that walks DEVICE_TYPES until someone
- * decides (finding 17).
+ * What each device type becomes in 2.5D and 3D, beside its icon (which stays the tap target and keeps its lift): the type's own
+ * body, used when the device names none (B53.8, `Device.body`). "radiator" is the heater bar as a box under a window; "speaker"
+ * a small cabinet with two drivers (speaker and media_player); "tv" a flat panel on the nearest wall; "ac-wall" a split unit
+ * high on the wall and "ac-floor" a console on the floor; "screen" a small control panel on the wall. One entry per
+ * DeviceType, so a new type fails the test that walks DEVICE_TYPES until someone decides (finding 17).
  */
-export const DEVICE_SOLID: Record<DeviceType, "radiator" | "speaker" | "tv" | "none"> = {
-  light: "none", camera: "none", motion: "none", radar: "none", access_point: "none", ac: "none", speaker: "speaker", cover: "none",
+export const DEVICE_SOLID: Record<DeviceType, DeviceBody> = {
+  light: "none", camera: "none", motion: "none", radar: "none", access_point: "none", ac: "ac-wall", speaker: "speaker", cover: "none",
   switch: "none", plug: "none", contact: "none", vibration: "none", lock: "none", temp: "none", humidity: "none", climate: "none",
   boiler: "none", battery: "none", inverter: "none", media: "speaker", tv: "tv", other: "none", heater: "radiator", computer: "none",
   server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none", siren: "none", alarm: "none", fan: "none",
+  screen: "screen",
 };
-const kindOf = (d: Device) => (has(DEVICE_SOLID, (d as { type?: unknown } | null)?.type) ? DEVICE_SOLID[d.type] : "none");
+/**
+ * The body a device draws: the one it names, or its type's own. A name that is not a body, a radiator on a device with no
+ * bar, and anything but a radiator or nothing on a bar fall back to the type's own, so a layout that `validate` refused
+ * still draws something sane.
+ */
+export function bodyOf(d: Device): DeviceBody {
+  const o = d as { type?: unknown; body?: unknown; a?: unknown; b?: unknown } | null;
+  const own: DeviceBody = has(DEVICE_SOLID, o?.type) ? DEVICE_SOLID[o.type] : "none", b = o?.body;
+  if (typeof b !== "string" || !(DEVICE_BODIES as readonly string[]).includes(b)) return own;
+  if (finite(o?.a) && finite(o?.b)) return b === "radiator" || b === "none" ? b : own;
+  return b === "radiator" ? own : (b as DeviceBody);
+}
 
 /** cm. A radiator is 8 deep. A speaker cabinet is 20 x 20 x 30, its drivers 7 across on a face 20 wide. */
 export const RADIATOR_DEEP = 8, SPEAKER_SIDE = 20, SPEAKER_HEIGHT = 30;
@@ -510,12 +523,25 @@ const TV_BEZEL = 3, TV_WALL_REACH = 150, TV_STAND = 30;
 /** Half a wall's thickness (plan: 10 cm, 20 external, kept here because render.ts imports this file): where its room face lies. */
 export const wallFace = (kind: string) => (kind === "external" || kind === "parapet" ? 10 : kind === "wall" ? 5 : 0);
 
+/**
+ * B53.6/B53.7: the bodies that snap to a wall, in cm. `w` runs along the wall, `d` is the depth off it, `h` the height.
+ * A split unit is 80 x 22 x 30 and hangs from its mount height (195 by default, so 195 to 225); a floor console is 70 x 20 x 60
+ * from the floor; a control screen (a 9 inch panel) is 24 x 2 x 16 at 140. They look for a wall within `BODY_WALL_REACH`.
+ */
+export const WALL_BODY = { "ac-wall": { w: 80, d: 22, h: 30 }, "ac-floor": { w: 70, d: 20, h: 60 }, screen: { w: 24, d: 2, h: 16 } } as const;
+export const BODY_WALL_REACH = 60;
+type WallBody = keyof typeof WALL_BODY;
+const isWallBody = (k: string): k is WallBody => Object.hasOwn(WALL_BODY, k);
+/** Where a wall body's bottom is: a console stands on the floor unless the device says otherwise; the others hang at the icon's mount height. */
+const bodyBottom = (d: Device, k: WallBody): number => (k === "ac-floor" ? deviceZOr(d, 0) : deviceZ(d));
+
 /** The top of a device's solid above the floor, or 0 when it has none; `viewBoxFor` widens by it. */
 export function deviceSolidTop(d: Device): number {
-  const k = kindOf(d);
+  const k = bodyOf(d);
   if (k === "radiator") return "a" in d ? radiatorSpan(d).top : 0;
   if (k === "speaker") return SPEAKER_HEIGHT;
   if (k === "tv") return deviceZOr(d, TV_STAND) + TV_HEIGHT;
+  if (isWallBody(k)) return bodyBottom(d, k) + WALL_BODY[k].h;
   return 0;
 }
 
@@ -597,10 +623,76 @@ function speakerSolid(d: Device, on: string, px: Proj): Solid | null {
   return { key: nearest(px, base), svg: `<g class="obj dsolid speaker${d.type === "media" ? " media" : ""} ${on}">${body}${drivers}</g>`, foot: base };
 }
 
+export type BodyPlace = { base: Pt[]; z0: number; z1: number; n: Pt; floor: boolean; hit: ReturnType<typeof nearestEdge> };
+/**
+ * Where an AC unit or a control screen stands: a box `w` wide along the wall and `d` deep, flush with the room's face of the
+ * nearest wall within `BODY_WALL_REACH`, looking into the room (n). With no wall in reach it stands free at the device's
+ * point and looks the way `rot` points (0 is up the plan, clockwise). Null for a device whose body is not one of these, or whose
+ * point cannot be drawn. Shared by the flat plan, the 2.5D solid, the wind and the 3D scene, so they cannot differ.
+ */
+export function bodyPlacement(f: Floor, d: Device): BodyPlace | null {
+  const k = bodyOf(d);
+  if (!isWallBody(k) || !("x" in d) || ![d.x, d.y].every((v) => typeof v === "number" && Number.isFinite(v))) return null;
+  const { w, d: depth, h } = WALL_BODY[k], p: Pt = [d.x, d.y], hit = nearestEdge(f, p, BODY_WALL_REACH, { walls: true });
+  const z0 = bodyBottom(d, k);
+  let c: Pt, n: Pt, off: number;
+  if (hit) {
+    const side: Pt = [hit.u[1], -hit.u[0]], flip = (p[0] - hit.q[0]) * side[0] + (p[1] - hit.q[1]) * side[1] < 0;
+    c = hit.q; n = flip ? [-side[0], -side[1]] : side; off = wallFace(edgeKindAt(f, hit.poly, hit.i));
+  } else {
+    const rot = typeof d.rot === "number" && Number.isFinite(d.rot) ? (d.rot * Math.PI) / 180 : 0;
+    c = p; n = [Math.sin(rot), -Math.cos(rot)]; off = -depth / 2;
+  }
+  const u: Pt = [-n[1], n[0]], at = (t: number, o: number): Pt => [c[0] + u[0] * t + n[0] * o, c[1] + u[1] * t + n[1] * o];
+  return { base: [at(-w / 2, off), at(w / 2, off), at(w / 2, off + depth), at(-w / 2, off + depth)], z0, z1: z0 + h, n, floor: k === "ac-floor", hit };
+}
+
+export const bodyAir = (d: Device): boolean => { const k = bodyOf(d); return k === "ac-wall" || k === "ac-floor"; };
+
+/** The flat plan's outline of a wall body: an AC unit as a rectangle on the wall, a control screen as a thin one. `mode` is "cool", "heat" or "". */
+export function bodyFlat(f: Floor, d: Device, on: string, mode: string): string {
+  const pl = bodyPlacement(f, d);
+  if (!pl) return "";
+  return `<polygon class="${bodyAir(d) ? "ac-body" : "screen-body"} ${on}${mode ? ` ${mode}` : ""}" points="${pts(pl.base)}"/>`;
+}
+
+/** Wind: three strands curling out of the front face, 70 cm into the room, lifted to mid-height in 2.5D (`px`), flat in 2D (null). */
+export function bodyWind(f: Floor, d: Device, mode: string, px: Proj | null): string {
+  const pl = bodyPlacement(f, d);
+  if (!pl || !bodyAir(d)) return "";
+  const { base, n } = pl, front: Pt = [(base[2][0] + base[3][0]) / 2, (base[2][1] + base[3][1]) / 2], side: Pt = [n[1], -n[0]], zm = (pl.z0 + pl.z1) / 2;
+  const at = (t: number, o: number): string => {
+    const q: Pt = [front[0] + side[0] * t + n[0] * o, front[1] + side[1] * t + n[1] * o];
+    return pts([px ? px.lift(q, zm) : q]);
+  };
+  const strand = (t: number) => `<path pathLength="1" d="M${at(t, 0)} Q${at(t + 8, 23)} ${at(t, 35)} T${at(t, 70)}"/>`;
+  return `<g class="ac-wind${mode ? ` ${mode}` : ""}">${[-24, 0, 24].map(strand).join("")}</g>`;
+}
+
+/** An AC unit or a control screen as a box on the wall (or free), with a vent slot or a glass face when the front is visible. */
+function bodySolid(f: Floor, d: Device, on: string, px: Proj): Solid | null {
+  const pl = bodyPlacement(f, d);
+  if (!pl) return null;
+  const { base, z0, z1, n, hit } = pl, body = prism(base, z1, px, z0);
+  if (!body) return null;
+  const k = bodyOf(d), c: Pt = [(base[0][0] + base[2][0]) / 2, (base[0][1] + base[2][1]) / 2];
+  const s = px.scr(c), t = px.scr([c[0] + n[0], c[1] + n[1]]), v: Pt = [t[0] - s[0], t[1] - s[1]];
+  const a = base[3], b = base[2], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, u: Pt = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+  const at = (t0: number, z: number) => px.lift([a[0] + u[0] * t0, a[1] + u[1] * t0], z);
+  // The front face is the base[2]-base[3] edge; draw its slot or glass only when it looks toward the viewer.
+  let face = "";
+  if (v[1] - px.skew * v[0] > 1e-9) {
+    const g = k === "screen" ? { m: 2, lo: 2, hi: z1 - z0 - 2, cls: "screen-glass" } : k === "ac-floor" ? { m: 6, lo: z1 - z0 - 18, hi: z1 - z0 - 8, cls: "ac-vent" } : { m: 6, lo: 4, hi: 11, cls: "ac-vent" };
+    face = `<polygon class="${g.cls}" points="${pts([at(g.m, z0 + g.lo), at(len - g.m, z0 + g.lo), at(len - g.m, z0 + g.hi), at(g.m, z0 + g.hi)])}"/>`;
+  }
+  const own = nearest(px, base);
+  return { key: hit ? onWallKey(f, hit, own, px) : own, svg: `<g class="obj dsolid ${k === "screen" ? "screen" : "ac"} ${on}">${body}${face}</g>`, ...(z0 < SHADE_MAX_LIFT ? { foot: base } : {}) };
+}
+
 /** The 2.5D solid of a device, or null when its type has none or its numbers cannot be drawn. `on` is the class the icon wears. */
 export function deviceSolid(f: Floor, d: Device, on: string, px: Proj): Solid | null {
-  const k = kindOf(d);
-  return k === "radiator" ? radiatorSolid(f, d, on, px) : k === "speaker" ? speakerSolid(d, on, px) : k === "tv" ? tvSolid(f, d, on, px) : null;
+  const k = bodyOf(d);
+  return k === "radiator" ? radiatorSolid(f, d, on, px) : k === "speaker" ? speakerSolid(d, on, px) : k === "tv" ? tvSolid(f, d, on, px) : isWallBody(k) ? bodySolid(f, d, on, px) : null;
 }
 
 /**

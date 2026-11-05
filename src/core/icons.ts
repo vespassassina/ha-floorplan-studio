@@ -40,6 +40,7 @@ export const DEVICE_ICONS: Record<DeviceType, string> = {
   siren: "M6,6.9L3.87,4.78L5.28,3.37L7.4,5.5L6,6.9M13,1V4H11V1H13M20.13,4.78L18,6.9L16.6,5.5L18.72,3.37L20.13,4.78M4.5,10.5V12.5H1.5V10.5H4.5M19.5,10.5H22.5V12.5H19.5V10.5M6,20H18A2,2 0 0,1 20,22H4A2,2 0 0,1 6,20M12,5A6,6 0 0,1 18,11V19H6V11A6,6 0 0,1 12,5Z",
   alarm: "M11,13H13V16H16V11H18L12,6L6,11H8V16H11V13M12,1L21,5V11C21,16.55 17.16,21.74 12,23C6.84,21.74 3,16.55 3,11V5L12,1Z",
   // S33.1: mdiFan, from @mdi/js 7.4 (Apache 2.0), path inlined (finding 9).
+  screen: "M19,18H5V6H19M21,4H3C1.89,4 1,4.89 1,6V18A2,2 0 0,0 3,20H21A2,2 0 0,0 23,18V6C23,4.89 22.1,4 21,4M7,8H13V13H7V8M14,8H17V10H14V8M17,11V16H14V11H17M7,14H13V16H7V14Z", // mdiTabletDashboard
   fan: "M12,11A1,1 0 0,0 11,12A1,1 0 0,0 12,13A1,1 0 0,0 13,12A1,1 0 0,0 12,11M12.5,2C17,2 17.11,5.57 14.75,6.75C13.76,7.24 13.32,8.29 13.13,9.22C13.61,9.42 14.03,9.73 14.35,10.13C18.05,8.13 22.03,8.92 22.03,12.5C22.03,17 18.46,17.1 17.28,14.73C16.78,13.74 15.72,13.3 14.79,13.11C14.59,13.59 14.28,14 13.88,14.34C15.87,18.03 15.08,22 11.5,22C7,22 6.91,18.42 9.27,17.24C10.25,16.75 10.69,15.71 10.89,14.79C10.4,14.59 9.97,14.27 9.65,13.87C5.96,15.85 2,15.07 2,11.5C2,7 5.56,6.89 6.74,9.26C7.24,10.25 8.29,10.68 9.22,10.87C9.41,10.39 9.73,9.97 10.14,9.65C8.15,5.96 8.94,2 12.5,2Z",
 };
 
@@ -50,7 +51,7 @@ export const DEVICE_TYPE_LABELS: Record<DeviceType, string> = {
   motion: "Motion", contact: "Contact", camera: "Camera", climate: "Climate", ac: "AC", tv: "TV", computer: "Computer",
   media: "Media player", cover: "Cover", battery: "Battery", inverter: "Inverter", server: "Server",
   access_point: "Access point", lock: "Lock", vibration: "Vibration", other: "Other", boiler: "Boiler", car: "Car",
-  ups: "UPS", printer: "Printer", speaker: "Speaker", person: "Person", radar: "Radar", vacuum: "Vacuum", siren: "Siren", alarm: "Alarm", fan: "Fan",
+  ups: "UPS", printer: "Printer", speaker: "Speaker", person: "Person", radar: "Radar", vacuum: "Vacuum", siren: "Siren", alarm: "Alarm", fan: "Fan", screen: "Control screen",
 };
 
 /** The card toolbar's own icons, 24x24 MDI paths (Apache 2.0) inlined like the ones above: no runtime import of

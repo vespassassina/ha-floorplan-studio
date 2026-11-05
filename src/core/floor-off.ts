@@ -23,7 +23,7 @@ export const FLOOR_OFF_GROUP: Record<DeviceType, OffGroup | null> = {
   light: "lights", switch: "switches", plug: "plugs", fan: "fans", tv: "media", media: "media", speaker: "media",
   heater: null, temp: null, humidity: null, motion: null, contact: null, camera: null, climate: null, ac: null, computer: null,
   cover: null, battery: null, inverter: null, server: null, access_point: null, lock: null, vibration: null, other: null,
-  boiler: null, car: null, ups: null, printer: null, person: null, radar: null, vacuum: null, siren: null, alarm: null,
+  boiler: null, car: null, ups: null, printer: null, person: null, radar: null, vacuum: null, siren: null, alarm: null, screen: null,
 };
 
 /** One thing to tick. `entities` is what it turns off: a lamp's light and its bound relay when on (`lampOffEntities`),

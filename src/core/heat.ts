@@ -29,7 +29,7 @@ export const HEAT_SCALE: Record<Exclude<HeatKind, "off">, { from: number; mid: n
 export const HEAT_SOURCE: Record<DeviceType, HeatKind | null> = {
   heater: null, light: null, switch: null, plug: null, temp: "temperature", humidity: "humidity", motion: null, contact: null, camera: null, climate: null, ac: null, tv: null,
   computer: null, media: null, cover: null, battery: null, inverter: null, server: null, access_point: null, lock: null, vibration: null, other: null, boiler: null, car: null,
-  ups: null, printer: null, speaker: null, person: null, radar: null, vacuum: null, siren: null, alarm: null, fan: null,
+  ups: null, printer: null, speaker: null, person: null, radar: null, vacuum: null, siren: null, alarm: null, fan: null, screen: null,
 };
 
 const NB = " ";

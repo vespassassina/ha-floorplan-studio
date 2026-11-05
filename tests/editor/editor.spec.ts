@@ -3295,6 +3295,58 @@ test("the wall and opening angle fields turn them; an unchanged value is no undo
   expect([o.a, o.b]).toEqual([[10, 650], [110, 650]]);
 });
 
+/** B53.8: adds a point AC and returns its index on the ground floor. */
+async function addAc(page: Page): Promise<number> {
+  return page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any;
+    const l = JSON.parse(JSON.stringify(el.layout));
+    const n = l.floors.ground.devices.push({ id: "ac-body-t", type: "ac", name: "Test AC", entity: "climate.test_ac", x: 300, y: 330 });
+    el.layout = l;
+    return n - 1;
+  }, EDITOR);
+}
+const bodyOf = async (page: Page, i: number) => (await groundOf(page)).devices[i] as { body?: string; type: string };
+
+test("B53.8 the Body select offers what fits the device, stores one undo step per change, none when unchanged, and Default removes the key", async ({ page }) => {
+  const i = await addAc(page);
+  await selectDev(page, i);
+  const sel = page.locator("#vbody");
+  await expect(sel).toBeVisible();
+  const opts = await sel.locator("option").evaluateAll((os) => os.map((o) => [(o as HTMLOptionElement).value, o.textContent]));
+  expect(opts[0]).toEqual(["", "Default (AC, wall unit)"]);
+  expect(opts.map((o) => o[0])).toEqual(["", "none", "speaker", "tv", "ac-wall", "ac-floor", "screen"]); // a point never offers radiator
+  await sel.selectOption("ac-floor");
+  expect((await bodyOf(page, i)).body).toBe("ac-floor");
+  await expect(page.locator(`svg g.dsolid.ac, svg polygon.ac-body`).first()).toBeAttached();
+  await sel.selectOption("ac-floor"); // unchanged: no step
+  await page.locator("#undo").click();
+  expect("body" in (await bodyOf(page, i))).toBe(false); // one click undid the one change
+  await selectDev(page, i); // undo clears the selection
+  await sel.selectOption("screen");
+  await sel.selectOption("");
+  expect("body" in (await bodyOf(page, i))).toBe(false); // Default deletes the key
+  await sel.selectOption(""); // unchanged: no step
+  await page.locator("#undo").click();
+  await selectDev(page, i);
+  expect((await bodyOf(page, i)).body).toBe("screen");
+  await savedValid(page);
+});
+
+test("B53.8 a bar heater offers radiator and none only; a body kept across a type change stays valid", async ({ page }) => {
+  const g = await groundOf(page);
+  const h = g.devices.findIndex((d) => d.type === "heater" && "a" in d);
+  expect(h).toBeGreaterThanOrEqual(0);
+  await selectDev(page, h);
+  const sel = page.locator("#vbody");
+  const vals = await sel.locator("option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+  expect(vals).toEqual(["", "radiator", "none"]);
+  await sel.selectOption("none");
+  expect((await bodyOf(page, h)).body).toBe("none");
+  await page.locator("#vtype").selectOption("light");
+  expect((await bodyOf(page, h)).body).toBe("none"); // still a bar, still valid
+  await savedValid(page);
+});
+
 test("a device rotation is stored, drawn on the group and undone; the glyph stays upright in the browser; the real pointer still hits it", async ({ page }) => {
   await page.mouse.click(...Object.values(await centre(page, 'g[data-x="0"]')) as [number, number]);
   await page.locator("#vrot90").click();
@@ -4032,7 +4084,7 @@ const varOn = (page: Page, sel: string, name: string) => page.locator(sel).first
 
 test("S1.36: Edit, Colours has a row per type with a colour input and a reset, and Reset all", async ({ page }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(33); // S33.1 added fan; S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum; S18.14 added siren, alarm
+  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(34); // B53.7 added screen; S33.1 added fan; S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum; S18.14 added siren, alarm
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
@@ -4879,6 +4931,60 @@ test("Opus review CSS pair: a lamp's aura fills with --fp-aura at .55, screens o
   await page.mouse.click(c.x, c.y); // the aura visually covers this point; pointer-events:none must let the click fall through to the room
   await expect(page.locator("#rk")).toHaveValue("room");
   await expect(page.locator("#ra")).toHaveValue("living");
+});
+
+/** B53.6: puts the AC pieces renderFloor draws (class names from src/core/solids.ts bodyWind/bodyFlat) on the live stylesheet, plus a reference path per token to compare against. */
+async function addAcPieces(page: Page) {
+  await page.evaluate((tag) => {
+    const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const ns = "http://www.w3.org/2000/svg";
+    const add = (parent: Element, name: string, attrs: Record<string, string>) => { const e = document.createElementNS(ns, name); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); parent.appendChild(e); return e; };
+    const root = add((svg.querySelector("g[data-theme]") as Element | null) ?? svg, "g", { id: "ac-fixture" }); // inside the themed group, where the --fp-* tokens are declared
+    for (const mode of ["cool", "heat", ""]) {
+      const w = add(root, "g", { class: `ac-wind ${mode}`.trim(), "data-mode": mode || "idle" });
+      for (let s = 0; s < 3; s++) add(w, "path", { d: `M${200 + s * 24} 150 L${200 + s * 24} 220`, pathLength: "1" });
+      add(root, "polygon", { class: `ac-body ${mode}`.trim(), "data-body": mode || "idle", points: "10,10 90,10 90,32 10,32" });
+    }
+    for (const t of ["ac-cool", "ac-heat", "idle"]) add(root, "path", { "data-ref": t, d: "M0 0", style: `stroke:var(--fp-${t === "idle" ? "idle" : `dev-${t}`});fill:var(--fp-${t === "idle" ? "idle" : `dev-${t}`})` });
+  }, EDITOR);
+}
+const acPaint = (page: Page, mode: string) => page.evaluate((m) => {
+  const root = document.querySelector("floorplan-studio-editor")!.shadowRoot!;
+  const p = root.querySelector(`g.ac-wind[data-mode="${m}"] path`)!, b = root.querySelector(`polygon.ac-body[data-body="${m}"]`)!;
+  const ref = (t: string) => getComputedStyle(root.querySelector(`path[data-ref="${t}"]`)!).stroke;
+  const ps = getComputedStyle(p), bs = getComputedStyle(b);
+  return { stroke: ps.stroke, anim: ps.animationName, dash: ps.strokeDasharray, op: ps.opacity, pe: ps.pointerEvents, bodyStroke: bs.stroke, bodyFill: bs.fill, bodyPe: bs.pointerEvents, ref: { cool: ref("ac-cool"), heat: ref("ac-heat"), idle: ref("idle") } };
+}, mode);
+
+test("Opus review CSS pair: B53.6 the AC wind strokes cool blue, heat orange or idle grey, runs the fp-wind dash and takes no click; the body's outline follows the mode", async ({ page }) => {
+  await setTheme(page, "light"); // blueprint collapses cool and heat into its one accent; light keeps them apart
+  await addAcPieces(page);
+  const cool = await acPaint(page, "cool"), heat = await acPaint(page, "heat"), idle = await acPaint(page, "idle");
+  expect(cool.stroke).toBe(cool.ref.cool);
+  expect(heat.stroke).toBe(heat.ref.heat);
+  expect(idle.stroke).toBe(idle.ref.idle);
+  expect(new Set([cool.stroke, heat.stroke, idle.stroke]).size).toBe(3); // three different colours, or the rule is a no-op
+  for (const w of [cool, heat, idle]) { expect(w.anim).toBe("fp-wind"); expect(w.dash).not.toBe("none"); expect(w.op).toBe("0.65"); expect(w.pe).toBe("none"); expect(w.bodyPe).toBe("none"); }
+  expect(cool.bodyStroke).toBe(cool.ref.cool);
+  expect(heat.bodyStroke).toBe(heat.ref.heat);
+  expect(idle.bodyStroke).toBe(idle.ref.idle);
+  expect(new Set([cool.bodyFill, heat.bodyFill, idle.bodyFill]).size).toBe(3);
+  const delays = await page.locator('g.ac-wind[data-mode="cool"] path').evaluateAll((ps) => ps.map((p) => getComputedStyle(p).animationDelay));
+  expect(new Set(delays).size).toBe(3); // the strands are out of step
+  // a real click through the wind lands on the room under it
+  const c = await screenOf(page, 212, 185);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator("#rk")).toHaveValue("room");
+});
+
+test("Opus review CSS pair: B53.6 under reduced motion the wind holds still: no animation, a solid stroke, 45 % opacity", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await addAcPieces(page);
+  const w = await acPaint(page, "cool");
+  expect(w.anim).toBe("none");
+  expect(w.dash).toBe("none");
+  expect(w.op).toBe("0.45");
+  expect(w.stroke).toBe(w.ref.cool); // still blue: only the motion goes
 });
 
 // S23.4: an on sensor is a solid disc with an ink glyph; the fade now drives the glyph of a sensor that has gone off.

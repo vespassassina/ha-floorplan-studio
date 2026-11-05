@@ -5,8 +5,9 @@ import { repeat } from "lit/directives/repeat.js";
 import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, DEVICE_Z, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import { CAR_MODELS, MAX_CAR_ATTACHED, validate } from "../core/schema";
-import type { CatalogEntry, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
+import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, validate } from "../core/schema";
+import { DEVICE_SOLID } from "../core";
+import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
@@ -29,7 +30,7 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["media", "Media players"], ["cover", "Covers"], ["battery", "Batteries"], ["inverter", "Inverters"], ["server", "Servers"],
   ["access_point", "Access points"], ["lock", "Door locks"], ["vibration", "Vibration sensors"], ["other", "Other"],
   ["boiler", "Boiler"], ["car", "Car"], ["ups", "UPS"], ["printer", "3D printer"], ["speaker", "Speaker"], ["person", "People"],
-  ["radar", "mmWave radar"], ["vacuum", "Vacuums"], ["siren", "Siren"], ["alarm", "Alarm"], ["fan", "Fans"],
+  ["radar", "mmWave radar"], ["vacuum", "Vacuums"], ["siren", "Siren"], ["alarm", "Alarm"], ["fan", "Fans"], ["screen", "Control screens"],
 ];
 
 /** A type as a word in a sentence ("Added access point"): its label, lower case unless it is an initialism (UPS, AC, TV).
@@ -949,6 +950,21 @@ function scheduleField(c: PanelCtx, i: number) {
 
 const SCHEDULABLE: DeviceType[] = ["light", "switch", "plug", "media"];
 
+/** What the Body select calls each solid. */
+const BODY_NAMES: Record<DeviceBody, string> = { none: "None", radiator: "Radiator", speaker: "Speaker", tv: "TV", "ac-wall": "AC, wall unit", "ac-floor": "AC, floor unit", screen: "Control screen" };
+/** What a device can be drawn as: a bar (a heater's `a`/`b`) only a radiator or nothing, a point anything but a radiator. The same rule `validate` and `bodyOf` apply. */
+export const bodyChoices = (d: Device): DeviceBody[] => ("a" in d ? ["radiator", "none"] : DEVICE_BODIES.filter((b) => b !== "radiator"));
+/** B53.8: how the device looks in 2.5D and 3D. The first option is the type's own look and stores nothing. */
+function bodyField(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i], choices = bodyChoices(d);
+  const value = d.body && choices.includes(d.body) ? d.body : "";
+  const set = (v: string) => {
+    if (v === value) return;
+    c.commit((f) => { if (v) f.devices[i].body = v as DeviceBody; else delete f.devices[i].body; });
+  };
+  return select("Body", "vbody", value, ["", ...choices], set, { ...BODY_NAMES, "": `Default (${BODY_NAMES[DEVICE_SOLID[d.type]]})` });
+}
+
 function devicePanel(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   // Opus review of S8.9: areaDiffField renders nothing without c.moveArea, so a Links heading over just an
@@ -978,6 +994,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${lockBox(c, "vlock", "devices", i)}
     ${heightField(c, "mount height (cm)", "vz", d.z, DEVICE_Z[d.type] ?? 100, heightSetter(c, "devices", i, "z"))}
     ${drawsEffect(d) ? fxField(c, d.fx, heightSetter(c, "devices", i, "fx")) : nothing}
+    ${bodyField(c, i)}
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${hasAutomations ? heading("Automations") : nothing}
     ${c.makeLight && c.st.canMakeLight(i) ? html`<p>${button("vmklight", "Create a light from this switch", () => c.makeLight!(i))}</p>${hint("Wraps this switch in a new HA light entity.")}` : nothing}

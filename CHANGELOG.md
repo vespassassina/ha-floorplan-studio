@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Studio and card: wall colours. Edit, Colours (it was Device colours) has a Devices section and a Wall colours section (walls, external walls, fences) that replaces the theme's colour in 2D, 2.5D and 3D. A single wall, room edge or perimeter edge also has its own Colour row in its panel, with Default to go back. A shared wall changes on both rooms. Colours you pick join the swatches.
+- Studio: an air conditioner now has the classic rectangular body, on a wall (default) or standing on the floor, and blows animated wind while it cools, heats or runs the fan. It is tinted blue or orange in 2D, 2.5D and 3D; the wind is drawn in 2D and 2.5D and holds still under reduced motion.
+- Studio: a new device type, Control screen, for a wall tablet or panel. A tap opens its more-info and never switches it.
+- Studio: the device panel has a Body select under Appearance, so you choose how a device is drawn in 2.5D and 3D (none, radiator, speaker, TV, AC wall or floor, control screen). A bar heater offers radiator or none. Default removes the choice.
 
 ## 0.42.0 - 2026-11-02
 

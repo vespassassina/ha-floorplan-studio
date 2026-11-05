@@ -42,7 +42,7 @@ export const ATTENTION_RULE: Record<DeviceType, AttentionRule> = {
   heater: "none", light: "none", switch: "none", plug: "none", temp: "none", humidity: "none", motion: "none", camera: "none",
   climate: "none", ac: "none", tv: "none", computer: "none", media: "none", inverter: "none", server: "none", access_point: "none",
   vibration: "none", boiler: "none", car: "none", ups: "none", printer: "none", speaker: "none", person: "none", radar: "none",
-  vacuum: "none", siren: "none", fan: "none",
+  vacuum: "none", siren: "none", fan: "none", screen: "none",
 };
 
 /** The device types whose battery is their charge, a reading, not a maintenance job: a home storage battery, an

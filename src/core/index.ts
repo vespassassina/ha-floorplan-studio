@@ -39,7 +39,7 @@ export { composePlace, floorBelow, floorPivot, floorPlace, floorPose, floorsBelo
 export type { Place, Pose } from "./floor-stack";
 export { stairAxis, stairPlace, stairReport } from "./hand-align";
 export type { StairAxis, StairPlaceResult, StairRow } from "./hand-align";
-export { UNLINKED_BASE, WALLS_LABELS, WALLS_MODES, pieceDevice, wallsModeOf } from "./solids";
+export { DEVICE_SOLID, UNLINKED_BASE, WALLS_LABELS, WALLS_MODES, bodyOf, pieceDevice, wallsModeOf } from "./solids";
 export type { WallsMode } from "./solids";
 export { customCalls, customScene, haScenesFor, lampOffCalls, presetCalls, roomScenes, sceneNeedsConfirm } from "./room-scenes";
 export type { HaSceneRow, RoomSceneMenu, SceneCall, SceneHass } from "./room-scenes";

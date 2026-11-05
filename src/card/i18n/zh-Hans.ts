@@ -225,6 +225,7 @@ const c: Catalogue = {
   "Siren": "警报器",
   "Alarm": "警报",
   "Fan": "风扇",
+  "Control screen": "控制屏",
   "Security": "安全",
   "Power": "电源",
   "Covers": "窗帘",
