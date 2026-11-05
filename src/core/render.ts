@@ -901,7 +901,7 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   const s = o.state?.[d.entity];
   if (!s) return "off";
   if (dead(s.state)) return "unavailable"; // S23.5: every type, a light, switch or plug too: "I don't know" is not "off"
-  if (d.type === "ac" || (d.type === "climate" && bodyAir(d))) return acRuns(d, o) ? "on" : "off";
+  if (d.type === "ac" || (bodyAir(d) && typeof d.entity === "string" && d.entity.startsWith("climate."))) return acRuns(d, o) ? "on" : "off";
   if (d.type === "plug") return plugOn(d, o, s) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
   // S9.4: a speaker is a media_player like any other — playing is the only "on", same as media.

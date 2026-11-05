@@ -525,14 +525,21 @@ const insideRing = (p: Pt, ring: readonly Pt[]): boolean => {
   }
   return c;
 };
-/** The unit normal of a wall hit that points into the room: toward the device's side; on the wall line itself (a dot product of 0) toward the inside of the containing room, else of the outline. */
+const OUTDOOR_ROOMS: readonly string[] = ["garden", "terrace", "pavement", "water"];
+/**
+ * The unit normal of a wall hit that points into the room: toward the device's side; on the wall line itself (a dot product
+ * of 0) toward the better side. Sides rank an indoor room first, then the outline's inside, then outdoor kinds (terrace,
+ * garden, pavement, water), then nothing; a tie keeps the edge's own side.
+ */
 function wallNormal(f: Floor, p: Pt, hit: EdgeHit): Pt {
   const side: Pt = [hit.u[1], -hit.u[0]], dot = (p[0] - hit.q[0]) * side[0] + (p[1] - hit.q[1]) * side[1];
   if (Math.abs(dot) > 1e-9) return dot < 0 ? [-side[0], -side[1]] : side;
-  const at = (s: number): Pt => [hit.q[0] + side[0] * s, hit.q[1] + side[1] * s], ring = (r: { pts?: unknown } | undefined) => (Array.isArray(r?.pts) ? (r!.pts as Pt[]) : []);
-  const rooms = f.rooms.filter((r) => r.kind !== "zone"), test = (a: Pt) => rooms.some((r) => insideRing(a, ring(r))) || insideRing(a, f.outline);
-  const near = test(at(1)), far = test(at(-1));
-  return near || !far ? side : [-side[0], -side[1]];
+  const ring = (r: { pts?: unknown }) => (Array.isArray(r.pts) ? (r.pts as Pt[]) : []);
+  const rank = (s: number): number => {
+    const a: Pt = [hit.q[0] + side[0] * s, hit.q[1] + side[1] * s], rooms = f.rooms.filter((r) => r && r.kind !== "zone" && insideRing(a, ring(r)));
+    return rooms.some((r) => !OUTDOOR_ROOMS.includes(r.kind)) ? 4 : insideRing(a, f.outline) ? 3 : rooms.length ? 2 : 1;
+  };
+  return rank(-1) > rank(1) ? [-side[0], -side[1]] : side;
 }
 /** Where along the hit edge the centre of a body `w` wide may sit: inside the segment, clear of the neighbouring wall's face; a segment shorter than the body centres it. */
 function alongEdge(f: Floor, hit: EdgeHit, w: number): Pt {

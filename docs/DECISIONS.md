@@ -7,12 +7,14 @@ Newest first. A change supersedes; nothing is edited.
 Opus reviewed the integrated build. What changed, each with a test:
 
 - **On a wall line the body goes inside.** A device exactly on a wall had a zero dot product, so the flip did nothing
-  and the unit hung outside. The tie now goes to the containing room, else the outline. The TV shares the code.
+  and the unit hung outside. The tie now ranks the two sides: an indoor room kind first, then the outline's inside, then
+  an outdoor kind (terrace, garden, pavement, water), then nothing; an equal rank keeps the edge's own side. The TV shares the code.
 - **Near a corner the body stays on its wall.** Its centre is clamped to the segment, clear of the neighbouring
   wall's face; a wall shorter than the unit centres it. The TV is clamped the same way, so a TV placed within 50 cm
   of a corner moves along its wall (it used to poke through the next one).
 - **Fan only reads as on.** `acRuns` (cools, heats or `fan_only`) feeds both the icon class and the wind, for `ac`
-  and for a `climate` device with an AC body. A plain `climate` still turns on only while it heats.
+  and for any device with an AC body whose entity is a `climate.` one (a heater, an other). Without an AC body a
+  `climate` or heater still turns on only while it heats.
 - **3D tints by the body**, as 2D does: a `climate` device with an AC body carries cool/heat in 3D too.
 - **The panel shows what is drawn.** The mount height placeholder is `deviceZDefault` (body-aware) and the Body
   select's Default names `bodyOf`, so a point heater says None, not Radiator. `bodyOf` returns `none` for a point
