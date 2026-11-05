@@ -279,20 +279,22 @@ export function setEdgeKind(f: Floor, poly: string, i: number, kind: EdgeKind): 
  * B53.9: the colour (`#rrggbb`, or null for the default) of one wall. A free wall holds it as `color`; a room or outline
  * edge holds it in `wc` / `owc`, on the edge asked about and on every coincident edge of a room and of the outline, so the
  * one wall drawn twice (a shared edge, a room on the perimeter) has one colour whatever `wallColourMap` picks first.
- * The arrays and the key go when nothing is left. Returns `f` itself when nothing changes, and for a zone, a stair or an
+ * A free wall lying on that segment takes the colour too, and painting a free wall paints the room and outline edges under it,
+ * so what the user picks is what shows. The arrays and the key go when nothing is left. Returns `f` itself when nothing changes, and for a zone, a stair or an
  * edge that does not exist.
  */
 export function setEdgeColour(f: Floor, poly: string, i: number, hex: string | null): Floor {
+  let a: Pt, b: Pt;
   if (poly === "w") {
     const w = f.walls[i];
-    if (!w || (w.color ?? null) === hex) return f;
-    const g = structuredClone(f);
-    if (hex === null) delete g.walls[i].color; else g.walls[i].color = hex;
-    return g;
+    if (!w) return f;
+    a = w.a; b = w.b;
+  } else {
+    const P = polys(f).find((x) => x.id === poly);
+    if (!P || isZone(P) || P.id.startsWith("s") || !Number.isInteger(i) || i < 0 || i >= P.pts.length) return f;
+    a = P.pts[i]; b = P.pts[(i + 1) % P.pts.length];
   }
-  const P = polys(f).find((x) => x.id === poly);
-  if (!P || isZone(P) || P.id.startsWith("s") || !Number.isInteger(i) || i < 0 || i >= P.pts.length) return f;
-  const g = structuredClone(f), a = P.pts[i], b = P.pts[(i + 1) % P.pts.length];
+  const g = structuredClone(f);
   let changed = false;
   const put = (get: () => (string | null)[] | undefined, set: (c: (string | null)[] | undefined) => void, n: number, j: number) => {
     const cur = get();
@@ -307,6 +309,12 @@ export function setEdgeColour(f: Floor, poly: string, i: number, hex: string | n
   for (const room of g.rooms) {
     if (room.kind === "zone") continue;
     edges(room.pts).forEach(({ a: c, b: d, i: j }) => { if (same(c, d)) put(() => room.wc, (v) => { if (v) room.wc = v; else delete room.wc; }, room.pts.length, j); });
+  }
+  // A free wall on the same segment is the same wall: it takes the colour too, or it would hide behind the room's (rooms rank first) or show through Default.
+  for (const w of g.walls) {
+    if (!same(w.a, w.b) || (w.color ?? null) === hex) continue;
+    if (hex === null) delete w.color; else w.color = hex;
+    changed = true;
   }
   return changed ? g : f;
 }

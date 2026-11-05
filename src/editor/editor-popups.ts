@@ -286,7 +286,7 @@ export function devColsView(ed: FloorplanStudioEditor, st: EditorState) {
           <div class="swatches" role="group" aria-label=${`Colours for ${WALL_COLOUR_LABELS[k].toLowerCase()}`}>${FLOOR_COLOURS.map((c) => sw(c.hex, c.name))}${(st.layout.palette ?? []).map((hex) => sw(hex, `Custom ${hex}`, " custom"))}</div>`;
       })}
     </div>
-    <button class="btn keep" id="devcolsx" ?disabled=${!st.layout.colors} @click=${() => { if (st.resetColours()) ed.changed("Colours reset"); }}>Reset all</button>
+    <button class="btn keep" id="devcolsx" ?disabled=${!st.layout.colors && !st.layout.wallColors} @click=${() => { if (st.resetColours()) ed.changed("Colours reset"); }}>Reset all</button>
   </div>`;
 }
 

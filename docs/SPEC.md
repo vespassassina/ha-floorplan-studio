@@ -210,6 +210,9 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   `boundary` keep their own look and cannot be coloured as a kind (a `boundary`
   is a quiet divider, an `edge` a hairline: a colour would turn them into
   walls). B53.9.
+  Setting `wallColors.external` switches the 2.5D external faces from the
+  colour derived from `--fp-wall` (the theme's wall, softened toward the
+  background) to the external colour itself, softened the same way.
 - A wall's own colour beats the layout's: a free wall has `color`; a room edge
   has `room.wc` and an outline edge `floor.owc`, each a list parallel to `wk`
   or `owk` with `null` (no colour) or `#rrggbb` per edge, the same length as

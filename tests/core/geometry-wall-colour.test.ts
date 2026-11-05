@@ -4,7 +4,8 @@ import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Floor, Pt, WallKind } from "../../src/core/schema";
 import { validate } from "../../src/core/schema";
-import { insertPoint, removePoint, stitch, deleteEdge, mergeCorners } from "../../src/core/geometry";
+import { insertPoint, removePoint, stitch, deleteEdge, mergeCorners, setEdgeColour } from "../../src/core/geometry";
+import { wallColourMap, wallEdgeKey } from "../../src/core/wall-colour";
 
 const rect = (x0: number, y0: number, x1: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 const COL = ["#aa0000", null, "#00bb00", "#0000cc"] as (string | null)[];
@@ -19,6 +20,43 @@ const parallel = (f: Floor) => {
   expect(f.owc!.length).toBe(f.outline.length);
   for (const r of f.rooms) expect(r.wc!.length).toBe(r.pts.length);
 };
+
+describe("a free wall on a room edge is one wall (B53.9, Opus review)", () => {
+  const withWall = (): Floor => ({ ...floor(), walls: [{ id: "w1", a: [100, 100], b: [100, 0], kind: "wall" }] }); // the a/b shared edge, reversed
+  const shown = (f: Floor) => wallColourMap(f).get(wallEdgeKey([100, 0], [100, 100]));
+  it("painting a room edge paints the free wall on it, so the colour shown is the colour picked", () => {
+    const f = withWall();
+    f.rooms[0].wc = [null, null, null, null]; delete f.rooms[0].wc; f.owc = undefined; delete f.owc; for (const r of f.rooms) delete r.wc;
+    f.walls[0].color = "#112233"; // the wall already has a colour the room edge hides once the room has one
+    const g = setEdgeColour(f, "r0", 1, "#ee0000");
+    expect(g.walls[0].color).toBe("#ee0000");
+    expect(shown(g)).toBe("#ee0000");
+  });
+  it("Default on a room edge clears the free wall on it, so the panel stops showing it", () => {
+    const f = withWall();
+    for (const r of f.rooms) delete r.wc;
+    delete f.owc;
+    f.walls[0].color = "#112233";
+    expect(shown(f)).toBe("#112233");
+    const g = setEdgeColour(f, "r0", 1, null);
+    expect(g).not.toBe(f);
+    expect(g.walls[0].color).toBeUndefined();
+    expect(shown(g)).toBeUndefined();
+  });
+  it("painting the free wall paints the room edges under it", () => {
+    const f = withWall();
+    for (const r of f.rooms) delete r.wc;
+    delete f.owc;
+    const g = setEdgeColour(f, "w", 0, "#33aa33");
+    expect(g.rooms[0].wc![1]).toBe("#33aa33");
+    expect(g.rooms[1].wc![3]).toBe("#33aa33");
+    expect(shown(g)).toBe("#33aa33");
+    const h = setEdgeColour(g, "w", 0, null);
+    expect(h.walls[0].color).toBeUndefined();
+    expect(h.rooms.every((r) => r.wc === undefined)).toBe(true);
+    expect(shown(h)).toBeUndefined();
+  });
+});
 
 describe("wc and owc follow the points", () => {
   it("insertPoint copies the colour of the edge it splits", () => {

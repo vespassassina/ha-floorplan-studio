@@ -114,6 +114,23 @@ describe("applyShape, closed walls (S1.48)", () => {
     expect(made("fence").floor.rooms.at(-1)).toMatchObject({ kind: "garden", wk: ["fence", "fence", "fence", "fence"] });
     expect(made("edge").floor.rooms.at(-1)).toMatchObject({ kind: "garden" });
   });
+  it("B53.9: the walls' colours become the room's wc, in walking order; none set, no wc; a zone has none", () => {
+    const f = ground();
+    const start = applyShape(f, "ground", { kind: "wall", wall: "wall", pts: ring.slice(0, 2) }); // the first wall, then the rest by hand
+    const withColour = structuredClone(start.floor);
+    withColour.walls[0].color = "#aa0000";
+    const mid = applyShape(withColour, "ground", { kind: "wall", wall: "wall", pts: ring.slice(1, 4) });
+    const mid2 = structuredClone(mid.floor);
+    mid2.walls.at(-1)!.color = "#00bb00";
+    const closed = applyShape(mid2, "ground", { kind: "wall", wall: "wall", pts: [ring[3], ring[4]] });
+    const room = closed.floor.rooms.at(-1)!;
+    expect(room.wk).toHaveLength(4);
+    expect(room.wc).toHaveLength(4);
+    expect(room.wc!.filter((c) => c !== null).sort()).toEqual(["#00bb00", "#aa0000"]);
+    expect(made("wall").floor.rooms.at(-1)!.wc).toBeUndefined();
+    const z = structuredClone(made("boundary").floor.rooms.at(-1)!);
+    expect(z.wc).toBeUndefined();
+  });
   it("an open chain stays walls", () => {
     const r = made("wall", ring.slice(0, 4));
     expect(r.floor.walls).toHaveLength(3);

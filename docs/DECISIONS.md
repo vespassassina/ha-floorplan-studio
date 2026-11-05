@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-05: free walls on a room edge, Reset all, ring colours; external faces (B53.9, Opus review)
+
+- A free wall lying on a room or outline edge is the same wall: `setEdgeColour` sets or clears it together with the room and
+  outline edges, whichever of them was clicked, so what the user picks is what `wallColourMap` shows (rooms rank before free
+  walls, which hid a free wall's colour and made Default on the room edge a no-op).
+- A ring of free walls that closes into a room gives the room `wc` from the walls' `color` (omitted when all are null; a zone has none).
+- Colours, Reset all, clears `wallColors` as well as `colors`, in one undo step, and is enabled when either is set.
+- Setting `wallColors.external` switches the 2.5D external faces from the colour derived from `--fp-wall` to the external
+  colour, softened the same way; leaving it unset keeps the theme's derivation.
+
 ## 2026-11-05: the Device colours dialog is now "Colours" (B53.9)
 
 It holds wall colours as well as device colours, so the title and the Edit menu entry say Colours. Its two sections are

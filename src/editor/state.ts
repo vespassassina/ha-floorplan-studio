@@ -1014,11 +1014,12 @@ export class EditorState {
   private joinPalette(next: Layout, hex: string) {
     if (!FLOOR_COLOURS.some((k) => k.hex === hex) && !(next.palette ?? []).includes(hex)) next.palette = [...(next.palette ?? []), hex].slice(-MAX_PALETTE);
   }
-  /** Removes every device colour: one undo step, none when there are none. */
+  /** Removes every device colour and every wall kind colour: one undo step, none when there are none. */
   resetColours(): boolean {
-    if (!this.layout.colors) return false;
+    if (!this.layout.colors && !this.layout.wallColors) return false; // B53.9: Reset all clears the wall colours too
     this.snapshot();
     delete this.layout.colors;
+    delete this.layout.wallColors;
     return true;
   }
   get view(): View {
