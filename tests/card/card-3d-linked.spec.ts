@@ -96,15 +96,23 @@ test.describe("3D view: a thirsty plant", () => {
 });
 
 test.describe("3D view: a linked appliance", () => {
-  test("running takes the on colour; an open door takes the open-door colour", async ({ page }) => {
+  test("running takes the on colour", async ({ page }) => {
     await boot(page, layoutOf(WASHER), STATES());
     const rest = (await bodyOf(page)).colour;
     await setStates(page, STATES({ "sensor.washer": st("run") }));
     expect((await bodyOf(page)).colour).toBe(await cssHex(page, "var(--fp-active)"));
+    await setStates(page, STATES());
+    expect((await bodyOf(page)).colour).toBe(rest);
+  });
+  test("a fridge door open takes the open-door colour; a washer door left ajar does not", async ({ page }) => {
+    await boot(page, layoutOf({ ...WASHER, symbol: "fridge" }), STATES());
+    const rest = (await bodyOf(page)).colour;
     await setStates(page, STATES({ "binary_sensor.washer_door": st("on", { device_class: "door" }) }));
     expect((await bodyOf(page)).colour).toBe(await cssHex(page, "var(--fp-open-door)"));
     await setStates(page, STATES());
     expect((await bodyOf(page)).colour).toBe(rest);
+    await boot(page, layoutOf(WASHER), STATES({ "binary_sensor.washer_door": st("on", { device_class: "door" }) }));
+    expect((await bodyOf(page)).colour).not.toBe(await cssHex(page, "var(--fp-open-door)"));
   });
   test("a real tap on it opens the card's popup with its status", async ({ page }) => {
     await boot(page, layoutOf(WASHER), STATES({ "sensor.washer": st("run") }));
@@ -115,5 +123,19 @@ test.describe("3D view: a linked appliance", () => {
     await expect(pop.locator("css=.fp-pop-state")).toHaveText("Running");
     expect(await calls(page)).toEqual([]);
     expect(await infos(page)).toEqual([]);
+  });
+});
+
+test.describe("3D view: a robot vacuum", () => {
+  const ROBOT = { symbol: "robot-vacuum", entity: "vacuum.robo", w: 35, h: 35 };
+  test("out cleaning it is drawn faded like an away car; docked it is opaque again", async ({ page }) => {
+    await boot(page, layoutOf(ROBOT), STATES({ "vacuum.robo": st("docked") }));
+    const parts = async () => (await pieces(page)).filter((p) => p.index === 0);
+    expect((await parts()).length).toBeGreaterThan(0);
+    for (const p of await parts()) { expect(p.transparent).toBe(false); expect(p.opacity).toBe(1); }
+    await setStates(page, STATES({ "vacuum.robo": st("cleaning") }));
+    for (const p of await parts()) { expect(p.transparent).toBe(true); expect(p.opacity).toBeCloseTo(0.35, 2); expect(p.depthWrite).toBe(false); }
+    await setStates(page, STATES({ "vacuum.robo": st("docked") }));
+    for (const p of await parts()) { expect(p.transparent).toBe(false); expect(p.opacity).toBe(1); }
   });
 });

@@ -102,9 +102,9 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
         const pd = typeof m === "object" && m !== null ? pieceDevice(m) : null;
         if (!pd) return null;
         const on = pieceOn(o, m, plugs);
-        // B53.11: a linked plant glows when thirsty; a linked appliance with a door open or an error wears the alert colour.
+        // B53.11: a linked plant glows when thirsty; a linked appliance with a door open or an error wears the alert colour; a robot out cleaning fades (`away`; the car badge needs a car-roof anchor, so a robot gets none).
         const lk = linkedStatus(pd, o.state as never);
-        if (lk) return { on, ...(lk.status.thirsty ? { thirsty: true } : {}), ...(lk.status.alert ? { alert: true } : {}) };
+        if (lk) return { on, ...(lk.status.thirsty ? { thirsty: true } : {}), ...(lk.status.alert ? { alert: true } : {}), ...(lk.status.away ? { away: true } : {}) };
         if (m.symbol !== "car") return { on };
         const c = carStatus(m, o.state as never);
         return { on, away: c.place === "away", charging: c.charging, alert: c.alert, level: c.level, ...(classOf(pd, o) === "unavailable" ? { gone: true } : {}) };

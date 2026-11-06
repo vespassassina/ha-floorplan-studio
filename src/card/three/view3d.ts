@@ -727,8 +727,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       pieceBodies.push({ index: s.ref.index, tag: s.tag, mesh, mat, rest: p.colour, on: false, twin, away: false });
     }
   }
-  /** Draws a car part faded (the pre-pass twin shows) or opaque again, in place: no rebuild. */
-  function fadeCarPart(b: PieceBody, away: boolean) {
+  /** Draws a car part, or any piece that is away, faded (a car part's pre-pass twin shows) or opaque again, in place: no rebuild. */
+  function fadePiece(b: PieceBody, away: boolean) {
     if (b.away === away) return;
     b.away = away;
     const m = b.mat;
@@ -743,12 +743,13 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       const live = L.pieces[b.index];
       b.on = !!live?.on;
       // B53.11: a plant keeps its green and glows (applyBreath); an appliance wears the alert colour for an open door or an error, else the on colour.
-      if (!isCarPart(b.tag)) { b.mat.color.copy(b.tag === "plant" ? b.rest : live?.alert ? alert : b.on ? on : b.rest); continue; }
+      // A robot vacuum out cleaning is drawn faded like an away car (no depth twin: it is one flat disc).
+      if (!isCarPart(b.tag)) { b.mat.color.copy(b.tag === "plant" ? b.rest : live?.alert ? alert : b.on ? on : b.rest); fadePiece(b, !!live?.away); continue; }
       // A car: charging lights the greenhouse like a tv screen, an alert turns the roof the open door's red, away fades every part.
       const lit = b.tag === "car-glass" && !!live?.charging;
       b.mat.color.copy(lit ? charge : b.tag === "car-roof" && live?.alert ? alert : b.rest);
       if (lit) b.mat.emissive.copy(charge).multiplyScalar(0.55); else b.mat.emissive.setRGB(0, 0, 0);
-      fadeCarPart(b, !!live?.away);
+      fadePiece(b, !!live?.away);
     }
     applyBreath();
   }

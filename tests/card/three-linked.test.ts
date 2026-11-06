@@ -17,13 +17,16 @@ describe("live: a linked plant and appliance", () => {
   const S = (o: Record<string, unknown> = {}) => ({
     "sensor.fern": st("14", { device_class: "moisture", unit_of_measurement: "%" }), "sensor.w": st("run"), "binary_sensor.door": st("off", { device_class: "door" }), ...o,
   });
-  it("a thirsty plant is on and thirsty; one with water is neither", () => {
-    expect(live(f, S()).pieces[0]).toEqual({ on: true, thirsty: true });
+  it("a thirsty plant is thirsty and not on (its look is the blue glow); one with water is neither", () => {
+    expect(live(f, S()).pieces[0]).toEqual({ on: false, thirsty: true });
     expect(live(f, S({ "sensor.fern": st("55", { device_class: "moisture", unit_of_measurement: "%" }) })).pieces[0]).toEqual({ on: false });
   });
-  it("a running washer is on; an open door alerts, running or not", () => {
+  it("a running washer is on; a fridge door open alerts, running or not; a washer door left ajar does not", () => {
     expect(live(f, S()).pieces[1]).toEqual({ on: true });
-    expect(live(f, S({ "sensor.w": st("ready"), "binary_sensor.door": st("on", { device_class: "door" }) })).pieces[1]).toEqual({ on: false, alert: true });
+    const ajar = S({ "sensor.w": st("ready"), "binary_sensor.door": st("on", { device_class: "door" }) });
+    expect(live(f, ajar).pieces[1]).toEqual({ on: false });
+    const g = floor([piece("fridge", { entity: "sensor.w", attached: ["binary_sensor.door"] })]);
+    expect(live(g, ajar).pieces[0]).toEqual({ on: false, alert: true });
   });
   it("an unlinked appliance and a rug have no live state", () => {
     const l = live(f, S()).pieces;
@@ -31,4 +34,14 @@ describe("live: a linked plant and appliance", () => {
     expect(l[3]).toBeNull();
   });
   it("the palette knows the water-blue role", () => { expect(isKnownRole("plant-thirsty")).toBe(true); });
+});
+
+// Opus review of B53.10-B53.13: the linked branch returned only `thirsty` and `alert`, so 3D never faded a robot out cleaning.
+describe("live: a robot vacuum that is out cleaning is away (the plan draws it at 35 %)", () => {
+  const f = floor([piece("robot-vacuum", { entity: "vacuum.robo" }), piece("robot-dock", { entity: "vacuum.robo" })]);
+  it("cleaning and returning: on and away; docked: neither; the dock is never away", () => {
+    expect(live(f, { "vacuum.robo": st("cleaning") }).pieces).toEqual([{ on: true, away: true }, { on: false }]);
+    expect(live(f, { "vacuum.robo": st("returning") }).pieces[0]).toEqual({ on: true, away: true });
+    expect(live(f, { "vacuum.robo": st("docked") }).pieces).toEqual([{ on: false }, { on: false }]);
+  });
 });
