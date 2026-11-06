@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Card and Studio: furniture is built from blocks. A table has a top and four legs, a sofa a seat, back and arms, a bed a frame, mattress and headboard, a chair a seat, legs and back, a cabinet a plinth, body and top, a bathtub a base and a rim. 2.5D and 3D draw the same blocks; legs and plinths are 20 % darker than the piece.
+- Card and Studio: the corner sofa has a `mirror` option (a Mirror box in the Studio's furniture panel) that puts the chaise on the right, in 2D, 2.5D and 3D. The chaise is a seat, the same height as the seat of the run.
 
 ## 0.43.0 - 2026-11-06
 

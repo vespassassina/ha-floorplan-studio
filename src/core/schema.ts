@@ -576,6 +576,11 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       // S1.51: a piece of furniture is never smaller than 5 cm or bigger than 2000 cm on a side.
       for (const k of ["w", "h"] as const) if (typeof m[k] === "number" && Number.isFinite(m[k]) && (m[k] < 5 || m[k] > 2000)) errors.push(`${at} ${m.id} ${k} must be between 5 and 2000`);
       if (m.locked !== undefined && typeof m.locked !== "boolean") errors.push(`${at} ${m.id} locked must be true or false`);
+      // B53.2: `mirror` flips the L sofa and nothing else.
+      if (m.mirror !== undefined) {
+        if (m.symbol !== "sofa-l") errors.push(`${at} ${m.id} mirror is only allowed on a sofa-l`);
+        else if (m.mirror !== true) errors.push(`${at} ${m.id} mirror must be true; leave it out for the chaise on the left`);
+      }
       // S35.1: the car keys. `includes` on a list, so `__proto__` or `constructor` never match.
       for (const k of ["model", "color", "attached"]) if (m[k] !== undefined && m.symbol !== "car") errors.push(`${at} ${m.id} ${k} is only allowed on a car`);
       if (m.symbol === "car") {

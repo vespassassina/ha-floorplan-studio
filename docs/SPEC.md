@@ -344,6 +344,14 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
 - `furniture.symbol`: table, sofa, sofa-l, coffee-table, bed, cabinet, bookcase,
   buffet, chair, sink, toilet, shower, bathtub, tv, computer, speaker, tree,
   patio-wood, patio-concrete, car (sofa-l and the three after it: B53.1).
+- `furniture.mirror` (optional, B53.2): `true` on a `sofa-l` flips it about the piece's vertical axis in 2D, 2.5D and 3D, so
+  the chaise is on the right; absent is the chaise on the left. The chaise is 35 % of `w`, the back run 45 % of `h`.
+  `validate` refuses it on any other symbol (naming the piece) and any value but `true`, and never throws; `migrate` keeps
+  it only on a `sofa-l` when it is `true`. The Studio's furniture panel has a Mirror box for a `sofa-l` only.
+- Furniture is drawn from blocks (B53.5, `furnitureBlocks`): table and coffee-table a top and four legs, sofa a seat, back and
+  arms, sofa-l the same plus the chaise as a seat block, bed a frame, mattress and headboard, chair a seat, four legs and a back,
+  cabinet, sink and buffet a plinth, body and top, bathtub a base and a rim; every other symbol one box. Legs and plinths are the
+  piece's colour 20 % darker. 2.5D and 3D draw the same blocks.
 - A **car piece** (S35, 0.33.0; `docs/specs/car-s35.md`): furniture with `symbol: "car"` may carry three optional keys,
   with no schema bump (an older card ignores them and draws the old box). `model`: one of `sedan`, `wagon`, `suv`,
   `offroad`, `truck`, `van`, `utility`, `citycar`, `electric`; absent is `sedan`. `color`: the body colour, `#rrggbb`;

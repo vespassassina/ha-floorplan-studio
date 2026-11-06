@@ -65,6 +65,11 @@ function dropBadCar(f: any) {
   }
 }
 
+/** B53.2: `mirror` stays on a sofa-l when it is true, and goes everywhere else. */
+function dropBadMirror(f: any) {
+  for (const m of f.furniture) if ("mirror" in m && !(m.symbol === "sofa-l" && m.mirror === true)) delete m.mirror;
+}
+
 /** S14.3: an effect size outside 25-300 (or not a number) is dropped, so the device draws at 100 and the file opens. */
 function dropBadFx(f: any) {
   for (const d of f.devices) if ("fx" in d && !(typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX)) delete d.fx;
@@ -130,7 +135,7 @@ export function migrate(x: unknown): Layout {
       d.id = d.id ?? `${d.type}-${fname}-${i + 1}`;
       return d;
     });
-    dropBadHeights(f); dropBadFx(f); dropBadView(f); dropBadOffset(f); dropBadRotation(f); dropBadCar(f);
+    dropBadHeights(f); dropBadFx(f); dropBadView(f); dropBadOffset(f); dropBadRotation(f); dropBadCar(f); dropBadMirror(f);
     Object.defineProperty(floors, fname, { value: f, enumerable: true, writable: true, configurable: true });
   }
   const out: any = { version: 2, unit: "cm", north: src.north ?? 0, rotate: src.rotate ?? 0, floors, catalog: src.catalog };

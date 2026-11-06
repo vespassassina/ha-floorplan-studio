@@ -112,10 +112,10 @@ function sofa(w: number, d: number, H: number, box: (x0: number, x1: number, y0:
 }
 
 /**
- * Where the symbol lies in 2.5D: on the highest block that covers at least half the footprint (a sofa's seat, a bed's mattress,
+ * Where the symbol lies in 2.5D: on the highest block that covers at least 40 % of the footprint (an L sofa seat is 45 %) (a sofa's seat, a bed's mattress,
  * a table's top), in cm above the piece's bottom. A back, an arm or a leg is too small to carry it. H for a piece with no blocks.
  */
 export function lidOf(m: Furniture, blocks: Block[]): number {
-  const area = m.w * m.h, lid = Math.max(0, ...blocks.filter((b) => (b.x1 - b.x0) * (b.y1 - b.y0) >= area * 0.5).map((b) => b.z1));
+  const area = m.w * m.h, lid = Math.max(0, ...blocks.filter((b) => (b.x1 - b.x0) * (b.y1 - b.y0) >= area * 0.4).map((b) => b.z1));
   return lid > 0 ? lid : furnitureHeight(m);
 }

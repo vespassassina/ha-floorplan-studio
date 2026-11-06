@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: the L sofa's chaise is a seat block, and `mirror` (B53.2)
+
+- Spec item 18 says both blocks of the L stand at the piece's height; item 19b (newer) makes the chaise a seat block. 19b
+  wins: the chaise is a seat (45 % of H), the run has a seat, a back and two arms. Chaise 35 % of w, run 45 % of h.
+- `mirror: true` flips x about the piece's vertical axis (blocks, the 2D and 2.5D symbol scale). `validate` allows it on
+  `sofa-l` only and only as `true`; `migrate` drops it elsewhere. The panel's `setSymbol` removes it when the symbol leaves sofa-l.
+- The symbol's lid is the highest block of at least 40 % of the footprint (was 50 %): the L's run seat is 45 %, and at 50 % the
+  glyph floated at the back's top.
+- Measured: card 122,951 bytes gzip after B53.2 (122,865 after B53.5; 121,531 before B53.5).
+
 ## 2026-11-06: furniture shapes from blocks (B53.5)
 
 - `furnitureBlocks(piece)` (`src/core/furniture-blocks.ts`) is the one shape function. 2.5D (`solids.ts`) and 3D
