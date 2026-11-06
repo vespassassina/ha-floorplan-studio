@@ -14,9 +14,6 @@ import type { Furniture } from "./schema";
  */
 export interface Block { x0: number; x1: number; y0: number; y1: number; z0: number; z1: number; tone: "body" | "dark" | "glass" | "mirror" }
 
-/** A mirror stands this many degrees off the vertical (B53.12), and `mirror-stand` approximates it with this many stacked slabs. */
-export const MIRROR_LEAN_DEG = 10, MIRROR_SLABS = 6;
-
 /** How much black a dark block takes: the piece's colour 20 % darker. The one place the figure lives (CSS, 3D palette, paint). */
 export const DARKEN_PCT = 20;
 /** A colour, `css`, mixed `DARKEN_PCT` toward black: what a dark block is painted with. */
@@ -153,16 +150,12 @@ export function furnitureBlocks(m: Furniture): Block[] {
       break;
     }
     case "mirror": box(0, w, 0, h, 0, H, "mirror"); break;
-    // A standing mirror leans back MIRROR_LEAN_DEG: MIRROR_SLABS thin slabs, each a little further back than the one below, on a
-    // dark foot. The glass is what leans, so the slabs are `mirror`; they stand on the front (high y) and the top ends at the back.
+    // A standing mirror is one upright mirror plate on a dark foot. Stacked slabs that stepped back to fake a 10 degree lean read as a
+    // ladder in 2.5D and 3D (Opus review of B53.10-B53.13, looked at with `npm run shots -- --blocks`), so there is no lean.
     case "mirror-stand": {
-      const foot = lift(4, 0.05), t = room(h, 3, 0.2), lean = Math.max(0, Math.min((H * Math.tan((MIRROR_LEAN_DEG * Math.PI) / 180)), h - t)), ix = room(w, 4, 0.1);
+      const foot = lift(4, 0.05), t = room(h, 3, 0.2), ix = room(w, 4, 0.1);
       box(ix, w - ix, 0, h, 0, foot, "dark");
-      const span = H - foot;
-      for (let k = 0; k < MIRROR_SLABS; k++) {
-        const y1 = h - (lean * k) / MIRROR_SLABS;
-        box(0, w, y1 - t, y1, foot + (span * k) / MIRROR_SLABS, foot + (span * (k + 1)) / MIRROR_SLABS, "mirror");
-      }
+      box(0, w, h - t, h, foot, H, "mirror");
       break;
     }
     // Every other symbol is one box, as before. Decided one by one (finding 17): a tree and a car are drawn by their own code

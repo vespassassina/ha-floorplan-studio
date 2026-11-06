@@ -176,15 +176,15 @@ describe("B53.12: gym, chaise, shelf, mirrors, robot, shower box", () => {
     expect(bl[1]).toMatchObject({ x0: 112, x1: 160, z0: 32, z1: 80 });
   });
 
-  it("mirror: one mirror-tone panel with the whole height; mirror-stand: a dark foot and a lean of about 10 degrees in thin mirror slabs", () => {
+  it("mirror: one mirror-tone panel with the whole height; mirror-stand: a dark foot and one upright mirror plate (stacked lean slabs read as a ladder)", () => {
     expect(at("mirror", 80, 5)).toEqual([{ x0: 0, x1: 80, y0: 0, y1: 5, z0: 0, z1: 100, tone: "mirror" }]);
-    const bl = at("mirror-stand", 50, 40);
-    expect(bl.filter((b) => b.tone === "dark")).toHaveLength(1);
-    const slabs = bl.filter((b) => b.tone === "mirror").sort((a, b) => a.z0 - b.z0);
-    expect(slabs).toHaveLength(6);
-    for (let k = 1; k < slabs.length; k++) { expect(slabs[k].y1).toBeLessThan(slabs[k - 1].y1); expect(slabs[k].z0).toBeCloseTo(slabs[k - 1].z1, 9); } // each further back than the one below, none with a gap
-    const lean = slabs[0].y1 - slabs[5].y1, rise = slabs[5].z0 - slabs[0].z0;
-    expect(Math.atan2(lean, rise) * 180 / Math.PI).toBeGreaterThan(7); expect(Math.atan2(lean, rise) * 180 / Math.PI).toBeLessThan(10.5); // the top slab is 5/6 up, so the slope of the steps is 10 degrees
+    const bl = at("mirror-stand", 50, 40), H = furnitureHeight(piece("mirror-stand", 50, 40));
+    const foot = bl.filter((b) => b.tone === "dark");
+    expect(foot).toHaveLength(1);
+    const plates = bl.filter((b) => b.tone === "mirror");
+    expect(plates).toHaveLength(1);
+    expect(plates[0]).toMatchObject({ x0: 0, x1: 50, y1: 40, z0: foot[0].z1, z1: H });
+    expect(plates[0].y1 - plates[0].y0).toBeLessThan(10);
   });
 
   it("shower: a 5 cm dark tray under four glass walls to H, 2 cm thick, that never cover the tray", () => {
