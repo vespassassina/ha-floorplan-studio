@@ -173,7 +173,7 @@ export type CarModel = "sedan" | "wagon" | "suv" | "offroad" | "truck" | "van" |
 `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. `height` is the size of the piece, `z` its bottom above the floor  (a wall TV, a speaker): the top is z + height.
 
 ```ts
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number; model?: CarModel; color?: string; attached?: string[] }
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number; model?: CarModel; color?: string; /** B53.4: with `color`, the paint of any piece but a car (whose `color` is its body) and a tree; `texture` is a room texture. */ texture?: string; textureRot?: number; textureScale?: number; attached?: string[] }
 ```
 
 ## Unlinked

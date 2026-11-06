@@ -21,6 +21,9 @@ Newest first. A change supersedes; nothing is edited.
   grain turns with the piece.
 - **2.5D**: the same group style sets `--fp-box-top` to the colour and `--fp-box-side`, `--fp-box-side-w` to 74 % and 88 % of it
   over black, which the existing `.bt`, `.bs`, `.bs.w` rules read. The lid symbol wears the colour or pattern.
+ - **Bytes:** card 121,531 (0.43.0, 6173ec8c) to 122,298 gzip -9 (+767; cap 124,650, 2,352 left). The 3D chunk gains the one-line paint read; its size-budget test stays green.
+ - **Shots:** `scripts/shots.mjs` paints the demo's ground sofa (`#2f6f8f`) and table (`wood-dark`) in memory, not in `demo/`, so the
+   demo tests keep their pixels (painting `demo/layout.json` broke six of them). Viewed in light and blueprint, 2D, 2.5D and 3D.
 
 ## 2026-11-05: free walls on a room edge, Reset all, ring colours; external faces (B53.9, Opus review)
 

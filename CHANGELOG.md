@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Studio and card: paint a piece of furniture. Select a piece and pick a colour or a texture (with rotation and scale) from the same swatches a room has; it shows in 2D, 2.5D and 3D. One undo step per paint. A car keeps its body colour, a tree is not painted.
+
 ## 0.43.0 - 2026-11-06
 
 Air conditioners get a real body and blow wind, a control screen type, a Body select per device, and colours for walls.

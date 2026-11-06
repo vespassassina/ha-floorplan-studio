@@ -350,6 +350,14 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   absent is the theme's furniture colour. `attached`: up to 24 more entity ids, in order, no repeats. `entity` is the
   car's main entity; with none, the first attached one is. `validate` reports each junk shape and the keys on any other
   piece, and never throws; `migrate` keeps the valid parts and drops the rest (an unknown model loads as a sedan).
+- **Paint** (B53.4, 2026-11-06; no schema bump, an older card draws the piece unpainted): any piece except `car` and
+  `tree` may carry `color` (`#rrggbb`) or `texture` (one of the room textures) with `textureRot` (0 to under 360) and
+  `textureScale` (0.25 to 2), the same keys and rules as a room. A texture wins over a colour. 2D fills the piece with
+  the colour or the texture pattern and keeps its outline and symbol lines; 2.5D and 3D use the colour, or the
+  texture's base colour (no grain in 3D). A `car` keeps `color` as its body colour and takes no texture; a `tree`
+  takes no paint. `validate` refuses a bad colour, an unknown texture, a non-finite rotation or scale, and the keys a
+  car or tree cannot hold, naming the piece; `migrate` drops them. Editor: `EditorState.paint("furniture", i, ...)`,
+  one undo step, a custom colour joins `layout.palette` in the same step.
   - State, from `carStatus` (pure, never throws): **away** when the first `device_tracker.*` among the entities is
     anything but `home`, `unknown`, `unavailable` or empty; **charging** by a `battery_charging` binary sensor that is on, or
     a sensor reading `charging` or `charge_in_progress`; **level** the battery percent (else a % sensor with `fuel` in its

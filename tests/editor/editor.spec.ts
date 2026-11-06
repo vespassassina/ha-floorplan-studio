@@ -5846,7 +5846,7 @@ test("S4.22: the rotation slider appears only once a texture is chosen, and disa
   await page.locator('.sw.tex[aria-label="Dark wood"]').click();
   await expect(page.locator("#rrot")).toHaveCount(1);
   await expect(page.locator("#rrot")).toHaveValue("0");
-  await page.locator("#fpcolx").click();
+  await page.getByText("Use the default colour").click();
   await expect(page.locator("#rrot")).toHaveCount(0);
 });
 
@@ -5912,7 +5912,7 @@ test("S4.19: the scale slider appears only once a texture is chosen, defaults to
   await page.locator('.sw.tex[aria-label="Dark wood"]').click();
   await expect(page.locator("#rscale")).toHaveCount(1);
   await expect(page.locator("#rscale")).toHaveValue("100");
-  await page.locator("#fpcolx").click();
+  await page.getByText("Use the default colour").click();
   await expect(page.locator("#rscale")).toHaveCount(0);
 });
 
