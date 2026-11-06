@@ -6,7 +6,7 @@ import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, 
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, validate } from "../core/schema";
-import { bodyOf } from "../core";
+import { bodyOf, furniturePaintable } from "../core";
 import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -67,16 +67,16 @@ export interface PanelCtx {
   commit(fn: (f: Floor) => Floor | void): void;
   select(s: Sel): void;
   /** Paints a room, zone or staircase (colour, texture or default): one undo step; a new custom colour joins `layout.palette`. */
-  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string } | null): void;
+  paint(on: "rooms" | "stairs" | "furniture", i: number, paint: { color: string } | { texture: string } | null): void;
   /** S35.7: after a car writer on `EditorState` (`setCarModel`, `paintCar`, `convertToCar`) returned `ok`: autosave and tell the host if it changed, else just redraw. Set by the editor host. */
   edited?: (ok: boolean) => void;
   /** S4.22: the paint panel's texture-rotation slider. `live` previews every tick, no undo step; `commit`, once at
    * release, records the whole drag as one step (none if it ended back where it started). */
-  rotateTexture(on: "rooms" | "stairs", i: number, rot: number, phase: "live" | "commit"): void;
+  rotateTexture(on: "rooms" | "stairs" | "furniture", i: number, rot: number, phase: "live" | "commit"): void;
   /** A piece of furniture or an unlinked object turned to any angle with a slider: same live/commit gesture as `rotateTexture`. */
   rotateItem(on: "furniture" | "unlinked", i: number, rot: number, phase: "live" | "commit"): void;
   /** S4.19: the paint panel's texture-scale slider, 25–200%. Same live/commit gesture as `rotateTexture`. */
-  scaleTexture(on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit"): void;
+  scaleTexture(on: "rooms" | "stairs" | "furniture", i: number, scale: number, phase: "live" | "commit"): void;
   /** S4.4: create a light from the selected switch or plug. Absent when there is no Home Assistant to write to. */
   makeLight?: (devIndex: number) => void;
   /** S4.2: create an HA area named after room `roomIndex` and link the room to it, after asking. Absent without a writer. */
@@ -147,7 +147,7 @@ const texturePreview = (t: { id: string; preview: string }) =>
  * Colour, custom colours, textures and "default" for a room, zone or staircase. A colour picked on the input that is not a swatch
  * yet is added to the swatches (kept in `layout.palette`, so it is still there after a reload). `id` prefixes the element ids.
  */
-function paintControls(c: PanelCtx, on: "rooms" | "stairs", i: number, id: string, shape: { color?: string; texture?: string; textureRot?: number; textureScale?: number }) {
+function paintControls(c: PanelCtx, on: "rooms" | "stairs" | "furniture", i: number, id: string, shape: { color?: string; texture?: string; textureRot?: number; textureScale?: number }) {
   const cur = (shape.color ?? "").toLowerCase(), custom = c.st.layout.palette ?? [];
   const swatch = (hex: string, name: string, extra = "") => html`<button class=${`sw${extra}`} type="button" title=${name} aria-label=${name} aria-pressed=${String(!shape.texture && cur === hex)} style="background:${hex}" @click=${() => c.paint(on, i, { color: hex })}></button>`;
   return html`<label for=${`${id}col`}>colour</label><input id=${`${id}col`} type="color" .value=${live(shape.color ?? "#ffffff")} @change=${(e: Event) => c.paint(on, i, { color: val(e) })}>
@@ -1281,8 +1281,15 @@ function furniturePanel(c: PanelCtx, i: number) {
   const isCar = m.symbol === "car";
   // S1.51: width and depth are clamped to the same 5..2000 cm bounds the corner drag and validate() hold.
   const setSize = (k: "w" | "h") => (n: number) => c.commit((f) => { f.furniture[i][k] = Math.min(2000, Math.max(5, n)); });
-  // `model`, `color` and `attached` belong to a car only (validate says so): leaving "car" takes them along.
-  const setSymbol = (v: string) => c.commit((f) => { const p = f.furniture[i]; p.symbol = v as typeof m.symbol; if (v !== "car") { delete p.model; delete p.color; delete p.attached; } });
+  // `model` and `attached` belong to a car only (validate says so): leaving "car" takes them along, and its body colour (on another piece `color` is paint).
+  // B53.4: a car takes no texture and a tree no paint, so entering either drops what it cannot hold.
+  const setSymbol = (v: string) => c.commit((f) => {
+    const p = f.furniture[i];
+    p.symbol = v as typeof m.symbol;
+    if (v !== "car") { delete p.model; delete p.attached; if (m.symbol === "car") delete p.color; }
+    if (v === "car" || v === "tree") { delete p.texture; delete p.textureRot; delete p.textureScale; }
+    if (v === "tree") delete p.color;
+  });
   return html`<strong>Furniture</strong>
     ${hint("Drag it to move it.")}
     ${heading("Identity")}
@@ -1300,6 +1307,7 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${heightField(c, "height (cm)", "fuht", m.height, isCar ? carSpec(m.model).height : FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}
     ${heightField(c, "bottom (cm)", "fuz", m.z, FURNITURE_Z[m.symbol] ?? 0, heightSetter(c, "furniture", i, "z"))}
     <p class="hint" id="fusize">H ${Math.round(furnitureHeight(m))} × W ${Math.round(m.w)} × L ${Math.round(m.h)} cm</p>
+    ${furniturePaintable(m.symbol) ? paintControls(c, "furniture", i, "fp", m) : nothing}
     ${rotationSlider(c, "frot", "furniture", i, m.rot)}
     ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
     ${heading("Danger")}
