@@ -157,7 +157,9 @@ export function addFurniture(ed: FloorplanStudioEditor, symbol: string) {
   const hung = sym === "mirror" ? mirrorOnWall(ed.st.f, p, FURNITURE[sym].h) : null;
   const at = hung ?? { x, y, rot: 0 };
   if (!ed.st.edit((f) => { f.furniture.push({ id: newId(f, floor, "furniture"), symbol: sym, x: at.x, y: at.y, rot: at.rot, w: FURNITURE[sym].w, h: FURNITURE[sym].h }); })) { ed.refused(); return; }
-  ensureVisible(ed, [x - FURNITURE[sym].w / 2, y - FURNITURE[sym].h / 2], [x + FURNITURE[sym].w / 2, y + FURNITURE[sym].h / 2]);
+  // Frame the piece where it landed (a hung mirror snaps up to 80 cm from the spawn point), turned: half its extent on each axis.
+  const a = (at.rot * Math.PI) / 180, hx = (Math.abs(Math.cos(a)) * FURNITURE[sym].w + Math.abs(Math.sin(a)) * FURNITURE[sym].h) / 2, hy = (Math.abs(Math.sin(a)) * FURNITURE[sym].w + Math.abs(Math.cos(a)) * FURNITURE[sym].h) / 2;
+  ensureVisible(ed, [at.x - hx, at.y - hy], [at.x + hx, at.y + hy]);
   ed.st.sel = { t: "furn", i: ed.st.f.furniture.length - 1 };
   placedNote(ed, before, "Edited", `Added ${sym}`);
 }
