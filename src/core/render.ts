@@ -26,7 +26,7 @@ import { devsHave, layerHides, type LayerId, type PlanSel } from "./layers";
 import type { DetailLevel } from "./detail";
 import { wallColourMap, wallColourVars, wallEdgeKey } from "./wall-colour";
 import { DARKEN_PCT, mirrored } from "./furniture-blocks";
-import { bodyOf, bodyAir, bodyFlat, bodyWind, STEM_MIN_Z, turnAbout, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, collectWalls, shadeMarkup, type Proj, type Solid, type WallsMode } from "./solids";
+import { bodyOf, bodyAir, bodyFlat, bodyWind, STEM_MIN_Z, turnAbout, furnitureLinked, furnitureCls, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, collectWalls, shadeMarkup, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
 
@@ -404,6 +404,9 @@ ${THEME_EXTRAS}
    when on) thinned into --fp-room-empty (the plain room, what most furniture stands on; --fp-room is dark in the dark themes and made dark blobs), so every theme and dark mode keep their hue and the stroke stays the edge.
    .ff is on bodies only; lines in a symbol (a bed's pillow line) keep fill:none. */
 .furn .ff{fill:color-mix(in srgb,currentColor 45%,var(--fp-room-empty))}
+/* B53.10: a plant is green: its leaves in 2D, its pot and foliage in 2.5D (--fp-box-* are what .bt and .bs read; a painted piece's inline style outranks this). */
+.furn-plant .ff{fill:color-mix(in srgb,var(--fp-tree) 45%,var(--fp-room-empty))}
+.furn-plant{--fp-box-top:color-mix(in srgb,var(--fp-tree) 60%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-tree) 75%,black);--fp-box-side-w:color-mix(in srgb,var(--fp-tree) 85%,black)}
 /* B53.4: a painted piece. The group carries --fp-furn-fill (a colour, or a pattern made for this piece) and the class; this rule is as
    specific as .furn .ff and comes after it, so the paint wins by order. The outline and the symbol's lines keep their stroke. Dark themes dim paint as on a room. */
 .furn.fpaint .ff{fill:var(--fp-furn-fill)}
@@ -1575,6 +1578,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
+  let rugSlot = -1;
+  const rugs: string[] = [];
   if (x25) {
     const segs = collectWalls(f, px, wallsModeOf(o.walls));
     solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state, segs));
@@ -1592,6 +1597,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     });
     for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
     out[shadeSlot] = shadeMarkup(segs, solids, px);
+    rugSlot = out.length; out.push(""); // B53.10: a rug is flat and lies under every solid, so it is drawn here, not after them
     // What lies below the floor (a stairwell) goes first: nothing standing on the floor is ever drawn under it.
     out.push(...solids.filter((s) => s.under).sort((a, b) => a.key - b.key).map((s) => s.svg));
     out.push(...solids.filter((s) => !s.under).sort((a, b) => a.key - b.key).map((s) => s.svg));
@@ -1838,17 +1844,19 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = pieceOn(o, m, plugs) ? " on" : "";
+    const dst = x25 && m.symbol === "rug" && rugSlot >= 0 ? rugs : out;
     // S28.3: a tree's soft shade patch, offset (+4, +6) cm in the plan whatever its size and turn, so outside the scaled group.
     const shade = treeShadeSvg(m);
-    if (shade) out.push(shade);
+    if (shade) dst.push(shade);
     const car = carOf(o, m);
     const fp = furniturePaintLook(m);
-    out.push(`<g data-f="${i}" class="furn${on}${car?.cls ?? ""}${fp.cls}"${furnitureLinked(m)}${car?.style ?? fp.style} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : sym.svg}</g>`);
-    if (car?.marks) out.push(car.marks.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
-    if (o.locate?.t === "furn" && o.locate.i === i) out.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
+    dst.push(`<g data-f="${i}" class="furn${on}${furnitureCls(m)}${car?.cls ?? ""}${fp.cls}"${furnitureLinked(m)}${car?.style ?? fp.style} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : sym.svg}</g>`);
+    if (car?.marks) dst.push(car.marks.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
+    if (o.locate?.t === "furn" && o.locate.i === i) dst.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
     const waves = furnitureWaves(o, m);
-    if (waves) out.push(waves.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
+    if (waves) dst.push(waves.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
   });
+  if (rugSlot >= 0) out[rugSlot] = rugs.join("");
 
   f.doors.forEach((d, i) => {
     // S4.24: several contact sensors may be attached; the door reads open if any one does, and the same for an

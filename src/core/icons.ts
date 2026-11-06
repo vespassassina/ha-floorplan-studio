@@ -101,6 +101,23 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   "coffee-table": { w: 110, h: 60, svg: r(4, 4, 92, 92, 10) + r(16, 16, 68, 68, 6) },
   bookcase: { w: 100, h: 35, svg: r(2, 4, 96, 92, 2) + `<path d="M26 4 V96 M50 4 V96 M74 4 V96" ${S}/>` },
   buffet: { w: 180, h: 50, svg: r(2, 4, 96, 92, 3) + `<path d="M34 4 V96 M66 4 V96" ${S}/>` + [28, 40, 60, 72].map((x) => `<ellipse cx="${x}" cy="50" rx="1.1" ry="4" ${SB}/>`).join("") }, // round knobs once stretched to 180 x 50
+  // B53.10: the rest of a home. Each is a plan symbol in the 100 x 100 box; a rounded knob is an ellipse thinner across the
+  // longer side so it is round once stretched. Appliances (fridge to dryer) can be linked to an entity, like a car (B53.11).
+  wardrobe: { w: 120, h: 60, svg: r(2, 4, 96, 92, 2) + `<path d="M50 4 V96" ${S}/>` + [43, 57].map((x) => `<ellipse cx="${x}" cy="50" rx="1.6" ry="3.2" ${SB}/>`).join("") },
+  dresser: { w: 100, h: 50, svg: r(2, 4, 96, 92, 3) + `<path d="M2 36 H98 M2 66 H98 M44 20 H56 M44 51 H56 M44 81 H56" ${S}/>` },
+  nightstand: { w: 45, h: 40, svg: r(4, 4, 92, 92, 5) + `<path d="M4 44 H96 M38 26 H62 M38 70 H62" ${S}/>` },
+  desk: { w: 140, h: 70, svg: r(2, 4, 96, 92, 3) + `<path d="M2 80 H98" ${S} stroke-opacity=".5"/>` },
+  armchair: { w: 85, h: 85, svg: r(6, 34, 88, 60, 14) + r(6, 6, 88, 30, 14) + r(6, 34, 18, 60, 8) + r(76, 34, 18, 60, 8) },
+  counter: { w: 240, h: 60, svg: r(2, 4, 96, 92, 1) + `<path d="M2 72 H98" ${S}/>` },
+  stove: { w: 60, h: 60, svg: r(4, 4, 92, 92, 3) + [[28, 28], [72, 28], [28, 72], [72, 72]].map(([x, y]) => c(x, y, 14)).join("") },
+  fridge: { w: 70, h: 65, svg: r(4, 4, 92, 92, 3) + `<path d="M4 38 H96 M84 20 V30 M84 48 V64" ${S}/>` },
+  dishwasher: { w: 60, h: 60, svg: r(4, 4, 92, 92, 3) + `<path d="M4 24 H96" ${S}/>` + c(80, 14, 4) },
+  washer: { w: 60, h: 60, svg: r(4, 4, 92, 92, 3) + `<path d="M4 22 H96" ${S}/>` + c(50, 60, 28) + c(50, 60, 17) },
+  dryer: { w: 60, h: 60, svg: r(4, 4, 92, 92, 3) + `<path d="M4 22 H96" ${S}/>` + c(50, 60, 28) + [40, 50, 60].map((x) => c(x, 60, 2)).join("") },
+  // A rug lies flat under everything (2.5D draws it as here); ticks of fringe on its two short sides.
+  rug: { w: 200, h: 140, svg: r(5, 4, 90, 92, 0) + r(14, 14, 72, 72, 0) + `<path d="${[14, 26, 38, 50, 62, 74, 86].map((y) => `M0 ${y} H5 M95 ${y} H100`).join(" ")}" ${S}/>` },
+  // Leaves around the stem, seen from above.
+  plant: { w: 40, h: 40, svg: [0, 72, 144, 216, 288].map((a) => `<ellipse cx="50" cy="27" rx="11" ry="22" transform="rotate(${a} 50 50)" ${SB}/>`).join("") + c(50, 50, 5) },
   tv: { w: 120, h: 10, svg: r(2, 20, 96, 60, 4) },
   speaker: { w: 25, h: 25, svg: r(10, 4, 80, 92, 8) + c(50, 62, 20) + c(50, 26, 9) },
   // S18.13: seen from above, the user at the bottom: a desk, the monitor along its back edge, a keyboard in front of it and

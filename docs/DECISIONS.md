@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: thirteen more pieces (B53.10)
+
+- Symbols, sizes and heights are spec 19c. Blocks reuse the shapes that exist (cabinet, table, sofa); only the plant is new: a dark
+  pot of 35 % of H inset 5 cm, and the foliage as one box over the whole footprint. Chosen over a pole like the tree because a
+  houseplant has a pot and a body, and the box keeps 2.5D and 3D from one `furnitureBlocks`.
+- **The rug is `flat` in 2.5D**, not a 1 cm box: flat pieces are drawn in the 2D pass, under every solid, so a sofa on it always
+  stands on it whatever the order of the corners. In 3D it is the 1 cm block and a sofa's first centimetre sits inside it (unseen).
+- A plant wears the class `furn-plant` (`furnitureCls`); a rule sets the 2D leaf fill and the 2.5D `--fp-box-*` from `--fp-tree`,
+  and the 3D palette gives it the crown green. A painted plant's inline style outranks the class. Computed-style pair in `furniture-look-css.spec.ts`.
+- All thirteen are paintable (`furniturePaintable` is unchanged: only car and tree are not).
+
 ## 2026-11-06: Opus review of B53: the 2.5D symbol sits between the blocks
 
 - **Defect:** the 2.5D symbol lies on the seat (`lidOf`) but was drawn after every block, so it covered the back, the arms, the

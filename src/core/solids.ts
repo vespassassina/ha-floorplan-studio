@@ -412,13 +412,18 @@ function prism(base: Pt[], h: number, px: Proj, z0 = 0): string | null {
  * One entry per symbol, so a new FurnitureSymbol fails the test that walks the list until someone decides (finding 17).
  */
 export const FURNITURE_SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
-  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", tv: "box", computer: "box", speaker: "box",
+  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", wardrobe: "box", dresser: "box", nightstand: "box", desk: "box", armchair: "box", counter: "box", stove: "box", fridge: "box", dishwasher: "box", washer: "box", dryer: "box", rug: "flat", plant: "box", tv: "box", computer: "box", speaker: "box",
   car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
 };
 /** How a piece of furniture draws in 2.5D. A piece that is not finite or not known is flat: the 2D path deals with it as ever. */
 export function furnitureMode(m: Furniture): "box" | "pole" | "flat" {
   const ok = [m.x, m.y, m.w, m.h, m.rot].every((v) => typeof v === "number" && Number.isFinite(v)) && m.w > 0 && m.h > 0 && furnitureHeight(m) > 0;
   return ok && has(FURNITURE_SOLID, m.symbol) ? FURNITURE_SOLID[m.symbol] : "flat";
+}
+
+/** B53.10: ` furn-plant` for a plant, whose leaves and foliage are green (a class, so a paint style still outranks it). */
+export function furnitureCls(m: Furniture): string {
+  return m?.symbol === "plant" ? " furn-plant" : "";
 }
 
 /**
@@ -493,7 +498,7 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
   // S18.9: a playing tv or speaker sends its waves from the lid, outside the scaled symbol group so they stay round.
   // A car's marks sit after its group, as in 2D: inside it an away car's dot would fade with the car.
   const w = (car ? car.marks : waves)?.replace("%AT%", `${num(top[0])} ${num(top[1])}`) ?? "";
-  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}${car?.cls ?? ""}${fp.cls}" color="var(--fp-furniture)"${furnitureLinked(m)}${car?.style ?? fp.style}>${body}${sym}${above}${cabin}${car ? "" : w}</g>${car ? w : ""}`, ...(mode === "box" && z0 < SHADE_MAX_LIFT ? { foot: base } : {}) };
+  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}${furnitureCls(m)}${car?.cls ?? ""}${fp.cls}" color="var(--fp-furniture)"${furnitureLinked(m)}${car?.style ?? fp.style}>${body}${sym}${above}${cabin}${car ? "" : w}</g>${car ? w : ""}`, ...(mode === "box" && z0 < SHADE_MAX_LIFT ? { foot: base } : {}) };
 }
 
 /** cm across the block under an unlinked appliance, times its own scale: a small thing, the icon says what it is. */

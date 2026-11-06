@@ -8,7 +8,7 @@
 // unions (`ROOM_KINDS`, `WALL_KINDS`, `DEVICE_TYPES`, `FURNITURE_SYMBOLS`) so a new member fails until it is named here.
 const ROOM_KINDS = ["room", "garden", "pavement", "fill", "terrace", "water"] as const; // a zone and a structure have no floor of their own
 const WALL_KINDS = ["wall", "boundary", "external", "fence", "edge", "parapet"] as const;
-const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"] as const;
+const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"] as const;
 const DEVICE_TYPES = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen"] as const;
 
 export interface RoleStyle { css: string; opacity: number }
@@ -37,6 +37,7 @@ export const wallOwnCss = (role: string, hex: string): string | null => {
 };
 const FURNITURE: Record<string, string> = {
   tree: "var(--fp-tree-edge)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),
+  plant: "color-mix(in srgb, white var(--fp-crown-lift, 0%), var(--fp-tree))", // B53.10: foliage green, lifted on dark themes like a crown
   sink: mix("--fp-window", 25, "--fp-furniture"), toilet: mix("--fp-window", 25, "--fp-furniture"), shower: mix("--fp-window", 25, "--fp-furniture"), bathtub: mix("--fp-window", 25, "--fp-furniture"),
 };
 // A device with a body in the scene (radiator, speaker, TV) is drawn at rest here; the live tints are the LIVE roles below. Every other type is a point.

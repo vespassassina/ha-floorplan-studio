@@ -47,13 +47,13 @@ export function furnitureBlocks(m: Furniture): Block[] {
   const lift = (want: number, share: number) => Math.min(want, H * share);
 
   switch (m.symbol) {
-    case "table": case "coffee-table": {
+    case "table": case "coffee-table": case "desk": {
       const t = lift(4, 0.2), s = room(Math.min(w, h), 5), i = room(Math.min(w, h), 5);
       for (const [x, y] of [[i, i], [w - i - s, i], [i, h - i - s], [w - i - s, h - i - s]]) box(x, x + s, y, y + s, 0, H - t, "dark");
       box(0, w, 0, h, H - t, H);
       break;
     }
-    case "sofa": sofa(w, h, H, box); break;
+    case "sofa": case "armchair": sofa(w, h, H, box); break;
     case "sofa-l": {
       const run = h * RUN_SHARE, chaise = w * CHAISE_SHARE, seat = H * 0.45;
       const mirror = (b: Block): Block => (mirrored(m) ? { ...b, x0: w - b.x1, x1: w - b.x0 } : b);
@@ -77,7 +77,7 @@ export function furnitureBlocks(m: Furniture): Block[] {
       box(0, w, 0, back, seat, H);
       break;
     }
-    case "cabinet": case "sink": case "buffet": {
+    case "cabinet": case "sink": case "buffet": case "wardrobe": case "dresser": case "nightstand": case "counter": case "stove": case "dishwasher": {
       const plinth = lift(10, 0.3), top = lift(3, 0.2), ix = room(w, 5), iy = room(h, 5);
       box(ix, w - ix, iy, h - iy, 0, plinth, "dark");
       box(0, w, 0, h, plinth, H - top);
@@ -93,9 +93,16 @@ export function furnitureBlocks(m: Furniture): Block[] {
       box(w - rx, w, ry, h - ry, base, H);
       break;
     }
+    // B53.10: a pot, 35 % of H and inset 5 cm, and the foliage over the whole footprint above it.
+    case "plant": {
+      const pot = (H * 35) / 100, ix = room(w, 5), iy = room(h, 5);
+      box(ix, w - ix, iy, h - iy, 0, pot, "dark");
+      box(0, w, 0, h, pot, H);
+      break;
+    }
     // Every other symbol is one box, as before. Decided one by one (finding 17): a tree and a car are drawn by their own code
     // (a trunk and a crown; the car's table) and a patio is flat, so for them this box is the footprint and nothing more.
-    case "toilet": case "shower": case "bookcase": case "tv": case "computer": case "speaker": case "tree": case "patio-wood": case "patio-concrete": case "car":
+    case "toilet": case "shower": case "bookcase": case "fridge": case "washer": case "dryer": case "rug": case "tv": case "computer": case "speaker": case "tree": case "patio-wood": case "patio-concrete": case "car":
       box(0, w, 0, h, 0, H);
       break;
     default: break;

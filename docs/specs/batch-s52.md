@@ -96,6 +96,12 @@ This batch needs about 3.7 KB on the card. 978 bytes are not enough, so Sprint 5
     - Every other symbol: one box, as today.
     Every block lies inside the piece's footprint and under `H`, at any size the editor allows, down to the smallest
     (insets shrink so no block has a size of 0 or less). Legs and plinths take the piece's colour 20 % darker.
+19c. **More pieces (added 2026-11-06, Diego: "add wardrobe and other missing home furniture components").** `wardrobe`
+    120 × 60 × 210, `dresser` 100 × 50 × 85, `nightstand` 45 × 40 × 55, `desk` 140 × 70 × 75, `armchair` 85 × 85 × 85,
+    `counter` 240 × 60 × 90, `stove` 60 × 60 × 90, `fridge` 70 × 65 × 185, `dishwasher` 60 × 60 × 85, `washer` and `dryer`
+    60 × 60 × 85, `rug` 200 × 140 × 1, `plant` 40 × 40 × 90. Blocks: wardrobe, dresser, nightstand, counter, stove and dishwasher
+    as a cabinet; desk as a table; armchair as a sofa; fridge, washer, dryer, rug one box; plant a pot (35 % of `H`, dark, inset
+    5 cm) and the foliage above it. A rug is `flat` in 2.5D (drawn in the 2D pass, under every solid). All paintable.
 
 ### C. Worktop (Sprint 54)
 

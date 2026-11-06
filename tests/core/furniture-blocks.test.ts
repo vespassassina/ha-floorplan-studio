@@ -44,7 +44,11 @@ describe("B53.5: furnitureBlocks", () => {
     expect(n("sofa-l")).toBe(5); // + the chaise
     expect(n("bed")).toBe(3); // frame, mattress, headboard
     expect(n("chair")).toBe(6); // 4 legs, seat, back
-    for (const s of ["cabinet", "sink", "buffet"]) expect(n(s), s).toBe(3); // plinth, body, top
+    for (const s of ["cabinet", "sink", "buffet", "wardrobe", "dresser", "nightstand", "counter", "stove", "dishwasher"]) expect(n(s), s).toBe(3); // plinth, body, top (B53.10)
+    expect(n("desk")).toBe(5); // as a table: top + 4 legs
+    expect(n("armchair")).toBe(4); // as a sofa: seat, back, 2 arms
+    expect(n("plant")).toBe(2); // pot + foliage
+    for (const s of ["fridge", "washer", "dryer", "rug"]) expect(n(s), s).toBe(1);
     expect(n("bathtub")).toBe(5); // base + 4 rim pieces
     for (const s of ["toilet", "shower", "bookcase", "tv", "computer", "speaker"]) expect(n(s), s).toBe(1);
   });
@@ -52,9 +56,18 @@ describe("B53.5: furnitureBlocks", () => {
   it("makes legs and plinths dark and nothing else", () => {
     for (const s of FURNITURE_SYMBOLS) {
       const dark = furnitureBlocks(piece(s, 173, 61)).filter((b) => b.tone === "dark");
-      const want = ["table", "coffee-table", "chair"].includes(s) ? 4 : ["cabinet", "sink", "buffet"].includes(s) ? 1 : 0;
+      const want = ["table", "coffee-table", "chair", "desk"].includes(s) ? 4 : ["cabinet", "sink", "buffet", "wardrobe", "dresser", "nightstand", "counter", "stove", "dishwasher", "plant"].includes(s) ? 1 : 0;
       expect(dark.length, s).toBe(want);
     }
+  });
+
+  it("B53.10: a plant is a pot of 35 % of H and the foliage above it; a rug is one box 1 cm high", () => {
+    const p = furnitureBlocks(piece("plant", 40, 40));
+    expect(p).toContainEqual({ x0: 5, x1: 35, y0: 5, y1: 35, z0: 0, z1: 31.5, tone: "dark" });
+    expect(p.find((b) => b.tone === "body")).toMatchObject({ z0: 31.5, z1: 90 });
+    expect(furnitureBlocks(piece("rug", 200, 140))).toEqual([{ x0: 0, x1: 200, y0: 0, y1: 140, z0: 0, z1: 1, tone: "body" }]);
+    const d = furnitureBlocks(piece("desk", 140, 70)).find((b) => b.tone === "body")!;
+    expect(d).toMatchObject({ z0: 71, z1: 75 }); // as a table
   });
 
   it("follows the stated measures on a table: a 4 cm top at H, legs 5 x 5 inset 5 from the corners", () => {

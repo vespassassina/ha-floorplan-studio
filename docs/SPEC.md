@@ -342,8 +342,9 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   removes only this field, never the automation in Home Assistant. Must
   differ from `entity`, same rule as `bound`.
 - `furniture.symbol`: table, sofa, sofa-l, coffee-table, bed, cabinet, bookcase,
-  buffet, chair, sink, toilet, shower, bathtub, tv, computer, speaker, tree,
-  patio-wood, patio-concrete, car (sofa-l and the three after it: B53.1).
+  buffet, wardrobe, dresser, nightstand, desk, armchair, counter, stove, fridge, dishwasher, washer, dryer, rug, plant, chair,
+  sink, toilet, shower, bathtub, tv, computer, speaker, tree, patio-wood, patio-concrete, car (sofa-l and the three after
+  it: B53.1; wardrobe to plant: B53.10, a rug is flat on the floor and drawn under everything in 2.5D, a plant is a pot and foliage).
 - `furniture.mirror` (optional, B53.2): `true` on a `sofa-l` flips it about the piece's vertical axis in 2D, 2.5D and 3D, so
   the chaise is on the right; absent is the chaise on the left. The chaise is 35 % of `w`, the back run 45 % of `h`.
   `validate` refuses it on any other symbol (naming the piece) and any value but `true`, and never throws; `migrate` keeps

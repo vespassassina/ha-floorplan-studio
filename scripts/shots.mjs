@@ -363,24 +363,32 @@ if (args.has("--blocks")) {
   mkdirSync(DIR, { recursive: true });
   for (const f of readdirSync(DIR)) rmSync(`${DIR}/${f}`, { force: true });
   const pc2 = (id, symbol, x, y, w, h, extra = {}) => ({ id, symbol, x, y, rot: 0, w, h, ...extra });
-  const bl = {
+  // B53.10: a second sheet, the thirteen newer pieces in two rows, files prefixed `more-`.
+  const MORE = [
+    pc2("m-wardrobe", "wardrobe", 80, 70, 120, 60), pc2("m-dresser", "dresser", 230, 70, 100, 50), pc2("m-night", "nightstand", 330, 70, 45, 40), pc2("m-desk", "desk", 470, 70, 140, 70),
+    pc2("m-arm", "armchair", 620, 80, 85, 85), pc2("m-counter", "counter", 780, 70, 200, 60),
+    pc2("m-stove", "stove", 70, 210, 60, 60), pc2("m-fridge", "fridge", 160, 210, 70, 65), pc2("m-dish", "dishwasher", 250, 210, 60, 60), pc2("m-washer", "washer", 330, 210, 60, 60), pc2("m-dryer", "dryer", 410, 210, 60, 60),
+    pc2("m-rug", "rug", 620, 230, 200, 140), pc2("m-sofa", "sofa", 620, 260, 160, 80), pc2("m-plant", "plant", 800, 230, 40, 40), pc2("m-plant2", "plant", 855, 230, 60, 60),
+  ];
+  const sheet = (furniture) => ({
     version: 2, unit: "cm", north: 0, rotate: 0, catalog: [],
     floors: { ground: {
       title: "Ground", outline: [[0, 0], [900, 0], [900, 430], [0, 430]], owk: ["external", "external", "external", "external"],
       rooms: [{ id: "room-ground-1", name: "Room", area: "room", kind: "room", pts: [[0, 0], [900, 0], [900, 430], [0, 430]] }],
       walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], unlinked: [],
-      furniture: [
+      furniture,
+    } },
+  });
+  const SHEETS = [["", sheet([
         pc2("b-sofa", "sofa", 130, 100, 200, 90), pc2("b-l", "sofa-l", 380, 120, 280, 180), pc2("b-lm", "sofa-l", 680, 120, 280, 180, { mirror: true }),
         pc2("b-table", "table", 110, 330, 160, 90), pc2("b-bed", "bed", 330, 310, 160, 200), pc2("b-tub", "bathtub", 560, 300, 170, 75),
         pc2("b-chair", "chair", 720, 300, 45, 45), pc2("b-cab", "cabinet", 830, 330, 60, 40),
-      ],
-    } },
-  };
+  ])], ["more-", sheet(MORE)]];
   const problems = [], files = [];
   const browser = await chromium.launch();
   try {
-    for (const t of [{ id: "light", theme: "light", page: "#fff" }, { id: "blueprint", theme: "blueprint", page: "#0d1522" }]) for (const view of ["2d", "2.5d", "3d"]) {
-      const base = `${view}-${t.id}`;
+    for (const [prefix, bl] of SHEETS) for (const t of [{ id: "light", theme: "light", page: "#fff" }, { id: "blueprint", theme: "blueprint", page: "#0d1522" }]) for (const view of ["2d", "2.5d", "3d"]) {
+      const base = `${prefix}${view}-${t.id}`;
       const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: view === "3d" ? 2 : 4 });
       const page = await ctx.newPage();
       page.on("pageerror", (e) => problems.push(`${base}: ${e}`));

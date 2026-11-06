@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Studio and card: thirteen new pieces of furniture in the Add menu: wardrobe, chest of drawers, nightstand, desk, armchair, kitchen counter, stove, fridge, dishwasher, washing machine, dryer, rug and plant. They are built from blocks in 2.5D and 3D and take paint. A rug lies flat under everything; a plant is green.
+
 - Card and Studio: furniture is built from blocks. A table has a top and four legs, a sofa a seat, back and arms, a bed a frame, mattress and headboard, a chair a seat, legs and back, a cabinet a plinth, body and top, a bathtub a base and a rim. 2.5D and 3D draw the same blocks; legs and plinths are 20 % darker than the piece.
 - Card and Studio: the corner sofa has a `mirror` option (a Mirror box in the Studio's furniture panel) that puts the chaise on the right, in 2D, 2.5D and 3D. The chaise is a seat, the same height as the seat of the run.
 - Studio and card: paint a piece of furniture. Select a piece and pick a colour or a texture (with rotation and scale) from the same swatches a room has; it shows in 2D, 2.5D and 3D. One undo step per paint. A car keeps its body colour, a tree is not painted.
