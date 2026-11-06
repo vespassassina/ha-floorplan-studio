@@ -1,7 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.44.1 - 2026-11-06
 
+Outdoors is readable at night and follows the weather by day; two Studio menu fixes.
+
+- Card and Studio: at night the garden, terrace, pavement and pond get a faint pale-blue moonlight in place of the dark veil, so their detail can be read. A lit outdoor room stays clear.
+- Card and Studio: by day the outdoor rooms are shaded by the weather and the hour: clear is none, cloud, fog, rain and storm darken it, and early morning and evening add a little. New card key `weather` (default `weather.home`); a missing entity is clear sky.
 - Studio: Add > Furniture is grouped by area of the house (Living, Kitchen and dining, Bedroom, Bathroom, Office, Gym, Laundry and cleaning, Outdoor), each area A to Z by name.
 - Studio: on Windows, a right-click on the plan no longer opens the browser's menu over the Studio's own. Windows fires the browser menu after the button comes up, by when ours is under the pointer.
 
