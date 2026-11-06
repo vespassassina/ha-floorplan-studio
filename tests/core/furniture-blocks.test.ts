@@ -50,13 +50,13 @@ describe("B53.5: furnitureBlocks", () => {
     expect(n("plant")).toBe(2); // pot + foliage
     for (const s of ["fridge", "washer", "dryer", "rug"]) expect(n(s), s).toBe(1);
     expect(n("bathtub")).toBe(5); // base + 4 rim pieces
-    for (const s of ["toilet", "shower", "bookcase", "tv", "computer", "speaker"]) expect(n(s), s).toBe(1);
+    for (const s of ["toilet", "bookcase", "tv", "computer", "speaker", "cube-shelf", "robot-vacuum", "robot-dock", "mirror"]) expect(n(s), s).toBe(1);
   });
 
   it("makes legs and plinths dark and nothing else", () => {
     for (const s of FURNITURE_SYMBOLS) {
       const dark = furnitureBlocks(piece(s, 173, 61)).filter((b) => b.tone === "dark");
-      const want = ["table", "coffee-table", "chair", "desk"].includes(s) ? 4 : ["cabinet", "sink", "buffet", "wardrobe", "dresser", "nightstand", "counter", "stove", "dishwasher", "plant"].includes(s) ? 1 : 0;
+      const want = ["table", "coffee-table", "chair", "desk"].includes(s) ? 4 : ["cabinet", "sink", "buffet", "wardrobe", "dresser", "nightstand", "counter", "stove", "dishwasher", "plant", "shower", "mirror-stand"].includes(s) ? 1 : s === "treadmill" ? 2 : s === "barbell-rack" ? 8 : s === "weight-rack" ? 2 : 0;
       expect(dark.length, s).toBe(want);
     }
   });
@@ -128,6 +128,79 @@ describe("B53.5: furnitureBlocks", () => {
         expect(tops, `2.5D ${s} ${w}x${h}`).toBe(n);
         expect(solids3, `3D ${s} ${w}x${h}`).toBe(n);
       }
+    }
+  });
+});
+
+// B53.12 (spec item 19e). Written after the code, not before: the shapes were found by drawing them.
+describe("B53.12: gym, chaise, shelf, mirrors, robot, shower box", () => {
+  const SIZES: [number, number][] = [[5, 5], [5, 300], [300, 5], [35, 35], [180, 80], [2000, 2000]];
+  const at = (s: string, w: number, h: number, extra = {}) => furnitureBlocks(piece(s, w, h, extra));
+  const NEW = ["treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "shower"];
+
+  it("keeps every block inside the piece at every size the editor allows, and every piece has blocks", () => {
+    for (const s of NEW) for (const [w, h] of SIZES) {
+      const H = furnitureHeight(piece(s, w, h));
+      const bl = at(s, w, h);
+      expect(bl.length, `${s} ${w}x${h}`).toBeGreaterThan(0);
+      for (const b of bl) {
+        expect(b.x0).toBeGreaterThanOrEqual(0); expect(b.x1).toBeLessThanOrEqual(w);
+        expect(b.y0).toBeGreaterThanOrEqual(0); expect(b.y1).toBeLessThanOrEqual(h);
+        expect(b.z0).toBeGreaterThanOrEqual(0); expect(b.z1).toBeLessThanOrEqual(H);
+        expect(b.x1 - b.x0).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("treadmill: a 20 cm deck over the whole footprint, two dark posts at the console end, a bar at H", () => {
+    const bl = at("treadmill", 180, 80);
+    expect(bl[0]).toMatchObject({ x0: 0, x1: 180, y0: 0, y1: 80, z0: 0, z1: 20, tone: "body" });
+    const posts = bl.filter((b) => b.tone === "dark");
+    expect(posts).toHaveLength(2);
+    for (const p of posts) { expect(p.x0).toBe(0); expect(p.z0).toBe(20); expect(p.z1).toBe(140); }
+    expect(bl.some((b) => b.z1 === 140 && b.z0 > 100 && b.y1 - b.y0 === 80)).toBe(true);
+  });
+
+  it("barbell-rack: four dark uprights to H and a dark frame; weight-rack: two dark ends and two shelves", () => {
+    const r = at("barbell-rack", 120, 120);
+    expect(r.every((b) => b.tone === "dark")).toBe(true);
+    expect(r.filter((b) => b.z0 === 0 && b.z1 === 230)).toHaveLength(4);
+    const w = at("weight-rack", 120, 50);
+    expect(w.filter((b) => b.tone === "dark")).toHaveLength(2);
+    expect(w.filter((b) => b.tone === "body").map((b) => b.z1).sort((a, b) => a - b)).toEqual([28, 80]);
+  });
+
+  it("chaise-longue: the seat at 40 % of H over all of it, the raised head over its last 30 %", () => {
+    const bl = at("chaise-longue", 160, 65);
+    expect(bl[0]).toMatchObject({ x0: 0, x1: 160, z0: 0, z1: 32 });
+    expect(bl[1]).toMatchObject({ x0: 112, x1: 160, z0: 32, z1: 80 });
+  });
+
+  it("mirror: one mirror-tone panel with the whole height; mirror-stand: a dark foot and a lean of about 10 degrees in thin mirror slabs", () => {
+    expect(at("mirror", 80, 5)).toEqual([{ x0: 0, x1: 80, y0: 0, y1: 5, z0: 0, z1: 100, tone: "mirror" }]);
+    const bl = at("mirror-stand", 50, 40);
+    expect(bl.filter((b) => b.tone === "dark")).toHaveLength(1);
+    const slabs = bl.filter((b) => b.tone === "mirror").sort((a, b) => a.z0 - b.z0);
+    expect(slabs).toHaveLength(6);
+    for (let k = 1; k < slabs.length; k++) { expect(slabs[k].y1).toBeLessThan(slabs[k - 1].y1); expect(slabs[k].z0).toBeCloseTo(slabs[k - 1].z1, 9); } // each further back than the one below, none with a gap
+    const lean = slabs[0].y1 - slabs[5].y1, rise = slabs[5].z0 - slabs[0].z0;
+    expect(Math.atan2(lean, rise) * 180 / Math.PI).toBeGreaterThan(7); expect(Math.atan2(lean, rise) * 180 / Math.PI).toBeLessThan(10.5); // the top slab is 5/6 up, so the slope of the steps is 10 degrees
+  });
+
+  it("shower: a 5 cm dark tray under four glass walls to H, 2 cm thick, that never cover the tray", () => {
+    const bl = at("shower", 90, 90);
+    expect(bl[0]).toMatchObject({ z0: 0, z1: 5, tone: "dark", x1: 90, y1: 90 });
+    const glass = bl.filter((b) => b.tone === "glass");
+    expect(glass).toHaveLength(4);
+    for (const g of glass) { expect(g.z0).toBe(5); expect(g.z1).toBe(furnitureHeight(piece("shower", 90, 90))); }
+    expect(Math.min(...glass.map((g) => Math.min(g.x1 - g.x0, g.y1 - g.y0)))).toBe(2);
+  });
+
+  it("only the shower has glass and only the mirrors have mirror blocks", () => {
+    for (const s of FURNITURE_SYMBOLS) {
+      const tones = new Set(furnitureBlocks(piece(s, 120, 70)).map((b) => b.tone));
+      expect(tones.has("glass"), s).toBe(s === "shower");
+      expect(tones.has("mirror"), s).toBe(s === "mirror" || s === "mirror-stand");
     }
   });
 });

@@ -112,6 +112,14 @@ This batch needs about 3.7 KB on the card. 978 bytes are not enough, so Sprint 5
     thirsty as a breathing glow in `--fp-plant-thirsty`. Tap opens a popup with the status line; More info opens the chooser. Same
     in 2D, 2.5D, 3D and replay.
 
+19e. **Gym, chaise, shelf, mirrors, robot, shower box (added 2026-11-06, Diego).** `treadmill` 180 x 80 x 140, `barbell-rack`
+    120 x 120 x 230, `weight-rack` 120 x 50 x 80, `chaise-longue` 160 x 65 x 80, `cube-shelf` 147 x 39 x 147, `mirror` 80 x 5 x 100
+    (bottom `z` 90), `mirror-stand` 50 x 40 x 180, `robot-vacuum` 35 x 35 x 10, `robot-dock` 35 x 15 x 12; blocks from `furnitureBlocks`
+    (treadmill: deck, two posts, console bar; barbell rack: four uprights and a frame; weight rack: two ends, two shelves; chaise:
+    seat 40 % of H and a raised head over the last 30 %; stand: slabs leaning 10 degrees on a foot). Block tones `glass` and `mirror`
+    use `--fp-glass` and `--fp-mirror` and ignore paint; the shower is a 5 cm dark tray and four 2 cm glass walls to H. A mirror
+    snaps to the nearest wall (80 cm) and turns with it when added or dragged. Mirrors are not paintable.
+
 ### C. Worktop (Sprint 54)
 
 20. **Shape:** `symbol: "worktop"` with `pts: Pt[]` in plan cm, from 3 to 64 points, a simple polygon (no

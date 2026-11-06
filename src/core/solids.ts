@@ -413,7 +413,7 @@ function prism(base: Pt[], h: number, px: Proj, z0 = 0): string | null {
  * One entry per symbol, so a new FurnitureSymbol fails the test that walks the list until someone decides (finding 17).
  */
 export const FURNITURE_SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
-  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", wardrobe: "box", dresser: "box", nightstand: "box", desk: "box", armchair: "box", counter: "box", stove: "box", fridge: "box", dishwasher: "box", washer: "box", dryer: "box", rug: "flat", plant: "box", tv: "box", computer: "box", speaker: "box",
+  table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", wardrobe: "box", dresser: "box", nightstand: "box", desk: "box", armchair: "box", counter: "box", stove: "box", fridge: "box", dishwasher: "box", washer: "box", dryer: "box", rug: "flat", plant: "box", treadmill: "box", "barbell-rack": "box", "weight-rack": "box", "chaise-longue": "box", "cube-shelf": "box", mirror: "box", "mirror-stand": "box", "robot-vacuum": "box", "robot-dock": "box", tv: "box", computer: "box", speaker: "box",
   car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
 };
 /** How a piece of furniture draws in 2.5D. A piece that is not finite or not known is flat: the 2D path deals with it as ever. */
@@ -466,7 +466,7 @@ export function pieceDevice(m: Furniture): Device | null {
 function blocksSvg(m: Furniture, blocks: Block[], z0: number, lid: number, c: Pt, px: Proj): [string, string] | null {
   const put = (b: Block): Pt[] => ([[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]] as Pt[]).map((q) => turnAbout([m.x - m.w / 2 + q[0], m.y - m.h / 2 + q[1]], m.rot, c));
   const items = blocks.map((b) => { const base = put(b); return { b, base, key: nearest(px, base) }; }).sort((p, q) => p.b.z0 - q.b.z0 || p.key - q.key);
-  const parts = items.map(({ b, base }) => { const p = prism(base, z0 + b.z1, px, z0 + b.z0); return p && b.tone === "dark" ? `<g class="blk-dark">${p}</g>` : p; });
+  const parts = items.map(({ b, base }) => { const p = prism(base, z0 + b.z1, px, z0 + b.z0); return p && b.tone !== "body" ? `<g class="blk-${b.tone}">${p}</g>` : p; });
   if (!parts.length || !parts.every((p) => p)) return null;
   const low = (k: number) => items[k].b.z1 <= lid + 1e-9;
   return [parts.filter((_, k) => low(k)).join(""), parts.filter((_, k) => !low(k)).join("")];

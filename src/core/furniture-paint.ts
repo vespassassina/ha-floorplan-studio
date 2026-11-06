@@ -11,7 +11,8 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
  * and a trunk the theme colours; neither is a block to paint. One entry decides each symbol (finding 17: a test walks the list).
  */
 export function furniturePaintable(symbol: unknown): boolean {
-  return symbol !== "car" && symbol !== "tree";
+  // B53.12: a mirror is glass in the theme's mirror colour, so neither mirror takes paint. A shower does: its tray is painted, its glass is not.
+  return symbol !== "car" && symbol !== "tree" && symbol !== "mirror" && symbol !== "mirror-stand";
 }
 
 /** The piece's paint as a strict value, or null: a texture (a known id) wins over a colour, like on a room. */

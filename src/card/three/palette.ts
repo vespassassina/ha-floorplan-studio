@@ -8,7 +8,7 @@
 // unions (`ROOM_KINDS`, `WALL_KINDS`, `DEVICE_TYPES`, `FURNITURE_SYMBOLS`) so a new member fails until it is named here.
 const ROOM_KINDS = ["room", "garden", "pavement", "fill", "terrace", "water"] as const; // a zone and a structure have no floor of their own
 const WALL_KINDS = ["wall", "boundary", "external", "fence", "edge", "parapet"] as const;
-const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"] as const;
+const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"] as const;
 const DEVICE_TYPES = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen"] as const;
 
 export interface RoleStyle { css: string; opacity: number }
@@ -86,6 +86,10 @@ for (const k of ROOM_KINDS) TABLE.set(`room-${k}`, solid(ROOM[k] ?? "var(--fp-ro
 for (const k of WALL_KINDS) TABLE.set(`wall-${k}`, solid(WALL[k] ?? "var(--fp-wall)"));
 for (const k of ["door", "glass", "window", "slit", "fullwindow", "sealed", "opening"]) TABLE.set(`glass-${k}`, { css: k === "window" || k === "slit" || k === "fullwindow" ? "var(--fp-window)" : "var(--fp-glass)", opacity: 0.35 });
 for (const s of FURNITURE_SYMBOLS) TABLE.set(`furniture-${s}`, solid(FURNITURE[s] ?? mix("--fp-furniture", 70, "--fp-bg")));
+// B53.12: a shower wall is the theme's glass, translucent as every glass on the plan; a mirror is its own theme colour, lifted toward white
+// (the nearest Lambert gets to "reflective" without an environment map). Neither takes paint (scene-build `look`).
+TABLE.set("furniture-glass", { css: "var(--fp-glass)", opacity: 0.2 }); // lighter than a window: four walls overlap in a shower
+TABLE.set("furniture-mirror", solid("color-mix(in srgb, var(--fp-mirror) 70%, white)"));
 // B53.5: a leg or a plinth takes its piece's colour 20 % darker (DARKEN_PCT in core/furniture-blocks.ts; this chunk imports nothing from core, so the figure is written again and a test holds the two together).
 for (const s of FURNITURE_SYMBOLS) TABLE.set(`furniture-${s}-dark`, solid(`color-mix(in srgb, ${TABLE.get(`furniture-${s}`)!.css} 80%, black)`));
 for (const t of DEVICE_TYPES) TABLE.set(`device-${t}`, solid(DEVICE[t] ?? mix("--fp-furniture", 70, "--fp-bg")));

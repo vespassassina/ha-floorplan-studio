@@ -8,8 +8,14 @@
 import { furnitureHeight } from "./heights";
 import type { Furniture } from "./schema";
 
-/** `dark` is a leg or a plinth: the piece's colour, 20 % darker (`darkened`). */
-export interface Block { x0: number; x1: number; y0: number; y1: number; z0: number; z1: number; tone: "body" | "dark" }
+/**
+ * `dark` is a leg or a plinth: the piece's colour, 20 % darker (`darkened`). B53.12: `glass` is a shower wall (theme `--fp-glass`,
+ * translucent) and `mirror` a mirror's face (theme `--fp-mirror`); neither takes the piece's paint.
+ */
+export interface Block { x0: number; x1: number; y0: number; y1: number; z0: number; z1: number; tone: "body" | "dark" | "glass" | "mirror" }
+
+/** A mirror stands this many degrees off the vertical (B53.12), and `mirror-stand` approximates it with this many stacked slabs. */
+export const MIRROR_LEAN_DEG = 10, MIRROR_SLABS = 6;
 
 /** How much black a dark block takes: the piece's colour 20 % darker. The one place the figure lives (CSS, 3D palette, paint). */
 export const DARKEN_PCT = 20;
@@ -100,9 +106,68 @@ export function furnitureBlocks(m: Furniture): Block[] {
       box(0, w, 0, h, pot, H);
       break;
     }
+    // B53.12: a shower is a low dark tray (5 cm) and four glass walls (2 cm, at most 10 % of a side) up to H.
+    case "shower": {
+      const tray = lift(5, 0.2), tx = room(w, 2, 0.1), ty = room(h, 2, 0.1);
+      box(0, w, 0, h, 0, tray, "dark");
+      box(0, w, 0, ty, tray, H, "glass");
+      box(0, w, h - ty, h, tray, H, "glass");
+      box(0, tx, ty, h - ty, tray, H, "glass");
+      box(w - tx, w, ty, h - ty, tray, H, "glass");
+      break;
+    }
+    // B53.12: a belt deck 20 cm (at most 30 % of H) over the whole length, two front posts (dark) at the console end, x = 0, and the
+    // console bar across them at H.
+    case "treadmill": {
+      const deck = lift(20, 0.3), s = room(Math.min(w, h), 6, 0.15), bar = lift(8, 0.1);
+      box(0, w, 0, h, 0, deck);
+      box(0, s, 0, s, deck, H, "dark");
+      box(0, s, h - s, h, deck, H, "dark");
+      box(0, s * 2, 0, h, H - bar, H);
+      break;
+    }
+    // Four uprights (8 cm, at most 12 % of a side) and a rail round the top; the middle stays open.
+    case "barbell-rack": {
+      const s = room(Math.min(w, h), 8, 0.12), top = lift(6, 0.05);
+      for (const [x, y] of [[0, 0], [w - s, 0], [0, h - s], [w - s, h - s]]) box(x, x + s, y, y + s, 0, H, "dark");
+      box(0, w, 0, s, H - top, H, "dark");
+      box(0, w, h - s, h, H - top, H, "dark");
+      box(0, s, s, h - s, H - top, H, "dark");
+      box(w - s, w, s, h - s, H - top, H, "dark");
+      break;
+    }
+    // Two end frames and two shelves, the top one at H.
+    case "weight-rack": {
+      const e = room(w, 6, 0.1), t = lift(4, 0.15);
+      box(0, e, 0, h, 0, H, "dark");
+      box(w - e, w, 0, h, 0, H, "dark");
+      box(e, w - e, 0, h, H * 0.35 - t, H * 0.35);
+      box(e, w - e, 0, h, H - t, H);
+      break;
+    }
+    // The seat at 40 % of H over the whole length and the raised head over the last 30 % of it, up to H.
+    case "chaise-longue": {
+      const seat = H * 0.4;
+      box(0, w, 0, h, 0, seat);
+      box(w * 0.7, w, 0, h, seat, H);
+      break;
+    }
+    case "mirror": box(0, w, 0, h, 0, H, "mirror"); break;
+    // A standing mirror leans back MIRROR_LEAN_DEG: MIRROR_SLABS thin slabs, each a little further back than the one below, on a
+    // dark foot. The glass is what leans, so the slabs are `mirror`; they stand on the front (high y) and the top ends at the back.
+    case "mirror-stand": {
+      const foot = lift(4, 0.05), t = room(h, 3, 0.2), lean = Math.max(0, Math.min((H * Math.tan((MIRROR_LEAN_DEG * Math.PI) / 180)), h - t)), ix = room(w, 4, 0.1);
+      box(ix, w - ix, 0, h, 0, foot, "dark");
+      const span = H - foot;
+      for (let k = 0; k < MIRROR_SLABS; k++) {
+        const y1 = h - (lean * k) / MIRROR_SLABS;
+        box(0, w, y1 - t, y1, foot + (span * k) / MIRROR_SLABS, foot + (span * (k + 1)) / MIRROR_SLABS, "mirror");
+      }
+      break;
+    }
     // Every other symbol is one box, as before. Decided one by one (finding 17): a tree and a car are drawn by their own code
     // (a trunk and a crown; the car's table) and a patio is flat, so for them this box is the footprint and nothing more.
-    case "toilet": case "shower": case "bookcase": case "fridge": case "washer": case "dryer": case "rug": case "tv": case "computer": case "speaker": case "tree": case "patio-wood": case "patio-concrete": case "car":
+    case "toilet": case "bookcase": case "cube-shelf": case "robot-vacuum": case "robot-dock": case "fridge": case "washer": case "dryer": case "rug": case "tv": case "computer": case "speaker": case "tree": case "patio-wood": case "patio-concrete": case "car":
       box(0, w, 0, h, 0, H);
       break;
     default: break;

@@ -343,7 +343,9 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   differ from `entity`, same rule as `bound`.
 - `furniture.symbol`: table, sofa, sofa-l, coffee-table, bed, cabinet, bookcase,
   buffet, wardrobe, dresser, nightstand, desk, armchair, counter, stove, fridge, dishwasher, washer, dryer, rug, plant, chair,
-  sink, toilet, shower, bathtub, tv, computer, speaker, tree, patio-wood, patio-concrete, car (sofa-l and the three after
+  sink, toilet, shower, bathtub, tv, computer, speaker, tree, patio-wood, patio-concrete, car, treadmill, barbell-rack, weight-rack,
+  chaise-longue, cube-shelf, mirror, mirror-stand, robot-vacuum, robot-dock (B53.12, 2026-11-06; spec 19e: a mirror hangs at 90 cm,
+  snaps to the nearest wall, takes no paint; a shower is a tray and glass walls) (sofa-l and the three after
   it: B53.1; wardrobe to plant: B53.10, a rug is flat on the floor and drawn under everything in 2.5D, a plant is a pot and foliage).
 - `furniture.mirror` (optional, B53.2): `true` on a `sofa-l` flips it about the piece's vertical axis in 2D, 2.5D and 3D, so
   the chaise is on the right; absent is the chaise on the left. The chaise is 35 % of `w`, the back run 45 % of `h`.

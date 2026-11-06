@@ -1,6 +1,6 @@
 import type { LooseRef, PtRef, Sel, View } from "./state";
 import type { Corner } from "./ops";
-import type { Floor, Layout, Pt } from "../core";
+import { type Floor, type Layout, nearestEdge, type Pt, wallWidthAt } from "../core";
 
 /** Shared by the editor's modules: the hit and drag shapes, and the small helpers the element and its parts both use. */
 
@@ -45,3 +45,21 @@ export const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.
 
 /** Where a door, window, opening or heater sits: a room, outline or water edge, or a free wall. Never a zone or stairs. */
 export const HOST = { walls: true } as const;
+
+/** How far from a wall (cm, to the pointer) a mirror still jumps onto it (B53.12). */
+export const MIRROR_SNAP = 80;
+
+/**
+ * B53.12: where a wall mirror hangs when its middle is dragged or dropped at `c`: back flat against the nearest wall, on the side
+ * `c` is, turned to run along it. No wall within `MIRROR_SNAP` -> null and the piece goes where it was put. Same host rule as a
+ * heater (`HOST`: room and outline edges and free walls), no second snapping system. A piece's +y axis in the plan is
+ * (-sin rot, cos rot), the wall's normal for rot = atan2(u), so the front faces `c`'s side.
+ */
+export function mirrorOnWall(f: Floor, c: Pt, depth: number): { x: number; y: number; rot: number } | null {
+  const e = nearestEdge(f, c, MIRROR_SNAP, HOST);
+  if (!e) return null;
+  const [ux, uy] = e.u, nx = -uy, ny = ux, side = (c[0] - e.q[0]) * nx + (c[1] - e.q[1]) * ny >= 0 ? 1 : -1;
+  const thick = wallWidthAt(f, [e.q[0] - ux, e.q[1] - uy], [e.q[0] + ux, e.q[1] + uy]);
+  const off = thick / 2 + depth / 2, deg = (Math.atan2(uy, ux) * 180) / Math.PI + (side > 0 ? 0 : 180);
+  return { x: Math.round((e.q[0] + nx * side * off) * 10) / 10, y: Math.round((e.q[1] + ny * side * off) * 10) / 10, rot: Math.round((((deg % 360) + 360) % 360) * 10) / 10 };
+}

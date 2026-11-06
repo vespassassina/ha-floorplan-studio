@@ -2,7 +2,7 @@ import { type DeviceType, FURNITURE, FURNITURE_SYMBOLS, furnitureForType, neares
 import { newId, type PtRef, type Sel, slug } from "./state";
 import { applyShape, type AreaPreset, Draw, type DrawKind, rayPoint, snapRay } from "./draw";
 import { closeAlign } from "./editor-align";
-import { DRAW_HINT, hasOwn, HOST, round } from "./editor-kit";
+import { DRAW_HINT, hasOwn, HOST, mirrorOnWall, round } from "./editor-kit";
 import { cornerHit, snapCorner } from "./editor-pointer";
 import { centre, ensureVisible, middle, spawn, spawnDevice } from "./editor-actions";
 import { segmentAt, spawnInView, squareAt, stairsAt } from "./ops";
@@ -153,7 +153,10 @@ export function addFurniture(ed: FloorplanStudioEditor, symbol: string) {
   if (ed.st.planLocked) { ed.planFixed(); return; }
   stopDraw(ed);
   const sym = symbol as keyof typeof FURNITURE, p = middle(ed) ? spawnDevice(ed) : spawn(ed), [x, y] = p, floor = ed.st.floor, before = counted(ed);
-  if (!ed.st.edit((f) => { f.furniture.push({ id: newId(f, floor, "furniture"), symbol: sym, x, y, rot: 0, w: FURNITURE[sym].w, h: FURNITURE[sym].h }); })) { ed.refused(); return; }
+  // B53.12: a mirror lands on the nearest wall, turned with it (the same hosts a heater has).
+  const hung = sym === "mirror" ? mirrorOnWall(ed.st.f, p, FURNITURE[sym].h) : null;
+  const at = hung ?? { x, y, rot: 0 };
+  if (!ed.st.edit((f) => { f.furniture.push({ id: newId(f, floor, "furniture"), symbol: sym, x: at.x, y: at.y, rot: at.rot, w: FURNITURE[sym].w, h: FURNITURE[sym].h }); })) { ed.refused(); return; }
   ensureVisible(ed, [x - FURNITURE[sym].w / 2, y - FURNITURE[sym].h / 2], [x + FURNITURE[sym].w / 2, y + FURNITURE[sym].h / 2]);
   ed.st.sel = { t: "furn", i: ed.st.f.furniture.length - 1 };
   placedNote(ed, before, "Edited", `Added ${sym}`);

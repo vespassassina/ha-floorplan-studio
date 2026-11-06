@@ -2,6 +2,28 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: gym, chaise, shelf, mirrors, robot and a shower box (B53.12)
+
+- **Nine pieces** (spec 19e): `treadmill` 180 x 80 x 140, `barbell-rack` 120 x 120 x 230, `weight-rack` 120 x 50 x 80,
+  `chaise-longue` 160 x 65 x 80, `cube-shelf` 147 x 39 x 147, `mirror` 80 x 5 x 100 hung at `z` 90, `mirror-stand` 50 x 40 x 180,
+  `robot-vacuum` 35 x 35 x 10, `robot-dock` 35 x 15 x 12. All from `furnitureBlocks`, so 2.5D and 3D cannot differ. Every
+  per-symbol table has an entry (size, height, bottom, solid, label, icon, blocks, paint, tap); the iterating tests list them.
+- **Mirror is 80 x 5, not 80 x 3.** The schema minimum for a side is 5 cm; a 3 cm panel would be refused on load. Changing the
+  minimum for one symbol is a bigger decision than 2 cm.
+- **Two new block tones, `glass` and `mirror`.** They read `--fp-glass` and the new `--fp-mirror` (all 13 themes: hand-written
+  sets and `theme-roles.ts`), not the piece's `--fp-box-*`, so paint never reaches them. 3D roles `furniture-glass` (opacity .2,
+  lighter than a window because four walls overlap) and `furniture-mirror` (the mirror colour lifted 30 % to white). "Reflective" in a
+  Lambert-only scene means lighter; no environment map was added (size).
+- **Mirrors are not paintable** (`furniturePaintable` false for `mirror` and `mirror-stand`): the glass is the theme's. `validate`
+  stays lenient and the renderer ignores the paint. A shower is paintable; only its tray takes it.
+- **Shower box:** a 5 cm dark tray and four glass walls 2 cm thick (at most 10 % of a side) to H. Four sides, no opening: the plan
+  does not know where a door would be, and an opening can be made by shrinking the piece against a wall. The symbol lies on the tray.
+- **Standing mirror leans ~10 degrees** as six thin stacked slabs on a dark foot, no sloped geometry (the solid is prisms). In
+  2.5D the slabs read as a stepped panel; accepted. A wall mirror drawn against the back wall is hidden by the wall face in 2.5D.
+- **A mirror snaps to the nearest wall** when added and when dragged (`mirrorOnWall`, editor-kit.ts), through `nearestEdge` with
+  `HOST`, as a heater does; no second snapping system. Back against the wall's line plus half its thickness, turned with it, front
+  to the pointer's side, within 80 cm; farther away it stays where it was put.
+
 ## 2026-11-06: appliances and plants linked to HA (B53.11)
 
 - **Linked pieces.** `washer`, `dryer`, `dishwasher`, `fridge`, `stove` and `plant` take `entity` and `attached` like the car

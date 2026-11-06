@@ -10,7 +10,7 @@ const piece = (o: object) => ({ id: "f1", symbol: "tv", x: 100, y: 100, rot: 0, 
 
 describe("furniture bottom", () => {
   it("defaults: tv and speaker 100 cm up, everything else on the floor", () => {
-    expect(FURNITURE_Z).toEqual({ tv: 100, speaker: 100 });
+    expect(FURNITURE_Z).toEqual({ tv: 100, speaker: 100, mirror: 90 });
     expect(furnitureBottom(piece({}))).toBe(100);
     expect(furnitureBottom(piece({ symbol: "speaker" }))).toBe(100);
     expect(furnitureBottom(piece({ symbol: "sofa" }))).toBe(0);

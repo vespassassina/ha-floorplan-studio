@@ -95,7 +95,7 @@ export function rolesToTokens(roles: ThemeRoles): string {
     // colour: here that collapses to the one accent, which made an open door orange in blueprint. `open_color`
     // (the card's own config, floorplan-studio-card.ts) overrides this on the host, never here.
     `--fp-open-door:#d64545`,
-    `--fp-door:${roles.fg}`, `--fp-glass:${roles.fg}`, `--fp-window:${roles.fg}`, `--fp-sealed:${shades.sealed}`,
+    `--fp-door:${roles.fg}`, `--fp-glass:${roles.fg}`, `--fp-mirror:color-mix(in srgb, ${roles.fg} 40%, ${shades.bg})`, `--fp-window:${roles.fg}`, `--fp-sealed:${shades.sealed}`,
     `--fp-water:${shades.water}`, `--fp-fill:${shades.fill}`, `--fp-fill-line:${shades.fillLine}`,
     `--fp-tread:${shades.tread}`,
     `--fp-dev-light:${devFor("light")}`, `--fp-dev-motion:${devFor("motion")}`, `--fp-dev-contact:${devFor("contact")}`,

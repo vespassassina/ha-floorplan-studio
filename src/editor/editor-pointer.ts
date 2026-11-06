@@ -1,6 +1,6 @@
 import { dist, edgeRooms, type Floor, insertPoint, nearestEdge, polys, type Pt, rotateAbout, snapped, snapPoint, stitch, type WallKind } from "../core";
 import { type LooseRef, polyPts, ptOf, type PtRef, type Sel } from "./state";
-import { type Drag, type Hit, HOST, round } from "./editor-kit";
+import { type Drag, type Hit, HOST, mirrorOnWall, round } from "./editor-kit";
 import { type Corner, furnitureNear, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo } from "./ops";
 import { layerHides } from "../core/layers";
 import { traceStep } from "./editor-trace";
@@ -425,6 +425,8 @@ export const onMove = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
       g = structuredClone(d.base);
       g.furniture[d.i].x = g5(p[0] - d.off[0]);
       g.furniture[d.i].y = g5(p[1] - d.off[1]);
+      // B53.12: a wall mirror snaps to the nearest wall and turns with it.
+      if (g.furniture[d.i].symbol === "mirror") Object.assign(g.furniture[d.i], mirrorOnWall(d.base, [p[0] - d.off[0], p[1] - d.off[1]], g.furniture[d.i].h) ?? {});
       break;
     }
     case "unl": {

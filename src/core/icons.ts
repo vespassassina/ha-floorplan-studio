@@ -118,6 +118,17 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   rug: { w: 200, h: 140, svg: r(5, 4, 90, 92, 0) + r(14, 14, 72, 72, 0) + `<path d="${[14, 26, 38, 50, 62, 74, 86].map((y) => `M0 ${y} H5 M95 ${y} H100`).join(" ")}" ${S}/>` },
   // Leaves around the stem, seen from above.
   plant: { w: 40, h: 40, svg: [0, 72, 144, 216, 288].map((a) => `<ellipse cx="50" cy="27" rx="11" ry="22" transform="rotate(${a} 50 50)" ${SB}/>`).join("") + c(50, 50, 5) },
+  // B53.12: gym, a chaise, a cube shelf, two mirrors and the robot vacuum with its dock. Round things use ellipses thinner across the
+  // longer side so they are round once stretched; a treadmill's console is at the left (x = 0) end, a chaise's raised head at the right.
+  treadmill: { w: 180, h: 80, svg: r(2, 4, 96, 92, 4) + r(2, 26, 16, 48, 3) + r(26, 14, 66, 72, 10) + `<path d="M26 50 H92 M40 14 V86 M78 14 V86" ${S} stroke-opacity=".4"/>` },
+  "barbell-rack": { w: 120, h: 120, svg: r(8, 8, 84, 84, 3) + [[8, 8], [80, 8], [8, 80], [80, 80]].map(([x, y]) => r(x, y, 12, 12, 2)).join("") + `<path d="M0 50 H100" ${S}/>` + r(0, 36, 7, 28, 1) + r(93, 36, 7, 28, 1) },
+  "weight-rack": { w: 120, h: 50, svg: r(2, 4, 96, 92, 2) + [28, 72].map((y) => [10, 32, 54, 76].map((x) => `<path d="M${x + 2} ${y} h10" ${S}/>` + r(x, y - 9, 3, 18, 1) + r(x + 11, y - 9, 3, 18, 1)).join("")).join("") },
+  "chaise-longue": { w: 160, h: 65, svg: r(2, 6, 96, 88, 14) + r(68, 6, 30, 88, 14) + `<path d="M68 12 V88" ${S}/>` },
+  "cube-shelf": { w: 147, h: 39, svg: r(2, 4, 96, 92, 2) + [8, 31, 54, 77].map((x) => r(x, 14, 15, 72, 1)).join("") },
+  mirror: { w: 80, h: 5, svg: r(2, 10, 96, 80, 0) + `<path d="M16 80 L40 20 M36 80 L52 40" ${S} stroke-opacity=".5"/>` },
+  "mirror-stand": { w: 50, h: 40, svg: r(8, 6, 84, 40, 4) + `<path d="M24 38 L40 14" ${S} stroke-opacity=".5"/>` + r(14, 60, 72, 30, 3) },
+  "robot-vacuum": { w: 35, h: 35, svg: c(50, 50, 46) + `<path d="M22 28 A36 36 0 0 1 78 28" ${S}/>` + c(50, 54, 10) },
+  "robot-dock": { w: 35, h: 15, svg: r(4, 8, 92, 84, 10) + `<path d="M22 70 H78" ${S}/>` + `<ellipse cx="50" cy="38" rx="6" ry="12" ${SB}/>` },
   tv: { w: 120, h: 10, svg: r(2, 20, 96, 60, 4) },
   speaker: { w: 25, h: 25, svg: r(10, 4, 80, 92, 8) + c(50, 62, 20) + c(50, 26, 9) },
   // S18.13: seen from above, the user at the bottom: a desk, the monitor along its back edge, a keyboard in front of it and

@@ -370,6 +370,14 @@ if (args.has("--blocks")) {
     pc2("m-stove", "stove", 70, 210, 60, 60), pc2("m-fridge", "fridge", 160, 210, 70, 65), pc2("m-dish", "dishwasher", 250, 210, 60, 60), pc2("m-washer", "washer", 330, 210, 60, 60), pc2("m-dryer", "dryer", 410, 210, 60, 60),
     pc2("m-rug", "rug", 620, 230, 200, 140), pc2("m-sofa", "sofa", 620, 260, 160, 80), pc2("m-plant", "plant", 800, 230, 40, 40), pc2("m-plant2", "plant", 855, 230, 60, 60),
   ];
+  // B53.12: the gym, the chaise, the cube shelf, both mirrors, the robot and its dock, two showers (the second painted: only its tray takes it).
+  // The wall mirror sits on the north wall at rot 0. Files prefixed `gym-`; the 2.5D view is shot in every theme, 2D and 3D in four.
+  const GYM = [
+    pc2("g-tread", "treadmill", 120, 70, 180, 80), pc2("g-bar", "barbell-rack", 360, 100, 120, 120), pc2("g-weights", "weight-rack", 540, 70, 120, 50), pc2("g-chaise", "chaise-longue", 740, 75, 160, 65),
+    pc2("g-cube", "cube-shelf", 110, 200, 147, 39), pc2("g-mirror", "mirror", 780, 14, 80, 5), pc2("g-stand", "mirror-stand", 250, 300, 50, 40),
+    pc2("g-robot", "robot-vacuum", 380, 300, 35, 35), pc2("g-dock", "robot-dock", 450, 305, 35, 15),
+    pc2("g-shower", "shower", 600, 300, 90, 90), pc2("g-shower2", "shower", 760, 300, 90, 90, { color: "#c03030" }),
+  ];
   // B53.11: linked pieces in their states. Shapes copied from HA: Home Connect washer (`sensor.*_operation_state` = run, `*_remaining_program_time`
   // an ISO timestamp), Mi Flora moisture (`device_class: moisture`, %), a Zigbee door contact (`binary_sensor`, `device_class: door`).
   const inMin = (n) => new Date(Date.now() + n * 60000 - 30000).toISOString();
@@ -403,11 +411,12 @@ if (args.has("--blocks")) {
         pc2("b-sofa", "sofa", 130, 100, 200, 90), pc2("b-l", "sofa-l", 380, 120, 280, 180), pc2("b-lm", "sofa-l", 680, 120, 280, 180, { mirror: true }),
         pc2("b-table", "table", 110, 330, 160, 90), pc2("b-bed", "bed", 330, 310, 160, 200), pc2("b-tub", "bathtub", 560, 300, 170, 75),
         pc2("b-chair", "chair", 720, 300, 45, 45), pc2("b-cab", "cabinet", 830, 330, 60, 40),
-  ]), {}], ["more-", sheet(MORE), {}], ["linked-", sheet(LINKED_SHEET), LINKED_STATES]];
+  ]), {}], ["more-", sheet(MORE), {}], ["linked-", sheet(LINKED_SHEET), LINKED_STATES], ["gym-", sheet(GYM), {}]];
   const problems = [], files = [];
   const browser = await chromium.launch();
   try {
-    for (const [prefix, bl, extra] of SHEETS) for (const t of [{ id: "light", theme: "light", page: "#fff" }, { id: "blueprint", theme: "blueprint", page: "#0d1522" }, ...(prefix === "linked-" ? [{ id: "midnight", theme: "midnight", page: "#0b0f14" }] : [])]) for (const view of ["2d", "2.5d", "3d"]) {
+    for (const [prefix, bl, extra] of SHEETS) for (const t of [{ id: "light", theme: "light", page: "#fff" }, { id: "blueprint", theme: "blueprint", page: "#0d1522" }, ...(prefix === "linked-" || prefix === "gym-" ? [{ id: "midnight", theme: "midnight", page: "#0b0f14" }] : []), ...(prefix === "gym-" ? [{ id: "solarized", theme: "solarized", page: "#002b36" }, ...["slate", "terminal", "ha", "coffee", "a-team", "space", "cyberpunk", "carpenter-brut", "beach-house"].map((id) => ({ id, theme: id, page: "#222" }))] : [])]) for (const view of ["2d", "2.5d", "3d"]) {
+      if (prefix === "gym-" && view !== "2.5d" && !["light", "blueprint", "midnight", "solarized"].includes(t.id)) continue;
       const base = `${prefix}${view}-${t.id}`;
       const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: view === "3d" ? 2 : 4 });
       const page = await ctx.newPage();

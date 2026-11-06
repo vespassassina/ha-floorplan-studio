@@ -38,7 +38,7 @@ describe("furniturePaint: the one colour 2.5D and 3D consult", () => {
   });
   it("decides every symbol (finding 17)", () => {
     for (const s of FURNITURE_SYMBOLS) expect(typeof furniturePaintable(s), s).toBe("boolean");
-    expect(FURNITURE_SYMBOLS.filter((s) => !furniturePaintable(s)).sort()).toEqual(["car", "tree"]);
+    expect(FURNITURE_SYMBOLS.filter((s) => !furniturePaintable(s)).sort()).toEqual(["car", "mirror", "mirror-stand", "tree"]);
   });
 });
 
