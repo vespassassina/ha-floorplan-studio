@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: Opus review of B53: the 2.5D symbol sits between the blocks
+
+- **Defect:** the 2.5D symbol lies on the seat (`lidOf`) but was drawn after every block, so it covered the back, the arms, the
+  headboard and the tub rims that rise above the seat. Plainest on a sofa turned 180°, with its back nearest the viewer.
+- **Fix:** `blocksSvg` (`src/core/solids.ts`) splits at the lid: a block whose top is at or below it is drawn before the symbol, one
+  that rises above it after. Split by top, not bottom, because the headboard starts on the floor. A back covers only its own footprint,
+  so this is right in any rotation. Test: `tests/core/furniture-draw-order.test.ts`, five symbols at 0° and 180°, fails without the fix.
+- The mirror-under-rotation test now checks where the chaise lands at 90°, not a block count.
+- **Bytes:** integrated card 123,547 gzip -9 before this fix (cap 124,650).
+- Left as they are: a mirrored texture turns the other way (cosmetic); the L sofa's blocks follow the spec, not its glyph; a sofa
+  painted, made a car and back loses its colour (by design, above); validate names a piece by id, as all furniture errors do.
+
 ## 2026-11-06: paint a piece of furniture (B53.4, spec 19a)
 
 - A piece takes `color` (`#rrggbb`) or `texture` (a room texture) with `textureRot` and `textureScale`, stored and validated as on a room.

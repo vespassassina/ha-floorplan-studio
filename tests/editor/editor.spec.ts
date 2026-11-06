@@ -9231,7 +9231,7 @@ test("B53.4 CSS pair: a wood texture fills the piece with its pattern; rotation 
   expect(await body.evaluate((e) => getComputedStyle(e).fill)).toBe("rgb(192, 48, 48)");
 });
 
-test("B53.4: a painted piece survives Save and Open, and the saved file validates", async ({ page }) => {
+test("B53.4: a painted piece is stored with its texture and the layout validates", async ({ page }) => {
   const n = await addPiece(page, "bed");
   await page.locator('#panel .sw.tex[aria-label="Warm wood"]').click();
   const layout = await layoutOf(page);

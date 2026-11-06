@@ -57,9 +57,23 @@ describe("mirror: the chaise changes side in 2D, 2.5D and 3D", () => {
     });
   }
   it("a turned piece mirrors about its own axis, not the plan's", () => {
-    const a = buildScene(floor(sofa({ rot: 90 }))).solids.filter((s) => s.kind === "furniture").length;
-    const b = buildScene(floor(sofa({ rot: 90, mirror: true }))).solids.filter((s) => s.kind === "furniture").length;
-    expect(b).toBe(a);
+    // At rot 90 the piece's own x runs along the plan's y, so the mirrored chaise is the default one reflected about y = CY,
+    // with the same x span. A flip about the plan's x axis would keep the ys and move the xs.
+    const bounds = (m: Furniture) => {
+      const c = chaise(m), sol = buildScene(floor(m)).solids.filter((s) => s.kind === "furniture" && s.shape.type === "prism");
+      const zTop = c.b.z1;
+      return sol.map((s) => (s.shape as { base: number[][]; z1: number })).filter((sh) => Math.abs(sh.z1 - zTop) < 1e-6)
+        .map((sh) => { const xs = sh.base.map((p) => p[0]), ys = sh.base.map((p) => p[1]); return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]; })
+        .filter((b) => Math.abs(b[3] - b[2] - W * CHAISE_SHARE) < 1e-6);
+    };
+    const a = bounds(sofa({ rot: 90 })), b = bounds(sofa({ rot: 90, mirror: true }));
+    expect(a).toHaveLength(1);
+    expect(b).toHaveLength(1);
+    expect(b[0][0]).toBeCloseTo(a[0][0], 6);
+    expect(b[0][1]).toBeCloseTo(a[0][1], 6);
+    expect(b[0][2]).toBeCloseTo(2 * CY - a[0][3], 6);
+    expect(b[0][3]).toBeCloseTo(2 * CY - a[0][2], 6);
+    expect(Math.abs(b[0][2] - a[0][2])).toBeGreaterThan(1); // the chaise did move
   });
   it("the plan symbol of an L sofa lies on its seat, not floating at the back's height", () => {
     const m = sofa();

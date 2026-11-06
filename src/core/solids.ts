@@ -447,13 +447,17 @@ export function pieceDevice(m: Furniture): Device | null {
 
 /**
  * B53.5: a box piece as its blocks, low first and, among those at one height, far before near, so a near block covers a far one.
- * A leg or a plinth (dark) sits in a `blk-dark` group, which the stylesheet paints 20 % darker.
+ * A leg or a plinth (dark) sits in a `blk-dark` group, which the stylesheet paints 20 % darker. Split at the lid: what stays
+ * at or below it is drawn before the symbol, what rises above it (a back, an arm, a headboard, a tub rim) after, so the symbol
+ * never covers them.
  */
-function blocksSvg(m: Furniture, blocks: Block[], z0: number, c: Pt, px: Proj): string | null {
+function blocksSvg(m: Furniture, blocks: Block[], z0: number, lid: number, c: Pt, px: Proj): [string, string] | null {
   const put = (b: Block): Pt[] => ([[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]] as Pt[]).map((q) => turnAbout([m.x - m.w / 2 + q[0], m.y - m.h / 2 + q[1]], m.rot, c));
   const items = blocks.map((b) => { const base = put(b); return { b, base, key: nearest(px, base) }; }).sort((p, q) => p.b.z0 - q.b.z0 || p.key - q.key);
   const parts = items.map(({ b, base }) => { const p = prism(base, z0 + b.z1, px, z0 + b.z0); return p && b.tone === "dark" ? `<g class="blk-dark">${p}</g>` : p; });
-  return parts.length && parts.every((p) => p) ? parts.join("") : null;
+  if (!parts.length || !parts.every((p) => p)) return null;
+  const low = (k: number) => items[k].b.z1 <= lid + 1e-9;
+  return [parts.filter((_, k) => low(k)).join(""), parts.filter((_, k) => !low(k)).join("")];
 }
 
 /**
@@ -467,18 +471,18 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
   // trunk is the line) is drawn at the crown's middle. Anything else keeps the symbol at the full height.
   const tree = mode === "pole" && m.symbol === "tree" ? treeShape(m) : null;
   // B53.5: a box piece is its blocks (`furnitureBlocks`, the list 3D builds from too); its symbol lies on the block that carries it.
-  const blocks = mode === "box" && !car ? furnitureBlocks(m) : [], lidTop = blocks.length ? z0 + lidOf(m, blocks) : h;
+  const blocks = mode === "box" && !car ? furnitureBlocks(m) : [], lid0 = blocks.length ? lidOf(m, blocks) : h - z0, lidTop = z0 + lid0;
   const top = px.lift(c, tree ? tree.crownMiddle : lidTop);
   let body: string;
   // S35.4: a car is two blocks, the body up to its belt with the top view on that lid, and the cabin (glass sides, the roof as its lid) on it.
-  let belt = h, cabin = "";
+  let belt = h, cabin = "", above = "";
   if (mode === "box" && car) {
     const parts = carParts(m.model), at = (poly: CarPoly) => poly.map(([x, y]) => turnAbout([m.x + x * m.w, m.y + y * m.h], m.rot, c));
     belt = z0 + carSpec(m.model).belt * (h - z0);
     const lower = prism(at(parts.outline), belt, px, z0), upper = prism(at(parts.roof), h, px, belt);
     if (!lower || !upper) return null;
     body = lower; cabin = `<g class="car-cabin">${upper}</g>`;
-  } else if (mode === "box") { const p = blocksSvg(m, blocks, z0, c, px); if (!p) return null; body = p; }
+  } else if (mode === "box") { const p = blocksSvg(m, blocks, z0, lid0, c, px); if (!p) return null; [body, above] = p; }
   else {
     const end = tree ? px.lift(c, tree.trunkTop) : top;
     body = (tree ? treeShadeSvg(m) : "") + `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(end[0])}" y2="${num(end[1])}"/>`;
@@ -489,7 +493,7 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
   // S18.9: a playing tv or speaker sends its waves from the lid, outside the scaled symbol group so they stay round.
   // A car's marks sit after its group, as in 2D: inside it an away car's dot would fade with the car.
   const w = (car ? car.marks : waves)?.replace("%AT%", `${num(top[0])} ${num(top[1])}`) ?? "";
-  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}${car?.cls ?? ""}${fp.cls}" color="var(--fp-furniture)"${furnitureLinked(m)}${car?.style ?? fp.style}>${body}${sym}${cabin}${car ? "" : w}</g>${car ? w : ""}`, ...(mode === "box" && z0 < SHADE_MAX_LIFT ? { foot: base } : {}) };
+  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}${car?.cls ?? ""}${fp.cls}" color="var(--fp-furniture)"${furnitureLinked(m)}${car?.style ?? fp.style}>${body}${sym}${above}${cabin}${car ? "" : w}</g>${car ? w : ""}`, ...(mode === "box" && z0 < SHADE_MAX_LIFT ? { foot: base } : {}) };
 }
 
 /** cm across the block under an unlinked appliance, times its own scale: a small thing, the icon says what it is. */

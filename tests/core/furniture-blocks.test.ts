@@ -18,6 +18,14 @@ const positive = (b: Block) => b.x1 > b.x0 && b.y1 > b.y0 && b.z1 > b.z0;
 const SIZES: [number, number][] = [[173, 61], [61, 173], [5, 5], [5, 173], [173, 5], [20, 7], [2000, 2000]];
 const HEIGHTS: (number | undefined)[] = [undefined, 1, 7, 33, 1000];
 
+/** Where the `<g>` that opens at `from` closes: the piece's whole group, whatever it nests (the symbol sits between its blocks). */
+function groupEnd(svg: string, from: number): number {
+  const tag = /<g[\s>]|<\/g>/g;
+  tag.lastIndex = from;
+  for (let depth = 0, t; (t = tag.exec(svg)); ) if ((depth += t[0] === "</g>" ? -1 : 1) === 0) return tag.lastIndex;
+  return svg.length;
+}
+
 describe("B53.5: furnitureBlocks", () => {
   it("gives every symbol its boxes, inside the footprint and under H, at asymmetric and at the smallest sizes", () => {
     for (const s of FURNITURE_SYMBOLS) for (const [w, h] of SIZES) for (const ht of HEIGHTS) for (const mirror of [false, true]) {
@@ -101,7 +109,7 @@ describe("B53.5: furnitureBlocks", () => {
         const f = floor([piece(s, w, h)]);
         const n = furnitureBlocks(f.furniture[0]).length;
         const d25 = renderFloor(f, { scale: 1, view: "2.5d" });
-        const from = d25.indexOf(`data-f="0"`), body = d25.slice(from, d25.indexOf("</g></g>", from) + 8);
+        const from = d25.lastIndexOf("<g", d25.indexOf(`data-f="0"`)), body = d25.slice(from, groupEnd(d25, from));
         const tops = (body.match(/class="bt"/g) ?? []).length;
         const solids3 = buildScene(f).solids.filter((x) => x.kind === "furniture").length;
         expect(tops, `2.5D ${s} ${w}x${h}`).toBe(n);
