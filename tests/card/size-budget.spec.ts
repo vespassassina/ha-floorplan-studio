@@ -7,7 +7,7 @@ import ts from "typescript";
 
 /** gzip -9 of dist/floorplan-studio-card.js built from the commit before the 3D work (36b22c4, the 0.13.x card), 2026-10-05. */
 const PRE_3D_CARD = 90780;
-const CARD_GROWTH_LIMIT = 33870; // card file ≤ 124,650 gz again: the batch spec (batch-s52.md, decision 1) keeps this cap, and the room B52.2 freed is for the rest of that batch (2026-11-02). Before: 118,650 after the Overview left for its chunk (B52.2, 2026-11-02; was 124,650 gz: +550 for the leader search, S23.F1, 2026-10-21, Diego to confirm; 124,100 was +300 for task/card-gaps, 2026-10-21, Diego to confirm; 123,800 was +800 for the card's load, merged with the camera thumbnail, 2026-10-21, Diego to confirm; S16.3 camera thumbnail, 2026-10-21, docs/DECISIONS.md; was 121,000, Diego, 2026-10-17; Sprint 34 favourites and heat map, Sprint 35 car)
+const CARD_GROWTH_LIMIT = 40220; // card file ≤ 131,000 gz (B53.13, 2026-11-06: measured 128,499, next 1,000, plus 2,000; Diego approved raising the cap, DECISIONS). Before: ≤ 124,650 gz again: the batch spec (batch-s52.md, decision 1) keeps this cap, and the room B52.2 freed is for the rest of that batch (2026-11-02). Before: 118,650 after the Overview left for its chunk (B52.2, 2026-11-02; was 124,650 gz: +550 for the leader search, S23.F1, 2026-10-21, Diego to confirm; 124,100 was +300 for task/card-gaps, 2026-10-21, Diego to confirm; 123,800 was +800 for the card's load, merged with the camera thumbnail, 2026-10-21, Diego to confirm; S16.3 camera thumbnail, 2026-10-21, docs/DECISIONS.md; was 121,000, Diego, 2026-10-17; Sprint 34 favourites and heat map, Sprint 35 car)
 const CHUNK_LIMIT = 233000; // Diego, 2026-10-06
 const LANG_CHUNK_LIMIT = 5000; // S37.5: one language of the card's own words, gzip; about 3.1-3.5 KB each when written, with room for the strings that follow
 /** The size `gzip -9` gives, the figure this budget is written in (node's zlib at level 9 differs by about 0.3 percent). */
@@ -127,7 +127,7 @@ test("a language chunk imports nothing: it is data", () => {
 
 // S38.0 (docs/DECISIONS.md, 2026-10-27): the Edit-card form is a chunk of its own (floorplan-studio-form-<hash>.js), fetched by import()
 // from getConfigElement(). Home Assistant loads the form only when someone edits the card, so no viewer pays for it in the card file.
-const FORM_CHUNK_LIMIT = 26000; // gzip; 24.8 KB when written (the form is a bundle of its own: it carries its copy of lit and of the validator), with room for the fields that follow
+const FORM_CHUNK_LIMIT = 28000; // B53.13: measured 26,525, next 1,000, plus 1,000 (DECISIONS). Was 26,000 // gzip; 24.8 KB when written (the form is a bundle of its own: it carries its copy of lit and of the validator), with room for the fields that follow
 const formChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-form-.+\.js$/.test(f));
 
 test("the card file does not hold the Edit-card form: its element name and a label of its markup are only in the form chunk", () => {

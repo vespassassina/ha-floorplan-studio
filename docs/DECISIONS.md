@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: size caps raised after linking, generalised (B53.13)
+
+- **Card cap 124,650 to 131,000 gzip** (`CARD_GROWTH_LIMIT` 33,870 to 40,220 over the pre-3D 90,780). Measured 128,499 (`gzip -9`),
+  rounded up to 129,000, plus 2,000 of room. Diego approved raising the card cap on 2026-11-06.
+- **Form chunk 26,000 to 28,000 gzip.** Measured 26,525, rounded up to 27,000, plus 1,000. The coordinator extended Diego's cap approval
+  to the form chunk and Diego was told. The form grew through `ELECTRIC` and `strictEntity` in the schema it shares.
+- No cheap real saving was found: the growth is `plugMeters`, the status and meter code in link.ts and the popup lines, all used by every
+  view. The nine new strings live in the language chunks, which stay under their limit.
+
 ## 2026-11-06: linking, generalised: plugs, power, energy, the robot (B53.13)
 
 - **Which pieces link (spec 19f).** `ELECTRIC` = tv, speaker, computer, washer, dryer, dishwasher, fridge, stove, treadmill,
