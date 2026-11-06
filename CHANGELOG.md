@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Card and Studio: furniture is built from blocks. A table has a top and four legs, a sofa a seat, back and arms, a bed a frame, mattress and headboard, a chair a seat, legs and back, a cabinet a plinth, body and top, a bathtub a base and a rim. 2.5D and 3D draw the same blocks; legs and plinths are 20 % darker than the piece.
+
 ## 0.43.0 - 2026-11-06
 
 Air conditioners get a real body and blow wind, a control screen type, a Body select per device, and colours for walls.

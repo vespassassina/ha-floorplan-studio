@@ -24,6 +24,7 @@ import { attentionDevices, type AttentionSource } from "./attention";
 import { devsHave, layerHides, type LayerId, type PlanSel } from "./layers";
 import type { DetailLevel } from "./detail";
 import { wallColourMap, wallColourVars, wallEdgeKey } from "./wall-colour";
+import { DARKEN_PCT, mirrored } from "./furniture-blocks";
 import { bodyOf, bodyAir, bodyFlat, bodyWind, STEM_MIN_Z, turnAbout, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, collectWalls, shadeMarkup, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
@@ -441,6 +442,8 @@ ${THEME_EXTRAS}
 .ws,.glass,.frame,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
 .bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
+/* B53.5: a leg or a plinth, the piece's own faces ${DARKEN_PCT} % darker. Two classes beat .bt/.bs, and they read the same variables, so paint on the piece reaches them. */
+.blk-dark .bt{fill:color-mix(in srgb,var(--fp-box-top) ${100 - DARKEN_PCT}%,black)} .blk-dark .bs{fill:color-mix(in srgb,var(--fp-box-side) ${100 - DARKEN_PCT}%,black)} .blk-dark .bs.w{fill:color-mix(in srgb,var(--fp-box-side-w) ${100 - DARKEN_PCT}%,black)}
 .shade{fill:var(--fp-shade);fill-opacity:var(--fp-shade-alpha);pointer-events:none} .shade .s2{fill-opacity:calc(var(--fp-shade-alpha) / 2)}
 .trunk{stroke:var(--fp-trunk);stroke-width:12;stroke-linecap:round}
 .dsolid .bs,.dsolid .bt{stroke:color-mix(in srgb,var(--fp-body) 60%,var(--fp-on-light))}
@@ -1833,7 +1836,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const shade = treeShadeSvg(m);
     if (shade) out.push(shade);
     const car = carOf(o, m);
-    out.push(`<g data-f="${i}" class="furn${on}${car?.cls ?? ""}"${furnitureLinked(m)}${car?.style ?? ""} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : sym.svg}</g>`);
+    out.push(`<g data-f="${i}" class="furn${on}${car?.cls ?? ""}"${furnitureLinked(m)}${car?.style ?? ""} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : sym.svg}</g>`);
     if (car?.marks) out.push(car.marks.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
     if (o.locate?.t === "furn" && o.locate.i === i) out.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
     const waves = furnitureWaves(o, m);

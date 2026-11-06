@@ -3,6 +3,7 @@
 // numbers: they arrive in a `Proj`, so this file never imports render.ts.
 import { deviceZ, deviceZOr, doorSpan, edgeHeight, floorHeight, furnitureBottom, furnitureHeight, furnitureTop, openingSpan, radiatorSpan, unlinkedHeight, wallHeight } from "./heights";
 import { esc, num, pts, tag } from "./fmt";
+import { furnitureBlocks, lidOf, mirrored, type Block } from "./furniture-blocks";
 import { wallColourMap, wallEdgeKey } from "./wall-colour";
 import { TREE_CROWN } from "./icons";
 import { treeShadeSvg, treeShape } from "./tree";
@@ -444,6 +445,17 @@ export function pieceDevice(m: Furniture): Device | null {
 }
 
 /**
+ * B53.5: a box piece as its blocks, low first and, among those at one height, far before near, so a near block covers a far one.
+ * A leg or a plinth (dark) sits in a `blk-dark` group, which the stylesheet paints 20 % darker.
+ */
+function blocksSvg(m: Furniture, blocks: Block[], z0: number, c: Pt, px: Proj): string | null {
+  const put = (b: Block): Pt[] => ([[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]] as Pt[]).map((q) => turnAbout([m.x - m.w / 2 + q[0], m.y - m.h / 2 + q[1]], m.rot, c));
+  const items = blocks.map((b) => { const base = put(b); return { b, base, key: nearest(px, base) }; }).sort((p, q) => p.b.z0 - q.b.z0 || p.key - q.key);
+  const parts = items.map(({ b, base }) => { const p = prism(base, z0 + b.z1, px, z0 + b.z0); return p && b.tone === "dark" ? `<g class="blk-dark">${p}</g>` : p; });
+  return parts.length && parts.every((p) => p) ? parts.join("") : null;
+}
+
+/**
  * One piece of furniture as a block (or a trunk), its symbol drawn at the top. `symbol` is the symbol's own markup, and
  * the group wraps all of it, so a tap anywhere on the piece still reaches `data-f`.
  */
@@ -453,7 +465,9 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
   // S28.4: a tree stands. Its shade patch lies at the foot, a 12 cm trunk rises to `trunkTop` and the crown (no trunk dot: the
   // trunk is the line) is drawn at the crown's middle. Anything else keeps the symbol at the full height.
   const tree = mode === "pole" && m.symbol === "tree" ? treeShape(m) : null;
-  const top = px.lift(c, tree ? tree.crownMiddle : h);
+  // B53.5: a box piece is its blocks (`furnitureBlocks`, the list 3D builds from too); its symbol lies on the block that carries it.
+  const blocks = mode === "box" && !car ? furnitureBlocks(m) : [], lidTop = blocks.length ? z0 + lidOf(m, blocks) : h;
+  const top = px.lift(c, tree ? tree.crownMiddle : lidTop);
   let body: string;
   // S35.4: a car is two blocks, the body up to its belt with the top view on that lid, and the cabin (glass sides, the roof as its lid) on it.
   let belt = h, cabin = "";
@@ -463,13 +477,13 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
     const lower = prism(at(parts.outline), belt, px, z0), upper = prism(at(parts.roof), h, px, belt);
     if (!lower || !upper) return null;
     body = lower; cabin = `<g class="car-cabin">${upper}</g>`;
-  } else if (mode === "box") { const p = prism(base, h, px, z0); if (!p) return null; body = p; }
+  } else if (mode === "box") { const p = blocksSvg(m, blocks, z0, c, px); if (!p) return null; body = p; }
   else {
     const end = tree ? px.lift(c, tree.trunkTop) : top;
     body = (tree ? treeShadeSvg(m) : "") + `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(end[0])}" y2="${num(end[1])}"/>`;
   }
   const lid = car ? px.lift(c, belt) : top;
-  const sym = `<g transform="translate(${num(lid[0])} ${num(lid[1])}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)">${tree ? TREE_CROWN : car ? car.glow + carTop(m.model) : symbol}</g>`;
+  const sym = `<g transform="translate(${num(lid[0])} ${num(lid[1])}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)">${tree ? TREE_CROWN : car ? car.glow + carTop(m.model) : symbol}</g>`;
   // S18.9: a playing tv or speaker sends its waves from the lid, outside the scaled symbol group so they stay round.
   // A car's marks sit after its group, as in 2D: inside it an away car's dot would fade with the car.
   const w = (car ? car.marks : waves)?.replace("%AT%", `${num(top[0])} ${num(top[1])}`) ?? "";
