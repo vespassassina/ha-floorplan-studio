@@ -2,6 +2,43 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: Opus review of B53.10-B53.13
+
+Fixed:
+
+- **Rug in plain 2D.** A rug draws before every other piece in 2D as it did in 2.5D, so a rug added after a sofa no longer covers it or
+  takes its click. A Playwright test clicks the sofa's centre with the mouse.
+- **"Off at the plug".** A switch counts as the plug only when it is the piece's main entity, or when `plugMeters` found it on an HA
+  device that has a power or energy sensor. `plugMeters` now writes that list as `plugs` on the piece it returns (runtime only, never
+  saved; `pieceDevice`, the popup and the chooser carry it to `linkStatus`). A Home Connect child lock or supercool switch is off and no plug.
+- **Text sensors.** Only an idle word (ready, inactive, off, idle, standby, stop, stopped, finished, end, none, pause, paused,
+  delayed_start) reads "not running". Any other word, such as a selected program "cotton", is neutral and the plug's power decides.
+- **A dead appliance.** When every entity that has a state is unavailable or unknown, `linkStatus.dead` is set, the text reads
+  "Unavailable" (the existing string) and `classOf` uses the same flag, so the plan and the popup agree. Entities with no state are neutral.
+- **Robot in 3D.** The live state carries `away` for a robot out cleaning; `view3d` fades any away piece, not only car parts. The car
+  badge needs a car-roof anchor, so the earlier worry that `away` would draw a badge on a robot did not hold.
+- **Standing mirror.** Twelve overlapping slabs (each `t + lean/n` deep) still read as a ladder in the 2.5D and 3D renders, so the lean is
+  gone: one upright mirror plate on the dark foot. `MIRROR_LEAN_DEG` and `MIRROR_SLABS` are removed. Supersedes the lean in B53.12.
+- **`setSymbol`** is now `retype` (panels.ts). It drops a loose `entity` when the new symbol needs a strict id, and `color` and
+  `texture` when it is a mirror. A test walks every pair of symbols and validates the result.
+- **Mirror paint.** `validate` refuses `color`, `texture`, `textureRot` and `textureScale` on `mirror` and `mirror-stand`; `migrate`
+  drops them. Supersedes "validate stays lenient" in B53.12.
+- **Door alert** only on a fridge. A washer or dishwasher door is often left ajar to dry; a dryer likewise.
+- **Plants.** `plant.*` also reads core HA's `problem` attribute containing "moisture low" (any case). A thirsty plant is no longer
+  drawn `.on` (its amber stroke fought the blue glow); `linkOn` is false for a plant, and a new `linkActive` keeps it in Active and
+  lights its room row.
+- **Vacuum battery.** Core vacuums lost `battery_level` in 2026.8. `plugMeters` attaches the battery-class sensor of the vacuum's HA
+  device (a diagnostic one too) to a robot or dock; the attribute stays the first choice.
+- **`addFurniture`** frames the piece where it landed (a mirror snaps up to 80 cm), turned.
+- The minMoisture "no undo step" test asserts the undo stack depth.
+
+Accepted as they are:
+
+- A wall mirror on a back wall is hidden in 2.5D, like any wall-mounted item.
+- A fridge between compressor cycles reads Idle on plug power alone, and that is honest.
+- The demo layout is not updated yet (undone).
+- Non-linkable pieces still accept `entity`. Older behaviour, kept so old layouts load; only `attached` is refused.
+
 ## 2026-11-06: size caps raised after linking, generalised (B53.13)
 
 - **Card cap 124,650 to 131,000 gzip** (`CARD_GROWTH_LIMIT` 33,870 to 40,220 over the pre-3D 90,780). Measured 128,499 (`gzip -9`),
