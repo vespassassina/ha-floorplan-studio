@@ -3,7 +3,7 @@ import type { Device, DeviceType, Door, Floor, Layout, Pt } from "./schema";
 import { acMode, classOf, ROOM_OWNS, roomAt, type RenderOpts, type StateOverlay } from "./render";
 import { onEdge } from "./geometry";
 import { pieceDevice } from "./solids";
-import { linkedStatus } from "./link";
+import { linkActive, linkedStatus } from "./link";
 
 /**
  * S9.5: one row the card's floating active-devices panel can show. `floor` is the layout's own floor key (not the
@@ -132,13 +132,14 @@ function isActive(d: Device, state: StateOverlay | undefined, opts: ActiveOpts):
   // never list it, whatever ACTIVE_LIST_RULE says for its type.
   if (typeof d.entity !== "string" || !d.entity) return false;
   // B53.11: a linked appliance or plant is type "other" (never listed) but runs or needs water like a device that is on; classOf says.
-  const linked = !!linkedStatus(d, state);
+  const lk = linkedStatus(d, state), linked = !!lk;
   const rule = linked ? "on" : ACTIVE_LIST_RULE[d.type];
   const s = state?.[d.entity]?.state;
   // A car is the exception: its tracker may be dead while its charging sensor is not, and `classOf` knows (review finding 5).
   if ((s === "unavailable" || s === "unknown") && d.type !== "car" && !linked) return false;
   if (rule === "never") return false;
   if (rule === "cleaning") return s === "cleaning";
+  if (lk) return linkActive(lk.sym, lk.status); // a thirsty plant is listed though it is not drawn "on"
   return classOf(d, { scale: 1, state, ...opts }) === "on";
 }
 

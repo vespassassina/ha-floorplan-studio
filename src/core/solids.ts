@@ -451,7 +451,7 @@ export function pieceDevice(m: Furniture): Device | null {
   // B53.11: a linked appliance or plant speaks for its entities like the car, as a plain device ("other") that carries its symbol, its attached entities and (plant) its threshold.
   if (isLinked(m?.symbol)) {
     const main = carMain(m);
-    return main ? ({ id: m.id, type: "other", entity: main, sym: m.symbol, attached: (Array.isArray((m as CarLike).attached) ? ((m as CarLike).attached as unknown[]) : []).filter((e: unknown): e is string => typeof e === "string"), ...(typeof m.minMoisture === "number" ? { min: m.minMoisture } : {}), ...(m.name ? { name: m.name } : {}), x: m.x, y: m.y } as LinkedDevice) : null;
+    return main ? ({ id: m.id, type: "other", entity: main, sym: m.symbol, attached: (Array.isArray((m as CarLike).attached) ? ((m as CarLike).attached as unknown[]) : []).filter((e: unknown): e is string => typeof e === "string"), ...(typeof m.minMoisture === "number" ? { min: m.minMoisture } : {}), ...(Array.isArray((m as { plugs?: unknown }).plugs) ? { plugs: (m as unknown as { plugs: unknown[] }).plugs.filter((e): e is string => typeof e === "string") } : {}), ...(m.name ? { name: m.name } : {}), x: m.x, y: m.y } as LinkedDevice) : null;
   }
   if (typeof m?.entity !== "string" || !m.entity || (m.symbol !== "tv" && m.symbol !== "speaker" && m.symbol !== "computer")) return null;
   // B53.13: a tv, speaker or computer may carry the plug's sensors (`attached`); its own state rules stay.

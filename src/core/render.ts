@@ -931,8 +931,7 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   const lk = linkedStatus(d, o.state);
   if (lk) {
     if (linkOn(lk.sym, lk.status)) return "on";
-    const m = o.state?.[d.entity];
-    return m && dead(m.state) ? "unavailable" : "off";
+    return lk.status.dead ? "unavailable" : "off"; // the same test the popup text uses: every entity of the piece is unavailable
   }
   const s = o.state?.[d.entity];
   if (!s) return "off";

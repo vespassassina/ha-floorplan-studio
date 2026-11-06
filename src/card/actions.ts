@@ -187,7 +187,7 @@ export function bindDeviceActions(
         const d = pieceDevice(m);
         if (!d) return;
         const ents = carEntities(m), lk = linkedStatus(d, host.hass?.states);
-        arm(popup({ device: d, index: i, piece: true }), () => (ents.length > 1 ? opts?.openChooser?.(m.name || (m.symbol === "plant" ? t("Plant") : t("Appliance")), ents, () => (lk ? linkText(lk.sym, linkStatus(lk.sym, { entity: d.entity, attached: ents, min: (d as { min?: number }).min }, host.hass?.states)) : "")) : fireEvent(host, "hass-more-info", { entityId: d.entity })));
+        arm(popup({ device: d, index: i, piece: true }), () => (ents.length > 1 ? opts?.openChooser?.(m.name || (m.symbol === "plant" ? t("Plant") : t("Appliance")), ents, () => (lk ? linkText(lk.sym, linkStatus(lk.sym, { entity: d.entity, attached: ents, min: (d as { min?: number }).min, plugs: (d as { plugs?: string[] }).plugs }, host.hass?.states)) : "")) : fireEvent(host, "hass-more-info", { entityId: d.entity })));
         return;
       }
       const own = m && pieceDevice(m)?.entity;

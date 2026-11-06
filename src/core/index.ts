@@ -50,7 +50,7 @@ export type { InfoHass, InfoRow, RoomDeviceRow, RoomSensorRow, RoomSummary } fro
 export { meanText, readingText, stateText } from "./state-text";
 export type { StateFormatter } from "./state-text";
 export { carEntities, carMain, carStatus, carText } from "./car-status";
-export { LINKABLE, LINKED, ELECTRIC, APPLIANCES, MIN_MOISTURE, isLinkable, isLinked, linkStatus, linkedStatus, linkText, linkOn, meterOf, meterLines } from "./link";
+export { LINKABLE, LINKED, ELECTRIC, APPLIANCES, MIN_MOISTURE, isLinkable, isLinked, linkStatus, linkedStatus, linkText, linkOn, linkActive, meterOf, meterLines } from "./link";
 export type { CarStatus } from "./car-status";
 export { HEAT_KINDS, HEAT_SCALE, HEAT_SOURCE, anyRoomHeated, heatKindOf, heatLegend, roomHeat } from "./heat";
 export type { HeatKind } from "./heat";

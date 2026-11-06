@@ -24,7 +24,7 @@ export function targetOf(c: FloorplanStudioCard, kind: "x" | "d" | "u" | "f", i:
 
 export function deviceSubject(c: FloorplanStudioCard, d: Device, name?: string): PopupSubject {
   const friendly = c._hass?.states[d.entity]?.attributes?.friendly_name;
-  const { sym, min, attached } = d as { sym?: string; min?: number; attached?: string[] }, lk = sym ? { sym, ...(typeof min === "number" ? { min } : {}) } : null;
+  const { sym, min, attached, plugs } = d as { sym?: string; min?: number; attached?: string[]; plugs?: string[] }, lk = sym ? { sym, ...(typeof min === "number" ? { min } : {}), ...(plugs?.length ? { plugs } : {}) } : null;
   return {
     key: `d:${d.entity || d.id}`, type: d.type, entity: d.entity || undefined, entities: moreInfoEntities(d),
     ...(d.type === "light" && d.bound ? { lamp: d } : {}),
@@ -56,7 +56,7 @@ export function subjectText(c: FloorplanStudioCard, s: PopupSubject): string {
   // A car speaks for all its entities (tracker, charging, battery), not the main one alone: the same line as its chooser title.
   if (s.type === "car" && s.entity) { const line = carText(carStatus({ entity: s.entity, attached: s.entities }, states)); if (line) return line; }
   // B53.11: a linked appliance or plant speaks for all its entities: "Running · 42 min left", "Needs water · 14 %".
-  if (s.link && s.entity) { const line = linkText(s.link.sym, linkStatus(s.link.sym, { entity: s.entity, attached: s.entities, min: s.link.min }, states)); if (line) return line; }
+  if (s.link && s.entity) { const line = linkText(s.link.sym, linkStatus(s.link.sym, { entity: s.entity, attached: s.entities, min: s.link.min, plugs: s.link.plugs }, states)); if (line) return line; }
   const w = s.powerEntity ? wattsOf(states?.[s.powerEntity]) : null;
   return stateText(s.type, states?.[e], w === null ? undefined : `${Math.round(w * 10) / 10} W`, e, c._format);
 }

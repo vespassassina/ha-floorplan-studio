@@ -20,7 +20,7 @@ export interface PopupSubject {
   /** S22.1: a light with a `bound` relay: its state line and its button count the relay (`lampOp`). */
   lamp?: Device;
   /** B53.11: a linked appliance or plant: its symbol and (plant) threshold, for the status line. */
-  link?: { sym: string; min?: number };
+  link?: { sym: string; min?: number; plugs?: string[] };
   /** B53.13: print the power and energy lines under the state (a linked piece, or a tv with a plug attached). */
   meters?: true;
 }

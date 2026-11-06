@@ -1,6 +1,6 @@
 // B53.11: what a linked appliance or plant says about itself. Every state below is copied from the shape Home Assistant sends (finding 21).
 import { describe, expect, it } from "vitest";
-import { APPLIANCES, LINKABLE, LINKED, MIN_MOISTURE, linkOn, linkStatus, linkText } from "../../src/core/link";
+import { APPLIANCES, LINKABLE, LINKED, MIN_MOISTURE, linkActive, linkOn, linkStatus, linkText } from "../../src/core/link";
 import { FURNITURE_SYMBOLS } from "../../src/core/schema";
 
 const NOW = Date.parse("2026-11-06T10:00:00Z");
@@ -136,9 +136,10 @@ describe("a plant", () => {
     expect(linkText("plant", linkStatus("plant", { entity: "plant.f" }, { "plant.f": st("problem", { moisture_status: "Low" }) }, NOW))).toBe("Needs water");
     expect(linkText("plant", linkStatus("plant", fern, {}, NOW))).toBe("");
   });
-  it("is on exactly while thirsty; an appliance rule never reads a plant", () => {
-    expect(linkOn("plant", linkStatus("plant", fern, flora("14"), NOW))).toBe(true);
-    expect(linkOn("plant", linkStatus("plant", fern, flora("48"), NOW))).toBe(false);
+  it("is active exactly while thirsty, and never painted on (Opus review: the blue glow is its look, amber would clash); an appliance rule never reads a plant", () => {
+    expect(linkActive("plant", linkStatus("plant", fern, flora("14"), NOW))).toBe(true);
+    expect(linkActive("plant", linkStatus("plant", fern, flora("48"), NOW))).toBe(false);
+    expect(linkOn("plant", linkStatus("plant", fern, flora("14"), NOW))).toBe(false);
     expect(linkStatus("plant", { entity: "sensor.p" }, { "sensor.p": st("run") }, NOW).running).toBe(false);
   });
 });

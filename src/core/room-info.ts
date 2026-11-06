@@ -1,6 +1,7 @@
 import type { Device, DeviceType, Door, Floor, Pt, Room } from "./schema";
 import { classOf, pieceOn, roomAt, type StateOverlay } from "./render";
 import { pieceDevice } from "./solids";
+import { linkedStatus } from "./link";
 import { onEdge } from "./geometry";
 import { doorStateOf } from "./door-state";
 import { entitiesOfDevice, entitiesOfDoor } from "./attachments";
@@ -196,7 +197,7 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
   (f.furniture ?? []).forEach((m, i) => {
     const d = pieceDevice(m);
     if (!d || !finite([m.x, m.y]) || !member(roomAt(f, [m.x, m.y])) || devices.some((r) => r.entity === d.entity)) return;
-    const on = pieceOn({ scale: 1, state, ...opts }, m, plugs);
+    const lk = linkedStatus(d, state), on = pieceOn({ scale: 1, state, ...opts }, m, plugs) || (lk?.sym === "plant" && lk.status.thirsty); // a thirsty plant is not drawn "on" but still lights its row
     devices.push({ index: i, piece: true, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity, opts.formatState), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
     entities.add(d.entity);
   });

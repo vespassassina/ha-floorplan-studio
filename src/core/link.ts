@@ -8,7 +8,7 @@ import { t } from "./i18n";
 import type { Device } from "./schema";
 
 /** What `pieceDevice` returns for a linked appliance or plant: a plain device that carries the piece's symbol and entities. */
-export type LinkedDevice = Device & { sym: string; attached: string[]; min?: number };
+export type LinkedDevice = Device & { sym: string; attached: string[]; min?: number; plugs?: string[] };
 /** What a linked piece wears on the plan: state classes for its group, and (a thirsty plant) the glow drawn under the symbol. */
 export interface LinkLook { cls: string; glow: string }
 /** The glow: a soft rounded frame in the symbol's 100 x 100 space. Colour, blur and breath come from the stylesheet. */
@@ -17,7 +17,7 @@ const GLOW = '<rect class="plant-glow" x="4" y="4" width="92" height="92" rx="14
 /** The link status of a device `pieceDevice` made for a linked piece; null for any other device. */
 export function linkedStatus(d: Device, states: States, now?: number): { sym: string; status: LinkStatus } | null {
   const sym = (d as Partial<LinkedDevice>).sym;
-  return typeof sym === "string" && isLinked(sym) ? { sym, status: linkStatus(sym, { entity: d.entity, attached: (d as LinkedDevice).attached, min: (d as LinkedDevice).min }, states, now) } : null;
+  return typeof sym === "string" && isLinked(sym) ? { sym, status: linkStatus(sym, { entity: d.entity, attached: (d as LinkedDevice).attached, min: (d as LinkedDevice).min, plugs: (d as LinkedDevice).plugs }, states, now) } : null;
 }
 
 /** The classes and glow for a status. ` thirsty` for a plant below its threshold, ` alert` for a door left open or an error. */
@@ -29,6 +29,8 @@ export function linkLook(sym: unknown, s: LinkStatus): LinkLook {
 export const RUN_WATTS = 5;
 /** What an appliance's own state sensor says while it works: Home Connect `run`, Miele `in_use`, SmartThings `running`. Add a word here, in one place. */
 const RUNNING_WORDS = new Set(["run", "running", "wash", "washing", "rinse", "rinsing", "spin", "spinning", "dry", "drying", "cooking", "heating", "in_use", "active"]);
+/** What an appliance's own state sensor says while it does nothing. Only these read as "not running"; any other word ("cotton", a selected program) says nothing and the plug's power decides. */
+const IDLE_WORDS = new Set(["ready", "inactive", "off", "idle", "standby", "stop", "stopped", "finished", "end", "none", "pause", "paused", "delayed_start"]);
 const ERROR_WORDS = new Set(["error", "fault"]);
 const DOORS = new Set(["door", "window", "opening", "garage_door"]);
 /** What HA's `vacuum` domain says (`VacuumActivity`), by word. A word not here reads as nothing. */
@@ -37,7 +39,7 @@ const VAC_WORDS = new Set(["cleaning", "returning", "docked", "idle", "paused", 
 const MEASURED = new Set(["power", "energy", "battery", "timestamp", "duration", "temperature", "humidity", "moisture", "voltage", "current", "apparent_power", "power_factor", "frequency"]);
 
 /** A piece or a device that stands for one: its entities, and (a plant) its own moisture threshold. Loose, a layout is untrusted. */
-export type LinkLike = CarLike & { minMoisture?: unknown; min?: unknown };
+export type LinkLike = CarLike & { minMoisture?: unknown; min?: unknown; plugs?: unknown };
 
 export interface LinkStatus {
   /** An appliance at work. Always false for a plant. */
@@ -50,6 +52,8 @@ export interface LinkStatus {
   moisture: number | null;
   /** A plant below its threshold, or one its `plant.*` entity calls low. Always false for an appliance. */
   thirsty: boolean;
+  /** Every entity of the piece that has a state is unavailable or unknown. The plan paints it unavailable (`classOf`), the text says so. */
+  dead: boolean;
   /** B53.13: a plug among the entities is off, and nothing else says the appliance works. */
   plugOff: boolean;
   /** Watts and kilowatt-hours the entities report (`meterOf`); null when unread. */
@@ -113,29 +117,36 @@ export function linkStatus(sym: unknown, m: LinkLike | null | undefined, states:
   const min = validMinMoisture(m?.minMoisture) ? m.minMoisture : validMinMoisture(m?.min) ? m.min : MIN_MOISTURE;
   // `program`: the appliance's own word on whether it works (true, false), null when it has none. It wins over the plug's power.
   let program: boolean | null = null, remaining: number | null = null, alert: LinkStatus["alert"] = null, plugOff = false, stoveOn = false;
+  const plugs = new Set(Array.isArray(m?.plugs) ? (m.plugs as unknown[]).filter((e): e is string => typeof e === "string") : []);
+  let seen = 0, gone = 0;
   let moisture: number | null = null, humidity: number | null = null, low = false, vac: LinkStatus["vac"] = null, battery: number | null = null, sensorBattery: number | null = null;
   for (const e of ids) {
     const r = read(states, e);
     if (!r) continue;
     const domain = domainOf(e), cls = r.attrs.device_class, word = r.state.trim().toLowerCase();
+    seen++;
+    if (word === "unavailable" || word === "unknown") gone++;
     if (plant) {
       if (domain === "sensor" && cls === "moisture" && moisture === null) moisture = percent(r);
       if (domain === "sensor" && cls === "humidity" && humidity === null) humidity = percent(r);
-      const why = r.attrs.moisture_status;
-      if (domain === "plant" && word === "problem" && typeof why === "string" && why.toLowerCase() === "low") low = true;
+      // HACS plant: `moisture_status: "Low"`. Core plant: `problem: "moisture low"`, perhaps with other problems after it.
+      const why = r.attrs.moisture_status, problem = r.attrs.problem;
+      if (domain === "plant" && word === "problem" && ((typeof why === "string" && why.toLowerCase() === "low") || (typeof problem === "string" && problem.toLowerCase().includes("moisture low")))) low = true;
       continue;
     }
     if (domain === "vacuum" && robot && vac === null && VAC_WORDS.has(word)) { vac = word as LinkStatus["vac"]; battery = batteryLevel(r.attrs.battery_level); }
     if (domain === "sensor") {
       if (RUNNING_WORDS.has(word)) program = true;
-      else if (!(typeof cls === "string" && MEASURED.has(cls)) && word !== "" && word !== "unavailable" && word !== "unknown" && !Number.isFinite(Number(word))) program ??= false;
+      else if (!(typeof cls === "string" && MEASURED.has(cls)) && IDLE_WORDS.has(word)) program ??= false;
       if (ERROR_WORDS.has(word)) alert = "error";
       if (cls === "battery" && sensorBattery === null) sensorBattery = percent(r);
       remaining ??= minutesLeft(r, cls, now);
     }
     if (domain === "binary_sensor" && (word === "on" || word === "off") && (cls === "running" || cls === "power")) program = word === "on" ? true : (program ?? false);
-    if (domain === "binary_sensor" && word === "on" && typeof cls === "string" && DOORS.has(cls) && alert === null) alert = "door";
-    if (domain === "switch" && word === "off") plugOff = true;
+    // Only a fridge is wrong with its door open. A washer or dishwasher is often left ajar to dry, so its door is no alert.
+    if (sym === "fridge" && domain === "binary_sensor" && word === "on" && typeof cls === "string" && DOORS.has(cls) && alert === null) alert = "door";
+    // A feature switch (child lock, supercool) is normally off and is no plug: only the main entity, or a switch plugMeters found, counts.
+    if (domain === "switch" && word === "off" && (e === ids[0] || plugs.has(e))) plugOff = true;
     if (sym === "stove" && word === "on" && (domain === "switch" || domain === "input_boolean")) stoveOn = true;
   }
   const { watts: w, kwh } = meterOf(ids, states);
@@ -143,16 +154,19 @@ export function linkStatus(sym: unknown, m: LinkLike | null | undefined, states:
   const running = sym === "robot-vacuum" ? vac === "cleaning" || vac === "returning" : sym === "robot-dock" ? false : (program ?? (w !== null ? w > RUN_WATTS : stoveOn));
   const level = moisture ?? humidity;
   return {
-    running, remaining: running ? remaining : null, alert, moisture: level, thirsty: plant && (level !== null ? level < min : low),
+    running, remaining: running ? remaining : null, alert, dead: seen > 0 && gone === seen, moisture: level, thirsty: plant && (level !== null ? level < min : low),
     plugOff: plugOff && !running && vac === null, watts: w, kwh, vac, away: sym === "robot-vacuum" && running, battery: battery ?? sensorBattery,
   };
 }
 
-/** Whether the piece reads "on": an appliance at work, a plant that needs water. The plan, Active and 3D all ask this one function. */
-export const linkOn = (sym: unknown, s: LinkStatus): boolean => (sym === "plant" ? s.thirsty : s.running);
+/** Whether the piece is painted "on" (the amber `.on`): an appliance at work. A thirsty plant is not: it wears the blue glow instead. The plan and 3D ask this one function. */
+export const linkOn = (sym: unknown, s: LinkStatus): boolean => sym !== "plant" && s.running;
+/** Whether the piece belongs in Active and lights its room's row: an appliance at work, a plant that needs water. */
+export const linkActive = (sym: unknown, s: LinkStatus): boolean => (sym === "plant" ? s.thirsty : s.running);
 
 /** One line: "Running · 42 min left", "Idle", "Off at the plug", "Door open", "Error"; a robot: "Cleaning · 63 %"; a plant: "Moisture 14 %", "Needs water · 14 %". Plain text; the caller escapes it (finding 2). */
 export function linkText(sym: unknown, s: LinkStatus): string {
+  if (s.dead) return t("Unavailable");
   if (sym === "plant") return s.thirsty ? (s.moisture === null ? t("Needs water") : t("Needs water · {n} %", { n: s.moisture })) : s.moisture === null ? "" : t("Moisture {n} %", { n: s.moisture });
   if (s.vac) return [VAC_TEXT[s.vac](), s.battery === null ? "" : t("{n} %", { n: s.battery })].filter(Boolean).join(" · ");
   const state = s.running ? (s.remaining === null ? t("Running") : t("Running · {n} min left", { n: s.remaining })) : s.alert ? "" : s.plugOff ? t("Off at the plug") : t("Idle");

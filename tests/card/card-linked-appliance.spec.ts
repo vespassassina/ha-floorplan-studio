@@ -96,13 +96,18 @@ for (const view of ["2d", "2.5d"] as const) {
       expect(await calls(page)).toEqual([]);
       expect(await infos(page)).toEqual([]);
     });
-    test("the status follows the states: idle, and an open door", async ({ page }) => {
+    test("the status follows the states: idle, a washer door left ajar is still idle, a fridge door open is an alert", async ({ page }) => {
       const layout = layoutOf(washer());
       await boot(page, layout, { view }, STATES({ "sensor.washer_state": st("ready"), "sensor.washer_end": st("unknown") }));
       await press(page, await piecePoint(page, indexOf(layout, "w-1")));
       await expect(card(page).locator("css=.fp-pop-state")).toHaveText("Idle");
-      await boot(page, layout, { view }, STATES({ "sensor.washer_state": st("ready"), "binary_sensor.washer_door": st("on", { device_class: "door" }) }));
+      const ajar = STATES({ "sensor.washer_state": st("ready"), "binary_sensor.washer_door": st("on", { device_class: "door" }) });
+      await boot(page, layout, { view }, ajar);
       await press(page, await piecePoint(page, indexOf(layout, "w-1")));
+      await expect(card(page).locator("css=.fp-pop-state")).toHaveText("Idle");
+      const fridge = layoutOf(washer({ id: "f-1", symbol: "fridge", name: "Fridge" }));
+      await boot(page, fridge, { view }, ajar);
+      await press(page, await piecePoint(page, indexOf(fridge, "f-1")));
       await expect(card(page).locator("css=.fp-pop-state")).toHaveText("Door open");
     });
     test("the popup's More info lists the entities, main first; one entity opens its more-info", async ({ page }) => {

@@ -50,11 +50,20 @@ describe("an appliance on the plan", () => {
     expect(pieceOn({ scale: 1, state: on }, piece("washer", { entity: "switch.x" }))).toBe(false);
     expect(pieceOn({ scale: 1, state: on }, piece("stove", { entity: "switch.x" }))).toBe(true);
   });
-  it("an open door wears the alert class; closed does not", () => {
+  it("an open fridge door wears the alert class; closed does not", () => {
+    const FRIDGE = piece("fridge", { entity: "sensor.washer_operation_state", attached: ["binary_sensor.washer_door"] });
     const open: StateOverlay = { ...READY, "binary_sensor.washer_door": st("on", { device_class: "door" }) };
-    expect(groupOf(draw(WASHER, open))).toMatch(/ alert/);
-    expect(groupOf(draw(WASHER, open, "2.5d"))).toMatch(/ alert/);
-    expect(groupOf(draw(WASHER, READY))).not.toMatch(/ alert/);
+    expect(groupOf(draw(FRIDGE, open))).toMatch(/ alert/);
+    expect(groupOf(draw(FRIDGE, open, "2.5d"))).toMatch(/ alert/);
+    expect(groupOf(draw(FRIDGE, READY))).not.toMatch(/ alert/);
+  });
+  it("a washer or dishwasher door left ajar to dry is no alert", () => {
+    const open: StateOverlay = { ...READY, "binary_sensor.washer_door": st("on", { device_class: "door" }) };
+    for (const s of ["washer", "dishwasher", "dryer"]) {
+      const m = piece(s, { entity: "sensor.washer_operation_state", attached: ["binary_sensor.washer_door"] });
+      expect(groupOf(draw(m, open)), s).not.toMatch(/ alert/);
+      expect(groupOf(draw(m, open, "2.5d")), s).not.toMatch(/ alert/);
+    }
   });
   it("an unlinked washer is as before, and a linked one keeps the idle colour (no tv-blue data-linked)", () => {
     expect(groupOf(draw(piece("washer")))).toMatch(/class="furn"/);
@@ -91,9 +100,11 @@ describe("a plant on the plan", () => {
     expect(groupOf(draw(FERN, at25))).toMatch(/ thirsty/);
     expect(groupOf(draw({ ...FERN, minMoisture: undefined } as Furniture, at25))).not.toMatch(/ thirsty/);
   });
-  it("is on only while thirsty, and Active lists it only then", () => {
-    expect(pieceOn({ scale: 1, state: DRY }, FERN)).toBe(true);
+  it("is never drawn on (its blue glow would sit under an amber stroke), yet Active lists it while thirsty and not otherwise", () => {
+    expect(pieceOn({ scale: 1, state: DRY }, FERN)).toBe(false);
     expect(pieceOn({ scale: 1, state: WET }, FERN)).toBe(false);
+    expect(groupOf(draw(FERN, DRY))).toMatch(/class="furn furn-plant thirsty"/);
+    expect(groupOf(draw(FERN, DRY))).not.toMatch(/ on[ "]/);
     const n = (state: StateOverlay) => activeDevices({ version: 2, unit: "cm", north: 0, catalog: [], floors: { f: floorOf([FERN]) } } as never, state as never).length;
     expect(n(DRY)).toBe(1);
     expect(n(WET)).toBe(0);

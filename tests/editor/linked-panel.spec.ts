@@ -19,6 +19,7 @@ const screenOf = (page: Page, x: number, y: number) =>
   }, [EDITOR, x, y] as const);
 const clickCm = async (page: Page, x: number, y: number) => { const p = await screenOf(page, x, y); await page.mouse.click(p.x, p.y); };
 const undo = async (page: Page) => { await page.locator(EDITOR).evaluate((el) => (el as HTMLElement).focus()); await page.keyboard.press("Control+z"); };
+const depthOf = (page: Page) => page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length as number, EDITOR);
 const redo = async (page: Page) => { await page.locator(EDITOR).evaluate((el) => (el as HTMLElement).focus()); await page.keyboard.press("Control+Shift+z"); };
 const valid = async (page: Page, what: string) => {
   const l = await layoutOf(page), r = validate(l);
@@ -92,9 +93,13 @@ test("an appliance has the list but no threshold; the threshold and the attached
 test("the threshold: one undo step, none when unchanged, a whole percent from 1 to 99, empty removes it", async ({ page }) => {
   await oneStep(page, "35", async () => { await page.locator("#fumin").fill("35"); await page.locator("#fumin").press("Enter"); });
   await page.locator("#fumin").fill("35"); await page.locator("#fumin").press("Enter");
-  const before = JSON.stringify(await layoutOf(page));
+  const before = JSON.stringify(await layoutOf(page)), depth = await depthOf(page);
   await page.locator("#fumin").fill("35"); await page.locator("#fumin").press("Enter");
   expect(JSON.stringify(await layoutOf(page)), "same value: no step").toBe(before);
+  expect(await depthOf(page), "same value: the undo stack did not grow").toBe(depth);
+  await page.locator("#fumin").fill("36"); await page.locator("#fumin").press("Enter");
+  expect(await depthOf(page), "a new value is one step").toBe(depth + 1);
+  await page.locator("#fumin").fill("35"); await page.locator("#fumin").press("Enter");
   await page.locator("#fumin").fill("150"); await page.locator("#fumin").press("Enter");
   expect((await pieceOf(page)).minMoisture).toBe(99);
   await page.locator("#fumin").fill("0"); await page.locator("#fumin").press("Enter");
