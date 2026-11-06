@@ -4947,6 +4947,7 @@ task measures its real figure and records it in DECISIONS.
   `FURNITURE_SYMBOLS` against every table (criterion 2).
   Done 2026-11-02: the four draw as plain boxes (the L and `mirror` stay with B53.2); the picker calls `sofa-l` "Corner
   sofa" because the menu test forbids a hyphen in a name. Card 118,579 gzip.
+- [x] 2026-11-06 B53.11 Link appliances and plants to HA entities: running, door open, thirsty plant glow, popup, Active (spec 19d).
 - [x] 2026-11-06 B53.10 More pieces: wardrobe, dresser, nightstand, desk, armchair, counter, stove, fridge, dishwasher, washer, dryer, rug, plant (spec 19c).
 - [x] 2026-11-06 B53.2 `mirror` on `sofa-l`, and the L as two blocks: one shape function for 2.5D and 3D (criterion 3).
   Done: validate, migrate, Mirror box (one undo step), the flip in 2D, 2.5D and 3D checked on 240 x 160; `npm run shots -- --blocks`.

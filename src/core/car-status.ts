@@ -7,7 +7,7 @@ import { t } from "./i18n";
 export interface CarLike { entity?: unknown; attached?: unknown }
 /** A device that stands for a car (`pieceDevice`): the plain device, plus the attached entities the piece carries. */
 export type CarDevice = Device & { attached?: string[] };
-type States = Record<string, { state?: unknown; attributes?: unknown } | undefined> | null | undefined;
+export type States = Record<string, { state?: unknown; attributes?: unknown } | undefined> | null | undefined;
 
 export interface CarStatus {
   /** `home` or `away` from the first `device_tracker.*`; `unknown` when it is dead or unread; `none` when the car has no tracker. */
@@ -21,7 +21,7 @@ export interface CarStatus {
   alert: boolean;
 }
 
-const domainOf = (e: string): string => e.slice(0, e.indexOf("."));
+export const domainOf = (e: string): string => e.slice(0, e.indexOf("."));
 const OPENINGS = new Set(["door", "window", "opening", "garage_door"]);
 /** Charge-state words by value: Tesla and Volvo send `charging`, Renault `charge_in_progress`. Add a word here, in one place. */
 const CHARGING_WORDS = new Set(["charging", "charge_in_progress"]);
@@ -39,7 +39,7 @@ export function carMain(m: CarLike | null | undefined): string | null {
 
 interface Reading { state: string; attrs: Record<string, unknown> }
 /** One entity's state and attributes, or null. A getter that throws, a number, or a missing entry all read as null. */
-function read(states: States, e: string): Reading | null {
+export function read(states: States, e: string): Reading | null {
   try {
     const s = states && Object.prototype.hasOwnProperty.call(states, e) ? states[e] : undefined;
     if (!s || typeof s !== "object" || typeof s.state !== "string") return null;
@@ -49,7 +49,7 @@ function read(states: States, e: string): Reading | null {
 }
 
 /** A percent reading from 0 to 100, rounded; null for anything else. */
-function percent(r: Reading): number | null {
+export function percent(r: Reading): number | null {
   const n = r.state.trim() === "" ? NaN : Number(r.state);
   return r.attrs.unit_of_measurement === "%" && Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n) : null;
 }

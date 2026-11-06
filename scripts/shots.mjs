@@ -370,6 +370,26 @@ if (args.has("--blocks")) {
     pc2("m-stove", "stove", 70, 210, 60, 60), pc2("m-fridge", "fridge", 160, 210, 70, 65), pc2("m-dish", "dishwasher", 250, 210, 60, 60), pc2("m-washer", "washer", 330, 210, 60, 60), pc2("m-dryer", "dryer", 410, 210, 60, 60),
     pc2("m-rug", "rug", 620, 230, 200, 140), pc2("m-sofa", "sofa", 620, 260, 160, 80), pc2("m-plant", "plant", 800, 230, 40, 40), pc2("m-plant2", "plant", 855, 230, 60, 60),
   ];
+  // B53.11: linked pieces in their states. Shapes copied from HA: Home Connect washer (`sensor.*_operation_state` = run, `*_remaining_program_time`
+  // an ISO timestamp), Mi Flora moisture (`device_class: moisture`, %), a Zigbee door contact (`binary_sensor`, `device_class: door`).
+  const inMin = (n) => new Date(Date.now() + n * 60000 - 30000).toISOString();
+  const LINKED_SHEET = [
+    pc2("l-washer", "washer", 80, 80, 70, 70, { entity: "sensor.washer_operation_state", attached: ["sensor.washer_remaining_program_time"] }),
+    pc2("l-dryer", "dryer", 180, 80, 70, 70, { entity: "sensor.dryer_operation_state" }),
+    pc2("l-fridge", "fridge", 300, 80, 70, 70, { attached: ["binary_sensor.fridge_door"] }),
+    pc2("l-stove", "stove", 420, 80, 70, 70, { entity: "switch.stove" }),
+    pc2("l-dish", "dishwasher", 540, 80, 70, 70, { entity: "sensor.dish_operation_state" }),
+    pc2("l-fern", "plant", 120, 260, 50, 50, { entity: "sensor.fern_moisture", minMoisture: 30 }),
+    pc2("l-ficus", "plant", 240, 260, 70, 70, { entity: "sensor.ficus_moisture" }),
+    pc2("l-plain", "plant", 380, 260, 50, 50),
+  ];
+  const LINKED_STATES = {
+    "sensor.washer_operation_state": ["run", {}], "sensor.washer_remaining_program_time": [inMin(42), { device_class: "timestamp" }],
+    "sensor.dryer_operation_state": ["ready", {}], "binary_sensor.fridge_door": ["on", { device_class: "door" }],
+    "switch.stove": "on", "sensor.dish_operation_state": ["ready", {}],
+    "sensor.fern_moisture": ["14", { device_class: "moisture", unit_of_measurement: "%" }],
+    "sensor.ficus_moisture": ["55", { device_class: "moisture", unit_of_measurement: "%" }],
+  };
   const sheet = (furniture) => ({
     version: 2, unit: "cm", north: 0, rotate: 0, catalog: [],
     floors: { ground: {
@@ -383,11 +403,11 @@ if (args.has("--blocks")) {
         pc2("b-sofa", "sofa", 130, 100, 200, 90), pc2("b-l", "sofa-l", 380, 120, 280, 180), pc2("b-lm", "sofa-l", 680, 120, 280, 180, { mirror: true }),
         pc2("b-table", "table", 110, 330, 160, 90), pc2("b-bed", "bed", 330, 310, 160, 200), pc2("b-tub", "bathtub", 560, 300, 170, 75),
         pc2("b-chair", "chair", 720, 300, 45, 45), pc2("b-cab", "cabinet", 830, 330, 60, 40),
-  ])], ["more-", sheet(MORE)]];
+  ]), {}], ["more-", sheet(MORE), {}], ["linked-", sheet(LINKED_SHEET), LINKED_STATES]];
   const problems = [], files = [];
   const browser = await chromium.launch();
   try {
-    for (const [prefix, bl] of SHEETS) for (const t of [{ id: "light", theme: "light", page: "#fff" }, { id: "blueprint", theme: "blueprint", page: "#0d1522" }]) for (const view of ["2d", "2.5d", "3d"]) {
+    for (const [prefix, bl, extra] of SHEETS) for (const t of [{ id: "light", theme: "light", page: "#fff" }, { id: "blueprint", theme: "blueprint", page: "#0d1522" }, ...(prefix === "linked-" ? [{ id: "midnight", theme: "midnight", page: "#0b0f14" }] : [])]) for (const view of ["2d", "2.5d", "3d"]) {
       const base = `${prefix}${view}-${t.id}`;
       const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: view === "3d" ? 2 : 4 });
       const page = await ctx.newPage();
@@ -395,6 +415,7 @@ if (args.has("--blocks")) {
       page.on("console", (m) => { if (m.type() === "error") problems.push(`${base}: console.error ${m.text()}`); });
       const config = { layout: bl, floor: "ground", theme: t.theme, view: view === "3d" ? "3d" : view === "2d" ? "2d" : "2.5d", active_list: false, ...(view === "2.5d" ? { tilt: 0.5 } : {}) };
       const hass = hassFor("off", false);
+      for (const [id, v] of Object.entries(extra)) hass.states[id] = Array.isArray(v) ? st(v[0], v[1]) : st(v);
       if (view !== "3d") {
         await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${t.page}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
         await page.addScriptTag({ content: cardJs, type: "module" });

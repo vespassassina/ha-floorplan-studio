@@ -379,6 +379,11 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
     name and `carText` as title, main entity first); in kiosk neither does anything. The Studio's click selects; its
     panel has the model, colour, main entity, attached and Convert (see `docs/editor.md`).
   - Not built: a custom car card in a popover (Later, not planned), GPS placement, car commands from the card.
+- A **linked appliance or plant** (B53.11, 2026-11-06; spec 19d): `washer`, `dryer`, `dishwasher`, `fridge`, `stove` and `plant` may carry
+  `entity` and `attached` (as the car) and a plant `minMoisture` (1 to 99, default 20). `validate` refuses `attached` on any other piece
+  and junk shapes without throwing; `migrate` keeps the valid parts. The card reads running, remaining time, door open, error and
+  moisture from the entities, tints a running piece `on`, an alert in the open-door colour, and makes a thirsty plant glow in
+  `--fp-plant-thirsty`. Tap opens the popup, More info the chooser or the single entity's more-info.
 - A **linked** furniture piece (S18.12, S18.15, 2026-10-07): a `tv`, `speaker` or `computer`
   piece with an `entity`. It tracks that device and acts as the device of the same type in the
   card, with no new field in the file. Idle it is drawn in `--fp-dev-tv`; on, in `--fp-active`

@@ -289,5 +289,15 @@ const c: Catalogue = {
   "cover opened": "遮盖已打开",
   "Window": "时间范围",
   "History is kept from {when}": "历史记录保存自 {when}",
+  "Needs water": "需要浇水",
+  "Needs water · {n} %": "需要浇水 · {n} %",
+  "Moisture {n} %": "湿度 {n} %",
+  "Running": "运行中",
+  "Running · {n} min left": "运行中 · 剩余 {n} 分钟",
+  "Idle": "空闲",
+  "Door open": "门已打开",
+  "Error": "错误",
+  "Plant": "植物",
+  "Appliance": "电器",
 };
 export default c;

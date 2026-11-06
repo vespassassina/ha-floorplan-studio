@@ -12,7 +12,7 @@ import type { Device, Floor, Furniture, Pt } from "./schema";
 // plan's own helpers (`LiveDeps`, core/three-deps.ts), so there is one copy of them in the page.
 type Render = typeof import("./render");
 export type LiveDeps = Pick<Render, "acMode" | "attachedTest" | "classOf" | "deviceMarkup" | "lightFill" | "lightOpacity" | "MOTION_PULSE_S" | "MOTION_PULSES" | "motionRooms" | "personRoom" | "pieceOn" | "polyCentre" | "roomAt" | "roomReadout" | "ROOM_OWNS">
-  & Pick<typeof import("./camera-thumb"), "thumbBox" | "thumbUrl"> & Pick<typeof import("./solids"), "pieceDevice" | "bodyAir"> & Pick<typeof import("./car-status"), "carStatus"> & Pick<typeof import("./door-state"), "doorStateOf"> & Pick<typeof import("./schema"), "fxScale">;
+  & Pick<typeof import("./camera-thumb"), "thumbBox" | "thumbUrl"> & Pick<typeof import("./solids"), "pieceDevice" | "bodyAir"> & Pick<typeof import("./car-status"), "carStatus"> & Pick<typeof import("./link"), "linkedStatus"> & Pick<typeof import("./door-state"), "doorStateOf"> & Pick<typeof import("./schema"), "fxScale">;
 
 export interface LiveLight { device: number; room: number; at: Pt; /** The lamp's own CSS colour, or null for the theme's light colour. */ rgb: string | null; /** 0..1 */ level: number; /** S14.3: the lamp's effect size as a fraction; absent at 100 %, so a layout that never sets it gives the same JSON as before. */ scale?: number }
 export interface LiveDevice {
@@ -39,7 +39,7 @@ export interface LiveDevice {
  * A linked furniture piece: `on` by the rule of the device of its type (`pieceOn`). A car piece (S35.5) adds what its entities say
  * (`carStatus`): away from its tracker, charging, an alert (an unlocked lock, an open door), and the level in whole percent or null.
  */
-export interface LivePiece { on: boolean; away?: boolean; charging?: boolean; alert?: boolean; level?: number | null; /** The main entity is dead and nothing else keeps the car "on": the plan's gone mark. */ gone?: boolean }
+export interface LivePiece { on: boolean; away?: boolean; charging?: boolean; alert?: boolean; level?: number | null; /** B53.11: a plant below its threshold. */ thirsty?: boolean; /** The main entity is dead and nothing else keeps the car "on": the plan's gone mark. */ gone?: boolean }
 export interface LiveRoom { name: string; at: Pt; readout: string; motion: { radar: boolean; on: boolean; v: number; pulseAge: number | null } | null }
 export interface Live3D {
   night: boolean; labels: boolean; names: boolean;
@@ -58,7 +58,7 @@ export interface Live3D {
 
 /** `liveOf`, bound to the 2D plan's helpers. The 3D chunk builds one per view; `core/live.ts` binds the real ones for the tests. */
 export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: number) => Live3D {
-  const { acMode, attachedTest, classOf, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceDevice, bodyAir, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf, fxScale, carStatus, thumbBox, thumbUrl } = d;
+  const { acMode, attachedTest, classOf, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceDevice, bodyAir, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf, fxScale, carStatus, thumbBox, thumbUrl, linkedStatus } = d;
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
   const ringOf = (r: { pts?: unknown } | null | undefined): Pt[] | null => (r && Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every(isPt) ? (r.pts as Pt[]) : null);
   const list = <T>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : []);
@@ -102,6 +102,9 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
         const pd = typeof m === "object" && m !== null ? pieceDevice(m) : null;
         if (!pd) return null;
         const on = pieceOn(o, m, plugs);
+        // B53.11: a linked plant glows when thirsty; a linked appliance with a door open or an error wears the alert colour.
+        const lk = linkedStatus(pd, o.state as never);
+        if (lk) return { on, ...(lk.status.thirsty ? { thirsty: true } : {}), ...(lk.status.alert ? { alert: true } : {}) };
         if (m.symbol !== "car") return { on };
         const c = carStatus(m, o.state as never);
         return { on, away: c.place === "away", charging: c.charging, alert: c.alert, level: c.level, ...(classOf(pd, o) === "unavailable" ? { gone: true } : {}) };

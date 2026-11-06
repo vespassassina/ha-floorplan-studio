@@ -5,7 +5,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, deviceZDefault, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, validate } from "../core/schema";
+import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, MIN_MOISTURE, isLinkable, validate } from "../core/schema";
 import { bodyOf, furniturePaintable } from "../core";
 import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
@@ -1284,7 +1284,7 @@ function acField(c: PanelCtx, i: number) {
 
 function furniturePanel(c: PanelCtx, i: number) {
   const m = c.st.f.furniture[i];
-  const isCar = m.symbol === "car";
+  const isCar = m.symbol === "car", linked = !isCar && isLinkable(m.symbol);
   // S1.51: width and depth are clamped to the same 5..2000 cm bounds the corner drag and validate() hold.
   const setSize = (k: "w" | "h") => (n: number) => c.commit((f) => { f.furniture[i][k] = Math.min(2000, Math.max(5, n)); });
   // `model` and `attached` belong to a car only (validate says so): leaving "car" takes them along, and its body colour (on another piece `color` is paint).
@@ -1292,7 +1292,9 @@ function furniturePanel(c: PanelCtx, i: number) {
   const setSymbol = (v: string) => c.commit((f) => {
     const p = f.furniture[i];
     p.symbol = v as typeof m.symbol;
-    if (v !== "car") { delete p.model; delete p.attached; if (m.symbol === "car") delete p.color; }
+    if (v !== "car") { delete p.model; if (m.symbol === "car") delete p.color; }
+    if (!isLinkable(v)) delete p.attached; // B53.11: a car, an appliance and a plant hold attached entities
+    if (v !== "plant") delete p.minMoisture;
     if (v === "car" || v === "tree") { delete p.texture; delete p.textureRot; delete p.textureScale; }
     if (v === "tree") delete p.color;
     if (v !== "sofa-l") delete p.mirror;
@@ -1306,6 +1308,9 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${heading("Home Assistant")}
     ${isCar ? html`${entityField(c, "fuent", "main entity (a tap opens it)", m.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "entity", v); }), "device_tracker")}
       ${carAttached(c, i)}`
+      : linked ? html`${entityField(c, "fuent", "main entity (a tap opens it)", m.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "entity", v); }), m.symbol === "plant" ? "sensor" : undefined)}
+        ${carAttached(c, i)}
+        ${m.symbol === "plant" ? optionalField(c, "needs water below (%)", "fumin", m.minMoisture, MIN_MOISTURE, (n) => c.commit((f) => { if (n === undefined) delete f.furniture[i].minMoisture; else f.furniture[i].minMoisture = Math.round(n); }), { noun: "a moisture", min: 1, max: 99, how: "a whole percent from 1 to 99", unit: "%" }) : nothing}`
       : entityField(c, "fuent", "shows the state of", m.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "entity", v); }))}
     ${heading("Appearance")}
     ${lockBox(c, "fulock", "furniture", i)}
@@ -1348,13 +1353,13 @@ function carModelAndColour(c: PanelCtx, i: number) {
 function carAttached(c: PanelCtx, i: number) {
   const m = c.st.f.furniture[i];
   const mutate = (f: Floor, next: string[]) => { if (next.length) f.furniture[i].attached = next; else delete f.furniture[i].attached; };
-  const cur = m.attached ?? [];
+  const cur = m.attached ?? [], noun = m.symbol === "car" ? "the car" : "the piece";
   const more = c.st.carDeviceEntities(i);
   const full = cur.length >= MAX_CAR_ATTACHED;
   return html`${multiAttachField(c, "fuattach", "attached", cur, c.st.carAttachChoices(i).map((g) => g.entry), (next) => c.commit((f) => mutate(f, next)),
-      { apply: mutate, targetLabel: m.name ?? "the car" }, { grouped: () => c.st.carAttachChoices(i) })}
-    ${full ? hint(`A car holds ${MAX_CAR_ATTACHED} entities.`) : nothing}
-    ${more.length ? html`<p>${button("fuall", `Add all from this car (${more.length})`, () => c.attachEntity(more, (f) => mutate(f, [...(f.furniture[i].attached ?? []), ...more]), m.name ?? "the car"))}</p>` : nothing}`;
+      { apply: mutate, targetLabel: m.name ?? noun }, { grouped: () => c.st.carAttachChoices(i) })}
+    ${full ? hint(`A ${m.symbol === "car" ? "car" : "piece"} holds ${MAX_CAR_ATTACHED} entities.`) : nothing}
+    ${more.length ? html`<p>${button("fuall", `Add all from this ${m.symbol === "car" ? "car" : "piece"} (${more.length})`, () => c.attachEntity(more, (f) => mutate(f, [...(f.furniture[i].attached ?? []), ...more]), m.name ?? noun))}</p>` : nothing}`;
 }
 
 /** S35.7: offered on a device or unlinked appliance of type car; one undo step makes it a car piece, selected. */

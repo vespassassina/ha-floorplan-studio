@@ -289,5 +289,15 @@ const c: Catalogue = {
   "cover opened": "tapparella aperta",
   "Window": "Intervallo",
   "History is kept from {when}": "Lo storico è conservato da {when}",
+  "Needs water": "Ha sete",
+  "Needs water · {n} %": "Ha sete · {n} %",
+  "Moisture {n} %": "Umidità {n} %",
+  "Running": "In funzione",
+  "Running · {n} min left": "In funzione · {n} min rimanenti",
+  "Idle": "Inattivo",
+  "Door open": "Porta aperta",
+  "Error": "Errore",
+  "Plant": "Pianta",
+  "Appliance": "Elettrodomestico",
 };
 export default c;

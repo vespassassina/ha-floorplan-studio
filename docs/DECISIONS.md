@@ -2,6 +2,28 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: appliances and plants linked to HA (B53.11)
+
+- **Linked pieces.** `washer`, `dryer`, `dishwasher`, `fridge`, `stove` and `plant` take `entity` and `attached` like the car
+  (`LINKABLE`, `LINKED` in schema; spec 19d). They are a device for state, Active, the room row and tap: `pieceDevice` returns a
+  `type: "other"` device with `sym`, `attached` and, for a plant, `min`. Chosen over six new device types because the type list, the
+  Active rules and the icons are per type, and one pure `linkStatus` (link.ts) serves all six.
+- **Status is a pure function.** Running: a sensor running word, a `binary_sensor` running or power on, a stove `switch` on, or a
+  power sensor above 5 W. Remaining minutes only when running. Alert: a door or opening on, or an error word. `running` reads as
+  `on`, so every existing on rule (colour, Active, 3D) applies; an alert is the open-door red.
+- **Tap marker.** Only a group with `data-linked` is tappable. Appliances and plants emit `data-linked="pc"`; the tv colour rule
+  became `.furn[data-linked=""]`, so an appliance keeps the furniture colour at rest and is not tv-blue.
+- **Tap opens the popup** (name and status: "Running · 42 min left", "Idle", "Door open", "Moisture 14 %", "Needs water · 14 %");
+  More info opens the chooser, or the entity's more-info when there is one entity.
+- **Plant.** `minMoisture` is an integer 1 to 99, default `MIN_MOISTURE` 20 (one constant). Moisture comes from a sensor with
+  device_class moisture, else humidity; a `plant.*` entity in state `problem` with `moisture_status` low also counts. A thirsty
+  plant glows soft and breathes (`plant-glow`, the car's `fp-car-breath` keyframes and reduced-motion rule) in the new
+  `--fp-plant-thirsty` variable, a blue on all 13 themes (looked at on light, midnight and blueprint: it reads on each, the
+  rounded-square glow is visible against both a light and a dark floor). Active lists a plant only while thirsty. A plant keeps its
+  green in 3D and breathes in the blue.
+- **Left undone:** a dedicated Active-list icon for a linked piece (it shows the generic "other" icon); `done` program states are
+  idle, not a notification.
+
 ## 2026-11-06: thirteen more pieces (B53.10)
 
 - Symbols, sizes and heights are spec 19c. Blocks reuse the shapes that exist (cabinet, table, sofa); only the plant is new: a dark

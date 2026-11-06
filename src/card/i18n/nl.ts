@@ -289,5 +289,15 @@ const c: Catalogue = {
   "cover opened": "afdekking open",
   "Window": "Periode",
   "History is kept from {when}": "De geschiedenis wordt bewaard vanaf {when}",
+  "Needs water": "Heeft water nodig",
+  "Needs water · {n} %": "Heeft water nodig · {n} %",
+  "Moisture {n} %": "Vocht {n} %",
+  "Running": "Bezig",
+  "Running · {n} min left": "Bezig · nog {n} min",
+  "Idle": "Inactief",
+  "Door open": "Deur open",
+  "Error": "Fout",
+  "Plant": "Plant",
+  "Appliance": "Apparaat",
 };
 export default c;

@@ -19,6 +19,7 @@ import { roomHeat, type HeatKind } from "./heat";
 import { thumbBox, thumbUrl, type CamThumbOpts } from "./camera-thumb";
 import { badges } from "./rollup";
 import { carStatus } from "./car-status";
+import { linkedStatus, linkLook, linkOn, type LinkLook } from "./link";
 import { carLook, carTop, type CarLook } from "./car";
 import { attentionDevices, type AttentionSource } from "./attention";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
@@ -181,7 +182,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
 // token can never be added to one selector and forgotten in another. The "ha" theme is built from the same two.
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#2c7fb8;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-fan:#1f9ec4;--fp-dev-car:#2e9e4f;--fp-dev-speaker:#2c7fb8;--fp-dev-screen:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-fan:#1f9ec4;--fp-dev-car:#2e9e4f;--fp-plant-thirsty:#1e88d8;--fp-dev-speaker:#2c7fb8;--fp-dev-screen:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 /* Midnight (Diego's call, 2026-09-21, ex-"blueprint"): a deep navy ground, blue linework for walls, cool-white text, from the
    reference screenshot he supplied. It replaced HA's night-blue; light is unchanged. Every accent that carries meaning (device colours, the warn/danger/primary
@@ -196,7 +197,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
    line on the plan needs. The TV keeps #2c7fb8 (S9.3). */
 const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:var(--fp-room);--fp-garden:#1d2a42;--fp-terrace:#21304c;--fp-pavement:#233352;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#5fa8e8;--fp-window:#5fa8e8;--fp-sealed:#9a8f80;--fp-water:#1f4a78;--fp-fill:#1a2a46;--fp-fill-line:#3a5684;
---fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-fan:#4cc3e8;--fp-dev-car:#4fd17a;--fp-dev-speaker:#2c7fb8;--fp-dev-screen:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-fan:#4cc3e8;--fp-dev-car:#4fd17a;--fp-plant-thirsty:#5bb8ff;--fp-dev-speaker:#2c7fb8;--fp-dev-screen:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 
 // The three role-generated themes (2026-09-22, Diego's brief): each is one base hue shaded into every structural token, one
@@ -229,7 +230,7 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({ base: "#e3cd9c", fg: "#3a3226", fgAlp
    Solarized blue 55 % over base03, #15608c; windows keep the full blue. */
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#11424f;--fp-terrace:#124c5b;--fp-pavement:#135161;--fp-wall:#93a1a1;--fp-idle:#586e75;
 --fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#15608c;--fp-fill:#073642;--fp-fill-line:#586e75;
---fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-fan:#2aa198;--fp-dev-car:#859900;--fp-dev-speaker:#268bd2;--fp-dev-screen:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-fan:#2aa198;--fp-dev-car:#859900;--fp-plant-thirsty:#268bd2;--fp-dev-speaker:#268bd2;--fp-dev-screen:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
@@ -398,7 +399,7 @@ ${THEME_EXTRAS}
    at least 3:1 contrast against both --fp-room and --fp-bg (measured: light 5.0:1 / 5.6:1, dark 6.8:1 / 8.0:1). */
 /* S18.12: a tv, speaker or computer piece with an entity is tracking that device, so idle it wears the tv's own colour and not the
    plain furniture grey. Before .furn.on, same specificity, so on still wins. */
-.furn[data-linked]{color:var(--fp-dev-tv)}
+.furn[data-linked=""]{color:var(--fp-dev-tv)}
 .furn.on{color:var(--fp-active)}
 /* S18.8: furniture is filled, not an outline. The body takes the piece's own colour (currentColor: --fp-furniture, or --fp-active
    when on) thinned into --fp-room-empty (the plain room, what most furniture stands on; --fp-room is dark in the dark themes and made dark blobs), so every theme and dark mode keep their hue and the stroke stays the edge.
@@ -427,9 +428,11 @@ ${THEME_EXTRAS}
 .furn-car.alert .car-body{stroke:var(--fp-open-door);stroke-width:3} .furn-car.charging .car-body{stroke:var(--fp-dev-car);stroke-width:3} .furn-car.away{opacity:.35}
 /* B53.3: a charging car breathes. The glow is a blurred copy of the outline in --fp-dev-car under the body, 35 % to 80 % over 2.4 s; reduced motion holds it at 60 %. */
 .car-glow{fill:none;stroke:var(--fp-dev-car);stroke-width:8;stroke-linejoin:round;vector-effect:non-scaling-stroke;filter:blur(3px);pointer-events:none}
-.furn-car.charging .car-glow{animation:fp-car-breath 2.4s ease-in-out infinite}
+.furn-car.charging .car-glow,.furn-plant.thirsty .plant-glow{animation:fp-car-breath 2.4s ease-in-out infinite}
+.plant-glow{fill:none;stroke:var(--fp-plant-thirsty);stroke-width:8;stroke-linejoin:round;vector-effect:non-scaling-stroke;filter:blur(3px);pointer-events:none}
+.furn.alert:not(.furn-car){color:var(--fp-open-door)}
 @keyframes fp-car-breath{0%,100%{opacity:.35}50%{opacity:.8}}
-@media (prefers-reduced-motion:reduce){.furn-car.charging .car-glow{animation:none;opacity:.6}}
+@media (prefers-reduced-motion:reduce){.furn-car.charging .car-glow,.furn-plant.thirsty .plant-glow{animation:none;opacity:.6}}
 .furn-car .bs{fill:color-mix(in srgb,var(--fp-car-body,var(--fp-furniture)) 60%,var(--fp-bg))} .furn-car .bs.w{fill:color-mix(in srgb,var(--fp-car-body,var(--fp-furniture)) 75%,var(--fp-bg))}
 .furn-car .car-cabin .bs{fill:var(--fp-car-glass)} .furn-car .car-cabin .bt{fill:color-mix(in srgb,var(--fp-car-body,var(--fp-furniture)) 82%,black)}
 .car-marks{pointer-events:none} .car-marks .away-mark{fill:var(--fp-idle);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke}
@@ -921,6 +924,13 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "light" && d.bound) return boundClassOf(d, o);
   // S35.3: a car is on while it charges, even when its tracker is dead: the charging sensor is another entity (review finding 5).
   if (d.type === "car" && carStatus(d, o.state).charging) return "on";
+  // B53.11: a linked appliance runs, a linked plant is thirsty; whatever the main entity's own state word is, a plug switch "on" is not "running".
+  const lk = linkedStatus(d, o.state);
+  if (lk) {
+    if (linkOn(lk.sym, lk.status)) return "on";
+    const m = o.state?.[d.entity];
+    return m && dead(m.state) ? "unavailable" : "off";
+  }
   const s = o.state?.[d.entity];
   if (!s) return "off";
   if (dead(s.state)) return "unavailable"; // S23.5: every type, a light, switch or plug too: "I don't know" is not "off"
@@ -1010,6 +1020,12 @@ export function pieceOn(o: RenderOpts, m: Furniture, plugs?: ReadonlyMap<string,
   const d = pieceDevice(m);
   if (d && !plugs?.has(d.entity)) return classOf(d, o) === "on";
   return entityOn(o, m.entity, plugs);
+}
+
+/** B53.11: what a linked appliance or plant wears (state classes, a thirsty plant's glow), or null for any other piece. */
+function linkOf(o: RenderOpts, m: Furniture): LinkLook | null {
+  const d = pieceDevice(m), lk = d && linkedStatus(d, o.state);
+  return lk ? linkLook(lk.sym, lk.status) : null;
 }
 
 /** S35.4: what a car piece wears (class, body colour, badges), or null for any other piece. */
@@ -1586,7 +1602,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     f.furniture.forEach((m, i) => {
       if (layerHides(o.hiddenLayers, "furn", i, undefined, o.selection, o.keep)) return;
       const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
-      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), sym.svg, px, furnitureWaves(o, m), carOf(o, m)) : null;
+      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), sym.svg, px, furnitureWaves(o, m), carOf(o, m), linkOf(o, m)) : null;
       if (s) solids.push(s);
     });
     (f.unlinked ?? []).forEach((u, i) => { if (layerHides(o.hiddenLayers, "unl", i, u.type, o.selection, o.keep)) return; const s = unlinkedSolid(u, px); if (s) solids.push(s); });
@@ -1848,9 +1864,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S28.3: a tree's soft shade patch, offset (+4, +6) cm in the plan whatever its size and turn, so outside the scaled group.
     const shade = treeShadeSvg(m);
     if (shade) dst.push(shade);
-    const car = carOf(o, m);
+    const car = carOf(o, m), link = linkOf(o, m);
     const fp = furniturePaintLook(m);
-    dst.push(`<g data-f="${i}" class="furn${on}${furnitureCls(m)}${car?.cls ?? ""}${fp.cls}"${furnitureLinked(m)}${car?.style ?? fp.style} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : sym.svg}</g>`);
+    dst.push(`<g data-f="${i}" class="furn${on}${furnitureCls(m)}${car?.cls ?? link?.cls ?? ""}${fp.cls}"${furnitureLinked(m)}${car?.style ?? fp.style} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : (link?.glow ?? "") + sym.svg}</g>`);
     if (car?.marks) dst.push(car.marks.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
     if (o.locate?.t === "furn" && o.locate.i === i) dst.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
     const waves = furnitureWaves(o, m);

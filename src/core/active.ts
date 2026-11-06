@@ -3,6 +3,7 @@ import type { Device, DeviceType, Door, Floor, Layout, Pt } from "./schema";
 import { acMode, classOf, ROOM_OWNS, roomAt, type RenderOpts, type StateOverlay } from "./render";
 import { onEdge } from "./geometry";
 import { pieceDevice } from "./solids";
+import { linkedStatus } from "./link";
 
 /**
  * S9.5: one row the card's floating active-devices panel can show. `floor` is the layout's own floor key (not the
@@ -119,6 +120,8 @@ export function colorVarFor(d: Device, state: StateOverlay | undefined): string 
     const mode = acMode(d, { scale: 1, state });
     return mode === "cool" ? "--fp-dev-ac-cool" : "--fp-dev-ac-heat";
   }
+  const lk = linkedStatus(d, state);
+  if (lk) return lk.sym === "plant" ? "--fp-plant-thirsty" : "--fp-dev-plug"; // B53.11: no icon of their own yet; the plant's water blue, an appliance's plug blue
   return COLOR_VAR[d.type] ?? "--fp-idle";
 }
 
@@ -128,10 +131,12 @@ function isActive(d: Device, state: StateOverlay | undefined, opts: ActiveOpts):
   // Opus review finding 9: an empty entity has nothing to open more-info on and nothing HA reports state for —
   // never list it, whatever ACTIVE_LIST_RULE says for its type.
   if (typeof d.entity !== "string" || !d.entity) return false;
-  const rule = ACTIVE_LIST_RULE[d.type];
+  // B53.11: a linked appliance or plant is type "other" (never listed) but runs or needs water like a device that is on; classOf says.
+  const linked = !!linkedStatus(d, state);
+  const rule = linked ? "on" : ACTIVE_LIST_RULE[d.type];
   const s = state?.[d.entity]?.state;
   // A car is the exception: its tracker may be dead while its charging sensor is not, and `classOf` knows (review finding 5).
-  if ((s === "unavailable" || s === "unknown") && d.type !== "car") return false;
+  if ((s === "unavailable" || s === "unknown") && d.type !== "car" && !linked) return false;
   if (rule === "never") return false;
   if (rule === "cleaning") return s === "cleaning";
   return classOf(d, { scale: 1, state, ...opts }) === "on";

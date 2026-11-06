@@ -130,11 +130,22 @@ export type Device = { id: string; type: DeviceType; entity: string; name?: stri
  */
 export type CarModel = "sedan" | "wagon" | "suv" | "offroad" | "truck" | "van" | "utility" | "citycar" | "electric";
 export const CAR_MODELS: readonly CarModel[] = ["sedan", "wagon", "suv", "offroad", "truck", "van", "utility", "citycar", "electric"];
+/** B53.11: the kitchen and laundry appliances. A test iterates this list, so a new appliance must be decided. */
+export const APPLIANCES = ["washer", "dryer", "dishwasher", "fridge", "stove"] as const;
+/** Pieces that take `entity` and `attached` (more entity ids), checked with `isEntityId`; any other piece refuses `attached`. A test iterates every symbol against this. */
+export const LINKABLE: readonly FurnitureSymbol[] = ["car", ...APPLIANCES, "plant"];
+/** The linkable pieces that are not a car: they share one status and one popup line (`linkStatus`, link.ts). */
+export const LINKED: readonly FurnitureSymbol[] = [...APPLIANCES, "plant"];
+export const isLinkable = (s: unknown): boolean => typeof s === "string" && LINKABLE.includes(s as FurnitureSymbol);
+export const isLinked = (s: unknown): boolean => typeof s === "string" && LINKED.includes(s as FurnitureSymbol);
+/** A plant is thirsty below this moisture (percent) when it sets no `minMoisture`; `minMoisture` is a whole percent from 1 to 99. */
+export const MIN_MOISTURE = 20;
+export const validMinMoisture = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 99;
 export const MAX_CAR_ATTACHED = 24;
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. `height` is the size of the piece, `z` its bottom above the floor
  *  (a wall TV, a speaker): the top is z + height. */
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number; model?: CarModel; color?: string; /** B53.4: with `color`, the paint of any piece but a car (whose `color` is its body) and a tree; `texture` is a room texture. */ texture?: string; textureRot?: number; textureScale?: number; attached?: string[]; /** B53.2: a `sofa-l` with its chaise on the right. Only `true`, only on a `sofa-l`; absent means the chaise is on the left as the symbol is drawn. */ mirror?: true }
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number; model?: CarModel; color?: string; /** B53.4: with `color`, the paint of any piece but a car (whose `color` is its body) and a tree; `texture` is a room texture. */ texture?: string; textureRot?: number; textureScale?: number; attached?: string[]; /** B53.11: a plant's moisture threshold, a whole percent from 1 to 99; absent means `MIN_MOISTURE`. */ minMoisture?: number; /** B53.2: a `sofa-l` with its chaise on the right. Only `true`, only on a `sofa-l`; absent means the chaise is on the left as the symbol is drawn. */ mirror?: true }
 /**
  * S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLINKED_TYPES`), not tied to a
  * single entity's state. `attached` is zero or more HA entities linked to it for reference only — it never
@@ -571,7 +582,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       optHeight(m, "height");
       optHeight(m, "z");
       optText(m, "name");
-      if (m.entity !== undefined && !(m.symbol === "car" ? isEntityId(m.entity) : isEntity(m.entity))) errors.push(`${at} ${m.id} entity must be an entity id like sensor.name${m.symbol === "car" ? " (letters, digits and underscores, one dot)" : ""}`);
+      if (m.entity !== undefined && !(isLinkable(m.symbol) ? isEntityId(m.entity) : isEntity(m.entity))) errors.push(`${at} ${m.id} entity must be an entity id like sensor.name${isLinkable(m.symbol) ? " (letters, digits and underscores, one dot)" : ""}`);
       for (const k of ["x", "y", "rot", "w", "h"]) if (typeof m[k] !== "number" || !Number.isFinite(m[k])) errors.push(`${at} ${m.id} ${k} must be a number`);
       // S1.51: a piece of furniture is never smaller than 5 cm or bigger than 2000 cm on a side.
       for (const k of ["w", "h"] as const) if (typeof m[k] === "number" && Number.isFinite(m[k]) && (m[k] < 5 || m[k] > 2000)) errors.push(`${at} ${m.id} ${k} must be between 5 and 2000`);
@@ -582,7 +593,10 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         else if (m.mirror !== true) errors.push(`${at} ${m.id} mirror must be true; leave it out for the chaise on the left`);
       }
       // S35.1: the car keys. `includes` on a list, so `__proto__` or `constructor` never match.
-      for (const k of ["model", "attached"]) if (m[k] !== undefined && m.symbol !== "car") errors.push(`${at} ${m.id} ${k} is only allowed on a car`);
+      if (m.model !== undefined && m.symbol !== "car") errors.push(`${at} ${m.id} model is only allowed on a car`);
+      if (m.attached !== undefined && !isLinkable(m.symbol)) errors.push(`${at} ${m.id} attached is only allowed on a car, an appliance or a plant (a linked piece)`);
+      // B53.11: a plant's threshold.
+      if (m.minMoisture !== undefined && (m.symbol !== "plant" ? (errors.push(`${at} ${m.id} minMoisture is only allowed on a plant`), false) : !validMinMoisture(m.minMoisture))) errors.push(`${at} ${m.id} minMoisture must be a whole percent from 1 to 99`);
       // B53.4: paint. A car keeps its own `color` (checked below) and takes no texture; a tree is not a block to paint.
       for (const k of ["texture", "textureRot", "textureScale"]) if (m[k] !== undefined && m.symbol === "car") errors.push(`${at} ${m.id} ${k} is not allowed on a car; its colour is its body paint`);
       if (m.symbol === "tree") { for (const k of ["color", "texture", "textureRot", "textureScale"]) if (m[k] !== undefined) errors.push(`${at} ${m.id} ${k} is not allowed on a tree; a tree takes no paint`); }
@@ -593,9 +607,9 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         if (m.textureScale !== undefined && !(typeof m.textureScale === "number" && Number.isFinite(m.textureScale) && m.textureScale >= 0.25 && m.textureScale <= 2)) errors.push(`${at} ${m.id} textureScale must be a number from 0.25 to 2`);
         for (const k of ["textureRot", "textureScale"]) if (m[k] !== undefined && m.texture === undefined) errors.push(`${at} ${m.id} ${k} needs a texture`);
       }
-      if (m.symbol === "car") {
-        if (m.model !== undefined && !CAR_MODELS.includes(m.model)) errors.push(`${at} ${m.id} model must be one of ${CAR_MODELS.join(", ")}; leave it out for a sedan`);
-        if (m.color !== undefined && !(typeof m.color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.color))) errors.push(`${at} ${m.id} color must be a colour like #aabbcc`);
+      if (isLinkable(m.symbol)) {
+        if (m.symbol === "car" && m.model !== undefined && !CAR_MODELS.includes(m.model)) errors.push(`${at} ${m.id} model must be one of ${CAR_MODELS.join(", ")}; leave it out for a sedan`);
+        if (m.symbol === "car" && m.color !== undefined && !(typeof m.color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.color))) errors.push(`${at} ${m.id} color must be a colour like #aabbcc`);
         entityList(m, "attached", "sensor.name", undefined, MAX_CAR_ATTACHED, true);
         if (Array.isArray(m.attached) && new Set(m.attached).size !== m.attached.length) errors.push(`${at} ${m.id} attached lists an entity twice; remove the repeat`);
       }

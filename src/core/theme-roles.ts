@@ -102,7 +102,7 @@ export function rolesToTokens(roles: ThemeRoles): string {
     `--fp-dev-heater:${devFor("heater")}`, `--fp-dev-climate:${devFor("climate")}`, `--fp-dev-ac-cool:${acCool}`,
     `--fp-dev-ac-heat:${acHeat}`, `--fp-dev-tv:${TV_BLUE}`, `--fp-dev-media:${devFor("media")}`,
     `--fp-dev-cover:${devFor("cover")}`, `--fp-dev-plug:${devFor("plug")}`, `--fp-dev-computer:${devFor("computer")}`,
-    `--fp-dev-camera:${shades.idle}`, `--fp-dev-garden:${shades.idle}`, `--fp-dev-person:${devFor("person")}`, `--fp-dev-radar:${devFor("radar")}`, `--fp-dev-vacuum:${devFor("vacuum")}`, `--fp-dev-fan:${devFor("fan")}`, `--fp-dev-car:${roles.devices?.car ?? CAR_CHARGING_GREEN[roles.dark ? 1 : 0]}`,
+    `--fp-dev-camera:${shades.idle}`, `--fp-dev-garden:${shades.idle}`, `--fp-dev-person:${devFor("person")}`, `--fp-dev-radar:${devFor("radar")}`, `--fp-dev-vacuum:${devFor("vacuum")}`, `--fp-dev-fan:${devFor("fan")}`, `--fp-dev-car:${roles.devices?.car ?? CAR_CHARGING_GREEN[roles.dark ? 1 : 0]}`, `--fp-plant-thirsty:${roles.dark ? "#5bb8ff" : "#1e88d8"}`,
     // S9.4: speaker is a fixed blue in every theme, the same exception TV is (S9.3) — never derived from the role's own accent.
     `--fp-dev-speaker:#2c7fb8`, `--fp-dev-screen:#2c7fb8`, // a control screen is blue while it is on, as a TV is
     `--fp-halo:${roles.fg}`, `--fp-alpha:.25`, `--fp-disc:${roles.fg}`, `--fp-disc-alpha:${roles.fgAlpha}`,

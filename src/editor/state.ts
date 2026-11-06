@@ -1,5 +1,5 @@
 import { alignFloor, floorBelow, floorPlace, floorPose, normaliseTurn, placePoint, poseFromPlace, DETAIL_MODES, parseDetailMode, CAR_SPEC, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, WALL_COLOUR_KEYS, setEdgeColour, type WallColourKey, unplacedHaEntities, validate, viewBoxFor } from "../core";
-import { CAR_MODELS, COORD_LIMIT, MAX_CAR_ATTACHED, MAX_VIEWS, MAX_VIEW_ZOOM } from "../core/schema";
+import { CAR_MODELS, COORD_LIMIT, MAX_CAR_ATTACHED, isLinkable, MAX_VIEWS, MAX_VIEW_ZOOM } from "../core/schema";
 import type { SavedView } from "../core/schema";
 import { compact, rangeProblem, type HouseRange } from "./temp-range-ops";
 import { camThumbOf } from "../core/camera-thumb";
@@ -1318,13 +1318,13 @@ export class EditorState {
   /** S35.7: the "Attached" picker of car `i`, ordered and headed as `carAttachGroups` says. Empty when the car already holds 24. */
   carAttachChoices(i: number): GroupedChoice[] {
     const m = this.f.furniture[i];
-    return m?.symbol === "car" && (m.attached?.length ?? 0) < MAX_CAR_ATTACHED ? carAttachGroups(m, this.ha, this.layout.catalog) : [];
+    return m && isLinkable(m.symbol) && (m.attached?.length ?? 0) < MAX_CAR_ATTACHED ? carAttachGroups(m, this.ha, this.layout.catalog) : [];
   }
 
   /** S35.7: what "Add all from this car" would attach: the main entity's device, minus what is attached, up to 24 in all. Empty hides the button. */
   carDeviceEntities(i: number): string[] {
     const m = this.f.furniture[i];
-    return m?.symbol === "car" ? carDeviceEntities(m, this.ha) : [];
+    return m && isLinkable(m.symbol) ? carDeviceEntities(m, this.ha) : [];
   }
 
   /**

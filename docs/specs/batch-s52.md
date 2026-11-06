@@ -103,6 +103,15 @@ This batch needs about 3.7 KB on the card. 978 bytes are not enough, so Sprint 5
     as a cabinet; desk as a table; armchair as a sofa; fridge, washer, dryer, rug one box; plant a pot (35 % of `H`, dark, inset
     5 cm) and the foliage above it. A rug is `flat` in 2.5D (drawn in the 2D pass, under every solid). All paintable.
 
+19d. **Linked appliances and plants (added 2026-11-06, Diego).** `washer`, `dryer`, `dishwasher`, `fridge`, `stove` and `plant` take
+    `entity` and `attached` (up to 24 entity ids, as the car); a plant also `minMoisture` (integer 1 to 99, default 20). Status
+    (`linkStatus`, pure): running = a sensor running word, a `binary_sensor` running or power on, a stove `switch` on, or a power
+    sensor above 5 W; remaining minutes only while running; alert = a door or opening on, or an error word. A thirsty plant has a
+    moisture (device_class moisture, else humidity, or a `plant.*` in `problem` with low moisture) below its limit. The piece is a
+    device for state, Active (a plant only while thirsty), room row and tap; running reads as on, alert as the open-door colour,
+    thirsty as a breathing glow in `--fp-plant-thirsty`. Tap opens a popup with the status line; More info opens the chooser. Same
+    in 2D, 2.5D, 3D and replay.
+
 ### C. Worktop (Sprint 54)
 
 20. **Shape:** `symbol: "worktop"` with `pts: Pt[]` in plan cm, from 3 to 64 points, a simple polygon (no

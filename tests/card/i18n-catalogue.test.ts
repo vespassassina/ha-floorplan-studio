@@ -69,12 +69,12 @@ const categories = (code: string) => { const r = new Intl.PluralRules(code); ret
 const NAMES = ["Blueprint", "Solarized", "Home Assistant", "A-Team", "Cyberpunk", "Carpenter Brut", "UPS", "Radar", "Firmware", "{n} min"];
 const SAME: Record<string, string[]> = {
   it: ["Area", "Auto", "Media", "Computer", "Inverter", "Server", "Access point"],
-  es: ["Terminal", "Auto", "Media"],
+  es: ["Terminal", "Auto", "Media", "Error"],
   pt: ["Terminal", "Auto", "Media"],
   "pt-BR": ["Terminal", "Auto", "Media"],
   fr: ["Attention · {n}", "Pause", "Terminal", "Auto", "Minimal", "Contact", "Vibration"],
   de: ["Detail", "Details", "Pause", "Terminal", "Minimal", "Computer", "Server", "Vibration", "Boiler", "Person", "Alarm"],
-  nl: ["open", "Labels", "Detail", "Details", "Model", "Terminal", "Auto", "Media", "Contact", "Camera", "Computer", "Server", "Boiler", "Printer", "Alarm", "alarm"],
+  nl: ["open", "Plant", "Labels", "Detail", "Details", "Model", "Terminal", "Auto", "Media", "Contact", "Camera", "Computer", "Server", "Boiler", "Printer", "Alarm", "alarm"],
   "zh-Hans": [],
   pl: ["Start", "Model", "Terminal", "Auto", "Media", "Alarm", "alarm"],
 };

@@ -19,6 +19,8 @@ export interface PopupSubject {
   powerEntity?: string;
   /** S22.1: a light with a `bound` relay: its state line and its button count the relay (`lampOp`). */
   lamp?: Device;
+  /** B53.11: a linked appliance or plant: its symbol and (plant) threshold, for the status line. */
+  link?: { sym: string; min?: number };
 }
 
 export type SliderKind = "b" | "t" | "h" | "s";

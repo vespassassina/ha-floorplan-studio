@@ -1,6 +1,6 @@
 import { t } from "../core/i18n";
 import type { Device, Door, Furniture, Unlinked } from "../core";
-import { carEntities, carMain, carStatus, carText, entitiesOfDevice, entitiesOfDoor, isViewPath, pieceDevice, playerOf } from "../core";
+import { carEntities, carMain, carStatus, carText, isLinked, linkedStatus, linkStatus, linkText, entitiesOfDevice, entitiesOfDoor, isViewPath, pieceDevice, playerOf } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 import type { HoldAction, TapAction } from "./tap-action";
 
@@ -179,6 +179,14 @@ export function bindDeviceActions(
         if (!main || !d) return;
         const ents = carEntities(m);
         arm(popup({ device: d, index: i, piece: true }), () => (ents.length > 1 ? opts?.openChooser?.(m.name || t("Car"), ents, () => carText(carStatus(m, host.hass?.states))) : fireEvent(host, "hass-more-info", { entityId: main })));
+        return;
+      }
+      // B53.11: a linked appliance or plant is the same: a tap is the popup (name, status line, More info), a hold the chooser.
+      if (m && isLinked(m.symbol)) {
+        const d = pieceDevice(m);
+        if (!d) return;
+        const ents = carEntities(m), lk = linkedStatus(d, host.hass?.states);
+        arm(popup({ device: d, index: i, piece: true }), () => (ents.length > 1 ? opts?.openChooser?.(m.name || (m.symbol === "plant" ? t("Plant") : t("Appliance")), ents, () => (lk ? linkText(lk.sym, linkStatus(lk.sym, { entity: d.entity, attached: ents, min: (d as { min?: number }).min }, host.hass?.states)) : "")) : fireEvent(host, "hass-more-info", { entityId: d.entity })));
         return;
       }
       const own = m && pieceDevice(m)?.entity;

@@ -742,7 +742,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     for (const b of pieceBodies) {
       const live = L.pieces[b.index];
       b.on = !!live?.on;
-      if (!isCarPart(b.tag)) { b.mat.color.copy(b.on ? on : b.rest); continue; }
+      // B53.11: a plant keeps its green and glows (applyBreath); an appliance wears the alert colour for an open door or an error, else the on colour.
+      if (!isCarPart(b.tag)) { b.mat.color.copy(b.tag === "plant" ? b.rest : live?.alert ? alert : b.on ? on : b.rest); continue; }
       // A car: charging lights the greenhouse like a tv screen, an alert turns the roof the open door's red, away fades every part.
       const lit = b.tag === "car-glass" && !!live?.charging;
       b.mat.color.copy(lit ? charge : b.tag === "car-roof" && live?.alert ? alert : b.rest);
@@ -753,9 +754,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   }
   /** B53.3: a charging car's body glows toward the charge colour on the plan's 2.4 s breath (still, at 60 %, under reduced motion). Sets `breathing` while a frame must follow. */
   function applyBreath() {
-    const L = liveNow ?? EMPTY, charge = paintOf("car-charge", undefined).colour, calm = reduced(), k = breathAt(performance.now() / 1000, calm);
+    const L = liveNow ?? EMPTY, charge = paintOf("car-charge", undefined).colour, thirst = paintOf("plant-thirsty", undefined).colour, calm = reduced(), k = breathAt(performance.now() / 1000, calm);
     let any = false;
     for (const b of pieceBodies) {
+      if (b.tag === "plant") {
+        // B53.11: a thirsty plant breathes the water blue, as the car does its charge green.
+        if (L.pieces[b.index]?.thirsty) { b.mat.emissive.copy(thirst).multiplyScalar(k); any = true; } else b.mat.emissive.setRGB(0, 0, 0);
+        continue;
+      }
       if (b.tag !== "car-body") continue;
       const charging = !!L.pieces[b.index]?.charging;
       if (charging) { b.mat.emissive.copy(charge).multiplyScalar(k); any = true; } else b.mat.emissive.setRGB(0, 0, 0);

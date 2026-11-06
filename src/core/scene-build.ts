@@ -396,7 +396,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       const linked = pieceDevice(m as never);
       if (m.symbol === "car") { carSolids(m, i, z0, linked?.entity, add); return; }
       const ref: SolidRef = { index: i, id: text(m.id), size: [m.w, m.h], ...(tree ? { crown: { z0: z0 + tree.crownBottom, z1: z0 + tree.crownTop, rot: m.rot } } : {}), ...(linked ? { entity: linked.entity } : {}) };
-      const role = linked ? "furniture-linked" : `furniture-${m.symbol}`;
+      const role = linked && !(linked as { sym?: unknown }).sym ? "furniture-linked" : `furniture-${m.symbol}`;
       // B53.4: the piece's colour, or its texture's base colour; undefined keeps the palette's role. A dark block takes it 20 % darker.
       const paintHex = furniturePaint(m as never);
       const look = (dark: boolean) => paintHex ? { role: dark ? `${role}-dark` : role, color: dark ? darkHex(paintHex) : paintHex } : { role: dark ? `${role}-dark` : role };

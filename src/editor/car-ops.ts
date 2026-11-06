@@ -34,13 +34,14 @@ export function carAttachGroups(m: Furniture, ha: HaData | undefined, catalog: r
   const pool: HaEntity[] = [...(ha?.entities ?? [])];
   for (const c of catalog) if (!pool.some((e) => e.id === c.entity)) pool.push({ id: c.entity, name: c.name, domain: c.entity.split(".")[0] });
   const dev = ha?.entities.find((e) => e.id === carMain(m))?.dev;
+  const car = m.symbol === "car", noun = car ? "car" : "piece";
   const word = (m.name ?? "").trim().toLowerCase();
   const holds = (e: HaEntity) => !!word && (nameOf(e).toLowerCase().includes(word) || e.id.toLowerCase().includes(word.replace(/\s+/g, "_")));
   const rank = (e: HaEntity): [number, string] => {
     if (e.cat === "diagnostic" || e.cat === "config") return [4, "Diagnostic"];
-    if (dev && e.dev === dev) return [0, "This car's device"];
-    if (holds(e)) return [1, "Named like this car"];
-    if (CAR_DOMAINS.includes(e.domain)) return [2, "Car entities"];
+    if (dev && e.dev === dev) return [0, `This ${noun}'s device`];
+    if (holds(e)) return [1, `Named like this ${noun}`];
+    if (CAR_DOMAINS.includes(e.domain)) return [2, car ? "Car entities" : "Likely entities"];
     return [3, "Other"];
   };
   return pool.filter((e) => !known.has(e.id))

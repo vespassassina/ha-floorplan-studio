@@ -168,12 +168,44 @@ S35.1: the car models, in the order the Studio lists them. `model`, `color` (`#r
 export type CarModel = "sedan" | "wagon" | "suv" | "offroad" | "truck" | "van" | "utility" | "citycar" | "electric";
 ```
 
+## APPLIANCES
+
+B53.11: the kitchen and laundry appliances. A test iterates this list, so a new appliance must be decided.
+
+```ts
+export const APPLIANCES = ["washer", "dryer", "dishwasher", "fridge", "stove"] as const;
+```
+
+## LINKABLE
+
+Pieces that take `entity` and `attached` (more entity ids), checked with `isEntityId`; any other piece refuses `attached`. A test iterates every symbol against this.
+
+```ts
+export const LINKABLE: readonly FurnitureSymbol[] = ["car", ...APPLIANCES, "plant"];
+```
+
+## LINKED
+
+The linkable pieces that are not a car: they share one status and one popup line (`linkStatus`, link.ts).
+
+```ts
+export const LINKED: readonly FurnitureSymbol[] = [...APPLIANCES, "plant"];
+```
+
+## MIN_MOISTURE
+
+A plant is thirsty below this moisture (percent) when it sets no `minMoisture`; `minMoisture` is a whole percent from 1 to 99.
+
+```ts
+export const MIN_MOISTURE = 20;
+```
+
 ## Furniture
 
 `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. `height` is the size of the piece, `z` its bottom above the floor  (a wall TV, a speaker): the top is z + height.
 
 ```ts
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number; model?: CarModel; color?: string; /** B53.4: with `color`, the paint of any piece but a car (whose `color` is its body) and a tree; `texture` is a room texture. */ texture?: string; textureRot?: number; textureScale?: number; attached?: string[]; /** B53.2: a `sofa-l` with its chaise on the right. Only `true`, only on a `sofa-l`; absent means the chaise is on the left as the symbol is drawn. */ mirror?: true }
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number; model?: CarModel; color?: string; /** B53.4: with `color`, the paint of any piece but a car (whose `color` is its body) and a tree; `texture` is a room texture. */ texture?: string; textureRot?: number; textureScale?: number; attached?: string[]; /** B53.11: a plant's moisture threshold, a whole percent from 1 to 99; absent means `MIN_MOISTURE`. */ minMoisture?: number; /** B53.2: a `sofa-l` with its chaise on the right. Only `true`, only on a `sofa-l`; absent means the chaise is on the left as the symbol is drawn. */ mirror?: true }
 ```
 
 ## Unlinked
