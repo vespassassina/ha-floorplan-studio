@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: Opus re-check of the B53 fixes; paint refused on a mirror in the editor
+
+The re-check found no must-fix. One nit fixed: `EditorState.paint` and the texture rotation and scale sliders now ask
+`furniturePaintable`, so no caller can put paint on a mirror, a standing mirror or a tree that Save would then refuse
+(finding 12). Before, only the hidden panel controls stopped it. Kept as they are, from the same re-check: a smart plug
+with no meter that is not the piece's main entity reads Idle when off, not "Off at the plug"; an appliance that puts its own
+energy sensor on the device of a feature switch would count that switch as its plug; a robot whose `vacuum.*` is dead while
+its battery sensor reads is Idle, not Unavailable; `room-info` repeats the thirsty-plant rule instead of calling `linkActive`.
+Diego, the same day: the form chunk cap of 28,000 is approved, and the co-author lines read Opus.
+
 ## 2026-11-06: Opus review of B53.10-B53.13
 
 Fixed:

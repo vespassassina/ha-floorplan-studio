@@ -3,6 +3,7 @@ import { CAR_MODELS, COORD_LIMIT, MAX_CAR_ATTACHED, isLinkable, MAX_VIEWS, MAX_V
 import type { SavedView } from "../core/schema";
 import { compact, rangeProblem, type HouseRange } from "./temp-range-ops";
 import { camThumbOf } from "../core/camera-thumb";
+import { furniturePaintable } from "../core/furniture-paint";
 import type { CamThumb } from "../core/camera-thumb";
 import type { DetailMode, HeatKind, CatalogEntry, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import type { GroupedChoice } from "./sensor-order";
@@ -770,7 +771,9 @@ export class EditorState {
     // B53.4: a piece of furniture. A car keeps its colour and takes no texture (paintCar is its own door); a tree takes none of either.
     if (on === "furniture") {
       const sym = (shape as { symbol?: string }).symbol;
-      if (sym === "tree" || (sym === "car" && paint && "texture" in paint)) return false;
+      // A tree and each mirror take no paint at all (furniturePaintable); a car keeps its colour door. Checked here, not only by the
+      // hidden panel controls, so no caller can autosave paint that Save then refuses (finding 12).
+      if ((sym !== "car" && !furniturePaintable(sym)) || (sym === "car" && paint && "texture" in paint)) return false;
     }
     delete shape.color; delete shape.texture; delete shape.textureRot; delete shape.textureScale;
     if (paint && "color" in paint) {

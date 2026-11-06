@@ -143,6 +143,15 @@ describe("EditorState.paint on furniture: one undo step each", () => {
     expect(car.paint("furniture", 0, { texture: "wood-warm" })).toBe(false);
     expect(car.paint("furniture", 0, { color: "#c03030" })).toBe(true);
   });
+  it("refuses every paint on a symbol that takes none (each mirror, a tree), recording nothing (Opus re-check, finding 12)", () => {
+    for (const s of FURNITURE_SYMBOLS.filter((x) => !furniturePaintable(x) && x !== "car")) {
+      const st = new EditorState(layoutOf(piece(s)) as unknown as Layout);
+      expect(st.paint("furniture", 0, { color: "#c03030" }), s).toBe(false);
+      expect(st.paint("furniture", 0, { texture: "wood-warm" }), s).toBe(false);
+      expect(st.undo(), s).toBe(false);
+      expect(validate(JSON.parse(JSON.stringify(st.layout))).ok, s).toBe(true);
+    }
+  });
   it("the painted layout validates", () => {
     const st = new EditorState(layout());
     st.paint("furniture", 0, { texture: "wood-dark", rot: 10, scale: 0.5 });

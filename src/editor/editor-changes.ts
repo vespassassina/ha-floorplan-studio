@@ -1,5 +1,6 @@
 import { stopDraw } from "./editor-draw";
 import type { Floor } from "../core";
+import { furniturePaintable } from "../core/furniture-paint";
 import type { FloorplanStudioEditor } from "./editor-app";
 
 // ---- edits that touch one thing on the plan: attach an entity, lock the plan, texture and item turns -----
@@ -52,7 +53,7 @@ export const rotateTexture = (ed: FloorplanStudioEditor, on: "rooms" | "stairs" 
   const g = structuredClone(ed.st.f);
   const shape = g[on][i];
   const n = ((Math.trunc(rot) % 360) + 360) % 360; // 0 is never stored (matches paint()'s convention)
-  if (shape) { if (n === 0) delete shape.textureRot; else shape.textureRot = n; }
+  if (shape && (on !== "furniture" || furniturePaintable((shape as { symbol?: unknown }).symbol))) { if (n === 0) delete shape.textureRot; else shape.textureRot = n; }
   ed.st.replaceFloor(g);
   if (phase === "live") { ed.requestUpdate(); return; }
   const before = ed.textureRotGesture;
@@ -83,7 +84,7 @@ export const scaleTexture = (ed: FloorplanStudioEditor, on: "rooms" | "stairs" |
   const g = structuredClone(ed.st.f);
   const shape = g[on][i];
   const n = Math.min(2, Math.max(0.25, scale)); // matches paint()'s clamp; 1 is never stored
-  if (shape) { if (n === 1) delete shape.textureScale; else shape.textureScale = n; }
+  if (shape && (on !== "furniture" || furniturePaintable((shape as { symbol?: unknown }).symbol))) { if (n === 1) delete shape.textureScale; else shape.textureScale = n; }
   ed.st.replaceFloor(g);
   if (phase === "live") { ed.requestUpdate(); return; }
   const before = ed.textureScaleGesture;
