@@ -1,8 +1,8 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { TempWatch, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, wallColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { TempWatch, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, plugMeters, rowsOfDevices, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, wallColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { CamThumb, HeatKind, LayerId, OffRow, SearchEntry } from "../core";
-import type { Attention, ThingRef, PowerCandidate, Theme, WallsMode } from "../core";
+import type { Attention, ThingRef, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { tapActionOf, holdActionOf } from "./tap-action";
 import { favouritesOf, type FavouritesRead } from "./favourites";
@@ -389,6 +389,9 @@ export class FloorplanStudioCard extends LitElement {
   _config: FloorplanStudioCardConfig = {};
   _hass?: Hass;
   _layout: Layout | null = null;
+  /** B53.13: the layout as loaded, and the registry `_layout` was last worked out with (`plugMeters`). */
+  private _loaded: Layout | null = null;
+  private _regSeen: unknown;
   private _error: StoredError | null = null;
   private _urlRequested = false;
   private _wsRequested = false;
@@ -895,7 +898,7 @@ export class FloorplanStudioCard extends LitElement {
     this._focusDev = null;
     hideTip(this);
     if (!sameSource) {
-      this._layout = null;
+      this._layout = this._loaded = null;
       this._error = null;
       this._urlRequested = false;
       this._wsRequested = false;
@@ -922,6 +925,7 @@ export class FloorplanStudioCard extends LitElement {
   set hass(h: Hass) {
     this._hass = h;
     if (!this._layout) this._loadLayout();
+    else if (this._loaded && h.entities !== this._regSeen) this._layout = this._withPlugs(this._loaded); // the registry arrived or changed: a plug's sensors may now be known
     this._syncTimer();
     // S37.5: a language change is a re-render and nothing else. The layout, the view and the selection are not touched, so zoom and edits survive.
     void useLanguage(h?.language ?? h?.locale?.language).then((changed) => { if (changed) this.requestUpdate(); });
@@ -956,6 +960,12 @@ export class FloorplanStudioCard extends LitElement {
     return { replaying: () => this._replay !== null, onReplay: () => replayTap(this) };
   }
 
+  /** B53.13: `layout` with the sensors of each electric piece's plug attached (`plugMeters`); remembers the registry it used. */
+  private _withPlugs(layout: Layout): Layout {
+    this._regSeen = this._hass?.entities;
+    return plugMeters(layout, this._hass?.entities, this._hass?.states);
+  }
+
   /** S14.8: the draw range plugs are tinted over, from the two card options (untrusted: junk is the default range). */
   _plugHeat(): [number, number] {
     return heatRange([this._config.plug_heat_from ?? HEAT_FROM, this._config.plug_heat_to ?? HEAT_TO]);
@@ -972,13 +982,7 @@ export class FloorplanStudioCard extends LitElement {
     const plugs = Object.values(this._layout.floors).flatMap((f) => f.devices).filter((d) => d.type === "plug" && !d.power && d.entity);
     const devs = new Set(plugs.map((d) => reg[d.entity]?.device_id).filter((x): x is string => typeof x === "string" && !!x));
     if (!devs.size) return undefined;
-    const rows: PowerCandidate[] = [];
-    for (const [id, e] of Object.entries(reg)) {
-      const dev = e?.device_id;
-      if (!dev || !devs.has(dev)) continue;
-      const dc = states[id]?.attributes?.device_class;
-      rows.push({ id, domain: id.split(".")[0], dc: typeof dc === "string" ? dc : undefined, dev, cat: e.entity_category });
-    }
+    const rows = rowsOfDevices(reg, states, devs);
     const links: Record<string, string> = {};
     for (const d of plugs) {
       const found = findPowerSensor(rows, d.entity);
@@ -1081,7 +1085,7 @@ export class FloorplanStudioCard extends LitElement {
       const v = validate(migrate(raw));
       if (!v.ok) throw new Error(v.errors[0]);
       if (!Object.keys(v.layout.floors).length) throw new Error("the plan has no floors");
-      this._layout = v.layout;
+      this._layout = this._withPlugs(this._loaded = v.layout);
       this._spider = null; // its indices belonged to the layout just replaced
       this._closePopup(); // its subject belonged to the layout just replaced
       hideTip(this);

@@ -9,7 +9,8 @@ const piece = (symbol: string, extra: Record<string, unknown> = {}) => ({ id: "m
 const layoutOf = (m: unknown) => ({ version: 2, unit: "cm", north: 0, rotate: 0, catalog: [], floors: { Ground: { title: "G", outline: [[0, 0], [1000, 0], [1000, 800], [0, 800]], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [m], unlinked: [] } } });
 const errorsOf = (m: unknown): string[] => { const r = validate(layoutOf(m)); return r.ok ? [] : r.errors; };
 const furnitureOf = (l: unknown) => (l as Layout).floors.Ground.furniture[0] as unknown as Record<string, unknown>;
-const NEW_LINKED = LINKABLE.filter((s) => s !== "car");
+// B53.13: the tv, speaker and computer keep the lenient entity they always had (a layout from before must open); every other linked piece is strict.
+const NEW_LINKED = LINKABLE.filter((s) => s !== "car" && s !== "tv" && s !== "speaker" && s !== "computer");
 
 describe("every symbol decides whether it links", () => {
   for (const s of FURNITURE_SYMBOLS) {

@@ -35,6 +35,7 @@ export { TRUNK_SIDE, treeShape } from "./tree";
 export type { TreeShape } from "./tree";
 export { HEAT_FROM, HEAT_TO, PLUG_ACTIVE_WATTS, findPowerSensor, heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 export type { PowerCandidate } from "./power";
+export { plugMeters, rowsOfDevices } from "./plug-meters";
 export * from "./stairs";
 export { composePlace, floorBelow, floorPivot, floorPlace, floorPose, floorsBelow, invertPlace, normaliseTurn, placePoint, poseFromPlace } from "./floor-stack";
 export type { Place, Pose } from "./floor-stack";
@@ -49,7 +50,7 @@ export type { InfoHass, InfoRow, RoomDeviceRow, RoomSensorRow, RoomSummary } fro
 export { meanText, readingText, stateText } from "./state-text";
 export type { StateFormatter } from "./state-text";
 export { carEntities, carMain, carStatus, carText } from "./car-status";
-export { LINKABLE, LINKED, APPLIANCES, MIN_MOISTURE, isLinkable, isLinked, linkStatus, linkedStatus, linkText, linkOn } from "./link";
+export { LINKABLE, LINKED, ELECTRIC, APPLIANCES, MIN_MOISTURE, isLinkable, isLinked, linkStatus, linkedStatus, linkText, linkOn, meterOf, meterLines } from "./link";
 export type { CarStatus } from "./car-status";
 export { HEAT_KINDS, HEAT_SCALE, HEAT_SOURCE, anyRoomHeated, heatKindOf, heatLegend, roomHeat } from "./heat";
 export type { HeatKind } from "./heat";

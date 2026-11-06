@@ -390,13 +390,24 @@ if (args.has("--blocks")) {
     pc2("l-fern", "plant", 120, 260, 50, 50, { entity: "sensor.fern_moisture", minMoisture: 30 }),
     pc2("l-ficus", "plant", 240, 260, 70, 70, { entity: "sensor.ficus_moisture" }),
     pc2("l-plain", "plant", 380, 260, 50, 50),
+    // B53.13: only the plug's switch is attached; power and energy come from the registry. Working, off at the plug, a robot out cleaning, its dock.
+    pc2("l-pfridge", "fridge", 560, 250, 70, 65, { entity: "switch.fridge_plug" }),
+    pc2("l-pdryer", "dryer", 670, 250, 70, 65, { entity: "switch.dryer_plug" }),
+    pc2("l-robot", "robot-vacuum", 790, 250, 35, 35, { entity: "vacuum.robo" }),
+    pc2("l-rdock", "robot-dock", 850, 255, 35, 15, { entity: "vacuum.robo" }),
   ];
+  // Zigbee plug shape: switch + power (W) + energy (kWh) on one device; `hass.entities` is the registry display list (entity_id -> device_id).
+  const LINKED_REG = { "switch.fridge_plug": { device_id: "d1" }, "sensor.fridge_plug_power": { device_id: "d1" }, "sensor.fridge_plug_energy": { device_id: "d1" },
+    "switch.dryer_plug": { device_id: "d2" }, "sensor.dryer_plug_power": { device_id: "d2" } };
   const LINKED_STATES = {
     "sensor.washer_operation_state": ["run", {}], "sensor.washer_remaining_program_time": [inMin(42), { device_class: "timestamp" }],
     "sensor.dryer_operation_state": ["ready", {}], "binary_sensor.fridge_door": ["on", { device_class: "door" }],
     "switch.stove": "on", "sensor.dish_operation_state": ["ready", {}],
     "sensor.fern_moisture": ["14", { device_class: "moisture", unit_of_measurement: "%" }],
     "sensor.ficus_moisture": ["55", { device_class: "moisture", unit_of_measurement: "%" }],
+    "switch.fridge_plug": "on", "sensor.fridge_plug_power": ["312", { device_class: "power", unit_of_measurement: "W" }], "sensor.fridge_plug_energy": ["48.26", { device_class: "energy", unit_of_measurement: "kWh", state_class: "total_increasing" }],
+    "switch.dryer_plug": "off", "sensor.dryer_plug_power": ["0", { device_class: "power", unit_of_measurement: "W" }],
+    "vacuum.robo": ["cleaning", { battery_level: 63 }],
   };
   const sheet = (furniture) => ({
     version: 2, unit: "cm", north: 0, rotate: 0, catalog: [],
@@ -425,6 +436,7 @@ if (args.has("--blocks")) {
       const config = { layout: bl, floor: "ground", theme: t.theme, view: view === "3d" ? "3d" : view === "2d" ? "2d" : "2.5d", active_list: false, ...(view === "2.5d" ? { tilt: 0.5 } : {}) };
       const hass = hassFor("off", false);
       for (const [id, v] of Object.entries(extra)) hass.states[id] = Array.isArray(v) ? st(v[0], v[1]) : st(v);
+      if (prefix === "linked-") hass.entities = LINKED_REG;
       if (view !== "3d") {
         await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${t.page}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
         await page.addScriptTag({ content: cardJs, type: "module" });

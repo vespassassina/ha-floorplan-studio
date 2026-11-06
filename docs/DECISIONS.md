@@ -2,6 +2,35 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: linking, generalised: plugs, power, energy, the robot (B53.13)
+
+- **Which pieces link (spec 19f).** `ELECTRIC` = tv, speaker, computer, washer, dryer, dishwasher, fridge, stove, treadmill,
+  robot-vacuum, robot-dock. `LINKABLE` = ELECTRIC + car + plant. A test iterates every symbol, so a new one must be decided. Desk and
+  counter are **no**: they hold things that plug in, they draw nothing themselves, and a link on them would claim a state they do not
+  have. A non-linkable symbol refuses `entity` and `attached`.
+- **tv, speaker and computer keep their own rules.** They already linked (S18.12) with a lenient entity check and the device state of
+  their type (playing, on). They are in `ELECTRIC` so a plug can sit behind them, but `strictEntity` leaves them on the old lenient
+  `isEntity`, so a layout that opened yesterday opens today. They gain `attached`. A tap still goes straight to more-info; it opens the
+  popup and chooser only when sensors are attached, so no existing tv changes behaviour.
+- **A plug behind any electric piece.** Name only the plug's `switch.*` and the card finds the rest (`plugMeters`, plug-meters.ts): the
+  one power sensor of the same HA device (`findPowerSensor`, the lookup the lamps use) and up to three non-diagnostic energy sensors. It
+  is a pure transform of the layout, done once in the card when the layout or `hass.entities` changes, so the plan, Active, the popup,
+  the chooser, 3D and the replay all read the same expanded layout and nothing is threaded through each. A sensor the user attached
+  wins; the lookup adds none of that kind. No registry, no extras: the piece still works from what is attached.
+- **Status precedence.** The appliance's own program state (B53.11: running words, a program sensor, a running `binary_sensor`) wins over
+  plug power. With no program: power above 5 W is working, a plug that is on below that is idle, a plug that is off says "Off at the
+  plug". A fridge compressor cycles, so a power reading alone says "Idle" between cycles; accepted, the watts are on the next line.
+- **Energy.** A daily meter wins ("1.4 kWh today"): `meter_period` is `daily` (HA utility_meter) or `today`/`daily` is in the entity id
+  (Tasmota). Otherwise the total ("48.26 kWh"). Units kWh and Wh, W and kW; watts to 1 decimal under 10, else whole; kWh to 2 decimals.
+- **Popup.** Name, status line, then "312 W" and the energy line; More info opens the chooser over every entity. The tooltip is unchanged.
+  The popup text is multi-line (`white-space: pre-line`). All nine catalogues have the new strings.
+- **Robot vacuum.** Links `vacuum.*`, states as HA's `VacuumActivity`: cleaning and returning are working, docked, idle and paused are
+  idle, error is an alert. Battery from the `battery_level` attribute, else an attached battery sensor: "Cleaning · 63 %". The robot is
+  drawn at 35 % while out (`.furn.away`, the car's away look, no longer car-only). The dock links the same vacuum, is never faded and
+  never "on"; it may take a plug of its own.
+- **Not done.** 3D does not fade an away robot: passing `away` to a 3D piece makes the car badges appear in the overlay. In 3D the robot
+  gets the on state only. A Wh sensor is shown in kWh only when it says so; no unit guessing.
+
 ## 2026-11-06: gym, chaise, shelf, mirrors, robot and a shower box (B53.12)
 
 - **Nine pieces** (spec 19e): `treadmill` 180 x 80 x 140, `barbell-rack` 120 x 120 x 230, `weight-rack` 120 x 50 x 80,

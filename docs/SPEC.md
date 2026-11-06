@@ -386,6 +386,12 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   and junk shapes without throwing; `migrate` keeps the valid parts. The card reads running, remaining time, door open, error and
   moisture from the entities, tints a running piece `on`, an alert in the open-door colour, and makes a thirsty plant glow in
   `--fp-plant-thirsty`. Tap opens the popup, More info the chooser or the single entity's more-info.
+- **Electric pieces and plugs** (B53.13, 2026-11-06; spec 19f): `ELECTRIC` (tv, speaker, computer, washer, dryer, dishwasher, fridge,
+  stove, treadmill, robot-vacuum, robot-dock) plus `car` and `plant` are linkable; desk and counter are not. tv, speaker and computer keep
+  the lenient `entity` check and their own device state. With a plug's `switch.*` as the entity, the card adds the plug's power and energy
+  sensors from `hass.entities` (a sensor the user attached wins) and shows working above 5 W, idle, or "Off at the plug", with watts and
+  kWh (today when a daily meter exists). The piece's own program state wins over power. A `vacuum.*` shows cleaning, returning, docked,
+  idle, paused or error and its battery; a cleaning robot is drawn at 35 %.
 - A **linked** furniture piece (S18.12, S18.15, 2026-10-07): a `tv`, `speaker` or `computer`
   piece with an `entity`. It tracks that device and acts as the device of the same type in the
   card, with no new field in the file. Idle it is drawn in `--fp-dev-tv`; on, in `--fp-active`

@@ -60,3 +60,13 @@ test("a linked appliance or plant keeps the furniture colour at rest (data-linke
     expect(r.tvColor, `${t}: tv blue`).toBe(r.tvToken);
   }
 });
+
+// B53.13: a robot vacuum out cleaning wears `away` and is drawn at 35 %, the look of a car that is away (`.furn-car.away`). Read as a
+// computed opacity in every theme, for a piece that is not a car, so the rule cannot be a car-only one.
+test("a robot piece that is away is at 35 %; one that is home is not", async ({ page }) => {
+  await page.setContent(`<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${THEMES.map((t) => `<g data-theme="${t}" id="r-${t}"><g class="furn on away" data-linked="pc"><path d="M0 0h1"/></g><g class="furn" data-linked="pc"><path d="M0 0h1"/></g></g>`).join("")}</svg></body></html>`);
+  for (const t of THEMES) {
+    const r = await page.locator(`#r-${t}`).evaluate((g) => Array.from(g.children).map((c) => getComputedStyle(c).opacity));
+    expect(r, t).toEqual(["0.35", "1"]);
+  }
+});

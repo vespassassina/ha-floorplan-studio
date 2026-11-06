@@ -121,3 +121,40 @@ describe("--fp-plant-thirsty", () => {
     }
   });
 });
+
+describe("B53.13: a plug behind an appliance, and a robot", () => {
+  // A Zigbee plug: switch.fridge_plug, sensor.fridge_plug_power (device_class power, W), as in link-electric.test.ts.
+  const FRIDGE = piece("fridge", { entity: "switch.fridge_plug", attached: ["sensor.fridge_plug_power"] });
+  const plug = (sw: string, w: string): StateOverlay => ({ "switch.fridge_plug": st(sw), "sensor.fridge_plug_power": st(w, { device_class: "power", unit_of_measurement: "W" }) });
+  it("is on while the plug draws more than 5 W; a plug on with 3 W, or one that is off, is not", () => {
+    for (const view of [undefined, "2.5d" as const]) {
+      expect(groupOf(draw(FRIDGE, plug("on", "120"), view)), `${view} 120 W`).toMatch(/class="furn on[ "]/);
+      expect(groupOf(draw(FRIDGE, plug("on", "3"), view)), `${view} 3 W`).not.toMatch(/ on[ "]/);
+      expect(groupOf(draw(FRIDGE, plug("off", "0"), view)), `${view} off`).not.toMatch(/ on[ "]/);
+    }
+  });
+  const ROBOT = piece("robot-vacuum", { w: 35, h: 35, entity: "vacuum.robo" });
+  const DOCK = piece("robot-dock", { w: 35, h: 15, entity: "vacuum.robo" });
+  const vac = (state: string): StateOverlay => ({ "vacuum.robo": st(state, { battery_level: 63 }) });
+  it("a robot out cleaning is on and wears away; docked it wears neither; the dock never does", () => {
+    for (const view of [undefined, "2.5d" as const]) {
+      const out = groupOf(draw(ROBOT, vac("cleaning"), view)), home = groupOf(draw(ROBOT, vac("docked"), view));
+      expect(out, `${view} cleaning`).toMatch(/class="furn on[^"]* away/);
+      expect(home, `${view} docked`).not.toMatch(/ on[ "]| away/);
+      expect(groupOf(draw(ROBOT, vac("returning"), view)), `${view} returning`).toMatch(/ away/);
+      expect(groupOf(draw(DOCK, vac("cleaning"), view)), `${view} dock`).not.toMatch(/ on[ "]| away/);
+    }
+  });
+  it("a robot in error wears the alert", () => {
+    expect(groupOf(draw(ROBOT, vac("error")))).toMatch(/ alert/);
+  });
+  it("every linked symbol has a device: the robot, its dock and the treadmill too", () => {
+    for (const s of ["robot-vacuum", "robot-dock", "treadmill"]) expect(pieceDevice(piece(s, { entity: "vacuum.x" })), s).toMatchObject({ sym: s });
+  });
+  it("the Active list names a cleaning robot and never the dock", () => {
+    const list = (m: Furniture, state: StateOverlay) => activeDevices({ version: 2, unit: "cm", north: 0, catalog: [], floors: { f: floorOf([m]) } } as never, state as never).length;
+    expect(list(ROBOT, vac("cleaning"))).toBe(1);
+    expect(list(ROBOT, vac("docked"))).toBe(0);
+    expect(list(DOCK, vac("cleaning"))).toBe(0);
+  });
+});

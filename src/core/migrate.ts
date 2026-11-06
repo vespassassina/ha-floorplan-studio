@@ -1,6 +1,6 @@
 import { stairSteps } from "./geometry";
 import { TEXTURE_IDS } from "./textures";
-import { isEntityId, isLinkable, validMinMoisture, isViewPath, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, tempRangeProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
+import { isEntityId, isLinkable, strictEntity, validMinMoisture, isViewPath, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, tempRangeProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"], ["unlinked", "unlinked"]];
@@ -67,7 +67,7 @@ function dropBadCar(f: any) {
     if (m.symbol !== "plant" || !validMinMoisture(m.minMoisture)) delete m.minMoisture; // B53.11
     if (m.symbol !== "car") delete m.model;
     if (!isLinkable(m.symbol)) { delete m.attached; continue; }
-    if ("entity" in m && !isEntityId(m.entity)) delete m.entity; // 0.32.1 took any string with a dot
+    if ("entity" in m && !(strictEntity(m.symbol) ? isEntityId(m.entity) : typeof m.entity === "string" && m.entity.includes("."))) delete m.entity; // 0.32.1 took any string with a dot
     if (m.symbol === "car" && "model" in m && !CAR_MODELS.includes(m.model)) delete m.model;
     if ("color" in m && !(typeof m.color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.color))) delete m.color;
     if ("attached" in m) {

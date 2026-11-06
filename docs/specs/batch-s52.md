@@ -112,6 +112,14 @@ This batch needs about 3.7 KB on the card. 978 bytes are not enough, so Sprint 5
     thirsty as a breathing glow in `--fp-plant-thirsty`. Tap opens a popup with the status line; More info opens the chooser. Same
     in 2D, 2.5D, 3D and replay.
 
+19f. **Linking, generalised (added 2026-11-06, Diego).** `ELECTRIC` = tv, speaker, computer, washer, dryer, dishwasher, fridge, stove,
+    treadmill, robot-vacuum, robot-dock; `LINKABLE` = ELECTRIC + car + plant; desk and counter are decided no, and a test iterates every
+    symbol. A piece whose only link is a plug's `switch.*` shows working (above 5 W), idle, or "Off at the plug", plus watts and kWh
+    (today when a daily meter exists, else the total), read from the plug's sensors on the same HA device (`plugMeters`). The appliance's
+    own program state wins over plug power. The popup shows name, status, power and energy lines; More info opens the chooser over all of
+    its entities. A robot links `vacuum.*` (cleaning/returning working, docked/idle/paused idle, error alert), shows battery, and is faded
+    while out; the dock links the same vacuum and may take a plug. Same in 2D, 2.5D, 3D, Active and replay; all nine catalogues.
+
 19e. **Gym, chaise, shelf, mirrors, robot, shower box (added 2026-11-06, Diego).** `treadmill` 180 x 80 x 140, `barbell-rack`
     120 x 120 x 230, `weight-rack` 120 x 50 x 80, `chaise-longue` 160 x 65 x 80, `cube-shelf` 147 x 39 x 147, `mirror` 80 x 5 x 100
     (bottom `z` 90), `mirror-stand` 50 x 40 x 180, `robot-vacuum` 35 x 35 x 10, `robot-dock` 35 x 15 x 12; blocks from `furnitureBlocks`

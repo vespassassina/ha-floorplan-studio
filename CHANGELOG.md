@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Studio and card: more pieces link to Home Assistant: tv, speaker, computer, treadmill, robot vacuum and robot dock join washer, dryer, dishwasher, fridge, stove, plant and car. Name only a smart plug's switch and the card finds its power and energy sensors: the piece shows Running, Idle or "Off at the plug", and tapping it shows "312 W" and "1.4 kWh today" (the total when there is no daily meter). A robot vacuum links a `vacuum` entity ("Cleaning · 63 %"), fades while it is out, and its dock follows it. Same in 2D, 2.5D, 3D and the replay.
+
 - Studio and card: nine new pieces in the Add menu: treadmill, barbell rack, dumbbell rack, chaise longue, cube shelf, wall mirror, standing mirror, robot vacuum and robot dock. A shower is now a box with a dark tray and glass walls. A mirror snaps to the nearest wall and turns with it; mirrors take the theme's mirror colour, not paint.
 
 - Studio and card: link a washer, dryer, dishwasher, fridge, stove or plant to Home Assistant, as a car. Pick a main entity and more entities (a door contact, a power sensor, a moisture sensor) in the furniture panel. The piece shows it is running or has a door open, tapping it opens a popup ("Running · 42 min left", "Door open"), and it is listed under Active while it runs. A plant has a "needs water below" limit (default 20 %) and glows blue while it is thirsty. Same in 2D, 2.5D, 3D and the replay.

@@ -66,7 +66,7 @@ const holes = (s: string) => [...new Set([...s.matchAll(/\{(\w+)\}/g)].map((m) =
 /** Plural categories the language uses for whole counts. */
 const categories = (code: string) => { const r = new Intl.PluralRules(code); return new Set(Array.from({ length: 201 }, (_, n) => r.select(n))); };
 /** A translation may equal its English key only where the word is the same in that language (or is a name, a unit or a symbol). */
-const NAMES = ["Blueprint", "Solarized", "Home Assistant", "A-Team", "Cyberpunk", "Carpenter Brut", "UPS", "Radar", "Firmware", "{n} min"];
+const NAMES = ["Blueprint", "Solarized", "Home Assistant", "A-Team", "Cyberpunk", "Carpenter Brut", "UPS", "Radar", "Firmware", "{n} min", "{n} kWh"];
 const SAME: Record<string, string[]> = {
   it: ["Area", "Auto", "Media", "Computer", "Inverter", "Server", "Access point"],
   es: ["Terminal", "Auto", "Media", "Error"],

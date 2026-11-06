@@ -454,7 +454,9 @@ export function pieceDevice(m: Furniture): Device | null {
     return main ? ({ id: m.id, type: "other", entity: main, sym: m.symbol, attached: (Array.isArray((m as CarLike).attached) ? ((m as CarLike).attached as unknown[]) : []).filter((e: unknown): e is string => typeof e === "string"), ...(typeof m.minMoisture === "number" ? { min: m.minMoisture } : {}), ...(m.name ? { name: m.name } : {}), x: m.x, y: m.y } as LinkedDevice) : null;
   }
   if (typeof m?.entity !== "string" || !m.entity || (m.symbol !== "tv" && m.symbol !== "speaker" && m.symbol !== "computer")) return null;
-  return { id: m.id, type: m.symbol, entity: m.entity, ...(m.name ? { name: m.name } : {}), x: m.x, y: m.y };
+  // B53.13: a tv, speaker or computer may carry the plug's sensors (`attached`); its own state rules stay.
+  const more = (Array.isArray((m as CarLike).attached) ? ((m as CarLike).attached as unknown[]) : []).filter((e: unknown): e is string => typeof e === "string");
+  return { id: m.id, type: m.symbol, entity: m.entity, ...(more.length ? { attached: more } : {}), ...(m.name ? { name: m.name } : {}), x: m.x, y: m.y } as Device;
 }
 
 /**

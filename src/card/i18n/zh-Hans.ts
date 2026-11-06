@@ -299,5 +299,14 @@ const c: Catalogue = {
   "Error": "错误",
   "Plant": "植物",
   "Appliance": "电器",
+  "Cleaning": "清扫中",
+  "Returning": "返回中",
+  "Docked": "已回充",
+  "Paused": "已暂停",
+  "Off at the plug": "插座已关闭",
+  "{n} kWh today": "今日 {n} kWh",
+  "{n} W": "{n} W",
+  "{n} kWh": "{n} kWh",
+  "{n} %": "{n} %",
 };
 export default c;

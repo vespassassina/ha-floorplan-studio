@@ -176,20 +176,36 @@ B53.11: the kitchen and laundry appliances. A test iterates this list, so a new 
 export const APPLIANCES = ["washer", "dryer", "dishwasher", "fridge", "stove"] as const;
 ```
 
+## ELECTRIC
+
+B53.13: the pieces that run on mains power, so a smart plug can stand behind them. A desk or a counter has no socket of its own; a lamp is a device already. The tv, speaker and computer keep their device rules and take the plug's readings as extra lines. `tests/core/link-electric.test.ts` lists every symbol, so a new one must be decided.
+
+```ts
+export const ELECTRIC: readonly FurnitureSymbol[] = ["tv", "speaker", "computer", ...APPLIANCES, "treadmill", "robot-vacuum", "robot-dock"];
+```
+
 ## LINKABLE
 
 Pieces that take `entity` and `attached` (more entity ids), checked with `isEntityId`; any other piece refuses `attached`. A test iterates every symbol against this.
 
 ```ts
-export const LINKABLE: readonly FurnitureSymbol[] = ["car", ...APPLIANCES, "plant"];
+export const LINKABLE: readonly FurnitureSymbol[] = ["car", ...ELECTRIC, "plant"];
 ```
 
 ## LINKED
 
-The linkable pieces that are not a car: they share one status and one popup line (`linkStatus`, link.ts).
+The linkable pieces that share one status and one popup line (`linkStatus`, link.ts): everything but the car and the three that are device types of their own.
 
 ```ts
-export const LINKED: readonly FurnitureSymbol[] = [...APPLIANCES, "plant"];
+export const LINKED: readonly FurnitureSymbol[] = LINKABLE.filter((s) => s !== "car" && s !== "tv" && s !== "speaker" && s !== "computer");
+```
+
+## strictEntity
+
+The tv, speaker and computer took any `entity` with a dot before they could link more; they keep that, a layout from before still opens.
+
+```ts
+export const strictEntity = (s: unknown): boolean => isLinkable(s) && s !== "tv" && s !== "speaker" && s !== "computer";
 ```
 
 ## MIN_MOISTURE

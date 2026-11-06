@@ -1,4 +1,4 @@
-import { carStatus, carText, linkStatus, linkText, type Device, deviceInfo, entitiesOfDevice, entitiesOfDoor, type Floor, moreInfoEntities, pieceDevice, relayText, SPIDER_MAX, spiderLayout, STACK_PX, stackGroups, stateText, type ThingRef, wattsOf } from "../core";
+import { carStatus, carText, linkStatus, linkText, meterLines, meterOf, type Device, deviceInfo, entitiesOfDevice, entitiesOfDoor, type Floor, moreInfoEntities, pieceDevice, relayText, SPIDER_MAX, spiderLayout, STACK_PX, stackGroups, stateText, type ThingRef, wattsOf } from "../core";
 import { t } from "../core/i18n";
 import { fireEvent, type TapTarget, thingKind, THINGS } from "./actions";
 import { fanCaps, lampOp, lightCaps, type PopupOp, popupOp } from "./popup";
@@ -24,11 +24,12 @@ export function targetOf(c: FloorplanStudioCard, kind: "x" | "d" | "u" | "f", i:
 
 export function deviceSubject(c: FloorplanStudioCard, d: Device, name?: string): PopupSubject {
   const friendly = c._hass?.states[d.entity]?.attributes?.friendly_name;
-  const { sym, min } = d as { sym?: string; min?: number }, lk = sym ? { sym, ...(typeof min === "number" ? { min } : {}) } : null;
+  const { sym, min, attached } = d as { sym?: string; min?: number; attached?: string[] }, lk = sym ? { sym, ...(typeof min === "number" ? { min } : {}) } : null;
   return {
     key: `d:${d.entity || d.id}`, type: d.type, entity: d.entity || undefined, entities: moreInfoEntities(d),
     ...(d.type === "light" && d.bound ? { lamp: d } : {}),
     ...(lk ? { link: lk } : {}),
+    ...((lk || attached?.length) && d.type !== "car" ? { meters: true } : {}), // B53.13: a piece with a plug or a meter attached prints watts and kWh
     name: name || d.name || (typeof friendly === "string" && friendly) || d.entity || d.id,
     powerEntity: d.power || (d.type === "plug" ? c._powerLinks()?.[d.entity] : undefined),
   };
@@ -205,7 +206,7 @@ export function popupMarkup(c: FloorplanStudioCard, inSheet = false) {
     return p.draft && p.draft.kind === k && p.draft.from === now ? p.draft.value : now;
   };
   return popupTemplate({
-    subject: s, text: subjectText(c, s), op, confirming: p.confirming, kiosk: c._kiosk(), caps, fan,
+    subject: s, text: [subjectText(c, s), ...(s.meters ? meterLines(meterOf(s.entities, c._stateForRender())) : [])].filter(Boolean).join("\n"), op, confirming: p.confirming, kiosk: c._kiosk(), caps, fan,
     info: c._kiosk() || !(s.entity ?? s.entities[0]) ? [] : deviceInfo((s.entity ?? s.entities[0])!, { ...c._hass, states: c._stateForRender() }, c._format),
     doorLabel: s.door?.cover ? (coverService(c, s.door) === "close_cover" ? t("Close") : t("Open")) : null,
     level: { b: caps?.brightness ? level("b") : null, s: fan ? level("s") : null, t: caps?.temp ? level("t") : null, h: caps?.hue ? level("h") : null },

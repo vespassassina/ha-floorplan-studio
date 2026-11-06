@@ -18,7 +18,8 @@ const washer = { entity: "sensor.washer_operation_state", attached: ["sensor.was
 
 describe("the pieces that link", () => {
   it("the appliances, the plant and the car, and nothing else", () => {
-    expect([...LINKABLE].sort()).toEqual(["car", "dishwasher", "dryer", "fridge", "plant", "stove", "washer"]);
+    // B53.13 added the rest of the electric pieces: tests/core/link-electric.test.ts lists every symbol.
+    expect([...LINKABLE].filter((s) => !["tv", "speaker", "computer", "treadmill", "robot-vacuum", "robot-dock"].includes(s)).sort()).toEqual(["car", "dishwasher", "dryer", "fridge", "plant", "stove", "washer"]);
     expect([...APPLIANCES].sort()).toEqual(["dishwasher", "dryer", "fridge", "stove", "washer"]);
   });
   it("every symbol is decided: linked or not, never by default", () => {

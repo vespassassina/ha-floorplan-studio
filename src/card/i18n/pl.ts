@@ -299,5 +299,14 @@ const c: Catalogue = {
   "Error": "Błąd",
   "Plant": "Roślina",
   "Appliance": "Urządzenie",
+  "Cleaning": "Sprząta",
+  "Returning": "Wraca",
+  "Docked": "W stacji",
+  "Paused": "Wstrzymany",
+  "Off at the plug": "Wyłączone w gniazdku",
+  "{n} kWh today": "{n} kWh dziś",
+  "{n} W": "{n} W",
+  "{n} kWh": "{n} kWh",
+  "{n} %": "{n} %",
 };
 export default c;

@@ -4947,6 +4947,7 @@ task measures its real figure and records it in DECISIONS.
   `FURNITURE_SYMBOLS` against every table (criterion 2).
   Done 2026-11-02: the four draw as plain boxes (the L and `mirror` stay with B53.2); the picker calls `sofa-l` "Corner
   sofa" because the menu test forbids a hyphen in a name. Card 118,579 gzip.
+- [x] 2026-11-06 B53.13 Linking, generalised: every electric piece links; a smart plug gives working, watts and kWh; the robot vacuum and its dock (spec 19f).
 - [x] 2026-11-06 B53.12 Gym, chaise, cube shelf, mirrors, robot vacuum and dock, shower box; a mirror snaps to a wall (spec 19e).
 - [x] 2026-11-06 B53.11 Link appliances and plants to HA entities: running, door open, thirsty plant glow, popup, Active (spec 19d).
 - [x] 2026-11-06 B53.10 More pieces: wardrobe, dresser, nightstand, desk, armchair, counter, stove, fridge, dishwasher, washer, dryer, rug, plant (spec 19c).

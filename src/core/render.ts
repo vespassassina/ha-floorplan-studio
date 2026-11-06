@@ -425,7 +425,7 @@ ${THEME_EXTRAS}
 .car-body{fill:var(--fp-car-body,var(--fp-furniture));stroke:var(--fp-ink);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .car-bed{fill:color-mix(in srgb,var(--fp-car-body,var(--fp-furniture)) 55%,black)} .car-roof{fill:color-mix(in srgb,var(--fp-car-body,var(--fp-furniture)) 82%,black)} .car-mirror{fill:var(--fp-car-body,var(--fp-furniture))}
 .car-glass{fill:var(--fp-car-glass)} .car-tyre,.car-grille{fill:var(--fp-car-tyre)}
-.furn-car.alert .car-body{stroke:var(--fp-open-door);stroke-width:3} .furn-car.charging .car-body{stroke:var(--fp-dev-car);stroke-width:3} .furn-car.away{opacity:.35}
+.furn-car.alert .car-body{stroke:var(--fp-open-door);stroke-width:3} .furn-car.charging .car-body{stroke:var(--fp-dev-car);stroke-width:3} .furn.away{opacity:.35}
 /* B53.3: a charging car breathes. The glow is a blurred copy of the outline in --fp-dev-car under the body, 35 % to 80 % over 2.4 s; reduced motion holds it at 60 %. */
 .car-glow{fill:none;stroke:var(--fp-dev-car);stroke-width:8;stroke-linejoin:round;vector-effect:non-scaling-stroke;filter:blur(3px);pointer-events:none}
 .furn-car.charging .car-glow,.furn-plant.thirsty .plant-glow{animation:fp-car-breath 2.4s ease-in-out infinite}

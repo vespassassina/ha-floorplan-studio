@@ -116,7 +116,7 @@ export function locate(c: FloorplanStudioCard, ref: { floor: string } & ThingRef
   const fam: LayerId | null = device ? layerOfType(device.type) : piece ? "furniture" : null;
   c._kept = shows && fam && c._hiddenLayers.includes(fam) ? { floor: ref.floor, t: device ? "dev" : "furn", i: ref.index, fam } : null;
   const point = at ?? (() => { const b = (from ?? c).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.bottom }; })();
-  if (piece) { const d = pieceDevice(piece); if (d) { if (piece.symbol === "car" || isLinked(piece.symbol)) openSubject(c, deviceSubject(c, d), point, from); else fireEvent(c, "hass-more-info", { entityId: d.entity }); } }
+  if (piece) { const d = pieceDevice(piece); if (d) { if (piece.symbol === "car" || isLinked(piece.symbol) || (d as { attached?: string[] }).attached?.length) openSubject(c, deviceSubject(c, d), point, from); else fireEvent(c, "hass-more-info", { entityId: d.entity }); } }
   else if (device) openSubject(c, deviceSubject(c, device), point, from);
   else if (door) { const s = subjectOf(c, { door, index: ref.index }); if (s) openSubject(c, s, point, from); }
   if (shows && (device || door) && c._popup) c._panTarget = thingSel(c, ref.what, ref.index); // S31.8: the plan goes to it, above the sheet

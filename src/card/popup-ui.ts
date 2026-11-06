@@ -21,6 +21,8 @@ export interface PopupSubject {
   lamp?: Device;
   /** B53.11: a linked appliance or plant: its symbol and (plant) threshold, for the status line. */
   link?: { sym: string; min?: number };
+  /** B53.13: print the power and energy lines under the state (a linked piece, or a tv with a plug attached). */
+  meters?: true;
 }
 
 export type SliderKind = "b" | "t" | "h" | "s";
@@ -61,7 +63,7 @@ export const POPUP_CSS = css`
   .fp-pop > * { flex-shrink: 0; }
   .fp-pop > .fp-pop-sliders { flex-shrink: 1; }
   .fp-pop-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
-  .fp-pop-state { opacity: 0.8; overflow-wrap: anywhere; }
+  .fp-pop-state { opacity: 0.8; overflow-wrap: anywhere; white-space: pre-line; }
   .fp-pop button { min-height: 44px; font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; padding: 0 12px; cursor: pointer; }
   .fp-pop button.fp-pop-primary { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; }
   .fp-pop button.fp-pop-more { background: transparent; border-color: transparent; text-decoration: underline; min-height: 36px; }

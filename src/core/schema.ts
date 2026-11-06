@@ -132,10 +132,18 @@ export type CarModel = "sedan" | "wagon" | "suv" | "offroad" | "truck" | "van" |
 export const CAR_MODELS: readonly CarModel[] = ["sedan", "wagon", "suv", "offroad", "truck", "van", "utility", "citycar", "electric"];
 /** B53.11: the kitchen and laundry appliances. A test iterates this list, so a new appliance must be decided. */
 export const APPLIANCES = ["washer", "dryer", "dishwasher", "fridge", "stove"] as const;
+/**
+ * B53.13: the pieces that run on mains power, so a smart plug can stand behind them. A desk or a counter has no socket of its own;
+ * a lamp is a device already. The tv, speaker and computer keep their device rules and take the plug's readings as extra lines.
+ * `tests/core/link-electric.test.ts` lists every symbol, so a new one must be decided.
+ */
+export const ELECTRIC: readonly FurnitureSymbol[] = ["tv", "speaker", "computer", ...APPLIANCES, "treadmill", "robot-vacuum", "robot-dock"];
 /** Pieces that take `entity` and `attached` (more entity ids), checked with `isEntityId`; any other piece refuses `attached`. A test iterates every symbol against this. */
-export const LINKABLE: readonly FurnitureSymbol[] = ["car", ...APPLIANCES, "plant"];
-/** The linkable pieces that are not a car: they share one status and one popup line (`linkStatus`, link.ts). */
-export const LINKED: readonly FurnitureSymbol[] = [...APPLIANCES, "plant"];
+export const LINKABLE: readonly FurnitureSymbol[] = ["car", ...ELECTRIC, "plant"];
+/** The linkable pieces that share one status and one popup line (`linkStatus`, link.ts): everything but the car and the three that are device types of their own. */
+export const LINKED: readonly FurnitureSymbol[] = LINKABLE.filter((s) => s !== "car" && s !== "tv" && s !== "speaker" && s !== "computer");
+/** The tv, speaker and computer took any `entity` with a dot before they could link more; they keep that, a layout from before still opens. */
+export const strictEntity = (s: unknown): boolean => isLinkable(s) && s !== "tv" && s !== "speaker" && s !== "computer";
 export const isLinkable = (s: unknown): boolean => typeof s === "string" && LINKABLE.includes(s as FurnitureSymbol);
 export const isLinked = (s: unknown): boolean => typeof s === "string" && LINKED.includes(s as FurnitureSymbol);
 /** A plant is thirsty below this moisture (percent) when it sets no `minMoisture`; `minMoisture` is a whole percent from 1 to 99. */
@@ -582,7 +590,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       optHeight(m, "height");
       optHeight(m, "z");
       optText(m, "name");
-      if (m.entity !== undefined && !(isLinkable(m.symbol) ? isEntityId(m.entity) : isEntity(m.entity))) errors.push(`${at} ${m.id} entity must be an entity id like sensor.name${isLinkable(m.symbol) ? " (letters, digits and underscores, one dot)" : ""}`);
+      if (m.entity !== undefined && !(strictEntity(m.symbol) ? isEntityId(m.entity) : isEntity(m.entity))) errors.push(`${at} ${m.id} entity must be an entity id like sensor.name${strictEntity(m.symbol) ? " (letters, digits and underscores, one dot)" : ""}`);
       for (const k of ["x", "y", "rot", "w", "h"]) if (typeof m[k] !== "number" || !Number.isFinite(m[k])) errors.push(`${at} ${m.id} ${k} must be a number`);
       // S1.51: a piece of furniture is never smaller than 5 cm or bigger than 2000 cm on a side.
       for (const k of ["w", "h"] as const) if (typeof m[k] === "number" && Number.isFinite(m[k]) && (m[k] < 5 || m[k] > 2000)) errors.push(`${at} ${m.id} ${k} must be between 5 and 2000`);
@@ -594,7 +602,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       }
       // S35.1: the car keys. `includes` on a list, so `__proto__` or `constructor` never match.
       if (m.model !== undefined && m.symbol !== "car") errors.push(`${at} ${m.id} model is only allowed on a car`);
-      if (m.attached !== undefined && !isLinkable(m.symbol)) errors.push(`${at} ${m.id} attached is only allowed on a car, an appliance or a plant (a linked piece)`);
+      if (m.attached !== undefined && !isLinkable(m.symbol)) errors.push(`${at} ${m.id} attached is only allowed on a linked piece (a car, a plant, a tv, a speaker, a computer, an appliance, a treadmill or a robot)`);
       // B53.11: a plant's threshold.
       if (m.minMoisture !== undefined && (m.symbol !== "plant" ? (errors.push(`${at} ${m.id} minMoisture is only allowed on a plant`), false) : !validMinMoisture(m.minMoisture))) errors.push(`${at} ${m.id} minMoisture must be a whole percent from 1 to 99`);
       // B53.4: paint. A car keeps its own `color` (checked below) and takes no texture; a tree is not a block to paint.

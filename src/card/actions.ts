@@ -1,6 +1,6 @@
 import { t } from "../core/i18n";
 import type { Device, Door, Furniture, Unlinked } from "../core";
-import { carEntities, carMain, carStatus, carText, isLinked, linkedStatus, linkStatus, linkText, entitiesOfDevice, entitiesOfDoor, isViewPath, pieceDevice, playerOf } from "../core";
+import { carEntities, carMain, carStatus, carText, ELECTRIC, isLinked, linkedStatus, linkStatus, linkText, entitiesOfDevice, entitiesOfDoor, isViewPath, pieceDevice, playerOf } from "../core";
 import type { Hass } from "./floorplan-studio-card";
 import type { HoldAction, TapAction } from "./tap-action";
 
@@ -182,7 +182,8 @@ export function bindDeviceActions(
         return;
       }
       // B53.11: a linked appliance or plant is the same: a tap is the popup (name, status line, More info), a hold the chooser.
-      if (m && isLinked(m.symbol)) {
+      // B53.13: a tv, speaker or computer with a plug's sensors attached is the same (watts and kWh are in the popup); without them it stays the entity's own more-info.
+      if (m && (isLinked(m.symbol) || (ELECTRIC.includes(m.symbol as never) && carEntities(m).length > 1))) {
         const d = pieceDevice(m);
         if (!d) return;
         const ents = carEntities(m), lk = linkedStatus(d, host.hass?.states);
