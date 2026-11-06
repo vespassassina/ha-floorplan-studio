@@ -352,6 +352,74 @@ if (args.has("--walls")) {
   process.exit(0);
 }
 
+// B53.5 / B53.2: `npm run shots -- --blocks` renders the furniture built from blocks to shots/current/blocks/: a sofa, an L sofa
+// (default and mirrored), a table, a bed, a bathtub, a chair and a cabinet on a bare floor, in 2D, 2.5D (tilt .5) and 3D, light and
+// blueprint, the first two at deviceScaleFactor 4. The pieces live in this script; demo/layout.json is not touched.
+if (args.has("--blocks")) {
+  const DIR = "shots/current/blocks";
+  mkdirSync(DIR, { recursive: true });
+  for (const f of readdirSync(DIR)) rmSync(`${DIR}/${f}`, { force: true });
+  const pc2 = (id, symbol, x, y, w, h, extra = {}) => ({ id, symbol, x, y, rot: 0, w, h, ...extra });
+  const bl = {
+    version: 2, unit: "cm", north: 0, rotate: 0, catalog: [],
+    floors: { ground: {
+      title: "Ground", outline: [[0, 0], [900, 0], [900, 430], [0, 430]], owk: ["external", "external", "external", "external"],
+      rooms: [{ id: "room-ground-1", name: "Room", area: "room", kind: "room", pts: [[0, 0], [900, 0], [900, 430], [0, 430]] }],
+      walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], unlinked: [],
+      furniture: [
+        pc2("b-sofa", "sofa", 130, 100, 200, 90), pc2("b-l", "sofa-l", 380, 120, 280, 180), pc2("b-lm", "sofa-l", 680, 120, 280, 180, { mirror: true }),
+        pc2("b-table", "table", 110, 330, 160, 90), pc2("b-bed", "bed", 330, 310, 160, 200), pc2("b-tub", "bathtub", 560, 300, 170, 75),
+        pc2("b-chair", "chair", 720, 300, 45, 45), pc2("b-cab", "cabinet", 830, 330, 60, 40),
+      ],
+    } },
+  };
+  const problems = [], files = [];
+  const browser = await chromium.launch();
+  try {
+    for (const t of [{ id: "light", theme: "light", page: "#fff" }, { id: "blueprint", theme: "blueprint", page: "#0d1522" }]) for (const view of ["2d", "2.5d", "3d"]) {
+      const base = `${view}-${t.id}`;
+      const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: view === "3d" ? 2 : 4 });
+      const page = await ctx.newPage();
+      page.on("pageerror", (e) => problems.push(`${base}: ${e}`));
+      page.on("console", (m) => { if (m.type() === "error") problems.push(`${base}: console.error ${m.text()}`); });
+      const config = { layout: bl, floor: "ground", theme: t.theme, view: view === "3d" ? "3d" : view === "2d" ? "2d" : "2.5d", active_list: false, ...(view === "2.5d" ? { tilt: 0.5 } : {}) };
+      const hass = hassFor("off", false);
+      if (view !== "3d") {
+        await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${t.page}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
+        await page.addScriptTag({ content: cardJs, type: "module" });
+      } else {
+        const ORIGIN = "http://fp.test";
+        await page.route("**/*", (route) => {
+          const url = new URL(route.request().url());
+          if (url.origin !== ORIGIN) return route.abort();
+          if (url.pathname === "/") return route.fulfill({ contentType: "text/html", body: `<!doctype html><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=shots"></script><body style="margin:0;padding:12px;background:${t.page}"><floorplan-studio-card id="c"></floorplan-studio-card></body>` });
+          const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
+          if (!m || !existsSync(resolve(DIST, m[1]))) return route.fulfill({ status: 404, body: "not found" });
+          return route.fulfill({ contentType: "text/javascript", body: readFileSync(resolve(DIST, m[1])) });
+        });
+        await page.goto(`${ORIGIN}/`);
+      }
+      await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+      await page.evaluate(([c, h]) => { const el = document.getElementById("c"); el.setConfig(c); el.hass = h; return el.updateComplete; }, [config, hass]);
+      if (view === "3d") {
+        try { await page.waitForFunction(() => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1, null, { timeout: 30000 }); }
+        catch { problems.push(`${base}: the 3D view never drew a frame`); await ctx.close(); continue; }
+        await page.waitForTimeout(900);
+      }
+      await page.mouse.move(0, 0);
+      await page.locator("floorplan-studio-card").screenshot({ path: `${DIR}/${base}.png` });
+      files.push(`${base}.png`);
+      await ctx.close();
+    }
+  } finally {
+    await browser.close();
+  }
+  for (const n of files) if (!existsSync(`${DIR}/${n}`) || readFileSync(`${DIR}/${n}`).length < 4000) problems.push(`${n}: missing or blank`);
+  console.log(`${files.length} block images in ${DIR}/`);
+  if (problems.length) { console.error(`\n${problems.length} problem(s):\n${problems.join("\n")}`); process.exit(1); }
+  process.exit(0);
+}
+
 // S28.1: `npm run shots -- --polish` renders only the Sprint 28 set to shots/current/polish/: the demo ground and first floor in
 // 2.5D (tilt .5) and 3D (default camera and one orbit), blueprint, light and ha-dark, day and night, at deviceScaleFactor 4,
 // plus 4x crops of a door, a window, a tree and a wall foot in both views. The demo has no tree, so two are added to the demo

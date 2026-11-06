@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { OBLIQUE, renderFloor } from "../../src/core/render";
 import { DEVICE_TYPES, FURNITURE_SYMBOLS, type DeviceType, type Floor, type FurnitureSymbol } from "../../src/core/schema";
+import { furnitureBlocks, lidOf } from "../../src/core/furniture-blocks";
 import { FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_HEIGHTS } from "../../src/core/heights";
 
 const R = OBLIQUE.rise, K = OBLIQUE.skew;
@@ -43,8 +44,11 @@ describe("2.5D furniture", () => {
         expect(tops(html), symbol).toHaveLength(2);
         expect(html, symbol).toContain('class="car-cabin"');
       } else if (SOLID[symbol] === "box") {
-        expect(tops(html), symbol).toEqual([ring(CORNERS, h)]);
-        expect(html, symbol).toContain(`translate(${n(300 + h * K * R)} ${n(250 - h * R)}) rotate(0)`);
+        // B53.5: a box piece is its blocks, one lid each; the symbol lies on the block that carries it (lidOf), at the full height for a one-box piece.
+        const blocks = furnitureBlocks(piece(symbol) as never), lid = (FURNITURE_Z[symbol] ?? 0) + lidOf(piece(symbol) as never, blocks);
+        expect(tops(html), symbol).toHaveLength(blocks.length);
+        if (blocks.length === 1) expect(tops(html), symbol).toEqual([ring(CORNERS, h)]);
+        expect(html, symbol).toContain(`translate(${n(300 + lid * K * R)} ${n(250 - lid * R)}) rotate(0)`);
       } else if (SOLID[symbol] === "pole") {
         expect(tops(html), symbol).toEqual([]);
         expect(html, symbol).toContain('class="trunk"');
@@ -65,21 +69,24 @@ describe("2.5D furniture", () => {
   });
 
   it("takes its own height over the symbol's", () => {
-    expect(tops(deep(floor({ furniture: [piece("sofa", { height: 200 })] as never })))).toEqual([ring(CORNERS, 200)]);
+    const t = tops(deep(floor({ furniture: [piece("sofa", { height: 200 })] as never })));
+    expect(t).toContain(ring([[260, 220], [340, 220], [340, 232], [260, 232]], 200)); // B53.5: the back rises to the piece's height
+    expect(t).toContain(ring(CORNERS, 90)); // and the seat is 45 % of it
+    expect(tops(deep(floor({ furniture: [piece("toilet", { height: 200 })] as never })))).toEqual([ring(CORNERS, 200)]);
   });
 
   it("turns its base with rot, and keeps the symbol outline on the top face", () => {
     const html = deep(floor({ furniture: [piece("sofa", { rot: 90 })] as never }));
     // 90 degrees clockwise about the centre: (-40,-30) -> (30,-40), (40,-30) -> (30,40), (40,30) -> (-30,40), (-40,30) -> (-30,-40).
-    expect(tops(html)).toEqual([ring([[330, 210], [330, 290], [270, 290], [270, 210]], 85)]);
+    expect(tops(html)).toContain(ring([[330, 210], [330, 290], [270, 290], [270, 210]], 38.25)); // B53.5: the seat, 45 % of 85
     expect(html).toMatch(/<g transform="translate\([^)]*\) rotate\(90\) scale\(0\.8 0\.6\) translate\(-50 -50\)"><rect/);
   });
 
   it("shows only the faces the viewer sees: south and west, not north or east", () => {
-    const s = sides(deep(floor({ furniture: [piece("sofa")] as never })));
+    const s = sides(deep(floor({ furniture: [piece("toilet")] as never })));
     expect(s.length).toBe(2);
-    expect(s).toContain(`${P(340, 280, 0)} ${P(260, 280, 0)} ${P(260, 280, 85)} ${P(340, 280, 85)}`);
-    expect(s).toContain(`${P(260, 280, 0)} ${P(260, 220, 0)} ${P(260, 220, 85)} ${P(260, 280, 85)}`);
+    expect(s).toContain(`${P(340, 280, 0)} ${P(260, 280, 0)} ${P(260, 280, 40)} ${P(340, 280, 40)}`);
+    expect(s).toContain(`${P(260, 280, 0)} ${P(260, 220, 0)} ${P(260, 220, 40)} ${P(260, 280, 40)}`);
   });
 
   it("keeps the click target: faces and symbol sit inside the data-f group, with its entity class", () => {

@@ -10,7 +10,7 @@ const floor = (o: Partial<Floor> = {}): Floor => ({
   walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [], ...o,
 });
 const ground = (demo as unknown as Layout).floors.ground;
-const piece = (o: Record<string, unknown> = {}) => ({ id: "f", symbol: "table", x: 300, y: 200, rot: 0, w: 100, h: 50, ...o }) as never;
+const piece = (o: Record<string, unknown> = {}) => ({ id: "f", symbol: "toilet", x: 300, y: 200, rot: 0, w: 100, h: 50, ...o }) as never;
 const verts = (s: ReturnType<typeof contactShadows>) => Array.from({ length: s.alpha.length }, (_, i) => ({ x: s.position[i * 3], z: s.position[i * 3 + 2], y: s.position[i * 3 + 1], a: s.alpha[i] }));
 
 describe("contactShadows", () => {
@@ -70,6 +70,10 @@ describe("contactShadows", () => {
     expect(Math.max(...tops)).toBeGreaterThan(Math.min(...tops)); // the nest is real
     for (const y of on) { expect(y).toBeGreaterThan(Math.max(...tops)); expect(y).toBeLessThan(Math.max(...tops) + 1); }
     for (const y of off) { expect(y).toBeGreaterThan(Math.min(...tops)); expect(y).toBeLessThan(Math.min(...tops) + 1); }
+  });
+  it("a table shades its four legs and not its top, which floats (B53.5)", () => {
+    const sc = buildScene(floor({ furniture: [piece({ symbol: "table" })] }));
+    expect(contactShadows(sc.solids.filter((x) => x.kind === "furniture")).patches).toBe(4);
   });
   it("5000 pieces of furniture in under 100 ms", () => {
     const sc = buildScene(floor({ furniture: Array.from({ length: 5000 }, (_, i) => piece({ id: `f${i}`, x: (i % 100) * 8, y: Math.floor(i / 100) * 12, rot: i % 360, w: 15, h: 15 })) }));

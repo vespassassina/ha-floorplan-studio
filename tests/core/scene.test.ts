@@ -1,3 +1,4 @@
+import { furnitureBlocks } from "../../src/core/furniture-blocks";
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import { buildScene, ICON_MARGIN, type Solid } from "../../src/core/scene";
@@ -336,13 +337,13 @@ describe("scene: furniture, unlinked, stairs", () => {
       const sol = sc.solids.filter((x) => x.kind === "furniture");
       // S35.5: a car is not one prism. It is built from its model's parts (body, glass loft, roof, wheels, grille), which tests/core/scene-car.test.ts holds; here only that it is built, all of one index.
       if (s === "car") { expect(sol.length, s).toBeGreaterThan(1); expect(sol.every((x) => x.ref.index === 0)).toBe(true); continue; }
-      expect(sol, s).toHaveLength(1);
-      expect(sol[0].tag).toBe(s);
-      expect(sol[0].ref.index).toBe(0);
-      expect(prism(sol[0]).z0).toBe(furnitureBottom(m as never));
-      expect(prism(sol[0]).z1).toBe(furnitureBottom(m as never) + (SYMBOL_DECISION[s] === "pole" ? treeShape(m as never)!.trunkTop : furnitureHeight(m as never))); // a tree's trunk stops under its crown (S28.7)
+      // B53.5: a box piece is its blocks (furnitureBlocks), a tree one trunk, a patio one slab.
+      expect(sol, s).toHaveLength(SYMBOL_DECISION[s] === "pole" ? 1 : furnitureBlocks(m as never).length);
+      for (const x of sol) { expect(x.tag).toBe(s); expect(x.ref.index).toBe(0); }
+      expect(Math.min(...sol.map((x) => prism(x).z0))).toBe(furnitureBottom(m as never));
+      expect(Math.max(...sol.map((x) => prism(x).z1))).toBe(furnitureBottom(m as never) + (SYMBOL_DECISION[s] === "pole" ? treeShape(m as never)!.trunkTop : furnitureHeight(m as never))); // a tree's trunk stops under its crown (S28.7)
       if (SYMBOL_DECISION[s] === "pole") { expect(area(sol[0])).toBeLessThan(m.w * m.h / 10); expect(sol[0].ref.size).toEqual([120, 70]); }
-      else expect(round(area(sol[0]))).toBe(120 * 70);
+      else { expect(span(sol.flatMap(xs)).map(round)).toEqual([240, 360]); expect(span(sol.flatMap(ys)).map(round)).toEqual([165, 235]); if (sol.length === 1) expect(round(area(sol[0]))).toBe(120 * 70); }
     }
   });
 
@@ -362,10 +363,10 @@ describe("scene: furniture, unlinked, stairs", () => {
   });
 
   it("turns a piece about its centre and takes an explicit height", () => {
-    const sol = buildScene(floor({ furniture: [piece("table", { rot: 90, height: 66 })] })).solids.find((s) => s.kind === "furniture")!;
-    expect(prism(sol).z1).toBe(66);
-    expect(span(xs(sol)).map(round)).toEqual([265, 335]); // 70 wide after a quarter turn
-    expect(span(ys(sol)).map(round)).toEqual([140, 260]);
+    const sol = buildScene(floor({ furniture: [piece("table", { rot: 90, height: 66 })] })).solids.filter((s) => s.kind === "furniture");
+    expect(Math.max(...sol.map((s) => prism(s).z1))).toBe(66);
+    expect(span(sol.flatMap(xs)).map(round)).toEqual([265, 335]); // 70 wide after a quarter turn
+    expect(span(sol.flatMap(ys)).map(round)).toEqual([140, 260]);
   });
 
   it("an unlinked appliance is a 40 cm block at its own height, scaled", () => {
@@ -484,7 +485,7 @@ describe("scene: whole-scene properties", () => {
   it("builds the demo's both floors with a wall, room, furniture and device each", () => {
     const g = buildScene(demoFloors()[0]);
     for (const k of ["floor", "wall", "room", "furniture", "stair", "device"]) expect(g.solids.some((s) => s.kind === k), k).toBe(true);
-    expect(g.solids.filter((s) => s.kind === "furniture")).toHaveLength(2);
+    expect(new Set(g.solids.filter((s) => s.kind === "furniture").map((s) => s.ref.index)).size).toBe(2); // two pieces, each of its blocks (B53.5)
     expect(g.solids.filter((s) => s.kind === "device")).toHaveLength(12); // 8, and the four icons stacked in the Hall (S27.C, for spiderfy)
     expect(g.solids.filter((s) => s.kind === "device" && s.shape.type === "prism").map((s) => s.tag)).toEqual(["heater"]);
     for (const s of g.solids.filter((x) => x.kind === "wall" && x.tag !== "glass" && x.tag !== "door-leaf")) expect(prism(s).z1).toBeLessThanOrEqual(floorHeight(demoFloors()[0]));
@@ -565,7 +566,7 @@ describe("scene: hostile layouts never throw and keep the good pieces", () => {
   it("5000 furniture pieces build, all of them", () => {
     const furniture = Array.from({ length: 5000 }, (_, i) => ({ id: `f${i}`, symbol: "table" as const, x: i, y: i % 300, rot: i % 360, w: 50, h: 50 }));
     const sc = buildScene(floor({ furniture }));
-    expect(sc.solids.filter((s) => s.kind === "furniture")).toHaveLength(5000);
+    expect(new Set(sc.solids.filter((s) => s.kind === "furniture").map((s) => s.ref.index)).size).toBe(5000);
   });
 
   it("does not change the floor it is given", () => {

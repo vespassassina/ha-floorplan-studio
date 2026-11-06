@@ -2,6 +2,31 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: the L sofa's chaise is a seat block, and `mirror` (B53.2)
+
+- Spec item 18 says both blocks of the L stand at the piece's height; item 19b (newer) makes the chaise a seat block. 19b
+  wins: the chaise is a seat (45 % of H), the run has a seat, a back and two arms. Chaise 35 % of w, run 45 % of h.
+- `mirror: true` flips x about the piece's vertical axis (blocks, the 2D and 2.5D symbol scale). `validate` allows it on
+  `sofa-l` only and only as `true`; `migrate` drops it elsewhere. The panel's `setSymbol` removes it when the symbol leaves sofa-l.
+- The symbol's lid is the highest block of at least 40 % of the footprint (was 50 %): the L's run seat is 45 %, and at 50 % the
+  glyph floated at the back's top.
+- Measured: card 122,951 bytes gzip after B53.2 (122,865 after B53.5; 121,531 before B53.5).
+
+## 2026-11-06: furniture shapes from blocks (B53.5)
+
+- `furnitureBlocks(piece)` (`src/core/furniture-blocks.ts`) is the one shape function. 2.5D (`solids.ts`) and 3D
+  (`scene-build.ts`, through `sceneDeps`) both draw its boxes, so they have the same count. Every box is clamped inside the
+  footprint and under the piece height at any size down to 5 cm; sizes in the spec are wishes, `room()`/`lift()` shrink them
+  by a share of the span so a 5 cm piece still gets positive blocks.
+- The symbol (the glyph on top) lies on `lidOf`: the highest block covering at least half the footprint (the seat of a sofa,
+  not the back), else the piece height.
+- Dark blocks (legs, plinth) are the piece's colour mixed 80/20 with black (`DARKEN_PCT`, `darkened()`). CSS: `.blk-dark .bt/.bs`
+  with a computed-style pair in all themes; 3D: a `furniture-<symbol>-dark` role per symbol. A custom colour from B53.4 should use
+  `darkened()` for the dark tone.
+- A bed at its default height 55 has a headboard flush with the mattress top; raise the piece height to see it.
+- A table's legs shade the floor (four patches); its floating top does not.
+- Measured: card 122,865 bytes gzip (was 121,531).
+
 ## 2026-11-05: free walls on a room edge, Reset all, ring colours; external faces (B53.9, Opus review)
 
 - A free wall lying on a room or outline edge is the same wall: `setEdgeColour` sets or clears it together with the room and

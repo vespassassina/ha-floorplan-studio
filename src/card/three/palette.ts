@@ -84,6 +84,8 @@ for (const k of ROOM_KINDS) TABLE.set(`room-${k}`, solid(ROOM[k] ?? "var(--fp-ro
 for (const k of WALL_KINDS) TABLE.set(`wall-${k}`, solid(WALL[k] ?? "var(--fp-wall)"));
 for (const k of ["door", "glass", "window", "slit", "fullwindow", "sealed", "opening"]) TABLE.set(`glass-${k}`, { css: k === "window" || k === "slit" || k === "fullwindow" ? "var(--fp-window)" : "var(--fp-glass)", opacity: 0.35 });
 for (const s of FURNITURE_SYMBOLS) TABLE.set(`furniture-${s}`, solid(FURNITURE[s] ?? mix("--fp-furniture", 70, "--fp-bg")));
+// B53.5: a leg or a plinth takes its piece's colour 20 % darker (DARKEN_PCT in core/furniture-blocks.ts; this chunk imports nothing from core, so the figure is written again and a test holds the two together).
+for (const s of FURNITURE_SYMBOLS) TABLE.set(`furniture-${s}-dark`, solid(`color-mix(in srgb, ${TABLE.get(`furniture-${s}`)!.css} 80%, black)`));
 for (const t of DEVICE_TYPES) TABLE.set(`device-${t}`, solid(DEVICE[t] ?? mix("--fp-furniture", 70, "--fp-bg")));
 
 const FALLBACK = solid(mix("--fp-furniture", 70, "--fp-bg"));

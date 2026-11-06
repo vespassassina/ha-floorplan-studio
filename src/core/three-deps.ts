@@ -3,6 +3,7 @@
 import { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight } from "./heights";
 import { acMode, attachedTest, classOf, deviceMarkup, inside, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS } from "./render";
 import { resolveStairDirection } from "./stairs";
+import { furnitureBlocks } from "./furniture-blocks";
 import { thumbBox, thumbUrl } from "./camera-thumb";
 import {
   bodyAir, bodyOf, bodyPlacement, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
@@ -22,7 +23,7 @@ export const sceneDeps: SceneDeps = {
   deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight,
   attachedTest, inside, resolveStairDirection,
   bodyOf, bodyPlacement, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
-  pieceDevice, stairBlocks, turnAbout, tvPlacement, within,
+  pieceDevice, stairBlocks, turnAbout, tvPlacement, within, furnitureBlocks,
   DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec, wallColourMap, wallEdgeKey,
 };
 export const liveDeps: LiveDeps = {

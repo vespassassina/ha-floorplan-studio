@@ -104,10 +104,13 @@ describe("scene: a car piece, the edges", () => {
     const sc = buildScene(floor([car("offroad")]));
     expect(sc.bounds.max[2]).toBeGreaterThanOrEqual(195);
   });
-  it("a non-car piece is still one prism of its own symbol", () => {
-    const parts = partsOf(floor([{ id: "t", symbol: "table", x: 100, y: 100, rot: 0, w: 100, h: 60 }]));
-    expect(parts).toHaveLength(1);
-    expect(parts[0].shape.type).toBe("prism");
+  it("a non-car piece is prisms of its own symbol: one for a toilet, its blocks for a table (B53.5)", () => {
+    const one = partsOf(floor([{ id: "t", symbol: "toilet", x: 100, y: 100, rot: 0, w: 100, h: 60 }]));
+    expect(one).toHaveLength(1);
+    expect(one[0].shape.type).toBe("prism");
+    const table = partsOf(floor([{ id: "t", symbol: "table", x: 100, y: 100, rot: 0, w: 100, h: 60 }]));
+    expect(table).toHaveLength(5);
+    expect(table.every((p) => p.shape.type === "prism" && p.tag === "table" && p.ref.index === 0)).toBe(true);
   });
 });
 

@@ -571,6 +571,12 @@ function lockBox(c: PanelCtx, id: string, list: "devices" | "furniture" | "unlin
   return html`<label><input type="checkbox" id=${id} .checked=${live(locked)} @change=${(e: Event) => c.commit((f) => { if ((e.target as HTMLInputElement).checked) f[list][i].locked = true; else delete f[list][i].locked; })}> Lock</label>`;
 }
 
+/** B53.2: the Mirror box of an L sofa. Ticked writes `mirror: true`, unticked removes the key; the same value again is no step. */
+function mirrorBox(c: PanelCtx, i: number) {
+  const on = c.st.f.furniture[i].mirror === true;
+  return html`<label><input type="checkbox" id="fumirror" .checked=${live(on)} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).checked; if (v !== on) c.commit((f) => { if (v) f.furniture[i].mirror = true; else delete f.furniture[i].mirror; }); }}> Mirror</label>`;
+}
+
 /** "angle (deg)": turns wall, door or opening `i` about its midpoint to the typed angle. Same angle, or rubbish: nothing. */
 function angleField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings", i: number) {
   const o = c.st.f[list][i], cur = angleOf(o.a, o.b);
@@ -1282,7 +1288,7 @@ function furniturePanel(c: PanelCtx, i: number) {
   // S1.51: width and depth are clamped to the same 5..2000 cm bounds the corner drag and validate() hold.
   const setSize = (k: "w" | "h") => (n: number) => c.commit((f) => { f.furniture[i][k] = Math.min(2000, Math.max(5, n)); });
   // `model`, `color` and `attached` belong to a car only (validate says so): leaving "car" takes them along.
-  const setSymbol = (v: string) => c.commit((f) => { const p = f.furniture[i]; p.symbol = v as typeof m.symbol; if (v !== "car") { delete p.model; delete p.color; delete p.attached; } });
+  const setSymbol = (v: string) => c.commit((f) => { const p = f.furniture[i]; p.symbol = v as typeof m.symbol; if (v !== "car") { delete p.model; delete p.color; delete p.attached; } if (v !== "sofa-l") delete p.mirror; });
   return html`<strong>Furniture</strong>
     ${hint("Drag it to move it.")}
     ${heading("Identity")}
@@ -1295,6 +1301,7 @@ function furniturePanel(c: PanelCtx, i: number) {
       : entityField(c, "fuent", "shows the state of", m.entity, "(none)", (v) => c.commit((f) => { setOrDelete(f.furniture[i], "entity", v); }))}
     ${heading("Appearance")}
     ${lockBox(c, "fulock", "furniture", i)}
+    ${m.symbol === "sofa-l" ? mirrorBox(c, i) : nothing}
     ${number(c, "width (cm)", "fw", m.w, setSize("w"))}
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${heightField(c, "height (cm)", "fuht", m.height, isCar ? carSpec(m.model).height : FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}

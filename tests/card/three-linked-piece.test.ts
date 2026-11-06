@@ -26,9 +26,9 @@ describe("scene: a linked piece", () => {
       expect(plain.ref.entity).toBeUndefined();
       expect(plain.paint.role).toBe(`furniture-${symbol}`);
     }
-    const other = solidOf(floor([piece("table", { entity: "switch.x" })]));
+    const other = solidOf(floor([piece("toilet", { entity: "switch.x" })]));
     expect(other.ref.entity).toBeUndefined();
-    expect(other.paint.role).toBe("furniture-table");
+    expect(other.paint.role).toBe("furniture-toilet");
   });
 });
 
