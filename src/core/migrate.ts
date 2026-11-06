@@ -1,4 +1,5 @@
 import { stairSteps } from "./geometry";
+import { TEXTURE_IDS } from "./textures";
 import { isEntityId, isViewPath, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, tempRangeProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -54,7 +55,16 @@ function dropBadRotation(f: any) {
 /** S35.1: the car keys `validate` would accept stay; the rest go, so a model from a newer file loads as a sedan. */
 function dropBadCar(f: any) {
   for (const m of f.furniture) {
-    if (m.symbol !== "car") { delete m.model; delete m.color; delete m.attached; continue; }
+    // B53.4: paint. A tree takes none, a car no texture; elsewhere what `validate` would refuse goes, key by key.
+    if (m.symbol === "car" || m.symbol === "tree") { delete m.texture; delete m.textureRot; delete m.textureScale; }
+    if (m.symbol === "tree") delete m.color;
+    else if (m.symbol !== "car") {
+      if ("color" in m && !(typeof m.color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.color))) delete m.color;
+      if ("texture" in m && !TEXTURE_IDS.includes(m.texture)) delete m.texture;
+      if ("textureRot" in m && !(typeof m.textureRot === "number" && Number.isFinite(m.textureRot) && m.textureRot >= 0 && m.textureRot < 360 && "texture" in m)) delete m.textureRot;
+      if ("textureScale" in m && !(typeof m.textureScale === "number" && Number.isFinite(m.textureScale) && m.textureScale >= 0.25 && m.textureScale <= 2 && "texture" in m)) delete m.textureScale;
+    }
+    if (m.symbol !== "car") { delete m.model; delete m.attached; continue; }
     if ("entity" in m && !isEntityId(m.entity)) delete m.entity; // 0.32.1 took any string with a dot
     if ("model" in m && !CAR_MODELS.includes(m.model)) delete m.model;
     if ("color" in m && !(typeof m.color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.color))) delete m.color;

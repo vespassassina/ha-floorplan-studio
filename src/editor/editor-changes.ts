@@ -44,7 +44,7 @@ export const attachToRoom = (ed: FloorplanStudioEditor, i: number) => {
 /** S4.22: the paint panel's rotation slider. `live` previews every tick via `replaceFloor` (no undo step, the same
  * pattern a mouse drag uses); `commit`, once at release, records the whole drag as one step — none if it ended back
  * where it started (mirrors `begin()`/`onUp` for a pointer drag). */
-export const rotateTexture = (ed: FloorplanStudioEditor, on: "rooms" | "stairs", i: number, rot: number, phase: "live" | "commit") => {
+export const rotateTexture = (ed: FloorplanStudioEditor, on: "rooms" | "stairs" | "furniture", i: number, rot: number, phase: "live" | "commit") => {
   if (ed.st.planLocked) { ed.slideRefused(); return; } // a texture is the plan; the slider snaps back on the redraw
   // A commit with no prior live tick (a click on the track, or an arrow key) still needs a "before": take it now,
   // before the value below is applied.
@@ -77,7 +77,7 @@ export const rotateItem = (ed: FloorplanStudioEditor, on: "furniture" | "unlinke
 };
 
 /** S4.19: the paint panel's scale slider. Same live/commit gesture as `rotateTexture`. */
-export const scaleTexture = (ed: FloorplanStudioEditor, on: "rooms" | "stairs", i: number, scale: number, phase: "live" | "commit") => {
+export const scaleTexture = (ed: FloorplanStudioEditor, on: "rooms" | "stairs" | "furniture", i: number, scale: number, phase: "live" | "commit") => {
   if (ed.st.planLocked) { ed.slideRefused(); return; }
   if (!ed.textureScaleGesture) ed.textureScaleGesture = structuredClone(ed.st.layout);
   const g = structuredClone(ed.st.f);

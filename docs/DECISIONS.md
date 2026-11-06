@@ -2,6 +2,31 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: paint a piece of furniture (B53.4, spec 19a)
+
+- A piece takes `color` (`#rrggbb`) or `texture` (a room texture) with `textureRot` and `textureScale`, stored and validated as on a room.
+  A texture wins over a colour. `EditorState.paint("furniture", i, ...)` is the room's step: one undo step, a custom colour joins
+  `layout.palette` in the same step. `furniturePaintable` (`src/core/furniture-paint.ts`) decides each symbol.
+- **A car keeps its `color` (the body paint, `paintCar`) and takes no texture**: `validate` refuses `texture`, `textureRot` and
+  `textureScale` on it, `migrate` drops them. Chosen over "ignore it" because a key that is stored and never drawn reads like a bug.
+- **A tree takes no paint**: its crown and trunk are theme roles (`--fp-tree`), not a body to fill. `validate` refuses all four keys
+  on it, `migrate` drops them. Supersedes "any piece" in spec 19a for these two symbols. `textureRot` and `textureScale` need a `texture`.
+- `migrate` used to delete `color` from every non-car piece (it was a car key); it now keeps a valid colour. Old files had none.
+- **One hook for the other views**: `furniturePaint(piece)` is the hex of the colour or of the texture's base colour (`undefined`
+  for no paint, a car, a tree, junk). 3D reads it into the solid's `paint.color` (the role stays; dark themes dim it as they dim a
+  room's paint); it reaches `scene-build.ts` through `SceneDeps`, like every core helper, so the 3D chunk gets no copy of it.
+- **2D**: the group wears class `fpaint` and a `style` with `--fp-furn-fill`; the rule `.furn.fpaint .ff` fills the symbol's bodies,
+  so outline and lines keep their stroke. Never a `fill` attribute, which `.furn .ff` outranks (finding 18). A texture is a `<pattern>`
+  made for the piece: the piece's group is scaled w/100 by h/100, so the pattern carries `scale(100/w 100/h)` and the size is in its id. The
+  grain turns with the piece.
+- **2.5D**: the same group style sets `--fp-box-top` to the colour and `--fp-box-side`, `--fp-box-side-w` to 74 % and 88 % of it
+  over black, which the existing `.bt`, `.bs`, `.bs.w` rules read. The lid symbol wears the colour or pattern.
+ - **Bytes:** card 121,531 (0.43.0, 6173ec8c) to 122,298 gzip -9 (+767; cap 124,650, 2,352 left). The 3D chunk gains the one-line paint read; its size-budget test stays green.
+ - **Shots:** `scripts/shots.mjs` paints the demo's ground sofa (`#2f6f8f`) and table (`wood-dark`) in memory, not in `demo/`, so the
+   demo tests keep their pixels (painting `demo/layout.json` broke six of them). Viewed in light and blueprint, 2D, 2.5D and 3D.
+- Integration with B53.5 (coordinator): a painted piece's legs and plinth are its colour 20 % darker. 2.5D gets it from `.blk-dark` reading the
+  piece's `--fp-box-*`; 3D, which cannot read `color-mix`, uses `darkenedHex` (`furniture-blocks.ts`, same `DARKEN_PCT`).
+
 ## 2026-11-06: the L sofa's chaise is a seat block, and `mirror` (B53.2)
 
 - Spec item 18 says both blocks of the L stand at the piece's height; item 19b (newer) makes the chaise a seat block. 19b

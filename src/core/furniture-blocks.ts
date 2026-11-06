@@ -16,6 +16,11 @@ export const DARKEN_PCT = 20;
 /** A colour, `css`, mixed `DARKEN_PCT` toward black: what a dark block is painted with. */
 export const darkened = (css: string): string => `color-mix(in srgb, ${css} ${100 - DARKEN_PCT}%, black)`;
 
+/** `darkened` for a `#rrggbb` (3D cannot read `color-mix`): each channel times (100 - DARKEN_PCT) %. Anything else comes back unchanged. */
+export const darkenedHex = (hex: string): string => /^#[0-9a-fA-F]{6}$/.test(hex)
+  ? "#" + [1, 3, 5].map((k) => Math.round(parseInt(hex.slice(k, k + 2), 16) * (100 - DARKEN_PCT) / 100).toString(16).padStart(2, "0")).join("")
+  : hex;
+
 const fin = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
 /** The fractions of the chaise and of the back run of an L sofa (spec item 18). */

@@ -755,18 +755,23 @@ export class EditorState {
     return true;
   }
   /**
-   * Paints a room, zone or staircase of the current floor, one undo step. `{ color }` sets a flat colour (and drops any texture); a
+   * Paints a room, zone, staircase or piece of furniture (B53.4; not a tree, and a car only takes a colour) of the current floor, one undo step. `{ color }` sets a flat colour (and drops any texture); a
    * colour that is not a built-in swatch joins `layout.palette`, newest last, so the swatches keep every custom colour used.
    * `{ texture, rot, scale }` sets a texture (and drops the colour) and, optionally, the texture's own rotation in
    * whole degrees (S4.22; 0 or omitted is never stored) and scale (S4.19; 1 or omitted is never stored). `null`
    * returns to the theme's default fill. Returns false, recording nothing, when the shape is missing, the value is
    * bad or nothing changes.
    */
-  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string; rot?: number; scale?: number } | null): boolean {
+  paint(on: "rooms" | "stairs" | "furniture", i: number, paint: { color: string } | { texture: string; rot?: number; scale?: number } | null): boolean {
     this.planBlocked = false; // colour and texture are not geometry: the plan lock lets them through (S26.3)
     const next: Layout = structuredClone(this.layout);
     const shape = next.floors[this.floor][on][i];
     if (!shape) return false;
+    // B53.4: a piece of furniture. A car keeps its colour and takes no texture (paintCar is its own door); a tree takes none of either.
+    if (on === "furniture") {
+      const sym = (shape as { symbol?: string }).symbol;
+      if (sym === "tree" || (sym === "car" && paint && "texture" in paint)) return false;
+    }
     delete shape.color; delete shape.texture; delete shape.textureRot; delete shape.textureScale;
     if (paint && "color" in paint) {
       const hex = paint.color.toLowerCase();

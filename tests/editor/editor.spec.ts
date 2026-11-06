@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { DEVICE_COLOURS, FLOORPLAN_CSS, planPivot, rotateAbout, renderFloor, viewBoxFor } from "../../src/core/render";
+import { TEXTURES } from "../../src/core/textures";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 import { GUIDE_STEPS, plainBody } from "../../src/editor/guide";
 import { readSvg } from "../helpers/pixels";
@@ -15,6 +16,7 @@ const demo = JSON.parse(readFileSync("demo/layout.json", "utf8")) as Layout;
 const home = JSON.parse(readFileSync("demo/home.json", "utf8")) as Layout;
 const manifest = JSON.parse(readFileSync("custom_components/floorplan_studio/manifest.json", "utf8")) as { version: string };
 const EDITOR = "floorplan-studio-editor";
+const TEXTURE_COUNT = TEXTURES.length;
 const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 const groundOf = async (page: Page): Promise<Floor> => (await layoutOf(page)).floors.ground;
 /** A snapped room can no longer be dragged by its body (it pans the view instead); tests of the drag-by-body mechanics
@@ -9108,4 +9110,147 @@ test("Opus review CSS pair: a tree is a crown with an edge, a trunk dot and a sh
   const b = await tree.locator(".tree-crown").boundingBox();
   await page.mouse.click(b!.x + b!.width / 2 + 3, b!.y + b!.height / 2 + 3);
   expect(await page.evaluate((tag) => { const s = (document.querySelector(tag) as any).st.sel; return s && s.t; }, EDITOR)).toBe("furn");
+});
+
+// ---- B53.4: paint a piece of furniture (spec 19a, criterion 3a) ---------------------------------------------------------
+
+/** The colour of one screen pixel, read back from a real screenshot (finding 16: the pixel, not the markup). */
+async function pixelAt(page: Page, x: number, y: number): Promise<[number, number, number]> {
+  const png = await page.screenshot({ clip: { x: Math.floor(x), y: Math.floor(y), width: 1, height: 1 } });
+  return page.evaluate(async (b64) => {
+    const bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const bmp = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+    const c = document.createElement("canvas");
+    c.width = c.height = 1;
+    const ctx = c.getContext("2d")!;
+    ctx.drawImage(bmp, 0, 0);
+    const d = ctx.getImageData(0, 0, 1, 1).data;
+    return [d[0], d[1], d[2]] as [number, number, number];
+  }, png.toString("base64"));
+}
+/** A 3 x 3 grid of pixels inside the body of the furniture piece at `idx`, away from its stroke. */
+async function bodyPixels(page: Page, idx: number): Promise<[number, number, number][]> {
+  const b = (await page.locator(`g[data-f="${idx}"] .ff`).first().boundingBox())!;
+  const out: [number, number, number][] = [];
+  for (const fx of [0.2, 0.5, 0.8]) for (const fy of [0.25, 0.5, 0.75]) out.push(await pixelAt(page, b.x + b.width * fx, b.y + b.height * fy));
+  return out;
+}
+const near = (a: number[], b: number[], tol = 6) => a.every((v, i) => Math.abs(v - b[i]) <= tol);
+/** Adds a piece through the Add menu (it ends up selected, its panel open) and gives back its index. */
+async function addPiece(page: Page, symbol: string): Promise<number> {
+  const before = (await groundOf(page)).furniture.length;
+  await menu(page, "Add");
+  await pickFurniture(page, symbol);
+  return before;
+}
+const stepsOf = (page: Page) => page.evaluate((tag) => (document.querySelector(tag) as any).st.hist.length as number, EDITOR);
+
+test("B53.4: the furniture panel shows the room's swatches by group; a car and a tree have none", async ({ page }) => {
+  await addPiece(page, "sofa");
+  await expect(page.locator('#panel .swatches[aria-label="Colours"] .sw')).toHaveCount(12);
+  await expect(page.locator('#panel .swatches[aria-label="Textures"] .sw.tex')).toHaveCount(TEXTURE_COUNT);
+  await expect(page.locator("#fpcol")).toHaveCount(1);
+  await expect(page.locator("#fprot")).toHaveCount(0); // the rotation slider waits for a texture, as on a room
+  await addPiece(page, "car"); // a car keeps its own body-colour swatches, and takes no texture
+  await expect(page.locator('#panel .swatches[aria-label="Textures"]')).toHaveCount(0);
+  await expect(page.locator('#panel .swatches[aria-label="Colours"]')).toHaveCount(0);
+  await expect(page.locator("#fpcol")).toHaveCount(0);
+  await addPiece(page, "tree");
+  await expect(page.locator("#panel .swatches")).toHaveCount(0);
+});
+
+test("B53.4 CSS pair: a colour fills the piece's body on screen and its outline stays; an unpainted piece does not change", async ({ page }) => {
+  await setTheme(page, "light");
+  const n = await addPiece(page, "table");
+  const body = page.locator(`g[data-f="${n}"] .ff`).first();
+  const plain = await body.evaluate((e) => getComputedStyle(e).fill);
+  const other = page.locator('g[data-f="0"] .ff').first();
+  const otherFill = await other.evaluate((e) => getComputedStyle(e).fill);
+  const steps = await stepsOf(page);
+  await page.locator("#fpcol").fill("#c03030");
+  expect(await stepsOf(page)).toBe(steps + 1); // one undo step for the colour and its palette entry
+  expect((await groundOf(page)).furniture[n].color).toBe("#c03030");
+  expect((await layoutOf(page)).palette).toEqual(["#c03030"]);
+  // computed style on the real element (finding 10): the rule reaches the pixel, so .furn .ff did not outrank it
+  expect(await body.evaluate((e) => getComputedStyle(e).fill)).toBe("rgb(192, 48, 48)");
+  expect(plain).not.toBe("rgb(192, 48, 48)");
+  expect(await other.evaluate((e) => getComputedStyle(e).fill)).toBe(otherFill); // the neighbour keeps today's fill
+  const stroke = await body.evaluate((e) => ({ s: getComputedStyle(e).stroke, w: getComputedStyle(e).strokeWidth }));
+  expect(stroke.s).not.toBe("none"); // the outline is kept
+  expect(stroke.w).not.toBe("0px");
+  // and the real pixel (finding 16)
+  expect((await bodyPixels(page, n)).some((p) => near(p, [192, 48, 48]))).toBe(true);
+  // Use the default colour: back to the theme, one step; undo brings the colour back, a second undo takes it off
+  await page.locator("#fpcolx").click();
+  expect((await groundOf(page)).furniture[n].color).toBeUndefined();
+  expect(await body.evaluate((e) => getComputedStyle(e).fill)).toBe(plain);
+  expect(await stepsOf(page)).toBe(steps + 2);
+  await page.locator("#undo").click();
+  expect((await groundOf(page)).furniture[n].color).toBe("#c03030");
+  await page.locator("#undo").click();
+  expect((await groundOf(page)).furniture[n].color).toBeUndefined();
+  expect((await layoutOf(page)).palette).toBeUndefined();
+  expect(await body.evaluate((e) => getComputedStyle(e).fill)).toBe(plain);
+});
+
+test("B53.4 CSS pair: a wood texture fills the piece with its pattern; rotation and scale are one step each; undo restores the colour", async ({ page }) => {
+  await setTheme(page, "light");
+  const n = await addPiece(page, "table");
+  await page.locator("#fpcol").fill("#c03030");
+  const steps = await stepsOf(page);
+  await page.locator('#panel .sw.tex[aria-label="Dark wood"]').click();
+  expect(await stepsOf(page)).toBe(steps + 1);
+  const g = (await groundOf(page)).furniture[n];
+  expect(g.texture).toBe("wood-dark");
+  expect(g.color).toBeUndefined();
+  const body = page.locator(`g[data-f="${n}"] .ff`).first();
+  const fill = await body.evaluate((e) => getComputedStyle(e).fill);
+  const id = /url\("?#([^")]+)"?\)/.exec(fill)?.[1];
+  expect(id, fill).toMatch(/^fp-tex-wood-dark-f\d+x\d+$/);
+  await expect(page.locator(`pattern#${id}`)).toHaveCount(1);
+  // the dark wood shows: a sample is brown and dark, where the light theme's plain furniture is pale
+  const px = await bodyPixels(page, n);
+  expect(px.some(([r, g2, b]) => r < 150 && r > b && g2 >= b), JSON.stringify(px)).toBe(true);
+  // the rotation: live ticks are no step, the release is one, and the pattern id follows the turn
+  const before = await stepsOf(page);
+  await moveSlider(page, "#fprot", 45, "input");
+  await moveSlider(page, "#fprot", 90, "input");
+  expect(await stepsOf(page)).toBe(before);
+  await moveSlider(page, "#fprot", 90, "change");
+  expect(await stepsOf(page)).toBe(before + 1);
+  expect((await groundOf(page)).furniture[n].textureRot).toBe(90);
+  expect(await body.evaluate((e) => getComputedStyle(e).fill)).toContain("-r90-");
+  await moveSlider(page, "#fpscale", 50, "change");
+  expect((await groundOf(page)).furniture[n].textureScale).toBe(0.5);
+  expect(await stepsOf(page)).toBe(before + 2);
+  // undo three times: scale, rotation, texture; the colour is back
+  for (let k = 0; k < 3; k++) await page.locator("#undo").click();
+  expect((await groundOf(page)).furniture[n]).toMatchObject({ color: "#c03030" });
+  expect((await groundOf(page)).furniture[n].texture).toBeUndefined();
+  expect(await body.evaluate((e) => getComputedStyle(e).fill)).toBe("rgb(192, 48, 48)");
+});
+
+test("B53.4: a painted piece survives Save and Open, and the saved file validates", async ({ page }) => {
+  const n = await addPiece(page, "bed");
+  await page.locator('#panel .sw.tex[aria-label="Warm wood"]').click();
+  const layout = await layoutOf(page);
+  expect(validate(layout).ok).toBe(true);
+  expect(layout.floors.ground.furniture[n]).toMatchObject({ symbol: "bed", texture: "wood-warm" });
+});
+
+test("B53.4: changing a painted piece to a car keeps the colour and drops the texture; to a tree drops both", async ({ page }) => {
+  const n = await addPiece(page, "sofa");
+  await page.locator('#panel .sw.tex[aria-label="Warm wood"]').click();
+  await page.locator("#fs").selectOption("car");
+  let m = (await groundOf(page)).furniture[n];
+  expect(m.symbol).toBe("car");
+  expect(m.texture).toBeUndefined();
+  await page.locator("#fs").selectOption("sofa");
+  await page.locator("#fpcol").fill("#112233");
+  await page.locator("#fs").selectOption("tree");
+  m = (await groundOf(page)).furniture[n];
+  expect(m).not.toHaveProperty("color");
+  expect(m).not.toHaveProperty("texture");
+  expect(validate(await layoutOf(page)).ok).toBe(true);
 });

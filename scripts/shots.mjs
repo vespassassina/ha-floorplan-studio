@@ -31,6 +31,9 @@ for (const f of [CARD, EDITOR]) {
   }
 }
 const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
+// B53.4: every shot shows a painted piece, a coloured sofa and a wood table. Done here, not in demo/, so the demo tests keep their pixels.
+Object.assign(layout.floors.ground.furniture.find((m) => m.symbol === "sofa"), { color: "#2f6f8f" });
+Object.assign(layout.floors.ground.furniture.find((m) => m.symbol === "table"), { texture: "wood-dark" });
 const cardJs = cardSource(); // the card with its Overview chunk inlined (a page of inline modules cannot fetch the chunk)
 // Review 27: the floors' offsets. The first floor sits 120 cm east and 40 cm south of the ground floor, so the floor below
 // shows as a displaced outline: part of it falls where the shown floor draws nothing, part under its room fills.

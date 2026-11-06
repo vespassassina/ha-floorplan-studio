@@ -1,5 +1,6 @@
 export * from "./schema";
 export { TEXTURES, TEXTURE_IDS, texturePatterns } from "./textures";
+export { furniturePaint, furniturePaintable } from "./furniture-paint";
 export type { Texture } from "./textures";
 export { migrate } from "./migrate";
 export { applyHaNames } from "./ha";

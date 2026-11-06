@@ -12,6 +12,7 @@ import { doorStateOf, type DoorState } from "./door-state";
 import type { StateOverlay } from "./render";
 import { carMain, type CarDevice, type CarLike } from "./car-status";
 import { carParts, carSpec, carTop, type CarLook, type CarPoly } from "./car";
+import { furniturePaintLook } from "./furniture-paint";
 import { DEVICE_BODIES, type Device, type DeviceBody, type DeviceType, type DoorKind, type Floor, type Furniture, type FurnitureSymbol, type Pt, type StairDirection, type Stairs, type Unlinked } from "./schema";
 
 /** A device mount at or above this height gets a stem up from its icon (a ceiling light yes, a plug no). */
@@ -482,12 +483,13 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
     const end = tree ? px.lift(c, tree.trunkTop) : top;
     body = (tree ? treeShadeSvg(m) : "") + `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(end[0])}" y2="${num(end[1])}"/>`;
   }
+  const fp = furniturePaintLook(m);
   const lid = car ? px.lift(c, belt) : top;
   const sym = `<g transform="translate(${num(lid[0])} ${num(lid[1])}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)">${tree ? TREE_CROWN : car ? car.glow + carTop(m.model) : symbol}</g>`;
   // S18.9: a playing tv or speaker sends its waves from the lid, outside the scaled symbol group so they stay round.
   // A car's marks sit after its group, as in 2D: inside it an away car's dot would fade with the car.
   const w = (car ? car.marks : waves)?.replace("%AT%", `${num(top[0])} ${num(top[1])}`) ?? "";
-  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}${car?.cls ?? ""}" color="var(--fp-furniture)"${furnitureLinked(m)}${car?.style ?? ""}>${body}${sym}${cabin}${car ? "" : w}</g>${car ? w : ""}`, ...(mode === "box" && z0 < SHADE_MAX_LIFT ? { foot: base } : {}) };
+  return { key: nearest(px, base), svg: `<g data-f="${i}" class="furn${on ? " on" : ""}${car?.cls ?? ""}${fp.cls}" color="var(--fp-furniture)"${furnitureLinked(m)}${car?.style ?? fp.style}>${body}${sym}${cabin}${car ? "" : w}</g>${car ? w : ""}`, ...(mode === "box" && z0 < SHADE_MAX_LIFT ? { foot: base } : {}) };
 }
 
 /** cm across the block under an unlinked appliance, times its own scale: a small thing, the icon says what it is. */

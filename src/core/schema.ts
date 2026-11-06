@@ -134,7 +134,7 @@ export const MAX_CAR_ATTACHED = 24;
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. `height` is the size of the piece, `z` its bottom above the floor
  *  (a wall TV, a speaker): the top is z + height. */
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number; model?: CarModel; color?: string; attached?: string[]; /** B53.2: a `sofa-l` with its chaise on the right. Only `true`, only on a `sofa-l`; absent means the chaise is on the left as the symbol is drawn. */ mirror?: true }
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number; model?: CarModel; color?: string; /** B53.4: with `color`, the paint of any piece but a car (whose `color` is its body) and a tree; `texture` is a room texture. */ texture?: string; textureRot?: number; textureScale?: number; attached?: string[]; /** B53.2: a `sofa-l` with its chaise on the right. Only `true`, only on a `sofa-l`; absent means the chaise is on the left as the symbol is drawn. */ mirror?: true }
 /**
  * S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLINKED_TYPES`), not tied to a
  * single entity's state. `attached` is zero or more HA entities linked to it for reference only — it never
@@ -582,7 +582,17 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         else if (m.mirror !== true) errors.push(`${at} ${m.id} mirror must be true; leave it out for the chaise on the left`);
       }
       // S35.1: the car keys. `includes` on a list, so `__proto__` or `constructor` never match.
-      for (const k of ["model", "color", "attached"]) if (m[k] !== undefined && m.symbol !== "car") errors.push(`${at} ${m.id} ${k} is only allowed on a car`);
+      for (const k of ["model", "attached"]) if (m[k] !== undefined && m.symbol !== "car") errors.push(`${at} ${m.id} ${k} is only allowed on a car`);
+      // B53.4: paint. A car keeps its own `color` (checked below) and takes no texture; a tree is not a block to paint.
+      for (const k of ["texture", "textureRot", "textureScale"]) if (m[k] !== undefined && m.symbol === "car") errors.push(`${at} ${m.id} ${k} is not allowed on a car; its colour is its body paint`);
+      if (m.symbol === "tree") { for (const k of ["color", "texture", "textureRot", "textureScale"]) if (m[k] !== undefined) errors.push(`${at} ${m.id} ${k} is not allowed on a tree; a tree takes no paint`); }
+      else if (m.symbol !== "car") {
+        if (m.color !== undefined && !(typeof m.color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.color))) errors.push(`${at} ${m.id} color must be a colour like #aabbcc`);
+        if (m.texture !== undefined && !TEXTURE_IDS.includes(m.texture as string)) errors.push(`${at} ${m.id} texture must be one of ${TEXTURE_IDS.join(", ")}`);
+        if (m.textureRot !== undefined && !(typeof m.textureRot === "number" && Number.isFinite(m.textureRot) && m.textureRot >= 0 && m.textureRot < 360)) errors.push(`${at} ${m.id} textureRot must be a number in [0, 360)`);
+        if (m.textureScale !== undefined && !(typeof m.textureScale === "number" && Number.isFinite(m.textureScale) && m.textureScale >= 0.25 && m.textureScale <= 2)) errors.push(`${at} ${m.id} textureScale must be a number from 0.25 to 2`);
+        for (const k of ["textureRot", "textureScale"]) if (m[k] !== undefined && m.texture === undefined) errors.push(`${at} ${m.id} ${k} needs a texture`);
+      }
       if (m.symbol === "car") {
         if (m.model !== undefined && !CAR_MODELS.includes(m.model)) errors.push(`${at} ${m.id} model must be one of ${CAR_MODELS.join(", ")}; leave it out for a sedan`);
         if (m.color !== undefined && !(typeof m.color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.color))) errors.push(`${at} ${m.id} color must be a colour like #aabbcc`);

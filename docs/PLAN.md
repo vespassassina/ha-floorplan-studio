@@ -4949,8 +4949,8 @@ task measures its real figure and records it in DECISIONS.
   sofa" because the menu test forbids a hyphen in a name. Card 118,579 gzip.
 - [x] 2026-11-06 B53.2 `mirror` on `sofa-l`, and the L as two blocks: one shape function for 2.5D and 3D (criterion 3).
   Done: validate, migrate, Mirror box (one undo step), the flip in 2D, 2.5D and 3D checked on 240 x 160; `npm run shots -- --blocks`.
-- B53.4 Paint a piece: `color` or `texture` on any furniture, the room swatches in its panel, one `paint` step; 2D
-  fill, 2.5D and 3D block colour (spec items 19a, criterion 3a).
+- [x] 2026-11-06 B53.4 Paint a piece: `color` or `texture` on any furniture, the room swatches in its panel, one `paint` step; 2D
+  fill, 2.5D and 3D block colour (spec items 19a, criterion 3a). Done: `furniturePaint`, `EditorState.paint("furniture")`, validate and migrate, a painted sofa and table in the demo.
 - [x] 2026-11-06 B53.5 Shapes from blocks: `furnitureBlocks` for table, sofa, bed, chair, cabinet, sink, buffet, bathtub, feeding
   2.5D and 3D; the L sofa (B53.2) uses it (spec item 19b, criterion 3b). Shots at 4x in both themes.
   Done: `src/core/furniture-blocks.ts`; 2.5D and 3D draw the same blocks, legs and plinths 20 % darker. Card 122,865 gzip (was 121,531).
