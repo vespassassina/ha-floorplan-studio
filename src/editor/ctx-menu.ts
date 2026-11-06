@@ -241,7 +241,9 @@ export function ctxMenuView(h: FloorplanStudioEditor, m: { x: number; y: number;
   // Keep the menu on screen: it opens at the click, but not past the right edge; `fitCtxMenu` shifts it up once its height is known,
   // and a menu taller than the window scrolls.
   const left = Math.max(0, Math.min(m.x, window.innerWidth - 240)), top = Math.max(0, Math.min(m.y, window.innerHeight - 120));
-  return html`<div class="ctxmenu" style="left:${left}px;top:${top}px;">${items}${extra}</div>`;
+  // Windows fires the browser's `contextmenu` after mouseup, by when this menu (opened on pointerup) is under the
+  // pointer and the svg's cancel no longer sees it; cancel it here too, or the browser's menu covers ours.
+  return html`<div class="ctxmenu" style="left:${left}px;top:${top}px;" @contextmenu=${(e: Event) => e.preventDefault()}>${items}${extra}</div>`;
 }
 
 /** R5: after a render, moves an open menu up so its foot is inside the window (8 px spare), as far as the top allows. The height is only known now. */

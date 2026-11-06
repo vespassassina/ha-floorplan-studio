@@ -277,3 +277,22 @@ for (const [w, h] of [[1280, 720], [1024, 768]]) {
     expect(f.scrolls).toBe(false);
   });
 }
+
+// Windows fires the browser's own `contextmenu` after mouseup, macOS and Linux on mousedown. Our menu opens on
+// pointerup, so on Windows that late event lands on the menu itself, outside the svg that cancels it, and the
+// browser's menu was drawn over ours. Chromium here fires it on press, so the test sends the late one by hand at
+// the same point, to whatever element is really on top there (finding 3).
+test("a Windows-late contextmenu on our open menu is cancelled", async ({ page }) => {
+  const p = await TARGETS.room.at(page);
+  await rightClick(page, p);
+  await expect(menu(page)).toBeVisible();
+  const r = await page.evaluate(([tag, x, y]) => {
+    const root = (document.querySelector(tag as string) as any).shadowRoot as ShadowRoot;
+    const top = root.elementFromPoint(x as number, y as number)!;
+    const ev = new MouseEvent("contextmenu", { bubbles: true, composed: true, cancelable: true, button: 2, clientX: x as number, clientY: y as number });
+    top.dispatchEvent(ev);
+    return { inMenu: !!top.closest(".ctxmenu"), cancelled: ev.defaultPrevented };
+  }, [EDITOR, p.x + 4, p.y + 4] as const);
+  expect(r.inMenu, "the late event lands on our menu").toBe(true);
+  expect(r.cancelled, "the browser menu must not open over ours").toBe(true);
+});
