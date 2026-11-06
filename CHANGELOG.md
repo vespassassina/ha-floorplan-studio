@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.44.0 - 2026-11-06
+
+Furniture is built from blocks and takes paint, twenty-two new pieces, and appliances, plants and a robot vacuum linked to Home Assistant, with a smart plug's power and energy behind any electric piece.
+
 - Studio and card: more pieces link to Home Assistant: tv, speaker, computer, treadmill, robot vacuum and robot dock join washer, dryer, dishwasher, fridge, stove, plant and car. Name only a smart plug's switch and the card finds its power and energy sensors: the piece shows Running, Idle or "Off at the plug", and tapping it shows "312 W" and "1.4 kWh today" (the total when there is no daily meter). A robot vacuum links a `vacuum` entity ("Cleaning · 63 %"), fades while it is out, and its dock follows it. Same in 2D, 2.5D, 3D and the replay.
 
 - Studio and card: nine new pieces in the Add menu: treadmill, barbell rack, dumbbell rack, chaise longue, cube shelf, wall mirror, standing mirror, robot vacuum and robot dock. A shower is now a box with a dark tray and glass walls. A mirror snaps to the nearest wall and turns with it; mirrors take the theme's mirror colour, not paint.
