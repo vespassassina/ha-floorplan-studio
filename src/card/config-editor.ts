@@ -26,6 +26,7 @@ const DEFAULT_KIOSK = false;
 const DEFAULT_ACTIVE_LIST = true;
 const DEFAULT_NIGHT = "auto";
 const DEFAULT_SUN = "sun.sun";
+const DEFAULT_WEATHER = "weather.home";
 /** S9.1: the theme's own default for an open contact door (--fp-dev-contact's value, render.ts LIGHT_TOKENS)
  * shown in the colour field until open_color is set — a plain <input type="color"> can only ever hold a real hex,
  * never "unset", so Clear (below) is the only way to remove the key rather than picking this same colour by hand. */
@@ -493,6 +494,11 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("night", (e.target as HTMLSelectElement).value as EditorConfig["night"], DEFAULT_NIGHT);
   }
 
+  private _onWeather(e: Event): void {
+    const v = (e.target as HTMLInputElement).value.trim() || DEFAULT_WEATHER;
+    this._set("weather", v, DEFAULT_WEATHER);
+  }
+
   private _onSun(e: Event): void {
     const v = (e.target as HTMLInputElement).value.trim() || DEFAULT_SUN;
     this._set("sun", v, DEFAULT_SUN);
@@ -747,6 +753,11 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="sun">Sun entity</label>
         <input id="sun" type="text" .value=${this._config.sun ?? DEFAULT_SUN} @change=${this._onSun} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="weather">Weather entity</label>
+        <input id="weather" type="text" .value=${this._config.weather ?? DEFAULT_WEATHER} @change=${this._onWeather} />
       </div>
 
       <div class="row">

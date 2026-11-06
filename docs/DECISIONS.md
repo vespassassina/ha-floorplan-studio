@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: Outdoor light, night and day
+
+Diego: the plan is too dark outdoors at night to read, and by day the garden should follow the weather and the hour.
+At night an outdoor room (`OUTDOOR_KINDS`: garden, terrace, pavement, water) gets class `out` on its `room-night`
+polygon and a pale `--fp-moon` tint (16 %) in place of the 45 % `--fp-night` veil; a lit room stays clear. By day,
+`outdoorShade(condition, hour)` (`src/core/daylight.ts`) gives 0..0.35 from the weather condition plus up to .12 away from
+08:00 to 18:00; `renderFloor({ daylight })` draws it as `room-day` polygons over the outdoor rooms only, none at night or
+in a heat map. New card key `weather` (default `weather.home`, like `sun`); a missing entity or an unknown condition is
+clear sky. The Studio reads `weather.home` too, so editor and card match. The new key is in the frozen list.
+
 ## 2026-11-06: Add > Furniture by area of the house; the late Windows right-click
 
 Diego asked for the furniture menu by area of the house and by name. `FURNITURE_AREAS` (`src/editor/furniture-menu.ts`) files

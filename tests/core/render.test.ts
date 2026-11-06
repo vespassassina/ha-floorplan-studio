@@ -2338,7 +2338,8 @@ describe("renderFloor: trace image (S7.11)", () => {
 });
 
 describe("S7.6 night", () => {
-  const nightRows = (html: string) => [...html.matchAll(/<polygon data-night="(\d+)" class="room-night( lit)?"/g)].map((m) => [Number(m[1]), !!m[2]] as const);
+  const nightRows = (html: string) => [...html.matchAll(/<polygon data-night="(\d+)" class="room-night( out)?( lit)?"/g)].map((m) => [Number(m[1]), !!m[3]] as const);
+  const outRows = (html: string) => [...html.matchAll(/<polygon data-night="(\d+)" class="room-night( out)?( lit)?"/g)].filter((m) => m[2]).map((m) => Number(m[1]));
 
   it("sets class night on the root, with or without a plan theme", () => {
     expect(renderFloor(ground, { ...base, night: true })).toMatch(/^<g class="night">/);
@@ -2383,6 +2384,26 @@ describe("S7.6 night", () => {
     }
   });
 
+  it("marks the outdoor kinds `out` so they get moonlight instead of the veil; every kind decided", () => {
+    // ground: 4 Garden, 5 Pavement, 6 Garden pond (water) are outdoors; 0..2 are rooms.
+    expect(outRows(renderFloor(ground, { ...base, night: true }))).toEqual([4, 5, 6]);
+    const decided: Record<RoomKind, boolean> = { room: false, garden: true, pavement: true, fill: false, terrace: true, water: true, structure: false, zone: false };
+    for (const kind of ROOM_KINDS) {
+      const f = structuredClone(ground);
+      f.rooms = [{ id: "k", name: "K", area: "", kind, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: Array(4).fill(kind === "zone" ? "boundary" : "wall") }];
+      const html = renderFloor(f, { ...base, night: true });
+      expect(outRows(html).length, kind).toBe(decided[kind] && kind !== "structure" && kind !== "zone" ? 1 : 0);
+    }
+  });
+
+  it("an outdoor room with a light on keeps both marks: out and lit", () => {
+    const f = structuredClone(ground);
+    const g = f.rooms.findIndex((r) => r.kind === "garden");
+    f.devices.push({ id: "lamp", type: "light", entity: "light.garden_lamp", x: f.rooms[g].pts[0][0] + 5, y: f.rooms[g].pts[0][1] + 5 });
+    const html = renderFloor(f, { ...base, night: true, state: { "light.garden_lamp": st("on") } });
+    expect(html).toContain(`<polygon data-night="${g}" class="room-night out lit"`);
+  });
+
   it("Break it: a light outside every room, or at a non-finite point, lights nothing and throws nothing", () => {
     const f = structuredClone(ground);
     f.devices.push({ id: "stray", type: "light", entity: "light.stray", x: 5000, y: 5000 });
@@ -2396,6 +2417,7 @@ describe("S7.6 night", () => {
     expect(FLOORPLAN_CSS).toContain(".night .room-night{fill:var(--fp-night)}");
     expect(FLOORPLAN_CSS).toContain(".night .room-night.lit{fill:none}");
     expect(FLOORPLAN_CSS).toContain(".room-night{fill:none;pointer-events:none}");
+    expect(FLOORPLAN_CSS).toContain(".night .room-night.out:not(.lit){fill:var(--fp-moon)}");
   });
 });
 

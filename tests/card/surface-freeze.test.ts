@@ -8,7 +8,7 @@ import { CAR_MODELS } from "../../src/core/schema";
 
 const CONFIG_KEYS = [
   "type", "floor", "floors", "fade", "plug_watts", "plug_heat_from", "plug_heat_to", "room_glow", "layout", "layout_url",
-  "theme", "zoom", "night", "sun", "kiosk", "tap_action", "hold_action", "open_color", "icon_size", "active_list", "center",
+  "theme", "zoom", "night", "sun", "weather", "kiosk", "tap_action", "hold_action", "open_color", "icon_size", "active_list", "center",
   "zoom_level", "view", "view_switch", "rotate_switch", "labels", "names", "tilt", "walls", "rotation", "detail",
   "ghost_floor", "floors_below", "heat_map", "camera_thumb", "camera_thumb_size", "camera_thumb_pos",
 ];

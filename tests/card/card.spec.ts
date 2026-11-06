@@ -1141,6 +1141,35 @@ test("S7.6 CSS pair: at night an unlit room is covered by --fp-night, a lit one 
   expect(fills).toEqual(["rgba(4, 10, 30, 0.45)", "none"]);
 });
 
+// Outdoor light (Diego, 2026-11-06): moonlight at night, a weather-and-hour shade by day. Outdoor rooms only; both carry no click.
+test("outdoor light CSS pair: night moonlight on a garden, day shade from the weather entity, none on indoor rooms", async ({ page }) => {
+  await open(page);
+  await page.clock.setFixedTime(new Date(2026, 10, 6, 13, 0)); // local midday, so the hour adds nothing
+  const s = (state: string) => ({ state, attributes: {}, last_changed: new Date().toISOString() });
+  const probe = () => page.locator("floorplan-studio-card").evaluate((el) => {
+    const r = el.shadowRoot!;
+    const q = (sel: string) => [...r.querySelectorAll(sel)].map((n) => { const c = getComputedStyle(n); return { fill: c.fill, op: c.opacity, pe: c.pointerEvents }; });
+    return { moon: q("svg polygon.room-night.out"), veil: q("svg polygon.room-night:not(.out)"), day: q("svg polygon.room-day") };
+  });
+  await configure(page, { layout: structuredClone(demo), theme: "light", night: "on" }, { states: {} });
+  const n = await probe();
+  expect(n.moon.length).toBeGreaterThan(0);
+  expect(new Set(n.moon.map((m) => m.fill))).toEqual(new Set(["rgba(150, 185, 255, 0.16)"]));
+  expect(new Set(n.veil.map((m) => m.fill))).toEqual(new Set(["rgba(4, 10, 30, 0.45)"]));
+  expect(n.day).toEqual([]);
+  await configure(page, { layout: structuredClone(demo), theme: "light", night: "off" }, { states: { "weather.home": s("pouring") } });
+  const d = await probe();
+  expect(d.day.length).toBeGreaterThan(0);
+  for (const m of d.day) expect(m).toEqual({ fill: "rgba(4, 10, 30, 0.45)", op: "0.24", pe: "none" });
+  expect(d.moon).toEqual([]);
+  await configure(page, { layout: structuredClone(demo), theme: "light", night: "off" }, { states: { "weather.home": s("sunny") } });
+  expect((await probe()).day).toEqual([]); // clear sky at midday
+  await configure(page, { layout: structuredClone(demo), theme: "light", night: "off", weather: "weather.garden" }, { states: { "weather.home": s("sunny"), "weather.garden": s("rainy") } });
+  expect((await probe()).day.map((m) => m.op)).toEqual((await probe()).day.map(() => "0.16")); // the `weather` key picks the entity
+  await configure(page, { layout: structuredClone(demo), theme: "light", night: "off" }, { states: {} });
+  expect((await probe()).day).toEqual([]); // no weather entity at all
+});
+
 // S7.5: kiosk mode for a wall tablet. Real page.mouse gestures at real coordinates (CLAUDE.md finding 3), since the
 // hold is a real HOLD_MS + 100 wait, not a fake-timer advance.
 test.describe("S7.5 kiosk mode", () => {

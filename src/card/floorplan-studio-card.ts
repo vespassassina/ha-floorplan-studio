@@ -16,6 +16,7 @@ import { CARD_VERSION } from "./version";
 import { INSTALL_HINT, NOTHING_SAVED, PLAN_UNUSABLE, STALE_PAGE, NO_ANSWER, loadErrorText, loadShared, pageIsStale, type Conn, type StoredError } from "./load";
 import { mark, t } from "../core/i18n";
 import { sunPosition } from "../core/sun-position";
+import { outdoorShade } from "../core/daylight";
 import { currentLanguage, useLanguage } from "./i18n";
 import { clamp, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { firstFocus, nextInDirection, type FocusDir } from "./plan-focus";
@@ -98,6 +99,8 @@ export interface FloorplanStudioCardConfig {
   night?: "auto" | "on" | "off";
   /** S7.6: the entity `night: auto` reads; default `sun.sun`. */
   sun?: string;
+  /** The weather entity whose condition (with the hour) shades the outdoor rooms by day; default `weather.home`. See core/daylight.ts. */
+  weather?: string;
   /** S7.5: `true` shows only the plan for a wall tablet — no floor chips, no zoom buttons, no version, no cover
    * dialog chrome beyond the dialog itself, and holding a device never opens more-info. Taps still act. Default
    * `false`. Whatever would otherwise produce a switcher — `floors`, `floor: "all"`, or (S8.12) simply a
@@ -1764,6 +1767,15 @@ export class FloorplanStudioCard extends LitElement {
     return typeof this._config.sun === "string" && this._config.sun ? this._config.sun : "sun.sun";
   }
 
+  _weatherId(): string {
+    return typeof this._config.weather === "string" && this._config.weather ? this._config.weather : "weather.home";
+  }
+
+  /** The daytime shade of the outdoor rooms: the weather entity's condition and the hour of the card's clock. 0 when the entity is missing. */
+  _daylight(): number {
+    return outdoorShade(this._stateForRender()?.[this._weatherId()]?.state, new Date(this._now()).getHours());
+  }
+
   /** S7.6: whether the plan is drawn at night. `on`/`off` force it; anything else is `auto`: the sun entity (config
    * `sun`, default `sun.sun`) is `below_horizon`, or `on` for a binary sensor. Missing or `unavailable` is day. */
   _night(): boolean {
@@ -1851,6 +1863,7 @@ export class FloorplanStudioCard extends LitElement {
       dark: this._haDark(),
       rotate,
       night: this._night(),
+      daylight: this._daylight(),
       view,
       tilt: this._tilt(),
       walls: this._walls(),
