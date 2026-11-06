@@ -5,9 +5,9 @@ import { repeat } from "lit/directives/repeat.js";
 import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, deviceZDefault, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, MIN_MOISTURE, isLinkable, validate } from "../core/schema";
+import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, MIN_MOISTURE, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
 import { bodyOf, furniturePaintable } from "../core";
-import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
+import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, Furniture, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
@@ -1282,6 +1282,20 @@ function acField(c: PanelCtx, i: number) {
   return multiAttachField(c, "aclink", "AC / TRV entities", d.linked ?? [], c.st.deviceAttachChoices(i, "linked"), set, { apply: mutate, targetLabel: d.name ?? d.entity, keepDeviceId: d.id });
 }
 
+/**
+ * Changes a piece's symbol and takes along what the new one cannot hold, so the layout still validates (`EditorState.edit` does not
+ * validate, finding 12): a washer refuses the loose entity a tv may carry, and a mirror takes no paint. A test walks every pair.
+ */
+export function retype(p: Furniture, from: string, to: string): void {
+  p.symbol = to as Furniture["symbol"];
+  if (to !== "car") { delete p.model; if (from === "car") delete p.color; }
+  if (!isLinkable(to)) delete p.attached; // B53.11: a car, an appliance and a plant hold attached entities
+  if (strictEntity(to) && p.entity !== undefined && !isEntityId(p.entity)) delete p.entity; // a tv's loose id is no id for a washer
+  if (to !== "plant") delete p.minMoisture;
+  if (!furniturePaintable(to)) { delete p.texture; delete p.textureRot; delete p.textureScale; if (to !== "car") delete p.color; } // a car's `color` is its body
+  if (to !== "sofa-l") delete p.mirror;
+}
+
 function furniturePanel(c: PanelCtx, i: number) {
   const m = c.st.f.furniture[i];
   const isCar = m.symbol === "car", linked = !isCar && isLinkable(m.symbol);
@@ -1289,16 +1303,7 @@ function furniturePanel(c: PanelCtx, i: number) {
   const setSize = (k: "w" | "h") => (n: number) => c.commit((f) => { f.furniture[i][k] = Math.min(2000, Math.max(5, n)); });
   // `model` and `attached` belong to a car only (validate says so): leaving "car" takes them along, and its body colour (on another piece `color` is paint).
   // B53.4: a car takes no texture and a tree no paint, so entering either drops what it cannot hold.
-  const setSymbol = (v: string) => c.commit((f) => {
-    const p = f.furniture[i];
-    p.symbol = v as typeof m.symbol;
-    if (v !== "car") { delete p.model; if (m.symbol === "car") delete p.color; }
-    if (!isLinkable(v)) delete p.attached; // B53.11: a car, an appliance and a plant hold attached entities
-    if (v !== "plant") delete p.minMoisture;
-    if (v === "car" || v === "tree") { delete p.texture; delete p.textureRot; delete p.textureScale; }
-    if (v === "tree") delete p.color;
-    if (v !== "sofa-l") delete p.mirror;
-  });
+  const setSymbol = (v: string) => c.commit((f) => retype(f.furniture[i], m.symbol, v));
   return html`<strong>Furniture</strong>
     ${hint("Drag it to move it.")}
     ${heading("Identity")}

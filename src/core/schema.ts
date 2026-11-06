@@ -607,7 +607,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (m.minMoisture !== undefined && (m.symbol !== "plant" ? (errors.push(`${at} ${m.id} minMoisture is only allowed on a plant`), false) : !validMinMoisture(m.minMoisture))) errors.push(`${at} ${m.id} minMoisture must be a whole percent from 1 to 99`);
       // B53.4: paint. A car keeps its own `color` (checked below) and takes no texture; a tree is not a block to paint.
       for (const k of ["texture", "textureRot", "textureScale"]) if (m[k] !== undefined && m.symbol === "car") errors.push(`${at} ${m.id} ${k} is not allowed on a car; its colour is its body paint`);
-      if (m.symbol === "tree") { for (const k of ["color", "texture", "textureRot", "textureScale"]) if (m[k] !== undefined) errors.push(`${at} ${m.id} ${k} is not allowed on a tree; a tree takes no paint`); }
+      if (m.symbol === "tree" || m.symbol === "mirror" || m.symbol === "mirror-stand") { for (const k of ["color", "texture", "textureRot", "textureScale"]) if (m[k] !== undefined) errors.push(`${at} ${m.id} ${k} is not allowed on a ${m.symbol === "tree" ? "tree; a tree" : "mirror; a mirror"} takes no paint`); }
       else if (m.symbol !== "car") {
         if (m.color !== undefined && !(typeof m.color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.color))) errors.push(`${at} ${m.id} color must be a colour like #aabbcc`);
         if (m.texture !== undefined && !TEXTURE_IDS.includes(m.texture as string)) errors.push(`${at} ${m.id} texture must be one of ${TEXTURE_IDS.join(", ")}`);

@@ -56,8 +56,8 @@ function dropBadRotation(f: any) {
 function dropBadCar(f: any) {
   for (const m of f.furniture) {
     // B53.4: paint. A tree takes none, a car no texture; elsewhere what `validate` would refuse goes, key by key.
-    if (m.symbol === "car" || m.symbol === "tree") { delete m.texture; delete m.textureRot; delete m.textureScale; }
-    if (m.symbol === "tree") delete m.color;
+    if (m.symbol === "car" || m.symbol === "tree" || m.symbol === "mirror" || m.symbol === "mirror-stand") { delete m.texture; delete m.textureRot; delete m.textureScale; }
+    if (m.symbol === "tree" || m.symbol === "mirror" || m.symbol === "mirror-stand") delete m.color; // B53.12: a mirror is glass in the theme's colour
     else if (m.symbol !== "car") {
       if ("color" in m && !(typeof m.color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.color))) delete m.color;
       if ("texture" in m && !TEXTURE_IDS.includes(m.texture)) delete m.texture;
