@@ -4,6 +4,7 @@ import { DEVICE_COLOURS, FLOORPLAN_CSS, planPivot, rotateAbout, renderFloor, vie
 import { TEXTURES } from "../../src/core/textures";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 import { GUIDE_STEPS, plainBody } from "../../src/editor/guide";
+import { furnitureMenu } from "../../src/editor/furniture-menu";
 import { readSvg } from "../helpers/pixels";
 import { openLabels, pickFurniture, pickUnlinked } from "./menu-helpers";
 import { cardSource } from "../../scripts/card-source.mjs";
@@ -3043,7 +3044,8 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   const head = ["Openings", "addDoor", "addOpenDoor", "addWin", "addSlit", "addGap", "drawOpening", "Wall", "addWall-wall", "addWall-boundary", "addWall-external", "addWall-fence", "addWall-edge", "addWall-parapet", "Draw", "drawWall-wall", "drawWall-boundary", "drawWall-external", "drawWall-fence", "drawWall-edge", "drawWall-parapet", "Areas", "addStr", "addZone", "addStairs", "drawRoom", "drawZone", "drawWater", "drawOutline", "drawExtra", "addDevBtn", "Furniture"];
   expect(order.slice(0, head.length)).toEqual(head);
   const furnEnd = order.indexOf("Unlinked device");
-  expect(order.slice(head.length, furnEnd)).toEqual(FURNITURE_SYMBOLS.map((y) => `addFurn-${y}`));
+  // Grouped by house area, each A to Z (furnitureMenu); the area headings are not focusable.
+  expect(order.slice(head.length, furnEnd)).toEqual(furnitureMenu().flatMap(([, s]) => s).map((y) => `addFurn-${y}`));
   expect(order.slice(furnEnd + 1).every((id) => id.startsWith("addUnlDev-"))).toBe(true);
 });
 

@@ -1,7 +1,8 @@
 import { css, html, nothing } from "lit";
 import { live } from "./live-keep";
-import { CAM_POS, CAM_SIZES, DETAIL_LABELS, DETAIL_MODES, HEAT_KINDS, FURNITURE_SYMBOLS, floorBelow, UI_ICONS, UNLINKED_TYPES, WALL_KINDS, layersSummary } from "../core";
-import type { FurnitureSymbol, HaData } from "../core";
+import { CAM_POS, CAM_SIZES, DETAIL_LABELS, DETAIL_MODES, HEAT_KINDS, floorBelow, UI_ICONS, UNLINKED_TYPES, WALL_KINDS, layersSummary } from "../core";
+import type { HaData } from "../core";
+import { FURNITURE_LABELS, furnitureMenu } from "./furniture-menu";
 import "../card/search-box";
 import { TYPE_LABELS, WALL_LABELS, typeMenu } from "./panels";
 import { DEFAULT_DETAIL, GRID_VALUES, THEME_VALUES, isBlank, type EditorState } from "./state";
@@ -100,12 +101,7 @@ export function floorGroups(st: EditorState): { groups: HaData["entities"]; acti
 /** S4.6: a group's kind (light or motion) read off its first member's domain, to offer "Turns on..." only for a motion group. */
 const groupKindOf = (g: { members?: string[] }) => (g.members ?? [])[0]?.split(".")[0] === "binary_sensor" ? "motion" as const : (g.members ?? [])[0]?.split(".")[0] === "light" ? "light" as const : undefined;
 
-/** S26.17: what each piece of furniture is called in the Add menu. A table, not the symbol with its hyphen swapped, so a
- *  new symbol fails the iterating test until someone writes its name. */
-export const FURNITURE_LABELS: Record<FurnitureSymbol, string> = {
-  table: "Table", sofa: "Sofa", bed: "Bed", cabinet: "Cabinet", chair: "Chair", sink: "Sink", toilet: "Toilet", shower: "Shower", bathtub: "Bathtub", "sofa-l": "Corner sofa", "coffee-table": "Coffee table", bookcase: "Bookcase", buffet: "Buffet", wardrobe: "Wardrobe", dresser: "Chest of drawers", nightstand: "Nightstand", desk: "Desk", armchair: "Armchair", counter: "Kitchen counter", stove: "Stove", fridge: "Fridge", dishwasher: "Dishwasher", washer: "Washing machine", dryer: "Dryer", rug: "Rug", plant: "Plant", treadmill: "Treadmill", "barbell-rack": "Barbell rack", "weight-rack": "Dumbbell rack", "chaise-longue": "Chaise longue", "cube-shelf": "Cube shelf", mirror: "Mirror", "mirror-stand": "Standing mirror", "robot-vacuum": "Robot vacuum", "robot-dock": "Robot dock",
-  tv: "TV", computer: "Computer", speaker: "Speaker", tree: "Tree", "patio-wood": "Patio, wood", "patio-concrete": "Patio, concrete", car: "Car",
-};
+export { FURNITURE_LABELS, FURNITURE_AREAS, furnitureMenu } from "./furniture-menu";
 
 /** S26.17: opening a submenu closes the ones beside it, so a menu never grows past what one submenu needs. */
 const onSubToggle = (ev: Event) => {
@@ -207,7 +203,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
             <button class="btn" id="drawExtra" @click=${() => h.startDraw("extra")}>Draw structure line</button>
           </details>
           <button class="btn" id="addDevBtn" @click=${() => h.openAddDev()}>Device…</button>
-          ${sub("addFurn", "Furniture", FURNITURE_SYMBOLS.map((y) => html`<button class="btn" id=${`addFurn-${y}`} @click=${() => { h.addFurniture(y); h.closeMenus(); }}>${FURNITURE_LABELS[y]}</button>`))}
+          ${sub("addFurn", "Furniture", furnitureMenu().map(([area, s]) => html`<div class="mh" role="presentation">${area}</div>${s.map((y) => html`<button class="btn" id=${`addFurn-${y}`} @click=${() => { h.addFurniture(y); h.closeMenus(); }}>${FURNITURE_LABELS[y]}</button>`)}`))}
           ${sub("addUnlDev", "Unlinked device", unlinkedItems(h))}
         </div></details>
         <details class="menu" id="mFloors" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Floors</summary><div class="box">

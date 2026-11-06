@@ -390,6 +390,7 @@ export class FloorplanStudioEditor extends LitElement {
     .guide summary::before{content:"\\25B8";display:inline-block;width:1em;transition:transform .15s ease}
     .guide details[open] summary::before{transform:rotate(90deg)}
     .sep{border-top:1px solid var(--fp-idle)}
+    .mh{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--fp-ink);opacity:.6;padding:6px 8px 2px}
     /* Lighter, not lower-contrast: opacity leaves .btn's own colour/background computed values untouched (S1.53's
        contrast pair still passes) and only changes how it blends against the page behind it. */
     .btn.light{opacity:.6}

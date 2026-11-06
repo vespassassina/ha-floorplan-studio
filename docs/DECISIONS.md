@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-06: Add > Furniture by area of the house; the late Windows right-click
+
+Diego asked for the furniture menu by area of the house and by name. `FURNITURE_AREAS` (`src/editor/furniture-menu.ts`) files
+each piece under one area, the areas in walking order; the menu sorts each area A to Z by its label. One area per
+piece, not several: a piece listed twice would need two ids and the menu would grow. A sink sits in Kitchen and dining,
+a mirror in Bathroom, the standing mirror in Bedroom, the robot and its dock in Laundry and cleaning. A unit test
+iterates `FURNITURE_SYMBOLS`, so a new piece fails until it is filed.
+
+On Windows the browser's `contextmenu` event comes after mouseup, not on press as on macOS. Our menu opens on pointerup,
+so the late event landed on the menu, outside the svg that cancels it, and the browser's menu covered ours. The menu
+now cancels `contextmenu` itself. The Playwright test sends the late event by hand, since Chromium here fires it on press.
+
 ## 2026-11-06: Opus re-check of the B53 fixes; paint refused on a mirror in the editor
 
 The re-check found no must-fix. One nit fixed: `EditorState.paint` and the texture rotation and scale sliders now ask

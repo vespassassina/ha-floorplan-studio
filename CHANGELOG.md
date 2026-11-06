@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Studio: Add > Furniture is grouped by area of the house (Living, Kitchen and dining, Bedroom, Bathroom, Office, Gym, Laundry and cleaning, Outdoor), each area A to Z by name.
+- Studio: on Windows, a right-click on the plan no longer opens the browser's menu over the Studio's own. Windows fires the browser menu after the button comes up, by when ours is under the pointer.
+
 ## 0.44.0 - 2026-11-06
 
 Furniture is built from blocks and takes paint, twenty-two new pieces, and appliances, plants and a robot vacuum linked to Home Assistant, with a smart plug's power and energy behind any electric piece.

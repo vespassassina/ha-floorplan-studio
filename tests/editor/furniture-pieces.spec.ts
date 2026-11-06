@@ -52,3 +52,23 @@ test("a click at the centre of a sofa with a rug under it (listed after it) sele
   await page.mouse.click(at.x, at.y);
   await expect(page.locator("#fs")).toHaveValue("sofa");
 });
+
+// Diego, 2026-11-06: Add > Furniture is grouped by area of the house, each area A to Z by name. Read off the real
+// rendered menu, in DOM order, so a template that ignored `furnitureMenu` fails.
+test("Add > Furniture lists the pieces under house areas, each A to Z, with readable headings", async ({ page }) => {
+  await page.locator("#mAdd > summary").click();
+  await page.locator("#addFurn > summary").click();
+  const rows = await page.locator("floorplan-studio-editor #addFurn > .mh, floorplan-studio-editor #addFurn > button").evaluateAll((els) =>
+    els.map((e) => ({ head: e.classList.contains("mh"), text: (e.textContent ?? "").trim() })));
+  const areas: [string, string[]][] = [];
+  for (const r of rows) { if (r.head) areas.push([r.text, []]); else areas[areas.length - 1][1].push(r.text); }
+  expect(areas.map(([a]) => a)).toEqual(["Living", "Kitchen and dining", "Bedroom", "Bathroom", "Office", "Gym", "Laundry and cleaning", "Outdoor"]);
+  for (const [a, names] of areas) expect(names, a).toEqual([...names].sort((x, y) => x.localeCompare(y)));
+  expect(areas[0][1].slice(0, 3)).toEqual(["Armchair", "Bookcase", "Chaise longue"]);
+  // The heading is drawn: a visible size and an ink colour, not the button look (computed style, finding 10).
+  const h = await page.locator("floorplan-studio-editor #addFurn > .mh").first().evaluate((e) => {
+    const s = getComputedStyle(e); return { size: s.fontSize, transform: s.textTransform, opacity: s.opacity, height: e.getBoundingClientRect().height };
+  });
+  expect(h).toMatchObject({ size: "11px", transform: "uppercase", opacity: "0.6" });
+  expect(h.height).toBeGreaterThan(10);
+});
