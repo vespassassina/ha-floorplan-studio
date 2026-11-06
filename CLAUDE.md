@@ -173,4 +173,6 @@ Each of these was a real defect. Do not repeat them.
 
 ## Release ends on Diego's HA
 
-Once Diego approves a push and a tag, finish the release without asking again: refresh HACS (`hacs/repository/refresh`, key `repository`), install `update.floorplan_studio_update`, restart HA, and read the installed version back. Push and tag still need his yes each time.
+Once Diego approves a push and a tag, finish the release without asking again: wait for the GitHub release, install `update.floorplan_studio_update`, restart HA, and read the installed version back. Push and tag still need his yes each time.
+
+Since HA 2026.11 the update entity belongs to the built-in `marketplace` integration (HACS inside HA); the HACS integration and its `hacs/*` websocket commands are gone. The marketplace can take several minutes to see a new tag: call `homeassistant.update_entity` on the entity until `latest_version` is the new tag, then `update.install`. An install while it still offers the old version answers HTTP 500. On 2026-11-06 0.44.0 was offered only after an HA restart, so restart once if it still lags after ten minutes.
