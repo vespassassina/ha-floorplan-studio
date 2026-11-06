@@ -87,6 +87,7 @@ export const ACTIVE_LIST_RULE: Record<DeviceType, "on" | "cleaning" | "never"> =
   ups: "never", printer: "never",
   siren: "on", alarm: "on", // a sounding siren; an alarm panel that is armed or triggered
   radar: "on", // a radar that sees someone is motion like any other (MOTION_TYPES); it was "never" until 0.12.24
+  screen: "never", // a wall panel is on all day; listing it would be noise (B53.7)
 };
 
 /** The `--fp-dev-*` token each type's on colour comes from on the plan (render.ts's `FLOORPLAN_CSS`), so the list's

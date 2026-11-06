@@ -1,4 +1,4 @@
-import { alignFloor, floorBelow, floorPlace, floorPose, normaliseTurn, placePoint, poseFromPlace, DETAIL_MODES, parseDetailMode, CAR_SPEC, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { alignFloor, floorBelow, floorPlace, floorPose, normaliseTurn, placePoint, poseFromPlace, DETAIL_MODES, parseDetailMode, CAR_SPEC, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, WALL_COLOUR_KEYS, setEdgeColour, type WallColourKey, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import { CAR_MODELS, COORD_LIMIT, MAX_CAR_ATTACHED, MAX_VIEWS, MAX_VIEW_ZOOM } from "../core/schema";
 import type { SavedView } from "../core/schema";
 import { compact, rangeProblem, type HouseRange } from "./temp-range-ops";
@@ -355,6 +355,7 @@ export class EditorState {
     const nf: Floor = { title: t, outline: structuredClone(first?.outline ?? []), rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
     if (typeof first?.rotation === "number" && Number.isFinite(first.rotation) && first.rotation !== 0) nf.rotation = first.rotation; // and the turn it was drawn with (S29.6)
     if (first?.offset) nf.offset = [first.offset[0], first.offset[1]]; // it copies that floor's outline, so it sits where that floor sits (S27.8)
+    if (first?.owc) nf.owc = structuredClone(first.owc); // B53.9: and their colours
     if (first?.owk) nf.owk = structuredClone(first.owk); // Opus review: the outline's kinds must follow its points, or a new floor's perimeter drops back to the wk-less default
     for (const s of first?.stairs ?? []) nf.stairs.push({ ...structuredClone(s), id: newId(nf, key, "stairs") });
     Object.defineProperty(this.layout.floors, key, { value: nf, enumerable: true, writable: true, configurable: true });
@@ -971,11 +972,54 @@ export class EditorState {
     if (next) room.tempRange = next; else delete room.tempRange;
     return true;
   }
-  /** Removes every device colour: one undo step, none when there are none. */
+  /**
+   * B53.9: the layout's default colour of one wall kind (`wall`, `external` or `fence`): lower-cased `#rrggbb`, and a colour that is
+   * not a built-in swatch joins `layout.palette` in the same undo step, as `paintCar` does. `null` is the theme's colour (the key goes,
+   * and `wallColors` with it when it empties). False, nothing recorded, for junk, another key or no change.
+   */
+  setWallColour(key: WallColourKey, colour: string | null): boolean {
+    this.planBlocked = false; // a colour is not geometry: the plan lock lets it through
+    if (!(WALL_COLOUR_KEYS as readonly string[]).includes(key)) return false;
+    const next: Layout = structuredClone(this.layout), cur = { ...(next.wallColors ?? {}) };
+    if (colour === null) delete cur[key];
+    else {
+      const hex = colour.toLowerCase();
+      if (!/^#[0-9a-f]{6}$/.test(hex)) return false;
+      cur[key] = hex;
+      this.joinPalette(next, hex);
+    }
+    if (Object.keys(cur).length) next.wallColors = cur; else delete next.wallColors;
+    if (JSON.stringify(next) === JSON.stringify(this.layout)) return false;
+    this.snapshot();
+    this.layout = next;
+    return true;
+  }
+  /**
+   * B53.9: the colour of one wall of the current floor (`poly` and `i` as `edgeKindAt` reads them; "w" a free wall), through
+   * `setEdgeColour`, so a shared edge changes on both sides. Palette, one step, junk and no-change as `setWallColour`.
+   */
+  paintEdge(poly: string, i: number, colour: string | null): boolean {
+    this.planBlocked = false;
+    const hex = colour === null ? null : colour.toLowerCase();
+    if (hex !== null && !/^#[0-9a-f]{6}$/.test(hex)) return false;
+    const next: Layout = structuredClone(this.layout), f = next.floors[this.floor], g = setEdgeColour(f, poly, i, hex);
+    if (g === f) return false;
+    next.floors[this.floor] = g;
+    if (hex !== null) this.joinPalette(next, hex);
+    this.snapshot();
+    this.layout = next;
+    return true;
+  }
+  /** A colour that is not a built-in swatch joins the palette, once, within its cap. */
+  private joinPalette(next: Layout, hex: string) {
+    if (!FLOOR_COLOURS.some((k) => k.hex === hex) && !(next.palette ?? []).includes(hex)) next.palette = [...(next.palette ?? []), hex].slice(-MAX_PALETTE);
+  }
+  /** Removes every device colour and every wall kind colour: one undo step, none when there are none. */
   resetColours(): boolean {
-    if (!this.layout.colors) return false;
+    if (!this.layout.colors && !this.layout.wallColors) return false; // B53.9: Reset all clears the wall colours too
     this.snapshot();
     delete this.layout.colors;
+    delete this.layout.wallColors;
     return true;
   }
   get view(): View {

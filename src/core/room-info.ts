@@ -25,7 +25,7 @@ export const ROOM_ROW_TAP: Record<DeviceType, "toggle" | "more-info"> = {
   media: "more-info", speaker: "more-info", computer: "more-info", person: "more-info", camera: "more-info", vacuum: "more-info",
   temp: "more-info", humidity: "more-info", battery: "more-info", inverter: "more-info", server: "more-info", access_point: "more-info",
   lock: "more-info", vibration: "more-info", other: "more-info", boiler: "more-info", car: "more-info", ups: "more-info",
-  printer: "more-info", radar: "more-info", siren: "more-info", alarm: "more-info",
+  printer: "more-info", radar: "more-info", siren: "more-info", alarm: "more-info", screen: "more-info", // never toggles (B53.7): its entity is a panel or a backlight, and a tap opens its dialog
 };
 
 /** `colorVar`: the `--fp-*` property the row's icon takes (its on colour while on, the panel's own ink while off, finding 9). */

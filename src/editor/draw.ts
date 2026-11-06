@@ -134,6 +134,7 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
     // point count as before (the old kinds still line up corner for corner), external otherwise, since
     // a reshaped outline has no way to know which old edge a new one corresponds to.
     g.owk = g.owk && g.owk.length === pts.length ? g.owk : pts.map((): EdgeKind => "external");
+    if (g.owc && g.owc.length !== pts.length) delete g.owc; // B53.9: colours follow like the kinds, or go
     g.outline = pts;
     sel = { t: "edge", poly: "o", i: 0 };
   } else if (s.kind === "room" || s.kind === "zone" || s.kind === "water") {
@@ -150,8 +151,9 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
     if (loop) {
       const kinds = loop.walls.map((i) => g.walls[i].kind), kind = roomKindFor(kinds);
       // Walls come in walking order, so wall k is the edge from corner k to corner k+1.
+      const colours = loop.walls.map((i) => g.walls[i].color ?? null); // B53.9: the walls' colours go to the room's edges, same order as the kinds
       g.walls = g.walls.filter((_, i) => !loop.walls.includes(i));
-      g.rooms.push({ id: newId(g, floor, "room"), name: `New ${kind}`, area: "", kind, pts: loop.pts, wk: kinds as EdgeKind[] });
+      g.rooms.push({ id: newId(g, floor, "room"), name: `New ${kind}`, area: "", kind, pts: loop.pts, wk: kinds as EdgeKind[], ...(kind !== "zone" && colours.some((c) => c !== null) ? { wc: colours } : {}) });
       sel = { t: "room", i: g.rooms.length - 1 };
       const note = `${kind === "room" ? "Room" : kind === "zone" ? "Zone" : "Garden"} created from ${kinds.length} walls`;
       const h = kind === "zone" ? g : loop.pts.reduce((x, p) => stitch(x, p), g);

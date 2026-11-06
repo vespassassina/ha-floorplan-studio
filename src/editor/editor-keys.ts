@@ -97,7 +97,7 @@ export const onKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
   else if (s.t === "stairs") del((f) => { f.stairs.splice(s.i, 1); });
   else if (s.t === "v" && "poly" in s.ref && (polyPts(ed.st.f, s.ref.poly)?.length ?? 0) > 3) {
     const { poly, j } = s.ref;
-    del((f) => { const P = polys(f).find((x) => x.id === poly); if (P) { P.pts.splice(j, 1); P.room?.wk.splice(j, 1); } });
+    del((f) => { const P = polys(f).find((x) => x.id === poly); if (P) { P.pts.splice(j, 1); P.room?.wk.splice(j, 1); P.room?.wc?.splice(j, 1); if (poly === "o") { f.owk?.splice(j, 1); f.owc?.splice(j, 1); } } });
   }
 };
 

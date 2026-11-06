@@ -39,6 +39,7 @@ This page lists what you write. Leave everything else out. Heights are optional 
 - **`title`**: text, the name of the floor.
 - **`outline`**: the outer edge of the building on this floor, a closed polygon of at least 3 points, walked in either direction. Do not repeat the first point at the end; the shape closes itself.
 - **`owk`**: one entry per outline point, describing the edge from that point to the next. Use `"external"` for an outside wall. Same length as `outline`.
+- **`owc`** (optional): like `owk`, one entry per outline point, `null` or `"#rrggbb"`, the colour of that edge. Leave it out unless the owner asked for a coloured wall.
 - **`devices`** and the top-level **`catalog`**: always empty. A drawing does not know which lamp is which. The owner attaches real Home Assistant entities in the editor afterwards. Never invent an entity id.
 - Every list must be present, even when empty.
 - **`trace`**: a floor may carry one, the owner's scan drawn under the plan in the editor (an image as a `data:` URL, with its position, width, opacity and a show flag). **Never write a `trace` yourself**, and never copy one from an input file into your output. The owner loads their own image in the editor, Edit, Trace image.
@@ -54,6 +55,7 @@ Every object in `rooms`, `walls`, `stairs`, `doors`, `openings`, `extras`, `furn
 ```
 
 - **`pts`**: a closed polygon, at least 3 points, no repeated last point. A room that shares a wall with its neighbour uses **exactly the same coordinates** for the shared corners. Do not leave a gap and do not overlap.
+- **`wc`** (optional): like `wk`, **same length as `pts`**, each `null` or `"#rrggbb"`, the colour of that wall. Leave it out unless the owner asked for a coloured wall. A zone has none. The layout may also carry `"wallColors": {"wall"?: "#rrggbb", "external"?: ..., "fence"?: ...}`, a default colour per wall kind; a free wall in `walls` may carry `"color": "#rrggbb"`.
 - **`wk`**: one entry per point, describing the edge from that point to the next. **Same length as `pts`.** Each is one of:
   - `"external"` an outside wall, `"wall"` an inside wall, `"boundary"` a thin line (garden edges, zones), `"fence"`, `"edge"`, or `"none"` (not drawn).
 - **`area`**: always `""`. The owner links it to a Home Assistant area later.
@@ -163,7 +165,9 @@ To add one, push an object onto the right floor's `devices` array:
 
 A `plug` device may carry `"power": "sensor.<name>"`, the sensor (device class `power`) that measures it; a plug is active only while it reads 2 W or more. Leave it out unless the user names the sensor: an `available` row has no device id, so you cannot tell which power sensor belongs to which plug. The editor and the card link the plug's own sibling sensor themselves.
 
-`id` unique within its floor, `type` one of `heater light switch plug temp humidity motion contact camera climate ac tv computer media cover battery inverter server access_point lock vibration other boiler car ups printer speaker person radar vacuum siren alarm fan`, `entity` copied verbatim from `available`, `x`/`y` the centre in centimetres (or `a`/`b` for a two-point device such as a cover) — inside the room `available` named, or wherever the user told you. Leave `available` itself in the file; the editor drops it automatically the next time the file is saved or re-exported, so you don't need to strip it yourself.
+A device may carry `"body"`, how it is drawn in 2.5D and 3D: `none`, `radiator`, `speaker`, `tv`, `ac-wall`, `ac-floor` or `screen`. Leave it out and the type decides (an `ac` is a wall unit, a `tv` a TV, a `screen` a small wall panel). A two-point device (`a`/`b`) takes only `radiator` or `none`. Use `ac-floor` for a floor-standing air conditioner. A `screen` is a wall tablet or control panel: tapping it opens its entity's more-info and never switches it.
+
+`id` unique within its floor, `type` one of `heater light switch plug temp humidity motion contact camera climate ac tv computer media cover battery inverter server access_point lock vibration other boiler car ups printer speaker person radar vacuum siren alarm fan screen`, `entity` copied verbatim from `available`, `x`/`y` the centre in centimetres (or `a`/`b` for a two-point device such as a cover) — inside the room `available` named, or wherever the user told you. Leave `available` itself in the file; the editor drops it automatically the next time the file is saved or re-exported, so you don't need to strip it yourself.
 
 `available` never appears in a file you produced yourself (tracing a drawing gives Home Assistant nothing to snapshot). It only appears in a file the user downloaded from an already-configured plan's **File → Export**, with Home Assistant connected at the time.
 

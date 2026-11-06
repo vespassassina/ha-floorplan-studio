@@ -19,11 +19,11 @@ const polys = (g: string, cls: string) => [...g.matchAll(new RegExp(`<polygon cl
 const ptsOf = (s: string) => s.split(" ").map((p) => p.split(",").map(Number) as [number, number]);
 
 /** What each device type becomes in 2.5D. Written out on purpose: a new DeviceType is a type error until someone decides. */
-const KIND: Record<DeviceType, "radiator" | "speaker" | "tv" | "none"> = {
-  light: "none", camera: "none", motion: "none", radar: "none", access_point: "none", ac: "none", speaker: "speaker", cover: "none",
+const KIND: Record<DeviceType, string> = {
+  light: "none", camera: "none", motion: "none", radar: "none", access_point: "none", ac: "ac-wall", speaker: "speaker", cover: "none",
   switch: "none", plug: "none", contact: "none", vibration: "none", lock: "none", temp: "none", humidity: "none", climate: "none",
   boiler: "none", battery: "none", inverter: "none", media: "speaker", tv: "tv", other: "none", heater: "radiator", computer: "none",
-  server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none", siren: "none", alarm: "none", fan: "none", // S33.1: as a light, no 2.5D body
+  server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none", siren: "none", alarm: "none", fan: "none", screen: "screen", // S33.1; B53.7
 };
 
 describe("2.5D device solids", () => {
@@ -39,7 +39,7 @@ describe("2.5D device solids", () => {
       expect(flat(f), t).not.toContain("dsolid");
       const html = deep(f);
       if (KIND[t] === "none") expect(html, t).not.toContain("dsolid");
-      else expect(solid(html, KIND[t]), t).not.toBe("");
+      else expect(solid(html, KIND[t].replace(/^ac-.*/, "ac")), t).not.toBe(""); // both AC bodies draw class "ac"
     }
   });
 

@@ -264,7 +264,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
           <div class="rotrow"><span id="rotv">Rotate the plan: ${st.layout.rotate ?? 0}°</span>
             <button class="btn keep" id="rotl" aria-label="Rotate the plan 45 degrees left" @click=${() => h.rotatePlan(-45)}>&#8630; 45°</button>
             <button class="btn keep" id="rotr" aria-label="Rotate the plan 45 degrees right" @click=${() => h.rotatePlan(45)}>45° &#8631;</button></div>
-          <button class="btn" id="devcols" aria-expanded=${pressed(!!h.devColsPos)} @click=${() => h.toggleDevCols()}>Device colours</button>
+          <button class="btn" id="devcols" aria-expanded=${pressed(!!h.devColsPos)} @click=${() => h.toggleDevCols()}>Colours</button>
           <button class="btn" id="traceBtn" aria-expanded=${pressed(h.traceOpen)} @click=${() => h.toggleTrace()}>Trace image…</button>
         </div></details>
         <details class="menu" id="mFile" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">File</summary><div class="box">

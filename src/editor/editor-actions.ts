@@ -1,5 +1,5 @@
 import { stopDraw } from "./editor-draw";
-import { type DeviceType, type Pt, rotateAbout } from "../core";
+import { type DeviceType, type Pt, type WallColourKey, rotateAbout } from "../core";
 import { applyLinks, linkScopeFor, linkSuggestions } from "./bulk";
 import { roomMiddle, spawnInView, spawnPoint } from "./ops";
 import { floorDone } from "./editor-ha";
@@ -16,6 +16,11 @@ export function undo(ed: FloorplanStudioEditor, back: boolean) {
 /** View, Rotate the plan: one undo step. The stored coordinates are not touched; only `layout.rotate` changes. */
 export function setColour(ed: FloorplanStudioEditor, t: DeviceType, hex: string | null) {
   if (ed.st.setColour(t, hex)) ed.changed(hex ? `${t} colour set` : `${t} colour reset`);
+}
+
+/** B53.9: Edit > Colours > Wall colours: the layout's colour of one wall kind, `null` back to the theme's. */
+export function setWallColour(ed: FloorplanStudioEditor, key: WallColourKey, hex: string | null) {
+  if (ed.st.setWallColour(key, hex)) ed.changed(hex ? `${key} wall colour set` : `${key} wall colour reset`);
 }
 
 /** S26.23: Edit, "Link lights to switches" opens the Link mode: the pairs (light, suggested switch) in the selection, else the selected room, else the floor, all ticked. Nothing is written until Apply. */

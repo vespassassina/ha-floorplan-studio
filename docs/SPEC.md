@@ -183,6 +183,9 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   and editable in the editor exactly like a room edge, kind select and orange
   Delete included, even where no room's own edge spans it (S1.52). The demo
   shows external walls where the house meets outside.
+- `floor.owc` and `room.wc` (optional) run parallel to `owk` and `wk`: the
+  colour of each edge, `null` for none (B53.9). Every edit that adds or removes
+  a point keeps them in step; a list whose length does not match is refused.
 - `room.color` (optional) overrides the fill of that room or zone; it must be
   `#rrggbb`. Stairs take `color` too.
 - `room.texture` (optional, also on stairs) is one of `wood-light`, `wood-warm`,
@@ -198,6 +201,30 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   writes one undo step for the whole drag, same as a furniture corner drag. A
   hostile or non-finite value never throws: the render wraps it into `[0, 360)`
   and treats anything that is not a finite number as 0.
+- `wallColors` (optional, top level) is the layout's colour per wall kind,
+  `{ "wall"?, "external"?, "fence"? }`, each `#rrggbb`; any other key or value
+  is refused. The renderer sets `--fp-wall` (with the cap and side-face
+  variables derived from it), `--fp-wall-external` and `--fp-wall-fence` on the
+  same group as `colors`, so 2D, 2.5D and 3D follow in every theme. A kind left
+  out keeps the theme's colour. `parapet` follows `external`; `edge` and
+  `boundary` keep their own look and cannot be coloured as a kind (a `boundary`
+  is a quiet divider, an `edge` a hairline: a colour would turn them into
+  walls). B53.9.
+  Setting `wallColors.external` switches the 2.5D external faces from the
+  colour derived from `--fp-wall` (the theme's wall, softened toward the
+  background) to the external colour itself, softened the same way.
+- A wall's own colour beats the layout's: a free wall has `color`; a room edge
+  has `room.wc` and an outline edge `floor.owc`, each a list parallel to `wk`
+  or `owk` with `null` (no colour) or `#rrggbb` per edge, the same length as
+  `pts` or `outline`. Drawn as `style="--fp-wall-c:#rrggbb"` and a class rule,
+  not a presentation attribute. A zone has no wall, so no `wc`. Edges `none`
+  are not drawn and so not coloured. In 2.5D the faces and the cap take the
+  colour (the faces softened toward the background as a themed wall's are);
+  in 3D the wall solids do.
+- One wall drawn by two pieces (a shared edge, a room on the outline, a free
+  wall over an edge) has one colour in every view, the first one set in this
+  order: the outline, the rooms in array order, the free walls. The editor
+  paints all coincident edges together, so in practice they agree.
 - `palette` (optional, top level) is a list of `#rrggbb`, at most 24: the custom
   colours used so far. The editor adds a colour picked on the free colour input
   when it is not one of the twelve built-in swatches, and offers the list as
@@ -233,9 +260,20 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   both is the rise with a low kerb round the foot. Resolver: `src/core/stairs.ts`.
 - `door.kind`: door, glass (shown as "Glass door", 2026-10-09; the stored value stays `glass`), window, sealed, fullwindow (shown as "Full-height window", 2026-10-09, S25.D3: a window from the floor, sill 0, its head 40 cm under the ceiling of its wall like a window's and a glass door's, 210 on 250; a window in every other respect), slit (a window 60 cm high, its head 40 cm under the ceiling of its wall like a window's, 2026-10-06; before that it touched the ceiling; shown as "slit window"), open (a doorway: a door's cut, nothing drawn while closed; tripped, a solid alert band in the gap in 2D, 2.5D and 3D, 2026-10-05, S14.5). `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
+- `device.body` (B53.6/B53.8, optional): how a device is drawn in 2.5D and 3D. One of `none`, `radiator`, `speaker`,
+  `tv`, `ac-wall`, `ac-floor`, `screen`. Absent means the type's own look (`DEVICE_SOLID` in `src/core/solids.ts`:
+  heater `radiator`, speaker `speaker`, tv `tv`, ac `ac-wall`, screen `screen`, every other type `none`). `none` draws
+  no solid, only the icon. A bar (a heater's `a`/`b`) accepts only `radiator` or `none`; `validate` refuses any other
+  body on a bar, and refuses `radiator` on a point. `bodyOf` applies the same rule to a layout that skipped `validate`
+  (it falls back to the type's look), and the Body select in the device panel offers only what fits. Sizes, cm
+  (width x depth x height): `ac-wall` 80 x 22 x 30 at 195 up, `ac-floor` 70 x 20 x 60 on the floor, `screen` 24 x 2 x 16
+  at 140 up. The three stand flush to the nearest wall within 60 cm, facing into the room, or free, facing by `rot`
+  (0 = up the plan). An AC that is cooling, heating or in `fan_only` draws three wind strands, 70 cm, in 2D and 2.5D
+  (a dash that moves, `--fp-dev-ac-cool` / `--fp-dev-ac-heat` / idle grey; still under reduced motion). The 3D view
+  tints the AC body cool or heat but draws no wind.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
-  access_point, other, person, radar, vacuum, speaker, siren, alarm, fan. Heaters have `a`/`b`
+  access_point, other, person, radar, vacuum, speaker, siren, alarm, fan, screen. Heaters have `a`/`b`
   (a bar), the rest `x`/`y`. `ac` is an air conditioner, heat pump or air
   cleaner (a fan has its own type since S33.1; a device already typed `ac` on a `fan.*` entity keeps it); what it is doing comes from the entity, not from the layout. A
   `person` has a `person.*` or `device_tracker.*` entity. A `radar`'s own
@@ -495,6 +533,7 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | with `trvs`/`tempSensors` attached: tap opens a chooser listing the heater plus all of them, never a guess (S10.4); long press opens more-info for the heater alone (S10.3 review). With none attached: popup; long press: more-info, unchanged |
 | ac (air conditioner, heat pump, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | `--fp-dev-ac-cool` (#2c7fb8) / `--fp-dev-ac-heat` (#e8801a) | with `linked` climate/TRV entities: tap opens the chooser (S10.4), long press opens more-info for the ac alone (S10.3 review). With none: toggle; long press: more-info, unchanged |
 | fan (`fan.*`) | grey | a solid disc in the fan's colour while its entity is on | `--fp-dev-fan` | popup (Turn on/off; Speed slider with `percentage` and SET_SPEED); long press: more-info |
+| screen (a control screen, a wall tablet; B53.7) | grey | blue icon and halo (`--fp-dev-screen`, #2c7fb8) while its entity is on; its 2.5D and 3D body shows a lit face when on | `--fp-dev-screen` | more-info, never a toggle (`NO_TOGGLE`): the entity is often a sensor or a panel's backlight, and a tap that switched it off would blank the very screen the person is using. Never in the active list. Category: computing. Not offered as an unlinked appliance |
 | tv | grey | blue icon and halo when the player is on or playing | `--fp-dev-tv` (#2c7fb8) | more-info |
 | battery, inverter, server, access_point | grey icon on the round disc, `on` or off | grey, unchanged | — (idle grey `--fp-idle`; `layout.colors` can name one) | more-info |
 | computer | grey | blue icon and halo | `--fp-dev-computer` (#2c7fb8) | more-info |
@@ -970,7 +1009,7 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
   View, Re-center: zoom and pan go back to show everything on the floor (rooms,
   stairs, walls, furniture, devices), not only the outline as Fit to window
   does; nothing is written to the layout.
-  Edit, Device colours: one colour input per device type with a reset, and
+  Edit, Colours (headed Devices and Wall colours; was Device colours): one colour input per device type with a reset, and
   Reset all; each change is one undo step and is saved in `colors`.
   All floors turn together. Names and icons stay upright.
   Edit, Trace image… (S7.11): a panel for this floor's `trace`. Load reads a

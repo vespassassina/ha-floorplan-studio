@@ -46,6 +46,7 @@
     {"id":"light-gym","type":"light","entity":"light.demo_gym","name":"Gym light","x":820,"y":210},
     {"id":"ac-gym-ac","type":"ac","entity":"climate.demo_gym_ac","name":"Gym air conditioner","x":980,"y":60,"linked":[]},
     {"id":"tv-gym-tv","type":"tv","entity":"media_player.demo_gym_tv","name":"Gym TV","x":820,"y":40},
+    {"id":"screen-gym","type":"screen","entity":"light.demo_gym_panel","name":"Gym control screen","x":652,"y":330},
     {"id":"temp-gym-t","type":"temp","entity":"sensor.demo_gym_temperature","name":"Gym temperature","x":700,"y":380},
     {"id":"light-workshop","type":"light","entity":"light.demo_workshop","name":"Workshop light","x":150,"y":560},
     {"id":"plug-workshop-bench","type":"plug","entity":"switch.demo_workshop_bench","name":"Bench plug","x":200,"y":450},

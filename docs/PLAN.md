@@ -4955,6 +4955,13 @@ task measures its real figure and records it in DECISIONS.
 - [x] 2026-11-02 B53.3 The charging car's glow and 2.4 s breath in 2D and 3D, still under reduced motion. Computed-style pairs, and
   shots in both themes at 4x (criterion 7).
 
+- [x] 2026-11-05 B53.9 Wall colour: `Layout.wallColors` (wall, external, fence) and a colour per wall (`Wall.color`, `Room.wc`, `Floor.owc`),
+  in 2D, 2.5D and 3D, in the Studio (Colours panel, a Colour row on a wall) and the card. One shared-edge rule.
+  Computed-style pairs in two themes (Diego, 2026-11-05: "also add an option to select the color of walls").
+- [x] 2026-11-05 B53.6 AC unit body (`ac-wall`, `ac-floor`) with the wind animation; `Device.body`, `bodyPlacement`, 2D, 2.5D, a cool or heat tint in 3D.
+- [x] 2026-11-05 B53.7 Type `screen`, "Control screen": never toggles, every per-type table decided, demo device.
+- [x] 2026-11-05 B53.8 The Body select in the device panel, limited to what fits the device; Default removes the key.
+
 ### Sprint 54: worktop and underfloor heating
 
 - B54.1 The worktop's schema: `pts`, the box kept in step, `validate` (criterion 4).

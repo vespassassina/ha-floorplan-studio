@@ -159,6 +159,7 @@ describe("DEVICE_Z: every type's mount height is pinned (S14.5, Diego: lights an
     heater: 60, computer: 75, server: 60, ups: 30, printer: 90, car: 150, person: 170, vacuum: 10,
     siren: 205, alarm: 120, // S18.14
     fan: 215, // S33.1: as a light, a ceiling fan
+    screen: 140, // B53.7: a wall panel at eye height
   };
   it("the table is the one written here, type by type", () => {
     expect(Object.keys(PRESET).sort()).toEqual([...DEVICE_TYPES].sort());

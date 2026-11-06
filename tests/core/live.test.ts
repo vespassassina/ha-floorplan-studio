@@ -55,6 +55,14 @@ describe("liveOf", () => {
     expect(live({ "light.demo_living": st("unavailable") }).devices[0]?.state).toBe("unavailable"); // S23.5: a dead light is unavailable, not off
     expect(live({ "climate.demo_living": st("unavailable") }).devices[heater]?.state).toBe("unavailable");
   });
+  it("a climate device with an AC body carries the cool/heat class the 3D tint reads (Opus review, B53.6)", () => {
+    const f = { ...ground, devices: [{ type: "climate", entity: "climate.x", x: 200, y: 0, body: "ac-wall" }] } as unknown as typeof ground;
+    const k = (state: string, a: Record<string, unknown>) => live({ "climate.x": st(state, a) }, f).devices[0]?.klass ?? "";
+    expect(k("heat", { hvac_action: "heating" })).toMatch(/\bheat\b/);
+    expect(k("cool", { hvac_action: "cooling" })).toMatch(/\bcool\b/);
+    const plain = { ...f, devices: [{ type: "climate", entity: "climate.x", x: 200, y: 0 }] } as unknown as typeof ground;
+    expect(live({ "climate.x": st("heat", { hvac_action: "heating" }) }, plain).devices[0]?.klass ?? "").not.toMatch(/\bheat\b/);
+  });
   it("a sensor reads as the plan prints it, and junk as a dash", () => {
     const i = ground.devices.findIndex((d) => d.entity === "sensor.demo_living_temperature");
     expect(live({ "sensor.demo_living_temperature": st("20.5", { unit_of_measurement: "°C" }) }).devices[i]?.value).toBe("20.5\u202F°C");

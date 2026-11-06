@@ -70,6 +70,7 @@
  "lock.demo_front_door": {"state":"locked","attributes":{"friendly_name":"Front door lock"},"last_changed":"2026-10-22T12:40:00+00:00"},
  "lock.demo_terrace_door": {"state":"locked","attributes":{"friendly_name":"Terrace door lock"},"last_changed":"2026-10-22T06:00:00+00:00"},
  "media_player.demo_gym_tv": {"state":"off","attributes":{"friendly_name":"Gym TV"},"last_changed":"2026-10-22T06:00:00+00:00"},
+ "light.demo_gym_panel": {"state":"on","attributes":{"friendly_name":"Gym control screen"},"last_changed":"2026-10-22T06:00:00+00:00"},
  "media_player.demo_kids_speaker": {"state":"idle","attributes":{"friendly_name":"Kids media"},"last_changed":"2026-10-22T11:00:00+00:00"},
  "media_player.demo_living_speaker": {"state":"idle","attributes":{"friendly_name":"Living speaker","volume_level":0.3},"last_changed":"2026-10-22T12:40:00+00:00"},
  "media_player.demo_living_tv": {"state":"playing","attributes":{"friendly_name":"Living TV","media_title":"Evening news","media_content_type":"tvshow"},"last_changed":"2026-10-22T17:05:00+00:00"},

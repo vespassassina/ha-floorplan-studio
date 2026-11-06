@@ -714,6 +714,23 @@ describe("device colours (S1.36)", () => {
     expect(st.layout.colors).toBeUndefined();
     expect(st.resetColours()).toBe(false);
   });
+  it("B53.9: resetColours also clears wallColors, in one undo step; either alone is enough", () => {
+    const st = new EditorState(fresh());
+    st.setColour("light", "#aabbcc");
+    st.setWallColour("wall", "#112233");
+    expect(st.resetColours()).toBe(true);
+    expect(st.layout.colors).toBeUndefined();
+    expect(st.layout.wallColors).toBeUndefined();
+    expect(st.undo()).toBe(true);
+    expect(st.layout.colors).toEqual({ light: "#aabbcc" });
+    expect(st.layout.wallColors).toEqual({ wall: "#112233" });
+    st.resetColours();
+    const only = new EditorState(fresh());
+    only.setWallColour("fence", "#445566");
+    expect(only.resetColours()).toBe(true);
+    expect(only.layout.wallColors).toBeUndefined();
+    expect(only.resetColours()).toBe(false);
+  });
   it("refuses a colour that is not #rrggbb or a type that is not a device type", () => {
     const st = new EditorState(fresh());
     expect(st.setColour("light", "red")).toBe(false);

@@ -12,6 +12,8 @@ export type { DetailLevel, DetailMode } from "./detail";
 export { SPIDER_GAP_PX, SPIDER_MAX, SPIDER_MIN_R_PX, STACK_PX, spiderLayout, stackGroups } from "./spider";
 export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS } from "./icons";
 export * from "./render";
+export { WALL_COLOUR_KEYS, wallColourMap, wallColourVars, wallEdgeKey, wallHex } from "./wall-colour";
+export type { WallColourKey } from "./wall-colour";
 export { badges, floorRollups, roomRollup } from "./rollup";
 export type { BadgeCtx, Rollup } from "./rollup";
 export { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "./bind";
@@ -37,7 +39,7 @@ export { composePlace, floorBelow, floorPivot, floorPlace, floorPose, floorsBelo
 export type { Place, Pose } from "./floor-stack";
 export { stairAxis, stairPlace, stairReport } from "./hand-align";
 export type { StairAxis, StairPlaceResult, StairRow } from "./hand-align";
-export { UNLINKED_BASE, WALLS_LABELS, WALLS_MODES, pieceDevice, wallsModeOf } from "./solids";
+export { DEVICE_SOLID, UNLINKED_BASE, WALLS_LABELS, WALLS_MODES, bodyOf, pieceDevice, wallsModeOf } from "./solids";
 export type { WallsMode } from "./solids";
 export { customCalls, customScene, haScenesFor, lampOffCalls, presetCalls, roomScenes, sceneNeedsConfirm } from "./room-scenes";
 export type { HaSceneRow, RoomSceneMenu, SceneCall, SceneHass } from "./room-scenes";

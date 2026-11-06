@@ -2002,10 +2002,10 @@ describe("an air conditioner shows what it is doing (S2.10)", () => {
     ["cooling", "cool", "dev dev-ac cool on"], ["heating", "heat", "dev dev-ac heat on"],
   ])("hvac_action %s draws %s", (a, state, want) => { expect(cls(draw(state, { hvac_action: a }))).toBe(want); });
   it("hvac_action idle is grey even when the mode is cool", () => { expect(cls(draw("cool", { hvac_action: "idle" }))).toBe("dev dev-ac off"); });
-  it("with no hvac_action, state cool is blue, heat is orange, fan_only and dry are grey", () => {
+  it("with no hvac_action, state cool is blue, heat is orange, fan_only is on without a tint (the wind blows), dry is grey", () => {
     expect(cls(draw("cool"))).toBe("dev dev-ac cool on");
     expect(cls(draw("heat"))).toBe("dev dev-ac heat on");
-    expect(cls(draw("fan_only"))).toBe("dev dev-ac off");
+    expect(cls(draw("fan_only"))).toBe("dev dev-ac on"); // Opus review: the wind blows on fan_only, so the icon is on too
     expect(cls(draw("dry"))).toBe("dev dev-ac off");
   });
   it("break it: off wins over a stale hvac_action of cooling", () => { expect(cls(draw("off", { hvac_action: "cooling" }))).toBe("dev dev-ac off"); });
@@ -2081,7 +2081,7 @@ describe("unlinked appliances (S4.25)", () => {
 
   it("every DEVICE_TYPES member is decided for the Unlinked device menu, and fan is offered (spec X1: a fan with no entity is still a drawing)", () => {
     // Types a person does not place as a drawing: they need an entity to mean anything (sensors, relays, locks, people...).
-    const NOT_OFFERED = ["switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "media", "cover", "lock", "vibration", "other", "person", "radar", "vacuum", "siren", "alarm", "access_point"];
+    const NOT_OFFERED = ["switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "media", "cover", "lock", "vibration", "other", "person", "radar", "vacuum", "siren", "alarm", "access_point", "screen"];
     for (const t of DEVICE_TYPES) expect((UNLINKED_TYPES as readonly string[]).includes(t) !== NOT_OFFERED.includes(t), `${t} is in exactly one list`).toBe(true);
     expect(UNLINKED_TYPES).toContain("fan");
   });

@@ -9,7 +9,7 @@
 const ROOM_KINDS = ["room", "garden", "pavement", "fill", "terrace", "water"] as const; // a zone and a structure have no floor of their own
 const WALL_KINDS = ["wall", "boundary", "external", "fence", "edge", "parapet"] as const;
 const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"] as const;
-const DEVICE_TYPES = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan"] as const;
+const DEVICE_TYPES = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen"] as const;
 
 export interface RoleStyle { css: string; opacity: number }
 
@@ -28,6 +28,13 @@ const side = (wall: string, extra: string) => `color-mix(in srgb, var(${wall}) $
 const WALL: Record<string, string> = {
   wall: side("--fp-wall", SHARE), boundary: side("--fp-wall", SHARE), external: side("--fp-wall-external", `calc(${SHARE} + 5%)`), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)", parapet: side("--fp-wall-external", `calc(${SHARE} + 5%)`),
 };
+/** B53.9: a wall's own colour (`#rrggbb`) shaded as its kind is, so a coloured wall reads like a themed one and not like a slab of raw ink. */
+export const wallOwnCss = (role: string, hex: string): string | null => {
+  const kind = role.slice(5);
+  if (!role.startsWith("wall-") || !(kind in WALL)) return null;
+  if (kind === "fence" || kind === "edge") return hex;
+  return `color-mix(in srgb, ${hex} ${kind === "external" || kind === "parapet" ? `calc(${SHARE} + 5%)` : SHARE}, var(--fp-bg))`;
+};
 const FURNITURE: Record<string, string> = {
   tree: "var(--fp-tree-edge)", "patio-wood": "var(--fp-wall-fence)", "patio-concrete": "var(--fp-pavement)", car: mix("--fp-dev-camera", 80, "--fp-furniture"),
   sink: mix("--fp-window", 25, "--fp-furniture"), toilet: mix("--fp-window", 25, "--fp-furniture"), shower: mix("--fp-window", 25, "--fp-furniture"), bathtub: mix("--fp-window", 25, "--fp-furniture"),
@@ -35,6 +42,7 @@ const FURNITURE: Record<string, string> = {
 // A device with a body in the scene (radiator, speaker, TV) is drawn at rest here; the live tints are the LIVE roles below. Every other type is a point.
 const DEVICE: Record<string, string> = {
   heater: mix("--fp-idle", 55, "--fp-bg"), tv: mix("--fp-on-light", 62, "--fp-furniture"), speaker: mix("--fp-on-light", 62, "--fp-furniture"),
+  ac: mix("--fp-idle", 30, "--fp-bg"), screen: mix("--fp-on-light", 62, "--fp-furniture"), // B53.6, B53.7
 };
 
 const TABLE = new Map<string, RoleStyle>();
@@ -55,6 +63,8 @@ TABLE.set("open-door", solid("var(--fp-open-door)"));
 TABLE.set("door-band", { css: "var(--fp-open-door)", opacity: 0.6 }); // the slab in an open doorway while it is tripped: glass-like, alert colour
 TABLE.set("door-cover", solid("var(--fp-dev-cover)"));
 TABLE.set("body-heating", solid(mix("--fp-heater", 75, "--fp-bg")));
+TABLE.set("body-cool", solid(mix("--fp-dev-ac-cool", 40, "--fp-bg"))); // B53.6: an AC unit that is cooling or heating, the plan's body tints
+TABLE.set("body-heat", solid(mix("--fp-dev-ac-heat", 40, "--fp-bg")));
 TABLE.set("screen-on", solid("var(--fp-dev-tv)"));
 TABLE.set("driver-off", solid(mix("--fp-ink", 55, "--fp-furniture")));
 TABLE.set("driver-on", solid("var(--fp-dev-speaker)"));

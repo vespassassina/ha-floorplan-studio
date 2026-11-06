@@ -24,6 +24,7 @@ const WEARS_ON: Record<DeviceType, [state: string, attrs: Record<string, unknown
   boiler: ["on", {}, true], car: ["on", {}, false], /* S35.3: on only while charging; a plain entity is off. Was true. car-status.test.ts holds the charging cases. */ ups: ["on", {}, true], printer: ["on", {}, true], radar: ["on", {}, true], camera: ["idle", {}, false],
   siren: ["on", {}, true], alarm: ["armed_away", {}, true], // S18.14
   fan: ["on", {}, true], // S33.1: --fp-dev-fan
+  screen: ["on", {}, true], // B53.7: --fp-dev-screen
 };
 
 describe("covers with no garage, gate or door class draw idle (curtains, blinds, shutters)", () => {

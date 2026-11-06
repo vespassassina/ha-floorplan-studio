@@ -5,13 +5,14 @@ import { acMode, attachedTest, classOf, deviceMarkup, inside, lightFill, lightOp
 import { resolveStairDirection } from "./stairs";
 import { thumbBox, thumbUrl } from "./camera-thumb";
 import {
-  DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
+  bodyAir, bodyOf, bodyPlacement, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
   pieceDevice, stairBlocks, turnAbout, tvPlacement, within,
 } from "./solids";
 import { DEVICE_TYPES, fxScale, ROOM_KINDS, WALL_KINDS } from "./schema";
 import { doorStateOf } from "./door-state";
 import { textureTile } from "./textures";
 import { treeShape } from "./tree";
+import { wallColourMap, wallEdgeKey } from "./wall-colour";
 import { carParts, carSpec } from "./car";
 import { carStatus } from "./car-status";
 import type { LiveDeps } from "./live-build";
@@ -20,12 +21,12 @@ import type { SceneDeps } from "./scene-build";
 export const sceneDeps: SceneDeps = {
   deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight,
   attachedTest, inside, resolveStairDirection,
-  DEVICE_SOLID, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
+  bodyOf, bodyPlacement, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
   pieceDevice, stairBlocks, turnAbout, tvPlacement, within,
-  DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec,
+  DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec, wallColourMap, wallEdgeKey,
 };
 export const liveDeps: LiveDeps = {
-  acMode, attachedTest, classOf, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceDevice, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf, fxScale, carStatus, thumbBox, thumbUrl,
+  acMode, attachedTest, classOf, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceDevice, bodyAir, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf, fxScale, carStatus, thumbBox, thumbUrl,
 };
 export const textureDeps = { texture: textureTile };
 export type TextureDeps = typeof textureDeps;

@@ -14,7 +14,7 @@ import { lowerWalls, wallBodies, wallZ, type WallBody, type Walls } from "./cut"
 import { Orbit } from "./orbit";
 import { glide } from "./frame3d";
 import { MARKER_R, Picker, type Pick } from "./pick";
-import { dimRgb, parsePaintDim, roleStyle, type PaintDim } from "./palette";
+import { dimRgb, parsePaintDim, roleStyle, wallOwnCss, type PaintDim } from "./palette";
 import { MAX_POOLS, outwardSign, pickLights, roomLifts, roomOfPoint, WALL_REACH, type Poly, type Rgb, type RoomShape } from "./light";
 import { createPools, createRings } from "./fx";
 import { createGlow, type GlowSide, type GlowSpec } from "./glow";
@@ -186,7 +186,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   let parts: { index: number; tag: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; shut?: boolean }[] = [];
   /** A linked tv, speaker or computer piece: a mesh of its own (so its colour can follow the state), at rest in the linked colour, on in the plan's on colour. */
   let pieceBodies: PieceBody[] = [];
-  let devBodies: { index: number; type: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; lit: Mesh[]; on: boolean }[] = [];
+  let devBodies: { index: number; type: string; body: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; lit: Mesh[]; on: boolean }[] = [];
   let ballIdx: number[] = [], ballRest: Color[] = [], anchors: Anchors = { devices: new Map(), rooms: new Map() };
   const overlay = createOverlay(container), pools = createPools(scene), rings = createRings(scene), glow = createGlow(scene), suns = createSunPatches(scene);
   /** S38.4: the sun the patches were last built for, and what else they depend on; `sunBuilds` counts the builds (a test hook). */
@@ -429,8 +429,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     const key = `${role}|${color ?? ""}`;
     let p = palette.get(key);
     if (!p) {
-      const s = roleStyle(role), own = color !== undefined ? resolveColour(probe, color) : null, c = own ?? resolveColour(probe, s.css) ?? 0x888888;
-      const d = own !== null ? dimOf() : null;
+      const s = roleStyle(role), wall = color !== undefined ? wallOwnCss(role, color) : null, own = color !== undefined ? resolveColour(probe, wall ?? color) : null, c = own ?? resolveColour(probe, s.css) ?? 0x888888;
+      const d = own !== null && wall === null ? dimOf() : null; // B53.9: a wall's own colour is shaded like its kind, not dimmed as paint
       const rgb = d ? dimRgb([(c >> 16) & 255, (c >> 8) & 255, c & 255], d).map(Math.round) : null;
       p = { colour: new Color(rgb ? `#${hex((rgb[0] << 16) | (rgb[1] << 8) | rgb[2])}` : `#${hex(c)}`), opacity: s.opacity };
       palette.set(key, p);
@@ -679,7 +679,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   function buildBodies() {
     for (const s of plan?.solids ?? []) {
       if (s.kind !== "device" || s.shape.type !== "prism" || s.ref.hidden || typeof s.ref.index !== "number") continue;
-      const b = s.shape.base, z0 = s.shape.z0, z1 = s.shape.z1, tris: Triangles = { position: [], normal: [] };
+      const b = s.shape.base, z0 = s.shape.z0, z1 = s.shape.z1, tris: Triangles = { position: [], normal: [] }, kind = s.ref.body ?? s.tag; // B53.8: the body the device names, else its type
       prismTriangles(b, z0, z1, tris);
       const geo = new BufferGeometry();
       geo.setAttribute("position", new BufferAttribute(new Float32Array(tris.position), 3));
@@ -688,20 +688,20 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       scene.add(mesh);
       const lit: Mesh[] = [], glow = (g: BufferGeometry) => { const m = new Mesh(g, new MeshBasicMaterial({ color: 0x000000, side: DoubleSide })); m.renderOrder = 1; scene.add(m); lit.push(m); return m; };
       const cx = b.reduce((a, q) => a + q[0], 0) / b.length, cy = b.reduce((a, q) => a + q[1], 0) / b.length;
-      if (s.tag === "tv" && b.length === 4) {
+      if ((kind === "tv" || kind === "screen") && b.length === 4) {
         // The screen is the face on the far side of the wall (base[2] to base[3]), a hair proud of it, inset like the 2.5D bezel.
         const e0 = b[3], e1 = b[2], ex = e1[0] - e0[0], ey = e1[1] - e0[1], el = Math.hypot(ex, ey) || 1;
         let nx = ey / el, ny = -ex / el;
         if (nx * ((e0[0] + e1[0]) / 2 - cx) + ny * ((e0[1] + e1[1]) / 2 - cy) < 0) { nx = -nx; ny = -ny; }
-        const ins = 4, ux = ex / el, uy = ey / el, a = [e0[0] + ux * ins + nx * 0.4, e0[1] + uy * ins + ny * 0.4], c = [e1[0] - ux * ins + nx * 0.4, e1[1] - uy * ins + ny * 0.4];
+        const ins = kind === "screen" ? 2 : 4, ux = ex / el, uy = ey / el, a = [e0[0] + ux * ins + nx * 0.4, e0[1] + uy * ins + ny * 0.4], c = [e1[0] - ux * ins + nx * 0.4, e1[1] - uy * ins + ny * 0.4];
         const g = new BufferGeometry();
         g.setAttribute("position", new BufferAttribute(new Float32Array([a[0], z0 + ins, a[1], c[0], z0 + ins, c[1], c[0], z1 - ins, c[1], a[0], z0 + ins, a[1], c[0], z1 - ins, c[1], a[0], z1 - ins, a[1]]), 3));
         glow(g);
-      } else if (s.tag === "speaker" && b.length === 4) {
+      } else if (kind === "speaker" && b.length === 4) {
         const ux = b[1][0] - b[0][0], uy = b[1][1] - b[0][1];
         [[0.2, 5], [-0.22, 3]].forEach(([k, r]) => { const m = glow(new CylinderGeometry(r, r, 0.6, 18)); m.position.set(cx + ux * k, z1 + 0.3, cy + uy * k); });
       }
-      devBodies.push({ index: s.ref.index, type: s.tag, mesh, mat, rest: p.colour, lit, on: false });
+      devBodies.push({ index: s.ref.index, type: s.tag, body: kind, mesh, mat, rest: p.colour, lit, on: false });
     }
   }
   function buildPieces() {
@@ -773,12 +773,15 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     }
   }
   function applyBodies() {
-    const L = liveNow ?? EMPTY, heat = paintOf("body-heating", undefined).colour, on = paintOf("screen-on", undefined).colour, driver = paintOf("driver-on", undefined).colour, off = paintOf("driver-off", undefined).colour;
+    const L = liveNow ?? EMPTY, heat = paintOf("body-heating", undefined).colour, on = paintOf("screen-on", undefined).colour, driver = paintOf("driver-on", undefined).colour, off = paintOf("driver-off", undefined).colour, cool = paintOf("body-cool", undefined).colour, acHeat = paintOf("body-heat", undefined).colour;
     for (const b of devBodies) {
       const d = L.devices[b.index] ?? null;
-      if (b.type === "heater") b.mat.color.copy(d && d.state === "on" ? heat : b.rest);
-      b.on = b.type === "tv" ? !!d && d.state === "on" : b.type === "speaker" ? !!d && d.playing : false;
-      for (const m of b.lit) (m.material as MeshBasicMaterial).color.copy(b.on ? (b.type === "tv" ? on : driver) : off);
+      if (b.body === "radiator") b.mat.color.copy(d && d.state === "on" ? heat : b.rest);
+      // An AC unit wears the mode its icon shows (the class LiveDevice carries), so cooling is blue and heating orange as on the plan.
+      if (b.body === "ac-wall" || b.body === "ac-floor") { const m = d ? /\b(cool|heat)\b/.exec(d.klass) : null; b.mat.color.copy(m ? (m[1] === "cool" ? cool : acHeat) : b.rest); }
+      const lights = b.body === "tv" || b.body === "screen";
+      b.on = lights ? !!d && d.state === "on" : b.body === "speaker" ? !!d && d.playing : false;
+      for (const m of b.lit) (m.material as MeshBasicMaterial).color.copy(b.on ? (lights ? on : driver) : off);
     }
   }
   /** A ball is the colour its icon is drawn in (the card's stylesheet decides, as in 2D), faded toward the backdrop by the icon's opacity. */

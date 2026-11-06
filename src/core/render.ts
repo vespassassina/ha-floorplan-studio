@@ -23,7 +23,8 @@ import { attentionDevices, type AttentionSource } from "./attention";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
 import { devsHave, layerHides, type LayerId, type PlanSel } from "./layers";
 import type { DetailLevel } from "./detail";
-import { DEVICE_SOLID, STEM_MIN_Z, turnAbout, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, collectWalls, shadeMarkup, type Proj, type Solid, type WallsMode } from "./solids";
+import { wallColourMap, wallColourVars, wallEdgeKey } from "./wall-colour";
+import { bodyOf, bodyAir, bodyFlat, bodyWind, STEM_MIN_Z, turnAbout, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, collectWalls, shadeMarkup, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
 
@@ -71,6 +72,8 @@ export interface RenderOpts {
   rotate?: { deg: number; pivot: Pt };
   /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
   colors?: Layout["colors"];
+  /** B53.9 `layout.wallColors`: the colour of every wall of a kind, set on the same group as `--fp-wall`, `--fp-wall-external` and `--fp-wall-fence`. Omitted: the theme's. */
+  wallColors?: Layout["wallColors"];
   /** Names this plan's theme, regardless of its host's; omitted inherits the host's, and with no host theme at all the plan is blueprint. Nothing else in core reads it. */
   theme?: Theme;
   /** With `theme: "ha"`: true when Home Assistant itself is in dark mode, so the tokens HA's CSS variables do not cover (device colours, glow, the on-room stroke) are the dark ones. */
@@ -169,14 +172,14 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
   cover: "#f28c28", battery: "#8b8578", inverter: "#8b8578", server: "#8b8578", access_point: "#8b8578",
   lock: "#d64545", vibration: "#d64545", other: "#8b8578",
   boiler: "#8b8578", car: "#2e9e4f", ups: "#8b8578", printer: "#8b8578", speaker: "#2c7fb8",
-  person: "#1b9e77", radar: "#6a3fbf", vacuum: "#2f8f8f", siren: "#b02a2a", alarm: "#b02a2a", fan: "#1f9ec4",
+  person: "#1b9e77", radar: "#6a3fbf", vacuum: "#2f8f8f", siren: "#b02a2a", alarm: "#b02a2a", fan: "#1f9ec4", screen: "#2c7fb8",
 };
 
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
 // token can never be added to one selector and forgotten in another. The "ha" theme is built from the same two.
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#2c7fb8;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-fan:#1f9ec4;--fp-dev-car:#2e9e4f;--fp-dev-speaker:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-fan:#1f9ec4;--fp-dev-car:#2e9e4f;--fp-dev-speaker:#2c7fb8;--fp-dev-screen:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 /* Midnight (Diego's call, 2026-09-21, ex-"blueprint"): a deep navy ground, blue linework for walls, cool-white text, from the
    reference screenshot he supplied. It replaced HA's night-blue; light is unchanged. Every accent that carries meaning (device colours, the warn/danger/primary
@@ -191,7 +194,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
    line on the plan needs. The TV keeps #2c7fb8 (S9.3). */
 const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:var(--fp-room);--fp-garden:#1d2a42;--fp-terrace:#21304c;--fp-pavement:#233352;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#5fa8e8;--fp-window:#5fa8e8;--fp-sealed:#9a8f80;--fp-water:#1f4a78;--fp-fill:#1a2a46;--fp-fill-line:#3a5684;
---fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-fan:#4cc3e8;--fp-dev-car:#4fd17a;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-fan:#4cc3e8;--fp-dev-car:#4fd17a;--fp-dev-speaker:#2c7fb8;--fp-dev-screen:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 
 // The three role-generated themes (2026-09-22, Diego's brief): each is one base hue shaded into every structural token, one
@@ -224,7 +227,7 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({ base: "#e3cd9c", fg: "#3a3226", fgAlp
    Solarized blue 55 % over base03, #15608c; windows keep the full blue. */
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#11424f;--fp-terrace:#124c5b;--fp-pavement:#135161;--fp-wall:#93a1a1;--fp-idle:#586e75;
 --fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#15608c;--fp-fill:#073642;--fp-fill-line:#586e75;
---fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-fan:#2aa198;--fp-dev-car:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-fan:#2aa198;--fp-dev-car:#859900;--fp-dev-speaker:#268bd2;--fp-dev-screen:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
@@ -274,7 +277,7 @@ const WALL_HALO_EXTRA = 2;
 export const MOTION_PULSES = 3, MOTION_PULSE_S = 1.4;
 
 /** S2.9: --fp-dev per type when on. A constant so S23.4 can derive the matching ink rule from the same list. */
-const DEV_ON_RULES = `.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-siren.on{--fp-dev:var(--fp-danger)} .dev-alarm.on{--fp-dev:var(--fp-danger)} .dev-fan.on{--fp-dev:var(--fp-dev-fan)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}`;
+const DEV_ON_RULES = `.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-siren.on{--fp-dev:var(--fp-danger)} .dev-alarm.on{--fp-dev:var(--fp-danger)} .dev-fan.on{--fp-dev:var(--fp-dev-fan)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)} .dev-screen.on{--fp-dev:var(--fp-dev-screen)}`;
 
 export const FLOORPLAN_CSS = `
 :host,.fp{${BLUEPRINT_TOKENS}}
@@ -447,6 +450,20 @@ ${THEME_EXTRAS}
 .drv{fill:color-mix(in srgb,var(--fp-on-light) 55%,var(--fp-bg));stroke:var(--fp-on-dark);stroke-opacity:.45;stroke-width:1;vector-effect:non-scaling-stroke}
 .dsolid.speaker.on .drv{fill:var(--fp-dev-speaker)} .dsolid.speaker.media.on .drv{fill:var(--fp-dev-media)}
 .tv-screen{fill:color-mix(in srgb,var(--fp-on-light) 92%,var(--fp-bg));stroke:none} .dsolid.tv.on .tv-screen{fill:color-mix(in srgb,var(--fp-dev-tv) 80%,var(--fp-on-dark))}
+/* B53.6/B53.7: an AC unit and a control screen. The flat bodies and the wind take no clicks, by a class rule (an attribute would lose to author CSS). */
+.ac-body,.screen-body,.ac-wind{pointer-events:none}
+.ac-body{fill:color-mix(in srgb,var(--fp-idle) 30%,var(--fp-bg));stroke:var(--fp-idle);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.ac-body.cool{fill:color-mix(in srgb,var(--fp-dev-ac-cool) 40%,var(--fp-bg));stroke:var(--fp-dev-ac-cool)} .ac-body.heat{fill:color-mix(in srgb,var(--fp-dev-ac-heat) 40%,var(--fp-bg));stroke:var(--fp-dev-ac-heat)}
+.screen-body{fill:color-mix(in srgb,var(--fp-on-light) 85%,var(--fp-bg));stroke:var(--fp-idle);stroke-width:1;vector-effect:non-scaling-stroke} .screen-body.on{stroke:var(--fp-dev-screen)}
+.dsolid.ac{--fp-body:color-mix(in srgb,var(--fp-idle) 30%,var(--fp-bg))} .dsolid.ac.cool{--fp-body:color-mix(in srgb,var(--fp-dev-ac-cool) 40%,var(--fp-bg))} .dsolid.ac.heat{--fp-body:color-mix(in srgb,var(--fp-dev-ac-heat) 40%,var(--fp-bg))}
+.dsolid.screen{--fp-body:color-mix(in srgb,var(--fp-on-light) 62%,var(--fp-furniture))}
+.ac-vent{fill:color-mix(in srgb,var(--fp-on-light) 55%,var(--fp-bg));stroke:none} .dsolid.ac.cool .ac-vent{fill:var(--fp-dev-ac-cool)} .dsolid.ac.heat .ac-vent{fill:var(--fp-dev-ac-heat)}
+.screen-glass{fill:color-mix(in srgb,var(--fp-on-light) 92%,var(--fp-bg));stroke:none} .dsolid.screen.on .screen-glass{fill:color-mix(in srgb,var(--fp-dev-screen) 80%,var(--fp-on-dark))}
+.ac-wind path{fill:none;stroke:var(--fp-idle);stroke-width:3;stroke-linecap:round;opacity:.65;stroke-dasharray:.3 .7;animation:fp-wind 1.6s linear infinite}
+.ac-wind path:nth-child(2){animation-delay:-.5s} .ac-wind path:nth-child(3){animation-delay:-1s}
+.ac-wind.cool path{stroke:var(--fp-dev-ac-cool)} .ac-wind.heat path{stroke:var(--fp-dev-ac-heat)}
+@keyframes fp-wind{from{stroke-dashoffset:0}to{stroke-dashoffset:-1}}
+@media (prefers-reduced-motion:reduce){.ac-wind path{animation:none;stroke-dasharray:none;opacity:.45}}
 .stem{stroke:var(--fp-idle);stroke-width:1;stroke-opacity:.7;vector-effect:non-scaling-stroke} .stem-top{fill:var(--fp-idle);fill-opacity:.7}
 .ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-top);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 /* A wall face is lit like a solid: a fixed light from the upper left. Faces turned to it are lighter, faces turned away
@@ -455,6 +472,15 @@ ${THEME_EXTRAS}
 .ws.lit{fill:color-mix(in srgb,var(--fp-wall-side) 80%,var(--fp-on-dark))} .ws.dim{fill:color-mix(in srgb,var(--fp-wall-side) 78%,var(--fp-on-light))}
 .wfoot{fill:var(--fp-on-light);fill-opacity:.16;stroke:none} .wl{stroke:var(--fp-on-dark);stroke-opacity:.55;stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
+/* B53.9, wall colours. A wall piece with its own colour is class wc with --fp-wall-c in its style (a class rule, never a
+   presentation attribute, which any author rule outranks). These sit after every kind rule above and carry [style], so a
+   per-wall colour beats the layout's default (a group variable, or the wcx rule) and the default beats the theme's token.
+   A face reads --fp-wall-side and --fp-wall-top, so they are redeclared on the element itself from the same colour: lit and
+   dim faces keep their shading. The layout's external colour reaches the external faces through .wcx, set on its group. */
+.e.wc[style]{stroke:var(--fp-wall-c)}
+.wcx .ws.external,.wcx .ws.parapet{--fp-wall-top:var(--fp-wall-external);--fp-wall-side:color-mix(in srgb,var(--fp-wall-external) calc(var(--fp-wall-side-share,55%) + 5%),var(--fp-bg))}
+.ws.wc[style]{--fp-wall-top:var(--fp-wall-c);--fp-wall-side:color-mix(in srgb,var(--fp-wall-c) var(--fp-wall-side-share,55%),var(--fp-bg))}
+.ws.fence.wc[style]{fill:var(--fp-wall-c);stroke:var(--fp-wall-c)}
 .frame{fill:var(--fp-frame);stroke:var(--fp-frame);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
 /* An opening that is open (a contact sensor on, a lock left unlocked) is red on the wall face as it is in 2D, an alarm the
@@ -851,6 +877,9 @@ export function acMode(d: Device, o: RenderOpts): "cool" | "heat" | null {
   return v === "cooling" ? "cool" : v === "heating" ? "heat" : null;
 }
 
+/** An AC unit is running when it cools or heats, or blows with its fan alone (`fan_only`): the wind and the icon read this one answer. */
+export const acRuns = (d: Device, o: RenderOpts): boolean => acMode(d, o) !== null || o.state?.[d.entity]?.state === "fan_only";
+
 /** The sensor that measures plug `d`: its own `power`, else the one the card linked at runtime. Own `power` wins. */
 function powerEntity(d: Device, o: RenderOpts): string | undefined {
   if (typeof d.power === "string" && d.power) return d.power;
@@ -884,7 +913,7 @@ export function classOf(d: Device, o: RenderOpts): Cls {
   const s = o.state?.[d.entity];
   if (!s) return "off";
   if (dead(s.state)) return "unavailable"; // S23.5: every type, a light, switch or plug too: "I don't know" is not "off"
-  if (d.type === "ac") return acMode(d, o) ? "on" : "off";
+  if (d.type === "ac" || (bodyAir(d) && typeof d.entity === "string" && d.entity.startsWith("climate."))) return acRuns(d, o) ? "on" : "off";
   if (d.type === "plug") return plugOn(d, o, s) ? "on" : "off";
   if (d.type === "climate" || d.type === "heater") return s.attributes.hvac_action === "heating" ? "on" : "off";
   // S9.4: a speaker is a media_player like any other — playing is the only "on", same as media.
@@ -1326,8 +1355,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const iconAt = (d: Device, c: Pt): Pt => {
     if (!x25 || d.type === "person" || "a" in d) return c;
     const z = deviceZ(d);
-    // A speaker's default is the top of its cabinet, 30 cm: below the stem threshold, but still lifted onto the box it stands on.
-    return z >= STEM_MIN_Z || (DEVICE_SOLID[d.type] === "speaker" && z > 0) ? px.lift(c, z) : c;
+    // A speaker's default is the top of its cabinet, 30 cm, and a floor console's is 60: below the stem threshold, but still lifted onto the box they stand on.
+    const body = bodyOf(d);
+    return z >= STEM_MIN_Z || ((body === "speaker" || body === "ac-floor") && z > 0) ? px.lift(c, z) : c;
   };
   const showText = o.labels !== false; // false skips every <text> and leader below; placement still runs, so nothing else moves
   const solids: Solid[] = [];
@@ -1475,7 +1505,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline, wk: f.owk }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];
   // Every edge has a white twin drawn first (the line version of the text outline), so a dark line stays visible on a dark floor.
-  const edgeLines: { cls: string; attr: string; a: Pt; b: Pt }[] = [], guides: typeof edgeLines = [];
+  const edgeLines: { cls: string; attr: string; a: Pt; b: Pt; col?: string }[] = [], guides: typeof edgeLines = [];
+  const wcol = wallColourMap(f); // B53.9: one colour per drawn edge, however many pieces draw it
+  const colOf = (a: Pt, b: Pt) => wcol.get(wallEdgeKey(a, b));
   for (const P of polys)
     P.pts.forEach((a, i) => {
       // The outline defaults external (the house perimeter, S1.52); a room with no wk yet is never valid, so "wall" is only a defensive fallback.
@@ -1484,9 +1516,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const outdoor = kind === "boundary" && P.id !== "o" && OUTDOOR_KINDS.includes(f.rooms[Number(P.id.slice(1))]?.kind);
       if (kind === "none" || outdoor) { if (o.editor) guides.push({ cls: "e none", attr: ` data-e="${P.id}:${i}"`, a, b }); return; } // not drawn: the editor keeps a faint guide so it can be picked again
       if (x25 && !P.zone && edgeHeight(f, P.id === "o" ? null : f.rooms[Number(P.id.slice(1))], i) > 0) return; // a wall with height is drawn as a solid below
-      edgeLines.push({ cls: edgeClass(kind) + (P.zone ? " zn" : ""), attr: ` data-e="${P.id}:${i}"`, a, b });
+      edgeLines.push({ cls: edgeClass(kind) + (P.zone ? " zn" : ""), attr: ` data-e="${P.id}:${i}"`, a, b, col: P.zone ? undefined : colOf(a, b) });
     });
-  f.walls.forEach((w, i) => { if (!(x25 && wallHeight(f, w) > 0)) edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b }); });
+  f.walls.forEach((w, i) => { if (!(x25 && wallHeight(f, w) > 0)) edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b, col: colOf(w.a, w.b) }); });
   const seg = (a: Pt, b: Pt) => `x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"`;
   // S8.11: every halo and stroke line, of every kind (including external and the free-wall/outline lines above),
   // is what an opening's mask cuts a hole through — collected here instead of pushed straight to `out` so the whole
@@ -1494,7 +1526,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // output to before) when there is not.
   const wallLines: string[] = [];
   for (const l of edgeLines) wallLines.push(`<line class="eh${l.cls.slice(1)}" ${seg(l.a, l.b)}/>`);
-  for (const l of [...guides, ...edgeLines]) wallLines.push(`<line class="${l.cls}"${l.attr} ${seg(l.a, l.b)}/>`);
+  for (const l of [...guides, ...edgeLines]) wallLines.push(`<line class="${l.cls}${l.col ? " wc" : ""}"${l.attr} ${seg(l.a, l.b)}${l.col ? ` style="--fp-wall-c:${l.col}"` : ""}/>`);
   if (maskId) out.push(`<g mask="url(#${maskId})">${wallLines.join("")}</g>`);
   else out.push(...wallLines);
 
@@ -1546,7 +1578,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     (f.unlinked ?? []).forEach((u, i) => { if (layerHides(o.hiddenLayers, "unl", i, u.type, o.selection, o.keep)) return; const s = unlinkedSolid(u, px); if (s) solids.push(s); });
     f.devices.forEach((d, i) => {
       if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
-      const s = deviceSolid(f, d, classOf(d, o), px);
+      const m = bodyAir(d) ? acMode(d, o) : null, s = deviceSolid(f, d, `${classOf(d, o)}${m ? ` ${m}` : ""}`, px);
       if (s) solids.push(s);
     });
     for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
@@ -1959,6 +1991,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
     if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
+    // B53.6/B53.7: an AC unit or a control screen on its wall, flat in 2D (2.5D has the solid instead); an AC blows while it cools, heats or runs its fan.
+    {
+      const bk = bodyOf(d), air = bk === "ac-wall" || bk === "ac-floor", m = air ? acMode(d, o) ?? "" : "";
+      if (!x25 && (air || bk === "screen")) out.push(bodyFlat(f, d, cls, m));
+      if (air && acRuns(d, o)) out.push(bodyWind(f, d, m, x25 ? px : null));
+    }
     const dim = o.dimmed?.has(d.entity) ? " dim" : "";
     // S16.3: the camera's picture, in the screen frame beside its icon and upright in a turned plan, over every icon (pushed after the loop).
     const url = ct && d.type === "camera" && !sp && !ct.failed?.has(d.entity) ? thumbUrl(o.state?.[d.entity], ct.bust) : null;
@@ -2038,8 +2076,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const body = out.join("\n");
   const turned = turn ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>` : body;
   // Custom properties inherit, so one style on a group reaches every device. Only known types and strict #rrggbb go in: the value ends up in an attribute.
-  const vars = deviceColourVars(o.colors);
-  const coloured = vars.length ? `<g class="dev-colours" style="${vars.join(";")}">${turned}</g>` : turned;
+  const wallVars = wallColourVars(o.wallColors), vars = [...deviceColourVars(o.colors), ...wallVars];
+  // B53.9: `wcx` says the layout paints external walls, so their 2.5D faces and caps follow --fp-wall-external (a rule below).
+  const coloured = vars.length ? `<g class="dev-colours${wallVars.some((v) => v.startsWith("--fp-wall-external:")) ? " wcx" : ""}" style="${vars.join(";")}">${turned}</g>` : turned;
   // A plan-level theme, so one plan can differ from its host. No o.theme writes nothing and inherits the host's. o.theme is checked against THEMES:
   // it lands in an attribute, and a caller's stray string must not.
   const night = o.night ? ' class="night"' : "";

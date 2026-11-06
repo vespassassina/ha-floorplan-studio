@@ -51,8 +51,8 @@ const clickBox = async (page: Page, sel: string) => {
 };
 
 // Opus review of S22.5: the selection alone could not tell, since no later Escape handler clears a selection. The
-// Device colours window is closed by the next Escape handler, so it proves the menu's Escape stops there.
-test("Escape on an open menu does only that: a selection and an open Device colours window survive it", async ({ page }) => {
+// Colours window is closed by the next Escape handler, so it proves the menu's Escape stops there.
+test("Escape on an open menu does only that: a selection and an open Colours window survive it", async ({ page }) => {
   await page.locator("#fixPlan").uncheck();
   const dev = (await page.locator(`${EDITOR} svg g[data-x]`).first().boundingBox())!;
   await page.mouse.click(dev.x + dev.width / 2, dev.y + dev.height / 2);

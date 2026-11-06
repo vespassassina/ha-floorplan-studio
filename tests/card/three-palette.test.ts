@@ -10,7 +10,7 @@ import { dimRgb, isKnownRole, parsePaintDim, roleStyle } from "../../src/card/th
 describe("palette roles", () => {
   const roles = [
     "slab", "panel", "door-leaf", "stair", "unlinked", "ring", "tree-crown",
-    "frame", "open-door", "door-band", "door-cover", "body-heating", "screen-on", "driver-off", "driver-on", "motion", "motion-radar", "lamp", "backdrop", // S12.5: what the live state paints
+    "frame", "open-door", "door-band", "door-cover", "body-heating", "body-cool", "body-heat", "screen-on", "driver-off", "driver-on", "motion", "motion-radar", "lamp", "backdrop", // S12.5: what the live state paints
     ...ROOM_KINDS.filter((k) => k !== "zone" && k !== "structure").map((k) => `room-${k}`),
     ...WALL_KINDS.map((k) => `wall-${k}`),
     ...["door", "glass", "window", "slit", "fullwindow", "sealed", "opening"].map((k) => `glass-${k}`),

@@ -2,6 +2,85 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-05: free walls on a room edge, Reset all, ring colours; external faces (B53.9, Opus review)
+
+- A free wall lying on a room or outline edge is the same wall: `setEdgeColour` sets or clears it together with the room and
+  outline edges, whichever of them was clicked, so what the user picks is what `wallColourMap` shows (rooms rank before free
+  walls, which hid a free wall's colour and made Default on the room edge a no-op).
+- A ring of free walls that closes into a room gives the room `wc` from the walls' `color` (omitted when all are null; a zone has none).
+- Colours, Reset all, clears `wallColors` as well as `colors`, in one undo step, and is enabled when either is set.
+- Setting `wallColors.external` switches the 2.5D external faces from the colour derived from `--fp-wall` to the external
+  colour, softened the same way; leaving it unset keeps the theme's derivation.
+
+## 2026-11-05: the Device colours dialog is now "Colours" (B53.9)
+
+It holds wall colours as well as device colours, so the title and the Edit menu entry say Colours. Its two sections are
+headed Devices and Wall colours. Supersedes the name "Device colours" in the entries below; behaviour and ids
+(`#devcols`, `.devcols-panel`) are unchanged.
+
+## 2026-11-05: B53.9, wall colours, as built
+
+Diego asked for "an option to select the color of walls" and chose both: a layout default and a colour per wall.
+
+- **Layout default**: `Layout.wallColors` with `wall`, `external` and `fence` only. It sets the existing `--fp-wall*`
+  variables on the plan's colour group, the same path as `Layout.colors`, so every theme and all three views follow.
+  `parapet` follows `external`, because it is drawn from that token. **`edge` and `boundary` have no layout colour**:
+  an `edge` is a hairline and a `boundary` a quiet divider, and a strong colour on either turns it into a wall. They can
+  still carry a colour of their own per wall.
+- **Per wall**: `Wall.color`, `Room.wc` (parallel to `wk`), `Floor.owc` (parallel to `owk`). A per-wall colour beats the
+  layout default, which beats the theme. Drawn as an inline custom property read by a class rule.
+- **Shared-edge rule**: an edge drawn by two pieces has one colour, the first set in this order: the outline, the rooms
+  in array order, the free walls. One function (`wallColourMap`) decides for 2D, 2.5D and 3D, keyed like the 2.5D/3D
+  dedup, so the views cannot disagree. The editor paints every coincident edge together (`setEdgeColour`), so a user
+  never sees the rule decide; it only matters for a file written by hand or by an LLM.
+- **3D**: the wall solid takes the colour softened by the same share as a themed wall (not dimmed as paint is).
+  The 3D theme key includes the layout's `wallColors`, so a change rebuilds the palette.
+- **Known side effects**: the `fence` default also tints 3D `patio-wood`, which uses the same token. The stair
+  direction arrow follows `--fp-wall`.
+- **Why not a presentation attribute**: a `stroke` attribute loses to the author rule `.e` (finding 18).
+
+## 2026-11-05: B53.6 review fixes, wall line, corner, fan, 3D tint
+
+Opus reviewed the integrated build. What changed, each with a test:
+
+- **On a wall line the body goes inside.** A device exactly on a wall had a zero dot product, so the flip did nothing
+  and the unit hung outside. The tie now ranks the two sides: an indoor room kind first, then the outline's inside, then
+  an outdoor kind (terrace, garden, pavement, water), then nothing; an equal rank keeps the edge's own side. The TV shares the code.
+- **Near a corner the body stays on its wall.** Its centre is clamped to the segment, clear of the neighbouring
+  wall's face; a wall shorter than the unit centres it. The TV is clamped the same way, so a TV placed within 50 cm
+  of a corner moves along its wall (it used to poke through the next one).
+- **Fan only reads as on.** `acRuns` (cools, heats or `fan_only`) feeds both the icon class and the wind, for `ac`
+  and for any device with an AC body whose entity is a `climate.` one (a heater, an other). Without an AC body a
+  `climate` or heater still turns on only while it heats.
+- **3D tints by the body**, as 2D does: a `climate` device with an AC body carries cool/heat in 3D too.
+- **The panel shows what is drawn.** The mount height placeholder is `deviceZDefault` (body-aware) and the Body
+  select's Default names `bodyOf`, so a point heater says None, not Radiator. `bodyOf` returns `none` for a point
+  that would be a radiator; it drew nothing before either.
+
+## 2026-11-05: B53.6 to B53.8, the Body select, the AC unit and the control screen
+
+Diego asked for an air conditioner that cools and heats, with the classic rectangular shape on a wall or on the floor
+and a wind animation while it runs, and for a "control screen" device (his 9 inch panels). He also saw that a 3D look
+is hard to add when one does not know the object: a device should say how it is drawn.
+
+- **A Body select over linked furniture.** `Device.body` (`none`, `radiator`, `speaker`, `tv`, `ac-wall`, `ac-floor`,
+  `screen`) picks the solid, in the device panel under Appearance. The alternative was to link a device to a furniture
+  piece that supplies the look. That needs a piece for every device, makes two things to keep in step, and the person
+  still has to know which piece. A select names the look and stores one word. Absent means the type's own look
+  (`DEVICE_SOLID`). That is a change on purpose for one type: an existing `ac` device now draws the wall unit,
+  and Body = None returns the old look (the icon alone).
+- **A bar takes only `radiator` or `none`.** A heater drawn as a bar (`a`/`b`) has no single point to stand a box on.
+  Enforced in three places: `validate` refuses any other body on a bar (and `radiator` on a point), `bodyOf` falls
+  back to the type's look for a layout that skipped `validate`, and the select offers only what fits.
+- **A control screen never toggles.** Type `screen` is in `NO_TOGGLE`: a tap opens more-info. Its entity is often a
+  panel's backlight or a sensor, and a tap that switched it off would blank the screen the person is touching. It is
+  never in the active list, grey when idle and blue when on, category computing, area-placeable, and not offered as an
+  unlinked appliance.
+- **The AC body.** 80 x 22 x 30 cm at 195 up on a wall, or 70 x 20 x 60 standing; flush to a wall within 60 cm, else
+  free and facing by `rot`. The wind is three dashed strands, drawn only while the unit cools, heats or runs
+  `fan_only`, in 2D and 2.5D; 3D tints the body and draws no wind (the 3D chunk has no per-frame budget to spare for
+  it). A type change keeps the body, since it depends on the device's shape and not on its type.
+
 ## 2026-11-02: the card cap is 124,650 again
 
 B52.2 set the card's cap to 118,650 gz, just above what was left once the Overview moved out. That took back the
