@@ -31,3 +31,24 @@ for (const p of PIECES) {
     expect(placed).toEqual([{ w: p.w, h: p.h }]);
   });
 }
+
+// Opus review of B53.10-B53.13 (finding 3): a rug added after a sofa lay over it in plain 2D and took the click. A real mouse click at the
+// sofa's centre, rug listed second and larger, must select the sofa.
+test("a click at the centre of a sofa with a rug under it (listed after it) selects the sofa", async ({ page }) => {
+  await page.evaluate(() => {
+    const el = document.querySelector("floorplan-studio-editor") as any;
+    const furniture = [
+      { id: "furniture-ground-1", symbol: "sofa", x: 500, y: 450, rot: 0, w: 160, h: 80 },
+      { id: "furniture-ground-2", symbol: "rug", x: 500, y: 450, rot: 0, w: 300, h: 220 },
+    ];
+    el.layout = { version: 2, unit: "cm", north: 0, rotate: 0, catalog: [], floors: { ground: { title: "Ground", outline: [[0, 0], [1200, 0], [1200, 800], [0, 800]], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture, unlinked: [] } } };
+  });
+  const at = await page.evaluate(() => {
+    const svg = (document.querySelector("floorplan-studio-editor") as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+    const g = svg.querySelector(":scope > g.plan-turn") as SVGGraphicsElement | null;
+    const q = new DOMPoint(500, 450).matrixTransform((g ?? svg).getScreenCTM()!);
+    return { x: q.x, y: q.y };
+  });
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator("#fs")).toHaveValue("sofa");
+});

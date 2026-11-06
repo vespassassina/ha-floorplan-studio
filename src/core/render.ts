@@ -1858,12 +1858,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (showText) out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * kt)}">${esc(x.name)}</text>`);
   });
 
+  // Opus review of B53.10-B53.13: in 2D too a rug lies under every other piece, so one added later never covers a sofa or takes its click.
+  if (rugSlot < 0) { rugSlot = out.length; out.push(""); }
   f.furniture.forEach((m, i) => {
     if (layerHides(o.hiddenLayers, "furn", i, undefined, o.selection, o.keep)) return;
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = pieceOn(o, m, plugs) ? " on" : "";
-    const dst = x25 && m.symbol === "rug" && rugSlot >= 0 ? rugs : out;
+    const dst = m.symbol === "rug" ? rugs : out;
     // S28.3: a tree's soft shade patch, offset (+4, +6) cm in the plan whatever its size and turn, so outside the scaled group.
     const shade = treeShadeSvg(m);
     if (shade) dst.push(shade);

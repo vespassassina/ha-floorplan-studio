@@ -26,3 +26,18 @@ describe("2.5D: the symbol sits between the blocks below the lid and those above
     }
   }
 });
+
+// Opus review of B53.10-B53.13, 2026-11-06: in plain 2D the pieces drew in array order, so a rug added after a sofa covered it and took its clicks.
+describe("2D: a rug is drawn before every other piece, whatever its place in the array", () => {
+  it("puts the rug's group before the sofa's when the sofa is first", async () => {
+    const { renderFloor } = await import("../../src/core/render");
+    const p = (id: string, symbol: string, x: number, y: number, w: number, h: number) => ({ id, symbol, x, y, rot: 0, w, h }) as Furniture;
+    const f = { title: "T", outline: [[0, 0], [900, 0], [900, 700], [0, 700]], owk: ["wall", "wall", "wall", "wall"], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], unlinked: [], furniture: [p("s", "sofa", 300, 330, 160, 80), p("c", "chair", 500, 330, 50, 50), p("r", "rug", 300, 300, 200, 140)] } as never;
+    const html = renderFloor(f, { scale: 1 });
+    const at = (i: number) => html.indexOf(`<g data-f="${i}"`);
+    expect(at(2), "rug found").toBeGreaterThan(-1);
+    expect(at(2)).toBeLessThan(at(0));
+    expect(at(2)).toBeLessThan(at(1));
+    expect(at(0)).toBeLessThan(at(1)); // the others keep their order
+  });
+});
