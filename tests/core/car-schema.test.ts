@@ -51,9 +51,10 @@ describe("validate: a car with valid keys passes, junk is reported and names the
       expect(errs.some((e) => e.includes("m1") && re.test(e)), `${label}: ${errs.join(" | ")}`).toBe(true);
     });
   }
-  for (const key of ["model", "color", "attached"] as const) {
+  // B53.4: `color` is the paint of any other piece now (tests/core/furniture-paint.test.ts); model and attached stay a car's.
+  for (const key of ["model", "attached"] as const) {
     it(`reports ${key} on a sofa`, () => {
-      const v = { model: "suv", color: "#aabbcc", attached: ["sensor.x"] }[key];
+      const v = { model: "suv", attached: ["sensor.x"] }[key];
       const errs = errorsOf(piece("sofa", { [key]: v }));
       expect(errs.some((e) => e.includes("m1") && e.includes(key) && /car/.test(e))).toBe(true);
     });
@@ -89,9 +90,10 @@ describe("migrate: junk is dropped, good parts kept, and the result passes valid
     expect(Object.keys(m)).not.toContain("color");
     expect(Object.keys(m)).not.toContain("attached");
   });
-  it("deletes the three keys from a piece that is not a car", () => {
+  it("deletes model and attached from a piece that is not a car, and keeps its paint colour (B53.4)", () => {
     const m = furnitureOf(migrate(layoutOf(piece("sofa", { model: "suv", color: "#aabbcc", attached: ["a.b"] }))));
-    for (const k of ["model", "color", "attached"]) expect(Object.keys(m)).not.toContain(k);
+    for (const k of ["model", "attached"]) expect(Object.keys(m)).not.toContain(k);
+    expect(m.color).toBe("#aabbcc");
   });
   it("a layout saved with the keys keeps them through migrate and validate", () => {
     const keep = { model: "electric", color: "#102030", attached: ["device_tracker.tesla", "sensor.tesla_battery"] };

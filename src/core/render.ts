@@ -4,6 +4,7 @@ import { stairMarks } from "./stair-marks";
 import { playerOf } from "./attachments";
 import { resolveStairDirection, type FloorsAround } from "./stairs";
 import { COORD_LIMIT, DEVICE_TYPES, drawsEffect, fxScale, isSiren, MAX_TRACE_BYTES, MOTION_TYPES, TRACE_SRC } from "./schema";
+import { furniturePaintLook, furniturePatterns } from "./furniture-paint";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
@@ -402,6 +403,10 @@ ${THEME_EXTRAS}
    when on) thinned into --fp-room-empty (the plain room, what most furniture stands on; --fp-room is dark in the dark themes and made dark blobs), so every theme and dark mode keep their hue and the stroke stays the edge.
    .ff is on bodies only; lines in a symbol (a bed's pillow line) keep fill:none. */
 .furn .ff{fill:color-mix(in srgb,currentColor 45%,var(--fp-room-empty))}
+/* B53.4: a painted piece. The group carries --fp-furn-fill (a colour, or a pattern made for this piece) and the class; this rule is as
+   specific as .furn .ff and comes after it, so the paint wins by order. The outline and the symbol's lines keep their stroke. Dark themes dim paint as on a room. */
+.furn.fpaint .ff{fill:var(--fp-furn-fill)}
+.furn.fpaint :is(.ff,.bt,.bs){filter:var(--fp-paint-dim)}
 /* S28.3: a tree is a crown (--fp-tree at .35, a 1 px --fp-tree-edge line), a trunk dot and a soft shade patch under it (--fp-shade at
    --fp-shade-alpha). Classes carry every colour; the patch takes no click. */
 .tree-crown{fill:var(--fp-tree);fill-opacity:.35;stroke:var(--fp-tree-edge);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
@@ -1400,7 +1405,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const openingMask = maskId
     ? `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000"><rect x="-100000" y="-100000" width="200000" height="200000" fill="white"/>${openingLines.join("")}</mask>`
     : "";
-  if (hatch || textured.length || openingMask) out.push(`<defs>${hatch}${texturePatterns(textured)}${openingMask}</defs>`);
+  const furnPatterns = furniturePatterns(f.furniture ?? []);
+  if (hatch || textured.length || furnPatterns || openingMask) out.push(`<defs>${hatch}${texturePatterns(textured)}${furnPatterns}${openingMask}</defs>`);
   // S2.6: room_glow. A room glows when any light "in" it (point-in-polygon of the device's x,y; a light never has
   // a/b, only a heater does, but the same "a" in d guard the rest of the file uses is kept here too) is on. Untrusted
   // layout/state: a non-finite coordinate or a light outside every room's polygon is simply not counted, never thrown.
@@ -1833,7 +1839,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const shade = treeShadeSvg(m);
     if (shade) out.push(shade);
     const car = carOf(o, m);
-    out.push(`<g data-f="${i}" class="furn${on}${car?.cls ?? ""}"${furnitureLinked(m)}${car?.style ?? ""} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : sym.svg}</g>`);
+    const fp = furniturePaintLook(m);
+    out.push(`<g data-f="${i}" class="furn${on}${car?.cls ?? ""}${fp.cls}"${furnitureLinked(m)}${car?.style ?? fp.style} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : sym.svg}</g>`);
     if (car?.marks) out.push(car.marks.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
     if (o.locate?.t === "furn" && o.locate.i === i) out.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
     const waves = furnitureWaves(o, m);
