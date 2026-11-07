@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import demo from "../../demo/layout.json";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard } from "../../src/card/floorplan-studio-card";
@@ -20,6 +20,8 @@ async function mount(roomName: string, language: string, warn: Record<string, "h
   el.setConfig({ layout, floor: "ground" } as never);
   el.hass = { states: { "sensor.k": st(Object.keys(warn).length ? "27.4" : "22", { unit_of_measurement: "°C" }) }, themes: { darkMode: false }, language } as never;
   await settle(el);
+  // The Overview is a lazy chunk: on a busy machine its first draw comes later than six ticks, so wait for the row itself.
+  if (Object.keys(warn).length) await vi.waitFor(() => expect(rows(el).length).toBeGreaterThan(0));
   return el;
 }
 const rows = (el: FloorplanStudioCard) => [...el.shadowRoot!.querySelectorAll(".fp-ov-attn .fp-active-row")].map((r) => ({ name: r.querySelector(".fp-ov-name")!.textContent, state: r.querySelector(".fp-row-state")!.textContent!.trim() }));

@@ -2,6 +2,47 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: The badge bubble finds a badge by position, not by event target (B55.4)
+
+One component, `bindBadgeBubble` in `badge-bubble.ts`, serves the card and the Studio live view. The Studio's badges take no
+pointer (`cb-ed`), so no event can name them; the bubble tests each pointer position against the badges' screen boxes (2 px
+pad). A mouse or pen opens it on hover and closes it on leave. Anything else is a finger, so an engine that reports no type, or
+the mouse id (WebKit tap), or id 0 (Firefox touch) still works: a finger's up within 10 px of its down, on a badge, toggles it.
+A press anywhere else, or 4 s, closes it. A tap on a badge is no room pick and no double-tap zoom (`card-zoom.ts`). The text is
+set as text, never markup. It adds no words: the lines are those `badgeInfo` already returns.
+
+## 2026-11-07: Where the badges sit, and that the editor's take no click (B55.3)
+
+`renderFloor` draws them through `roomBadges` in `room-badges.ts`, so the card and the Studio share one draw path. Each icon is a
+9 px disc, 4 px apart, its centre 8 px plus the radius in from the chosen corner of the room's bounding box; all sizes are screen
+px times `kt`, so zoom does not change them, and a turned plan turns each one back about its centre. A row that would leave an
+L-room's empty corner slides in 32 steps along the line to the label point, until every disc (centre and its four sides) is inside
+the polygon; at worst it ends on the label point. The row sits left to right in plan axes: `ne` and `se` anchor its right end at
+the corner. Badges are not text, so they draw with labels off. They are `.cb` groups, separate from the rollup's `.room-badge`
+(hidden outside far and mid). A card badge takes the pointer (the bubble, B55.4); an editor badge takes none (`.cb-ed`). The
+energy glyph is an inlined MDI bolt, as `DEVICE_ICONS` has none. Lit colours are existing tokens: `--fp-dev-light`,
+`--fp-dev-motion`, `--fp-on`, and `--fp-dev-ac-heat` or `--fp-dev-ac-cool` for climate.
+
+## 2026-11-07: What the four badges read and say (B55.2)
+
+`BADGE_OF: Record<DeviceType, BadgeKind | null>` feeds lights from `light`, climate from `climate`, `heater` and `ac`, motion from
+`motion` and `radar`; the other 28 types feed nothing, and a test walks `DEVICE_TYPES`. Energy has no device: it reads the
+room's `power` and `water` lists. Rules that spec F35 left open: heating and cooling come from `acMode`, the rule the plan's
+air icon already uses, and heating wins the colour over cooling; the energy badge is lit when the summed power is MORE than
+`plug_watts` (a plug is "at least"; a room that draws exactly the threshold is idle); water never lights it. "Last motion" is
+the newest `last_changed` of the room's motion sources that are off, counted back from `now`, which is the replay time in a
+replay; a change stamped after `now` reads "Just now", never a negative age. Temperatures in the climate row print in °C (HA gives
+no unit on climate attributes and the project is metric). Nine languages got the 13 new words.
+
+## 2026-11-07: A room's badges, power and water are schema, and the Power and Water pickers read the device class (B55.1)
+
+`Room.badges?: { corner: nw|ne|sw|se }`, `Room.power?` and `Room.water?` (sensor ids, at most `MAX_ROOM_SENSORS`). `validate`
+names each bad shape; `migrate` drops what `validate` would refuse (the other room lists are kept for `validate` to judge,
+but spec F32 asks that a bad badge never stop a file opening). HA types power and water sensors `other`, so the pickers
+cannot use a device type like `temps` does: they offer `sensor.*` by device class (`power`; `water`, `volume_flow_rate`,
+`volume`), minus any another room owns, the room's own area first. The badge fields are links and settings, so a plan lock
+does not freeze them. A room kind that owns no sensors loses `badges` too.
+
 ## 2026-11-07: A worktop corner dropped where it started says nothing about crossing (B54 follow-up)
 
 Dragging out and back to the start made the last move a no-op, which the drop read as a refusal and said "may not cross

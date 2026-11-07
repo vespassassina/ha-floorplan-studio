@@ -308,5 +308,18 @@ const c: Catalogue = {
   "{n} W": "{n} W",
   "{n} kWh": "{n} kWh",
   "{n} %": "{n} %",
+  "Cooling": "制冷中",
+  "Heating": "制热中",
+  "Energy": "能耗",
+  "Just now": "刚刚",
+  "Motion now": "正在有人活动",
+  "No motion recorded": "无活动记录",
+  "No reading": "无读数",
+  "{action} to {to}": "{action}，目标{to}",
+  "{action} to {to}, now {now}": "{action}，目标{to}，当前{now}",
+  "{action}, now {now}": "{action}，当前{now}",
+  "{age} ago": "{age}前",
+  "{n} kW": "{n} kW",
+  "{on} of {n} on": "{on}/{n} 已开",
 };
 export default c;

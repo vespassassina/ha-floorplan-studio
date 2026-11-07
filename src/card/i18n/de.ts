@@ -308,5 +308,18 @@ const c: Catalogue = {
   "{n} W": "{n} W",
   "{n} kWh": "{n} kWh",
   "{n} %": "{n} %",
+  "Cooling": "Kühlt",
+  "Heating": "Heizt",
+  "Energy": "Energie",
+  "Just now": "Gerade eben",
+  "Motion now": "Bewegung jetzt",
+  "No motion recorded": "Keine Bewegung erfasst",
+  "No reading": "Kein Messwert",
+  "{action} to {to}": "{action} auf {to}",
+  "{action} to {to}, now {now}": "{action} auf {to}, jetzt {now}",
+  "{action}, now {now}": "{action}, jetzt {now}",
+  "{age} ago": "vor {age}",
+  "{n} kW": "{n} kW",
+  "{on} of {n} on": "{on} von {n} an",
 };
 export default c;

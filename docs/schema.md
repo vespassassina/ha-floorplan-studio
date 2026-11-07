@@ -36,12 +36,26 @@ Most temperature, humidity or motion sensors one room may list.
 export const MAX_ROOM_SENSORS = 20;
 ```
 
+## ROOM_CORNERS
+
+B55.1: where a room's badges sit in its bounding box.
+
+```ts
+export const ROOM_CORNERS = ["nw", "ne", "sw", "se"] as const;
+```
+
+## RoomBadges
+
+```ts
+export interface RoomBadges { corner: RoomCorner }
+```
+
 ## Room
 
 `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each.
 
 ```ts
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; /** B53.9: a colour per edge, parallel to `wk`; null is the layout's or the theme's. Absent: none set. */ wc?: (string | null)[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; /** B53.9: a colour per edge, parallel to `wk`; null is the layout's or the theme's. Absent: none set. */ wc?: (string | null)[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; /** B55.1: the room's badges (a corner of its box) and the power and water sensors its energy badge reads. */ badges?: RoomBadges; power?: string[]; water?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
 ```
 
 ## MAX_ROOM_SCENES

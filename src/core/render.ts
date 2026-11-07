@@ -18,6 +18,7 @@ import { meanReading } from "./readings";
 import { roomHeat, type HeatKind } from "./heat";
 import { thumbBox, thumbUrl, type CamThumbOpts } from "./camera-thumb";
 import { badges } from "./rollup";
+import { roomBadges } from "./room-badges";
 import { carStatus } from "./car-status";
 import { linkedStatus, linkLook, linkOn, type LinkLook } from "./link";
 import { carLook, carTop, type CarLook } from "./car";
@@ -648,7 +649,11 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 /* S25.3: room badges. Hidden unless the plan root says far or mid (data-detail); never a click target (finding 18: a class rule, not an attribute). */
 .room-badge{display:none;pointer-events:none} [data-detail="far"] .room-badge,[data-detail="mid"] .room-badge{display:inline} .room-badge *{pointer-events:none}
 .rb-plate{fill:var(--fp-outline);fill-opacity:.85;stroke:none} .rb-t{fill:var(--fp-text);font-family:var(--fp-font);font-weight:500;font-variant-numeric:tabular-nums} .rb-light{fill:var(--fp-dev-light)} .rb-motion{fill:var(--fp-dev-motion)} .rb-alert{fill:var(--fp-danger)} .rb-open{fill:var(--fp-open-door)}
-/* S23.1: one label style. A name is never faded: it is the text colour mixed into the surface it sits on (--fp-under,
+/* S55: a room's corner badges. The card's take hover and tap for the bubble; the editor's take nothing (finding 18: class rules, not attributes). Lit colours are the plan's own device colours. */
+.cb{pointer-events:all;cursor:default} .cb.cb-ed{pointer-events:none}
+.cb-bg{fill:var(--fp-outline);fill-opacity:.85;stroke:var(--fp-idle);stroke-width:1;vector-effect:non-scaling-stroke} .cb-i{fill:var(--fp-idle)}
+.cb-lights.on .cb-i{fill:var(--fp-dev-light)} .cb-motion.on .cb-i{fill:var(--fp-dev-motion)} .cb-energy.on .cb-i{fill:var(--fp-on)}
+.cb-climate.cb-heat .cb-i{fill:var(--fp-dev-ac-heat)} .cb-climate.cb-cool .cb-i{fill:var(--fp-dev-ac-cool)}/* S23.1: one label style. A name is never faded: it is the text colour mixed into the surface it sits on (--fp-under,
    set per name by renderFloor), solid, so it reads as part of the room yet clears 4.5:1 on it. 92% is the least text
    that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
    no one surface and keeps the plain text colour. One font, Home Assistant's own. */
@@ -2151,6 +2156,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   out.push(...thumbs, ...tags); // S16.3: pictures over the icons; S23.3: over every icon, under the editor's handles
   if (showText) out.push(...badges({ f, state: o.state, attn: o.attention, k: kt, up, screenOff, anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 }, hasValue: (i) => heated.has(i) })); // S25.3: shown by CSS at far and mid only; text, so none with labels off
+  out.push(...roomBadges({ f, o, kt, up, editor: !!o.editor, label: (i) => (showText && nameAt[i] ? { at: nameAt[i].at, size: nameAt[i].size, len: String(f.rooms[i].name).length } : undefined) })); // S55: not text, so drawn with labels off too; the card's own bubble reads them
   if (o.editor && o.handles !== false)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
   out.push(...ringOut);

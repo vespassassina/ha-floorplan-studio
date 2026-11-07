@@ -337,7 +337,7 @@ export class EditorState {
     const paint = ["name", "color", "texture", "textureRot", "textureScale"];
     return JSON.stringify({
       ...drop(f, ["title", "ha", "devices", "unlinked"]),
-      rooms: f.rooms.map((r) => drop(r, [...paint, "area", "entity", "temps", "humidity", "motion", "scenes", "haScenes", "tempRange"])),
+      rooms: f.rooms.map((r) => drop(r, [...paint, "area", "entity", "temps", "humidity", "motion", "power", "water", "badges", "scenes", "haScenes", "tempRange"])),
       stairs: f.stairs.map((t) => drop(t, paint)),
       doors: f.doors.map((d) => drop(d, ["name", "sensors", "vibration", "locks", "cover"])),
       extras: f.extras.map((x) => drop(x, ["name"])),
@@ -1114,10 +1114,23 @@ export class EditorState {
   roomSensorChoices(roomIndex: number, field: RoomSensorField): CatalogEntry[] {
     const r = this.f.rooms[roomIndex];
     if (!r || (r[field]?.length ?? 0) >= MAX_ROOM_SENSORS) return [];
-    const type: DeviceType = field === "temps" ? "temp" : field;
     const used = new Set<string>();
     for (const fl of Object.values(this.layout.floors)) for (const o of fl.rooms) if (o.id !== r.id) for (const e of o[field] ?? []) used.add(e);
+    if (field === "power" || field === "water") return this.withPlanRoom(this.meterChoices(field).filter((c) => !used.has(c.entity)));
+    const type: DeviceType = field === "temps" ? "temp" : field;
     return [...this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity)), ...this.withPlanRoom(this.unattachedHaChoices(type).filter((c) => !used.has(c.entity)))];
+  }
+
+  /**
+   * B55.1: the sensors an energy badge may read, by device class: power in watts for `power`; a flow, a volume or a water total
+   * for `water`. They have no device type of their own (HA types them `other`), so the picker reads the class, not the type.
+   * Empty without Home Assistant.
+   */
+  private meterChoices(field: "power" | "water"): CatalogEntry[] {
+    const classes = field === "power" ? ["power"] : ["water", "volume_flow_rate", "volume"];
+    return (this.ha?.entities ?? [])
+      .filter((e) => e.domain === "sensor" && e.dc !== undefined && e.dc !== null && classes.includes(e.dc))
+      .map((e): CatalogEntry => ({ id: e.id, floor: "", room: "", type: "other", name: e.name || e.id, entity: e.id }));
   }
 
   /**

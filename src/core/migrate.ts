@@ -1,7 +1,7 @@
 import { stairSteps } from "./geometry";
 import { TEXTURE_IDS } from "./textures";
 import { worktopPtsProblem } from "./polygon";
-import { isEntityId, isLinkable, strictEntity, validMinMoisture, isViewPath, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, tempRangeProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
+import { isEntityId, isLinkable, roomBadgesProblem, MAX_ROOM_SENSORS, strictEntity, validMinMoisture, isViewPath, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, tempRangeProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"], ["unlinked", "unlinked"]];
@@ -93,6 +93,15 @@ function dropBadWorktop(f: any) {
   for (const m of f.furniture) if ("pts" in m && (m.symbol !== "worktop" || worktopPtsProblem(m.pts))) delete m.pts;
 }
 
+/** B55.1: `badges`, `power` and `water` stay on a room when `validate` would accept them, and go when not. */
+function dropBadRoomBadges(f: any) {
+  const sensors = (v: unknown) => Array.isArray(v) && v.length <= MAX_ROOM_SENSORS && v.every((x) => typeof x === "string" && x.startsWith("sensor."));
+  for (const r of f.rooms) {
+    if ("badges" in r && roomBadgesProblem(r.badges)) delete r.badges;
+    for (const k of ["power", "water"]) if (k in r && !sensors(r[k])) delete r[k];
+  }
+}
+
 /** S14.3: an effect size outside 25-300 (or not a number) is dropped, so the device draws at 100 and the file opens. */
 function dropBadFx(f: any) {
   for (const d of f.devices) if ("fx" in d && !(typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX)) delete d.fx;
@@ -158,7 +167,7 @@ export function migrate(x: unknown): Layout {
       d.id = d.id ?? `${d.type}-${fname}-${i + 1}`;
       return d;
     });
-    dropBadHeights(f); dropBadFx(f); dropBadView(f); dropBadOffset(f); dropBadRotation(f); dropBadCar(f); dropBadMirror(f); dropBadUnderfloor(f); dropBadWorktop(f);
+    dropBadHeights(f); dropBadFx(f); dropBadView(f); dropBadOffset(f); dropBadRotation(f); dropBadCar(f); dropBadMirror(f); dropBadUnderfloor(f); dropBadWorktop(f); dropBadRoomBadges(f);
     Object.defineProperty(floors, fname, { value: f, enumerable: true, writable: true, configurable: true });
   }
   const out: any = { version: 2, unit: "cm", north: src.north ?? 0, rotate: src.rotate ?? 0, floors, catalog: src.catalog };

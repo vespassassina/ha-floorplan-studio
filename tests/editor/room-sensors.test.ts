@@ -204,3 +204,49 @@ describe("unlinkedAttachChoices for a speaker or TV", () => {
     expect(st.unlinkedAttachChoices().map((c) => c.entity)).not.toContain("media_player.kitchen_echo");
   });
 });
+
+// B55.1: the power and water lists go through the same writer and the same Studio rules.
+describe("room power and water", () => {
+  it("setRoomList writes, dedupes, caps and deletes for power and water", () => {
+    for (const field of ["power", "water"] as const) {
+      const r = { ...fresh().floors.ground.rooms[LIVING] };
+      setRoomList(r, field, ["sensor.a", "sensor.b", "sensor.a"]);
+      expect(r[field]).toEqual(["sensor.a", "sensor.b"]);
+      setRoomList(r, field, Array.from({ length: MAX_ROOM_SENSORS + 3 }, (_, i) => `sensor.x${i}`));
+      expect(r[field]).toHaveLength(MAX_ROOM_SENSORS);
+      setRoomList(r, field, []);
+      expect(field in r).toBe(false);
+    }
+  });
+  it("every size validates", () => {
+    for (const field of ["power", "water"] as const)
+      for (const n of [0, 1, MAX_ROOM_SENSORS, MAX_ROOM_SENSORS + 1]) {
+        const l = fresh(); setRoomList(l.floors.ground.rooms[LIVING], field, Array.from({ length: n }, (_, i) => `sensor.x${i}`)); ok(l);
+      }
+  });
+  const ha = (): HaData => ({
+    floors: [], areas: [{ id: "living", name: "Living" }],
+    entities: [
+      { id: "sensor.pw", name: "Plug power", domain: "sensor", area: "living", dc: "power" },
+      { id: "sensor.wf", name: "Water flow", domain: "sensor", area: "living", dc: "volume_flow_rate" },
+      { id: "sensor.wt", name: "Water today", domain: "sensor", area: null, dc: "water" },
+      { id: "sensor.t", name: "Temp", domain: "sensor", area: "living", dc: "temperature" },
+    ],
+  } as unknown as HaData);
+  it("power offers power sensors; water offers water and flow sensors; neither offers a temperature", () => {
+    const st = new EditorState(fresh()); st.ha = ha();
+    expect(st.roomSensorChoices(LIVING, "power").map((c) => c.entity)).toEqual(["sensor.pw"]);
+    expect(st.roomSensorChoices(LIVING, "water").map((c) => c.entity).sort()).toEqual(["sensor.wf", "sensor.wt"]);
+  });
+  it("a sensor another room owns is not offered", () => {
+    const l = fresh(); l.floors.ground.rooms[1].power = ["sensor.pw"];
+    const st = new EditorState(l); st.ha = ha();
+    expect(st.roomSensorChoices(LIVING, "power")).toEqual([]);
+  });
+  it("a plan lock does not freeze the badge fields", () => {
+    const st = new EditorState(fresh());
+    const before = (EditorState as any).plan(st.f);
+    const g = structuredClone(st.f); g.rooms[LIVING].badges = { corner: "nw" }; g.rooms[LIVING].power = ["sensor.a"]; g.rooms[LIVING].water = ["sensor.b"];
+    expect((EditorState as any).plan(g)).toBe(before);
+  });
+});
