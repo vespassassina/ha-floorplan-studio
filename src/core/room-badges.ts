@@ -1,5 +1,5 @@
 import { ROOM_CORNERS, type Device, type DeviceType, type Floor, type Pt, type RoomCorner } from "./schema";
-import { acMode, roomAt, classOf, inside, polyCentre, ROOM_OWNS, WALL_WIDTH_EXTERNAL, type RenderOpts, type StateOverlay } from "./render";
+import { acMode, roomAt, classOf, inside, polyCentre, rotateAbout, ROOM_OWNS, WALL_WIDTH_EXTERNAL, type RenderOpts, type StateOverlay } from "./render";
 import { DEVICE_ICONS } from "./icons";
 import { esc, num } from "./fmt";
 import { stateOf } from "./readings";
@@ -149,14 +149,17 @@ const segDist = (p: Pt, a: Pt, b: Pt): number => {
  * label point, stopping at the first step where every disc is clear; failing that, the clear spot nearest the corner on a grid over the box.
  * A disc is clear when it is inside, a wall's reach (its radius plus half the wall) from EVERY edge, and its radius from the name's box.
  * The wall reach is capped at the corner inset: a rectangle's corner always passes, at any zoom, and keeps its place.
+ * In a turned plan (`turn` degrees) the name is drawn upright on screen, so in plan axes it lies at an angle: the disc is turned about the
+ * name's point into the name's own frame before the box test. Walls stay in plan axes.
  */
-function placed(pts: Pt[], row: Pt[], kt: number, name?: NameBox): Pt[] {
+function placed(pts: Pt[], row: Pt[], kt: number, name?: NameBox, turn = 0): Pt[] {
   const r = R_PX * kt, reach = r + Math.min(WALL_WIDTH_EXTERNAL / 2, INSET_PX * kt) - 1e-6;
   const half = name ? (name.len * 0.6 * name.size) / 2 : 0;
   const nb = name && Number.isFinite(name.at[0] + name.at[1] + half) ? [name.at[0] - half, name.at[1] - 0.75 * name.size, name.at[0] + half, name.at[1] + 0.25 * name.size] : null;
+  const inNameFrame = (c: Pt): Pt => (turn % 360 ? rotateAbout(c, turn, name!.at) : c);
   const clear = (c: Pt) => inside(c, pts)
     && pts.every((a, i) => segDist(c, a, pts[(i + 1) % pts.length]) >= reach)
-    && (!nb || Math.hypot(Math.max(nb[0] - c[0], 0, c[0] - nb[2]), Math.max(nb[1] - c[1], 0, c[1] - nb[3])) >= r);
+    && (!nb || (([x, y]) => Math.hypot(Math.max(nb[0] - x, 0, x - nb[2]), Math.max(nb[1] - y, 0, y - nb[3])) >= r)(inNameFrame(c)));
   if (row.every(clear)) return row;
   const mid: Pt = [row.reduce((s, c) => s + c[0], 0) / row.length, row[0][1]], to = polyCentre(pts);
   const slid = (t: number) => row.map((c) => [c[0] + (to[0] - mid[0]) * t, c[1] + (to[1] - mid[1]) * t] as Pt);
@@ -185,7 +188,7 @@ export function roomBadges(d: BadgeDraw): string[] {
     const infos = badgeInfo(d.f, ri, d.o);
     if (!infos.length) return;
     const box: [number, number, number, number] = [Math.min(...p.map((q) => q[0])), Math.min(...p.map((q) => q[1])), Math.max(...p.map((q) => q[0])), Math.max(...p.map((q) => q[1]))];
-    const centres = placed(p, rowAt(box, corner as RoomCorner, infos.length, d.kt), d.kt, d.label?.(ri));
+    const centres = placed(p, rowAt(box, corner as RoomCorner, infos.length, d.kt), d.kt, d.label?.(ri), d.o.rotate?.deg);
     infos.forEach((b, i) => {
       const [cx, cy] = centres[i], r = R_PX * d.kt, s = (r * 1.3) / 24; // the glyph is a 24-unit box; 1.3 radii across leaves a margin inside the disc
       const cls = ["cb", `cb-${b.kind}`, b.on ? "on" : "", b.tone ? `cb-${b.tone}` : "", d.editor ? "cb-ed" : ""].filter(Boolean).join(" ");

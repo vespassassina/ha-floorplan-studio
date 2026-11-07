@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Device, DeviceType, Layout, Pt } from "../../src/core/schema";
 import { ROOM_CORNERS } from "../../src/core/schema";
-import { inside, renderFloor, type StateOverlay } from "../../src/core/render";
+import { inside, renderFloor, rotateAbout, type StateOverlay } from "../../src/core/render";
 
 // B55.3 (docs/specs/batch-s52.md F34, F36): renderFloor draws a room's badges in the chosen corner of its box.
 const ground = (demo as unknown as Layout).floors.ground;
@@ -123,6 +123,27 @@ describe("renderFloor: room badges in an L keep off the walls and the name", () 
         for (let i = 0; i < pts.length; i++) expect(segDist([b.cx, b.cy], pts[i] as Pt, pts[(i + 1) % pts.length] as Pt), `${where}: edge ${i}`).toBeGreaterThanOrEqual(reach - 1e-6);
         const gx = Math.max(lx0 - b.cx, 0, b.cx - lx1), gy = Math.max(ly0 - b.cy, 0, b.cy - ly1);
         expect(Math.hypot(gx, gy), `${where}: clear of the name box`).toBeGreaterThanOrEqual(b.r);
+      }
+    });
+  }
+});
+
+// Opus re-check of S55: in a turned plan the name is drawn upright on screen, so in plan axes it lies at an angle. The placer cleared a flat
+// box that is not where the name is. The gap is measured in the name's own frame: turn the disc centre by the plan's turn about the name.
+describe("renderFloor: room badges in a turned plan keep clear of the upright name", () => {
+  for (const deg of [0, 90, 180, 270]) for (const corner of ROOM_CORNERS) {
+    it(`Bathroom ${corner} turned ${deg}`, () => {
+      const html = draw([room({ badges: { corner } }, L, "Bathroom")], MASKS[2].map((d) => ({ ...d, x: 100, y: 200 }) as Device), undefined, { rotate: { deg, pivot: [200, 150] } });
+      const m = html.match(/<text class="lbl[^"]*" x="([-\d.]+)" y="([-\d.]+)"[^>]*font-size="([-\d.]+)"[^>]*>Bathroom<\/text>/);
+      expect(m, "label").not.toBeNull();
+      const at: Pt = [+m![1], +m![2]], size = +m![3], w = "Bathroom".length * 0.6 * size;
+      const [x0, y0, x1, y1] = [at[0] - w / 2, at[1] - 0.75 * size, at[0] + w / 2, at[1] + 0.25 * size];
+      const bs = badges(html);
+      expect(bs).toHaveLength(3);
+      for (const b of bs) {
+        const [ux, uy] = rotateAbout([b.cx, b.cy], deg, at);
+        const gap = Math.hypot(Math.max(x0 - ux, 0, ux - x1), Math.max(y0 - uy, 0, uy - y1)) - b.r;
+        expect(gap, `${corner} ${deg} ${b.kind} at ${b.cx},${b.cy}`).toBeGreaterThanOrEqual(-1e-6);
       }
     });
   }

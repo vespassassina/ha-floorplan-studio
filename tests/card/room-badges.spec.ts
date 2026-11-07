@@ -21,16 +21,16 @@ const L: Pt[] = [[0, 0], [200, 0], [200, 100], [400, 100], [400, 300], [0, 300]]
 const has = (mask: number, i: number) => (mask >> i & 1) === 1;
 
 /** One floor: a room per mask, in a grid. Bit 0 lights, 1 climate, 2 motion, 3 energy; its sources sit in the room's lower half, which both shapes have. */
-function floorOf(masks: number[], corner: Corner, shape: Pt[]) {
+function floorOf(masks: number[], corner: Corner, shape: Pt[], name = EVIL, rotate = 0) {
   const rooms: unknown[] = [], devices: unknown[] = [];
   masks.forEach((m, i) => {
     const ox = (i % 4) * 500, oy = Math.floor(i / 4) * 400, pts = shape.map(([x, y]) => [x + ox, y + oy]);
-    rooms.push({ id: `r${i}`, name: EVIL, area: "", kind: "room", pts, wk: pts.map(() => "wall"), badges: { corner }, ...(has(m, 2) ? { motion: [`binary_sensor.m${i}`] } : {}), ...(has(m, 3) ? { power: [`sensor.p${i}`] } : {}) });
+    rooms.push({ id: `r${i}`, name, area: "", kind: "room", pts, wk: pts.map(() => "wall"), badges: { corner }, ...(has(m, 2) ? { motion: [`binary_sensor.m${i}`] } : {}), ...(has(m, 3) ? { power: [`sensor.p${i}`] } : {}) });
     if (has(m, 0)) devices.push({ id: `l${i}`, type: "light", entity: `light.m${i}`, name: EVIL, x: ox + 100, y: oy + 200 });
     if (has(m, 1)) devices.push({ id: `c${i}`, type: "ac", entity: `climate.m${i}`, name: "AC", x: ox + 250, y: oy + 200 });
   });
   const ground = { ...demo.floors.ground, outline: [[-50, -50], [2000, -50], [2000, 1600], [-50, 1600]], owk: ["wall", "wall", "wall", "wall"], rooms, devices, doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [], unlinked: [] };
-  return { ...demo, floors: { ground } };
+  return { ...demo, ...(rotate ? { rotate } : {}), floors: { ground } };
 }
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-04T09:30:15Z" });
 // The shapes of the card's own hass.states. Lit: a lamp on, the climate heating, motion on, 420 W. Unlit: off, off, off, 0 W.
@@ -167,3 +167,20 @@ test.describe("badges: a finger", () => {
     expect(await bubble(page), "closed after 4 s").toBeNull();
   });
 });
+
+// Opus re-check of S55: in a turned plan the name is drawn upright on screen but lies at an angle in plan axes, and the badges sat on it.
+// Measured on the real DOM: the name's and each disc's own screen rectangles (the screen is the name's upright frame), no plan formula.
+for (const rotate of [90, 270]) for (const corner of CORNERS) {
+  test(`badges: ${corner} corner of an L room "Bathroom", plan turned ${rotate}, no disc on the name`, async ({ page }) => {
+    await boot(page, floorOf([15], corner, L, "Bathroom", rotate), 1);
+    const gaps = await page.locator("floorplan-studio-card").evaluate((el) => {
+      const svg = el.shadowRoot!.querySelector("svg")!, t = svg.querySelector<SVGTextElement>('text[data-rl="0"]')!.getBoundingClientRect();
+      return Array.from(svg.querySelectorAll<SVGGElement>("g[data-cb] circle")).map((c) => {
+        const b = c.getBoundingClientRect(), r = b.width / 2, x = b.left + r, y = b.top + r;
+        return Math.hypot(Math.max(t.left - x, 0, x - t.right), Math.max(t.top - y, 0, y - t.bottom)) - r;
+      });
+    });
+    expect(gaps).toHaveLength(4);
+    for (const g of gaps) expect(g, `gap disc to name ${gaps.map((v) => v.toFixed(1))}`).toBeGreaterThanOrEqual(0);
+  });
+}
