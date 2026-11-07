@@ -5,7 +5,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, deviceZDefault, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { worktopIndex, worktopPts, worktopTurn, STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, MIN_MOISTURE, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
+import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, MIN_MOISTURE, ROOM_CORNERS, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
 import { bodyOf, furniturePaintable } from "../core";
 import { boxOf, rectPts } from "../core/polygon";
 import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, Furniture, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
@@ -728,7 +728,7 @@ function roomPanel(c: PanelCtx, i: number) {
       room.kind = v as typeof r.kind;
       if (v === "zone") { room.wk = room.pts.map((): WallKind => "boundary"); delete room.wc; } // a zone has no wall edge, so no wall colour
       // A kind `roomAt` cannot pick shows no sensors and has no Sensors section to remove them: drop them in this same step.
-      if (!ROOM_OWNS[room.kind]) for (const [field] of ROOM_SENSORS) delete room[field];
+      if (!ROOM_OWNS[room.kind]) { for (const [field] of ROOM_SENSORS) delete room[field]; delete room.badges; }
     }))}
     ${heightField(c, "ceiling height (cm)", "rht", r.height, c.st.f.height ?? DEFAULT_FLOOR_HEIGHT, heightSetter(c, "rooms", i, "height"))}
     ${roomTurn(c, i)}
@@ -741,11 +741,13 @@ function roomPanel(c: PanelCtx, i: number) {
  * (`multiAttachField`): a pick pulls a loose icon of that entity off the plan in the same undo step, a Remove button
  * only detaches. Only a kind that `roomAt` can pick takes sensors (`ROOM_OWNS`): attached to a zone, structure or fill, nothing would show them.
  */
-const ROOM_SENSORS: [RoomSensorField, string, string][] = [["temps", "rtemp", "temperature sensors"], ["humidity", "rhum", "humidity sensors"], ["motion", "rmot", "motion sensors"]];
+const ROOM_SENSORS: [RoomSensorField, string, string][] = [["temps", "rtemp", "temperature sensors"], ["humidity", "rhum", "humidity sensors"], ["motion", "rmot", "motion sensors"], ["power", "rpow", "power sensors"], ["water", "rwat", "water sensors"]];
+const BADGE_CORNER_NAMES: Record<string, string> = { off: "Off", nw: "Top left", ne: "Top right", sw: "Bottom left", se: "Bottom right" };
 function roomSensors(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
   if (!ROOM_OWNS[r.kind]) return nothing;
   return section(c, "room:sensors", "Sensors", html`
+    ${select("Badges", "rbadge", r.badges?.corner ?? "off", ["off", ...ROOM_CORNERS], (v) => c.commit((f) => { if (v === "off") delete f.rooms[i].badges; else f.rooms[i].badges = { corner: v as (typeof ROOM_CORNERS)[number] }; }), BADGE_CORNER_NAMES)}
     ${ROOM_SENSORS.map(([field, id, label]) => {
       const write = (f: Floor, next: string[]) => setRoomList(f.rooms[i], field, next);
       return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" }, { grouped: (avail) => groupSensorChoices(c.st.layout, avail, c.st.floor, r.name), boxed: true });

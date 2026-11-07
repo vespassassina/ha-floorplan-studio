@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Layout file: a room may carry `badges: { corner }` (`nw`, `ne`, `sw` or `se`), `power` and `water` (sensor ids, at most 20 each). `validate` names a bad one; `migrate` drops it. Studio: the room panel's Sensors section has Badges (Off or a corner) and Power and Water pickers, suggested by device class (B55.1).
+
 ## 0.45.0 - 2026-11-07
 
 - Studio: dragging a worktop corner out and back to where it started no longer says the shape would cross itself.

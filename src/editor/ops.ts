@@ -263,8 +263,8 @@ export function scaleFurniture(m: Furniture, corner: Corner, to: Pt, opts: { shi
   return { ...m, x: round2(m.x + dWorld[0]), y: round2(m.y + dWorld[1]), w: round2(w), h: round2(h) };
 }
 
-/** The three entity lists a room owns (S11.1). */
-export type RoomSensorField = "temps" | "humidity" | "motion";
+/** The entity lists a room owns (S11.1; B55.1 adds the power and water the energy badge reads). */
+export type RoomSensorField = "temps" | "humidity" | "motion" | "power" | "water";
 
 /**
  * Writes a room's sensor list: first occurrence wins, at most `MAX_ROOM_SENSORS`, and an empty list deletes the key.

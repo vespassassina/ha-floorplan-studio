@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: A room's badges, power and water are schema, and the Power and Water pickers read the device class (B55.1)
+
+`Room.badges?: { corner: nw|ne|sw|se }`, `Room.power?` and `Room.water?` (sensor ids, at most `MAX_ROOM_SENSORS`). `validate`
+names each bad shape; `migrate` drops what `validate` would refuse (the other room lists are kept for `validate` to judge,
+but spec F32 asks that a bad badge never stop a file opening). HA types power and water sensors `other`, so the pickers
+cannot use a device type like `temps` does: they offer `sensor.*` by device class (`power`; `water`, `volume_flow_rate`,
+`volume`), minus any another room owns, the room's own area first. The badge fields are links and settings, so a plan lock
+does not freeze them. A room kind that owns no sensors loses `badges` too.
+
 ## 2026-11-07: A worktop corner dropped where it started says nothing about crossing (B54 follow-up)
 
 Dragging out and back to the start made the last move a no-op, which the drop read as a refusal and said "may not cross

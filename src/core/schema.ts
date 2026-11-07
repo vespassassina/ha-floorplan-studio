@@ -26,11 +26,22 @@ export const MAX_PALETTE = 24;
 /** Most temperature, humidity or motion sensors one room may list. */
 export const MAX_ROOM_SENSORS = 20;
 
+/** B55.1: where a room's badges sit in its bounding box. */
+export const ROOM_CORNERS = ["nw", "ne", "sw", "se"] as const;
+export type RoomCorner = (typeof ROOM_CORNERS)[number];
+export interface RoomBadges { corner: RoomCorner }
+/** Why a room's `badges` is not good, or null. `validate` and `migrate` both use it, so migrate keeps nothing validate refuses. Never throws. */
+export function roomBadgesProblem(v: unknown): string | null {
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return 'must be an object like { "corner": "nw" }';
+  const c = (v as { corner?: unknown }).corner;
+  return typeof c === "string" && (ROOM_CORNERS as readonly string[]).includes(c) ? null : `corner must be one of ${ROOM_CORNERS.join(", ")}`;
+}
+
 /** `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.
  *  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The
  *  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border
  *  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each. */
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; /** B53.9: a colour per edge, parallel to `wk`; null is the layout's or the theme's. Absent: none set. */ wc?: (string | null)[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; /** B53.9: a colour per edge, parallel to `wk`; null is the layout's or the theme's. Absent: none set. */ wc?: (string | null)[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; /** B55.1: the room's badges (a corner of its box) and the power and water sensors its energy badge reads. */ badges?: RoomBadges; power?: string[]; water?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
 /** Most custom scenes one room may keep, and most lights or switches one scene may set. */
 export const MAX_ROOM_SCENES = 12;
 export const MAX_SCENE_ITEMS = 40;
@@ -424,6 +435,9 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       entityList(r, "temps", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
       entityList(r, "humidity", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
       entityList(r, "motion", "binary_sensor.name", ["binary_sensor", "group"], MAX_ROOM_SENSORS); // a group is a motion group (ha.ts isMotionGroup)
+      entityList(r, "power", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
+      entityList(r, "water", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
+      if (r.badges !== undefined) { const why = roomBadgesProblem(r.badges); if (why) errors.push(`${at} ${r.id} badges ${why}`); }
       entityList(r, "haScenes", "scene.name", ["scene"], MAX_ROOM_SCENES * 4);
       if (r.scenes !== undefined) {
         const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);

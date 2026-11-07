@@ -132,3 +132,20 @@ test("S11.2: a sensor already on a room is still drawn and says which room owns 
   await expect(page.locator("#vattached")).toContainText("Attached to Living");
   await expect(page.locator("#vattach")).toHaveCount(0);
 });
+
+test("B55.1: the room panel sets the badge corner, one undo step per change, Off removes it, and offers Power and Water", async ({ page }) => {
+  await clickCm(page, 150, 100);
+  await expect(page.locator("#rbadge")).toHaveValue("off");
+  await expect(page.locator("#rpow")).toBeVisible();
+  await expect(page.locator("#rwat")).toBeVisible();
+  await page.locator("#rbadge").selectOption("se");
+  expect((await groundOf(page)).rooms[0].badges).toEqual({ corner: "se" });
+  await page.locator("#rbadge").selectOption("nw");
+  expect((await groundOf(page)).rooms[0].badges).toEqual({ corner: "nw" });
+  await page.locator(EDITOR).evaluate((el) => (el as HTMLElement).focus());
+  await page.keyboard.press("Control+z");
+  expect((await groundOf(page)).rooms[0].badges).toEqual({ corner: "se" });
+  await clickCm(page, 150, 100); // undo drops the selection
+  await page.locator("#rbadge").selectOption("off");
+  expect((await groundOf(page)).rooms[0].badges).toBeUndefined();
+});
