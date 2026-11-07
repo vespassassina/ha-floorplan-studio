@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: The badge bubble finds a badge by position, not by event target (B55.4)
+
+One component, `bindBadgeBubble` in `badge-bubble.ts`, serves the card and the Studio live view. The Studio's badges take no
+pointer (`cb-ed`), so no event can name them; the bubble tests each pointer position against the badges' screen boxes (2 px
+pad). A mouse or pen opens it on hover and closes it on leave. Anything else is a finger, so an engine that reports no type, or
+the mouse id (WebKit tap), or id 0 (Firefox touch) still works: a finger's up within 10 px of its down, on a badge, toggles it.
+A press anywhere else, or 4 s, closes it. A tap on a badge is no room pick and no double-tap zoom (`card-zoom.ts`). The text is
+set as text, never markup. It adds no words: the lines are those `badgeInfo` already returns.
+
 ## 2026-11-07: Where the badges sit, and that the editor's take no click (B55.3)
 
 `renderFloor` draws them through `roomBadges` in `room-badges.ts`, so the card and the Studio share one draw path. Each icon is a

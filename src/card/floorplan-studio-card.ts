@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { TempWatch, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, plugMeters, rowsOfDevices, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, wallColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { TempWatch, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, FLOORPLAN_CSS, UI_ICONS, wallsModeOf, type PlanView, findPowerSensor, plugMeters, rowsOfDevices, floorsAroundKey, floorPlace, floorPose, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, wallColourVars, plugThreshold, heatRange, anyRoomHeated, heatKindOf, heatLegend, ThumbFeed, camThumbOf, HEAT_FROM, HEAT_TO, clampTilt, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor, badgeInfo, bindBadgeBubble, type Bubble } from "../core";
 import type { CamThumb, HeatKind, LayerId, OffRow, SearchEntry } from "../core";
 import type { Attention, ThingRef, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -583,6 +583,7 @@ export class FloorplanStudioCard extends LitElement {
   private _actions3d: HTMLElement | null = null;
   private _unbind3d: (() => void) | null = null;
   private _unbindHover: (() => void) | null = null;
+  private _bubble: Bubble | null = null; // B55.4: the room badges' bubble, bound to the plan's <svg> with the other plan listeners
   private _unbindSpider: (() => void) | null = null;
 
   /** `localStorage` key for this card's panel state. Opus review finding 7: the seed used to be the layout's own
@@ -1061,6 +1062,8 @@ export class FloorplanStudioCard extends LitElement {
     this._unbindActions = null;
     this._unbindHover?.();
     this._unbindHover = null;
+    this._bubble?.destroy();
+    this._bubble = null;
     this._unbindSpider?.();
     this._unbindSpider = null;
     this._unbindZoom?.();
@@ -1492,6 +1495,11 @@ export class FloorplanStudioCard extends LitElement {
       this._unbindSpider = svg ? bindSpider(this, svg) : null;
       this._unbindHover?.();
       this._unbindHover = svg ? bindHover(this, svg) : null;
+      this._bubble?.destroy();
+      this._bubble = svg && this.shadowRoot ? bindBadgeBubble({
+        svg, mount: this.shadowRoot, rect: () => this.getBoundingClientRect(),
+        info: (ri, kind) => { const f = this._floor(); return f ? badgeInfo(f, ri, { state: this._stateForRender(), now: this._now(), plugWatts: plugThreshold(this._config.plug_watts) }).find((b) => b.kind === kind) : undefined; },
+      }) : null;
       this._unbindZoom?.();
       this._unbindZoom = svg ? this._bindZoom(svg) : null;
       // S16.3: an <image> that fails to load fires `error` on itself and does not bubble, so it is heard on the way down.
@@ -1567,6 +1575,7 @@ export class FloorplanStudioCard extends LitElement {
     this._offDialogWasOpen = offOpen;
     syncPopup(this);
     syncTip(this);
+    this._bubble?.refresh(); // an open bubble follows the states; one whose badge is drawn away closes
     placePulse(this);
     this._placeFocusRing();
   }

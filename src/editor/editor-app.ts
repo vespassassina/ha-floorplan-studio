@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { type DetailMode, type Layout, type Pt, type Floor, alignCandidates, type DeviceType, type SceneItem, type HaData, type StateOverlay, TempWatch, DEFAULT_MOTION_FADE_S, applyHaNames, FLOORPLAN_CSS, ThumbFeed, floorBelow, rotateAbout, type AddCandidate, type Trace, type WallKind, type LayerId, areaMove, renderFloor, detailFor, viewBoxFor, floorsAroundKey, UI_ICONS, heatLegend, anyRoomHeated } from "../core";
+import { type DetailMode, type Layout, type Pt, type Floor, alignCandidates, type DeviceType, type SceneItem, type HaData, type StateOverlay, TempWatch, DEFAULT_MOTION_FADE_S, applyHaNames, FLOORPLAN_CSS, ThumbFeed, floorBelow, rotateAbout, type AddCandidate, type Trace, type WallKind, type LayerId, areaMove, renderFloor, badgeInfo, bindBadgeBubble, plugThreshold, type Bubble, detailFor, viewBoxFor, floorsAroundKey, UI_ICONS, heatLegend, anyRoomHeated } from "../core";
 import { ROTATION_STEP } from "../card/view-state";
 import { type BannerLevel, isQuiet, bannerLevel, BANNER_MS } from "./banner";
 import { statusFacts } from "./status-bar";
@@ -309,7 +309,20 @@ export class FloorplanStudioEditor extends LitElement {
   switchDir: "up" | "down" | null = null;
   onSwitchEnd = (ev: AnimationEvent) => onSwitchEnd(this, ev); // editor-view.ts
 
+  /** B55.4: the same bubble as the card's, over the live view's states. The Studio's badges take no click, so it finds them by position. */
+  private bubble: Bubble | null = null;
+  private bindBubble() {
+    const svg = this.svgEl, canvas = svg?.parentElement;
+    if (!svg || !canvas || this.bubble) return;
+    this.bubble = bindBadgeBubble({
+      svg, mount: canvas, rect: () => canvas.getBoundingClientRect(),
+      info: (ri, kind) => badgeInfo(this.st.f, ri, { state: this.stateForRender(), now: Date.now(), plugWatts: plugThreshold(undefined) }).find((b) => b.kind === kind),
+    });
+  }
+
   protected updated() {
+    this.bindBubble();
+    this.bubble?.refresh();
     this.thumbs.want(this.isConnected && this.st.cam.on);
     if (this.switchDir) { const d = this.switchDir; this.switchDir = null; startSwitch(this, d); }
     if (this.ctxMenu) fitCtxMenu(this.renderRoot);
@@ -533,6 +546,8 @@ export class FloorplanStudioEditor extends LitElement {
   }
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.bubble?.destroy();
+    this.bubble = null;
     this.temps.stop();
     this.thumbs.want(false);
     this.renderRoot.removeEventListener("error", this.onThumbError, true);

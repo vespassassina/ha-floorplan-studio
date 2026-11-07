@@ -50,6 +50,8 @@ export { ALL_OFF_SHARED, ALL_OFF_TITLE, ROOM_ROW_TAP, allOffTitle, deviceCentre,
 export type { InfoHass, InfoRow, RoomDeviceRow, RoomSensorRow, RoomSummary } from "./room-info";
 export { BADGE_KINDS, BADGE_OF, badgeInfo, badgeKinds } from "./room-badges";
 export type { BadgeInfo, BadgeKind, BadgeOpts } from "./room-badges";
+export { BUBBLE_TAP_MS, bindBadgeBubble } from "./badge-bubble";
+export type { Bubble, BubbleHost } from "./badge-bubble";
 export { meanText, readingText, stateText } from "./state-text";
 export type { StateFormatter } from "./state-text";
 export { carEntities, carMain, carStatus, carText } from "./car-status";
