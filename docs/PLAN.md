@@ -5020,3 +5020,31 @@ task measures its real figure and records it in DECISIONS.
 Re-planned after Sprint 59's review. Drag wall ends, room, worktop and stair points on the floor plane; drag wall and
 room heights by their top edge; drag a door's or window's sill and head; drag the floor height and slab. Drawing new
 shapes stays in 2D unless the review says otherwise.
+
+### Sprint 62 (outline): lamps that look the part
+
+Added 2026-11-07 at Diego's request. Seven lamp kinds, each with its own drawing and its own light, in 2D, 2.5D and 3D.
+Diego's words: "floor lamp (various height), desk lamp, led strip (various length, orientable), ceiling lamp (change
+diameter of the lamp), ceiling spot, garden pole (can set height), floodlight (with a light cone in degrees,
+rotatable), for the various lamp types with a specific render and light emission so they look the part."
+
+Draft (a spec in `docs/specs/lamps.md` and Diego's yes come before any code; it needs its own interview):
+
+- A lamp is a `light` device with a `lamp` block, not a new device type, so linking, `bound`, scenes, motion, All off and
+  the tap behaviour stay as they are. Kinds: `floor`, `desk`, `strip`, `ceiling`, `spot`, `pole`, `flood`.
+- Parameters per kind: `floor` and `pole` height (cm); `strip` length (cm) and rotation; `ceiling` diameter (cm); `flood`
+  cone angle (degrees) and rotation; `desk` and `spot` fixed size. Defaults shown in the panel, a field left out reads
+  its default.
+- Render: each kind has its own symbol, and a lit lamp emits its own light: a soft pool for floor, desk and ceiling, a
+  line glow for the strip, a small hard circle for the spot, a cone for the flood, a wide pool on the ground for the
+  pole. Colour and brightness follow the entity (kelvin, brightness), as the plain light aura does today.
+- 3D: the real shape at its height; the light pool lands on the floor; the flood casts a cone. No per-frame cost.
+- Editing: height, length, diameter and angle as panel fields and a handle on the plan (length and angle drag).
+- Open points for the interview: the flood's reach (cm) and whether the cone lights walls in 3D; whether a ceiling lamp
+  and a spot hang from a room's ceiling height; whether the existing light icon stays for lights with no `lamp`; the
+  byte budget (the card cap is 138,000 and this sprint likely needs a lamp chunk).
+- Every enumeration decided (findings 17, 20): an iterate-over-kinds test; `validate` checks the kind, the finite ranges
+  and that `lamp` sits on a `light` only (findings 1, 12). A computed-style pair for each glow (finding 10). Shots looked
+  at, 4x, in every theme (finding 16).
+
+Order: after Sprint 55 or ahead of it, Diego's call.
