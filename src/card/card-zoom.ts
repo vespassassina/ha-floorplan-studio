@@ -244,7 +244,7 @@ export function bindZoom(c: FloorplanStudioCard, svg: SVGSVGElement): () => void
     const tap = !panning && !pinched;
     panning = false;
     pinched = false;
-    const onThing = (e.target as Element | null)?.closest?.(`${THINGS}, g[data-cam], g[data-cb]`); // a tap on a room badge opens its bubble and does not pick the room under it
+    const onThing = (e.target as Element | null)?.closest?.(`${THINGS}, g[data-cam], g[data-cb]`); // two taps on a room badge (its bubble) are not a double-tap zoom; the room pick is stopped elsewhere
     if (!tap || onThing) {
       lastTap = null;
       return;
