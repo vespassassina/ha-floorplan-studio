@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: card cap 131,000 to 138,000 gzip
+
+Diego, mid Sprint 54: "make the budget larger and just roll". Underfloor took the card to 129,746 of 131,000, and the badges
+(+1,800) and the worktop were still to come. `CARD_GROWTH_LIMIT` 40,220 to 47,220 over the pre-3D 90,780. Seven thousand is the
+room for Sprints 54 to 56; the next sprint that does not fit stops and asks again.
+
 ## 2026-11-06: Outdoor light, night and day
 
 Diego: the plan is too dark outdoors at night to read, and by day the garden should follow the weather and the hour.
