@@ -4987,11 +4987,19 @@ number from the wall tablet; the dark-theme heat tint is modest (a different mec
 
 ### Sprint 55: room badges
 
-- B55.1 Schema: `badges`, `power`, `water`, with `validate`, and the room panel's settings and sensor lists.
-- B55.2 `BADGE_OF` over `DEVICE_TYPES`, and `badgeInfo` in core: rows per icon, live and at replay time (criterion 9).
-- B55.3 `renderFloor` draws the badges in the corner, with the L-room slide (criterion 8, the drawing).
-- B55.4 The bubble: hover on desktop; tap, tap away and 4 s on touch, with each engine's event shapes. The words go
+- [x] 2026-11-07 B55.1 Schema: `badges`, `power`, `water`, with `validate`, and the room panel's settings and sensor lists.
+- [x] 2026-11-07 B55.2 `BADGE_OF` over `DEVICE_TYPES`, and `badgeInfo` in core: rows per icon, live and at replay time (criterion 9).
+- [x] 2026-11-07 B55.3 `renderFloor` draws the badges in the corner, with the L-room slide (criterion 8, the drawing).
+- [x] 2026-11-07 B55.4 The bubble: hover on desktop; tap, tap away and 4 s on touch, with each engine's event shapes. The words go
   into the ten languages (criterion 8, the bubble).
+
+Closed 2026-11-07, not yet released. Tests at close: vitest 7,207+, Playwright 2,941 passed and 6 skipped; card about 134.3k gzip
+(cap 138,000). Opus reopened it twice: badges sat on the room name and walls in L-rooms, then on the name again in a turned plan.
+Fixed (clear of every wall by radius plus half a wall, clear of the name box, tested in the name's upright frame) and re-checked.
+Lessons: a slide aimed at the label point always ends on the label; clearance tests must cover turned plans and wall thickness,
+not only "centre inside". Open: the name box estimate is up to 4 px smaller than the real text (WC at 225 degrees, widen it);
+a room under about 20x20 cm puts badges outside it (older); at 420 px the ne badge can sit under the zoom buttons (Diego's call);
+no end-to-end test of the Studio live-view hover.
 
 ### Sprint 56: replay always visible, energy counters
 

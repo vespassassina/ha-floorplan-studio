@@ -6,6 +6,7 @@
 - Core: `badgeInfo` and `BADGE_OF` decide what a room's lights, climate, motion and energy badges show and say, live and in a replay (B55.2). Nothing is drawn yet.
 - Plan: a room with `badges` shows small icons for its lights, climate, motion and energy in the chosen corner of its box. They keep their screen size under zoom, stay upright in a turned plan, and slide in from an L-room's empty corner (B55.3).
 - Plan: hover a room badge, or tap it on a touch screen, to see what it reads. A tap away or 4 s closes it; a tap on the room still opens the room. The Studio live view does the same (B55.4).
+- Plan: room badges keep clear of the room's name and of every wall, in L-rooms and in a turned plan.
 
 ## 0.45.0 - 2026-11-07
 
