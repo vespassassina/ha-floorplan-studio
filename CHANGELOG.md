@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.46.0 - 2026-11-07
+
+Room badges: a small icon row in a room's corner shows its lights, climate, motion and energy at a glance; hover or tap one to read it.
 
 - Layout file: a room may carry `badges: { corner }` (`nw`, `ne`, `sw` or `se`), `power` and `water` (sensor ids, at most 20 each). `validate` names a bad one; `migrate` drops it. Studio: the room panel's Sensors section has Badges (Off or a corner) and Power and Water pickers, suggested by device class (B55.1).
 - Core: `badgeInfo` and `BADGE_OF` decide what a room's lights, climate, motion and energy badges show and say, live and in a replay (B55.2). Nothing is drawn yet.
