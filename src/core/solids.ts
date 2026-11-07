@@ -6,6 +6,7 @@ import { esc, num, pts, tag } from "./fmt";
 import { furnitureBlocks, lidOf, mirrored, type Block } from "./furniture-blocks";
 import { wallColourMap, wallEdgeKey } from "./wall-colour";
 import { TREE_CROWN } from "./icons";
+import { worktopPts } from "./polygon";
 import { treeShadeSvg, treeShape } from "./tree";
 import { edgeKindAt, nearestEdge, stairSteps } from "./geometry";
 import { doorStateOf, type DoorState } from "./door-state";
@@ -480,7 +481,9 @@ function blocksSvg(m: Furniture, blocks: Block[], z0: number, lid: number, c: Pt
  */
 export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on: boolean, symbol: string, px: Proj, waves?: string | null, car?: CarLook | null, link?: LinkLook | null): Solid | null {
   const z0 = furnitureBottom(m), h = furnitureTop(m), c: Pt = [m.x, m.y];
-  const base = ([[-m.w / 2, -m.h / 2], [m.w / 2, -m.h / 2], [m.w / 2, m.h / 2], [-m.w / 2, m.h / 2]] as Pt[]).map((q) => turnAbout([m.x + q[0], m.y + q[1]], m.rot, c));
+  // B54.2: a worktop with good points is a prism of exactly those (the caller framed it: rot 0, box of the points); no blocks.
+  const wpts = mode === "box" ? worktopPts(m) : null;
+  const base = wpts ?? ([[-m.w / 2, -m.h / 2], [m.w / 2, -m.h / 2], [m.w / 2, m.h / 2], [-m.w / 2, m.h / 2]] as Pt[]).map((q) => turnAbout([m.x + q[0], m.y + q[1]], m.rot, c));
   // S28.4: a tree stands. Its shade patch lies at the foot, a 12 cm trunk rises to `trunkTop` and the crown (no trunk dot: the
   // trunk is the line) is drawn at the crown's middle. Anything else keeps the symbol at the full height.
   const tree = mode === "pole" && m.symbol === "tree" ? treeShape(m) : null;
@@ -496,7 +499,8 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
     const lower = prism(at(parts.outline), belt, px, z0), upper = prism(at(parts.roof), h, px, belt);
     if (!lower || !upper) return null;
     body = lower; cabin = `<g class="car-cabin">${upper}</g>`;
-  } else if (mode === "box") { const p = blocksSvg(m, blocks, z0, lid0, c, px); if (!p) return null; [body, above] = p; }
+  } else if (wpts) { const p = prism(wpts, h, px, z0); if (!p) return null; body = p; }
+  else if (mode === "box") { const p = blocksSvg(m, blocks, z0, lid0, c, px); if (!p) return null; [body, above] = p; }
   else {
     const end = tree ? px.lift(c, tree.trunkTop) : top;
     body = (tree ? treeShadeSvg(m) : "") + `<line class="trunk" x1="${num(c[0])}" y1="${num(c[1])}" x2="${num(end[0])}" y2="${num(end[1])}"/>`;

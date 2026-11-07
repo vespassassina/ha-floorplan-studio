@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: B54.2 The worktop drawn
+
+One draw path: `renderFloor` (2D and 2.5D) and `buildScene` (3D) both frame a piece through `worktopFrame` (`src/core/polygon.ts`)
+before they read it, so x, y, w, h are the points' own bounding box and rot 0 whatever a hand-edited file says; a worktop whose
+`pts` fail `validate` draws as its box, like any piece. In 2D the symbol is one path in the 100 x 100 box the furniture transform
+scales (`worktopSvg`: `ff` fill, `currentColor` top edge, 3 wide, round joins), so the fill is `--fp-furniture`, `color` overrides it,
+and no new stylesheet rule exists. In 2.5D and 3D it is a prism of exactly the points (`prism` in `solids.ts`) at `FURNITURE_HEIGHTS.worktop`
+(90), with no `furnitureBlocks`. `num` rounds to 0.01, so the 2D group's scale (w / 100) can drift a worktop by up to 0.3 cm on a
+very large piece; the tests state that bound. Looked at in blueprint and light themes at 4x: an L and a 3-point triangle, with
+`color` set, correct in both. Size: no build was taken between B54.2 and B54.3, so the gzip figures are given once, at B54.3.
+
 ## 2026-11-07: B54.1 The worktop's schema
 
 `Furniture.symbol` gains `worktop`, and `Furniture.pts?: Pt[]` exists on it alone and is required there: 3 to 64 finite points

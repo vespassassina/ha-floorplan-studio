@@ -7,6 +7,7 @@
 // Frame: x and y are the plan's, in cm, y down as on the plan; z is up, in cm, 0 the walking surface of the floor.
 // `opts.elevation` lifts the whole scene (the floor's slab top, `floorElevation`) so floors can be stacked.
 import { debugOnce } from "./debug-once";
+import { worktopFrame, worktopPts } from "./polygon";
 import type { FloorsAround } from "./stairs";
 import type { Device, Floor, FurnitureSymbol, Pt } from "./schema";
 
@@ -386,13 +387,15 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     }));
 
     // Furniture: a block, a trunk (a tree: the crown is the viewer's, from `ref.size`) or a flat slab, by FURNITURE_SOLID.
-    list(f.furniture).forEach((m, i) => piece(() => {
-      if (!isObj(m) || !has(FURNITURE_SOLID, m.symbol) || ![m.x, m.y, m.rot, m.w, m.h].every(fin) || !(m.w > 0) || !(m.h > 0)) return;
+    list(f.furniture).forEach((m0, i) => piece(() => {
+      if (!isObj(m0)) return;
+      const m = worktopFrame(m0);
+      if ( !has(FURNITURE_SOLID, m.symbol) || ![m.x, m.y, m.rot, m.w, m.h].every(fin) || !(m.w > 0) || !(m.h > 0)) return;
       const z0 = furnitureBottom(m as never), c: Pt = [m.x, m.y], pole = FURNITURE_SOLID[m.symbol as FurnitureSymbol] === "pole";
       // A tree is a trunk to treeShape's trunk top, and a crown (the viewer's) above it; any other piece stands to its height.
       const tree = pole ? treeShape(m as never) : null, h = z0 + (tree ? tree.trunkTop : furnitureHeight(m as never));
       const half = pole ? [TRUNK_SIDE / 2, TRUNK_SIDE / 2] : [m.w / 2, m.h / 2];
-      const base = ([[-half[0], -half[1]], [half[0], -half[1]], [half[0], half[1]], [-half[0], half[1]]] as Pt[]).map((q) => turnAbout([c[0] + q[0], c[1] + q[1]], pole ? 0 : m.rot, c));
+      const base = worktopPts(m) ?? ([[-half[0], -half[1]], [half[0], -half[1]], [half[0], half[1]], [-half[0], half[1]]] as Pt[]).map((q) => turnAbout([c[0] + q[0], c[1] + q[1]], pole ? 0 : m.rot, c));
       // A linked tv, speaker or computer (`pieceDevice`) carries its entity and its own colour: the viewer recolours it by state and hands a tap on it to the gesture code.
       const linked = pieceDevice(m as never);
       if (m.symbol === "car") { carSolids(m, i, z0, linked?.entity, add); return; }
@@ -407,7 +410,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
         return paintHex ? { role: dark ? `${role}-dark` : role, color: dark ? darkHex(paintHex) : paintHex } : { role: dark ? `${role}-dark` : role };
       };
       // B53.5: the blocks 2.5D draws (`furnitureBlocks`), in the piece's frame, turned about its middle. A dark one (leg, plinth) takes the `-dark` role.
-      const blocks = pole ? [] : furnitureBlocks(m as never);
+      // B54.2: a worktop with good points stands on exactly those.
+      const blocks = pole || worktopPts(m) ? [] : furnitureBlocks(m as never);
       if (!blocks.length) { add("furniture", `furniture:${i}`, m.symbol, { type: "prism", base, z0, z1: h }, ref, look("body")); return; }
       blocks.forEach((b, k) => add("furniture", k ? `furniture:${i}:b${k}` : `furniture:${i}`, m.symbol, { type: "prism", base: ([[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]] as Pt[]).map((q) => turnAbout([c[0] - m.w / 2 + q[0], c[1] - m.h / 2 + q[1]], m.rot, c)), z0: z0 + b.z0, z1: z0 + b.z1 }, ref, look(b.tone)));
     }));
