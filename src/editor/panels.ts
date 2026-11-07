@@ -7,7 +7,7 @@ import { worktopIndex, worktopPts, worktopTurn, STAIR_DIRECTIONS, STAIR_DIRECTIO
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, MIN_MOISTURE, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
 import { bodyOf, furniturePaintable } from "../core";
-import { rectPts } from "../core/polygon";
+import { boxOf, rectPts } from "../core/polygon";
 import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, Furniture, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -1297,7 +1297,7 @@ function acField(c: PanelCtx, i: number) {
  */
 export function retype(p: Furniture, from: string, to: string): void {
   // B54.1: a worktop is its `pts`. Entering it, the piece's own footprint becomes them (turned as it was, then `rot` 0); leaving it, they go.
-  if (to === "worktop" && from !== "worktop") { p.pts = rectPts(p); p.rot = 0; }
+  if (to === "worktop" && from !== "worktop") { p.pts = rectPts(p); p.rot = 0; Object.assign(p, boxOf(p.pts)); } // x, y, w, h are the points' box (C20): a piece turned 90 would keep its old w and h
   if (to !== "worktop") delete p.pts;
   p.symbol = to as Furniture["symbol"];
   if (to !== "car") { delete p.model; if (from === "car") delete p.color; }

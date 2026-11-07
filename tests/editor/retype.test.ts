@@ -41,3 +41,18 @@ describe("changing a piece's symbol leaves a valid layout, for every pair", () =
     const ok = loaded("washer"); retype(ok, "washer", "dryer"); expect(ok.entity).toBe("sensor.a_b");
   });
 });
+
+// Opus review of Sprint 54 (spec C20): turning a piece into a worktop makes its footprint the points, so x, y, w, h must be the points' bounding box.
+// The first version kept the old w and h: a 200 x 60 table turned 90 degrees read as 200 wide while its points were 60 wide.
+describe("retyping a turned piece to a worktop keeps the box equal to the points' box", () => {
+  for (const [w, h, rot] of [[200, 60, 0], [200, 60, 90], [200, 60, 45], [200, 60, 180], [60, 200, 90]] as const) {
+    it(`${w} x ${h} turned ${rot}`, () => {
+      const p = { id: "p", symbol: "table", x: 300, y: 300, rot, w, h } as unknown as Furniture;
+      retype(p, "table", "worktop");
+      const xs = p.pts!.map((q) => q[0]), ys = p.pts!.map((q) => q[1]);
+      const box = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2, w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+      expect({ x: p.x, y: p.y, w: p.w, h: p.h, rot: p.rot }).toEqual({ ...box, rot: 0 });
+      expect(validate(layoutOf(p)).ok).toBe(true);
+    });
+  }
+});

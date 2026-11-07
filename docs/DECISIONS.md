@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: Retyping a turned piece to a worktop refits its box (Opus review of Sprint 54)
+
+`retype` set `pts` and `rot` 0 but kept the old `w` and `h`, so a 200 x 60 table turned 90 became a worktop whose box said
+200 wide over points 60 wide, against spec C20. It now takes `boxOf(pts)` for x, y, w, h.
+
 ## 2026-11-07: A refused worktop corner drag leaves no undo step (Opus review of Sprint 54)
 
 `begin()` takes the undo snapshot on the first move, and `worktopMove` may refuse every move, so the release committed a step

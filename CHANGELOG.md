@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: changing a turned piece into a worktop keeps its size right (the box now matches its points).
 - Studio: dragging a worktop corner where every move would make the shape cross itself leaves no undo step and says why; Delete on the third-last corner says why it did nothing.
 - Card: in 3D the floor warmed from below now reads lighter and warmer on dark themes and dark custom floors; it used to lose blue and look darker.
 - Studio and card: tick Underfloor on a climate or heater. While it is heating, its room floor gets a warm wash and a faint pipe pattern in 2D and 2.5D, and a warm floor in 3D. Idle, off and unavailable show nothing.
