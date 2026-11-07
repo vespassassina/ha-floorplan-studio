@@ -16,7 +16,7 @@ export type Hit =
 
 export type Drag =
   | { type: "pan"; sx: number; sy: number; v: View; button: number; moved: boolean }
-  | { type: "corner"; base: Floor; from: Pt; ref: PtRef; moved: boolean; to: Pt }
+  | { type: "corner"; base: Floor; from: Pt; ref: PtRef; moved: boolean; to: Pt; /** the first move took the undo snapshot (a corner inserted from an edge took it at the press) */ snapped?: true }
   | { type: "edge"; base: Floor; ends: { from: Pt; ref: PtRef }[]; start: Pt; moved: boolean; to: Pt[] }
   | { type: "dend"; base: Floor; i: number; end: "a" | "b"; moved: boolean }
   | { type: "door"; base: Floor; i: number; off: Pt; len: number; moved: boolean }

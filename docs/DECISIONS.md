@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: A refused worktop corner drag leaves no undo step (Opus review of Sprint 54)
+
+`begin()` takes the undo snapshot on the first move, and `worktopMove` may refuse every move, so the release committed a step
+that held no change. `onUp` now takes the snapshot back when a worktop corner drag ends with the floor equal to the one it
+began on, and says "Corner not moved: a worktop may not cross itself". A refused Delete of a worktop corner says why too ("at
+least 3 corners"). A corner inserted from an edge took its snapshot at the press and is not affected.
+
 ## 2026-11-07: Underfloor heat tint may exceed 1 (supersedes the cap in B54.4)
 
 Opus review of Sprint 54: the 3D floor tint was `0.5 + 0.5 * v / top`, so no channel could exceed 1 and on a dark floor it only

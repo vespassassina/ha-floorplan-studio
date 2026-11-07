@@ -173,6 +173,7 @@ test("Delete on a selected corner removes it; never below 3 corners; a refused D
   const st = await state(page);
   expect(st.w[0].pts).toEqual(want); // the third corner stays
   expect(st.hist).toBe(hist);
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).status as string, EDITOR)).toMatch(/3 corners/i); // a refusal says why (Opus S54, nit 3)
 });
 
 test("dragging the body moves every corner by the same step, one undo step", async ({ page }) => {
@@ -214,4 +215,38 @@ test("the panel of a worktop turns its points by the buttons and has no width, d
   expect(st.w[0].rot).toBe(0);
   expect([st.w[0].w, st.w[0].h]).toEqual([after.w[0].h, after.w[0].w]); // a quarter turn swaps the box
   kept(st.w[0]);
+});
+
+test("a corner drag that every move refuses leaves no undo step and says why", async ({ page }) => {
+  const { after, o } = await drawn(page);
+  const h = await screen(page, L[3]); // (-50, 0), the inner corner
+  const to = await screen(page, [-150, 50]); // one jump: the edges from there to (-50, 100) and (100, 0) cut the arm on the left, so the move is refused
+  await page.mouse.move(h.x, h.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 1 });
+  await page.mouse.move(to.x - 2, to.y + 2, { steps: 1 });
+  await page.mouse.up();
+  const st = await state(page);
+  expect(st.w[0].pts).toEqual(abs(o, L)); // nothing moved
+  expect(st.hist).toBe(after.hist); // so no step to undo
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).status as string, EDITOR)).toMatch(/cross/i);
+});
+
+test("Add > Furniture > Worktop by real clicks on the menu, then three points and Enter: one worktop, one undo step", async ({ page }) => {
+  await load(page);
+  const before = await state(page);
+  await page.locator("#mAdd > summary").click();
+  await page.locator("#addFurn > summary").click();
+  const btn = page.locator("#addFurn-worktop");
+  await btn.scrollIntoViewIfNeeded();
+  const b = (await btn.boundingBox())!;
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+  expect((await state(page)).drawing).toBe(true);
+  for (const p of [[-100, -50], [100, -50], [-100, 50]] as Pt[]) { const s = await screen(page, p); await page.mouse.move(s.x, s.y); await page.mouse.click(s.x, s.y); }
+  await page.keyboard.press("Enter");
+  const st = await state(page);
+  expect(st.drawing).toBe(false);
+  expect(st.w).toHaveLength(1);
+  expect(st.n).toBe(before.n + 1);
+  expect(st.hist).toBe(before.hist + 1);
 });

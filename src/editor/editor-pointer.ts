@@ -375,6 +375,7 @@ export const onMove = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
         if (seg?.locked) to = pivotOnArc(seg[d.ref.end === "a" ? "b" : "a"], to, dist(seg.a, seg.b), d.from);
       }
       if (!d.moved && dist(to, d.from) === 0) return;
+      if (!d.moved) d.snapped = true;
       begin(ed, d); d.to = to;
       // Shift: only the grabbed corner moves and leaves the others behind
       g = movePointAll(d.base, d.from, to, ev.shiftKey, d.ref);
@@ -503,6 +504,13 @@ export const onUp = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
     if (!d.moved) { st.sel = { t: "dev", i: d.i }; ed.requestUpdate(); } // a click, not a drag: the group gives way to the one pressed
     else if (d.before && st.commitLiveEdit(d.before)) ed.changed(`Moved ${d.is.length} devices`);
     else ed.requestUpdate();
+    return;
+  }
+  if (d.type === "corner" && d.snapped && "poly" in d.ref && worktopIndex(d.ref.poly) !== null && JSON.stringify(st.f) === JSON.stringify(d.base)) {
+    // Every move was refused (a worktop corner may not cross itself): the snapshot of the first move holds no change, so take it back.
+    st.dropSnapshot();
+    ed.status = "Corner not moved: a worktop may not cross itself";
+    ed.requestUpdate();
     return;
   }
   if (d.moved) {
