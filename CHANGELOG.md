@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card: in 3D the floor warmed from below now reads lighter and warmer on dark themes and dark custom floors; it used to lose blue and look darker.
 - Studio and card: tick Underfloor on a climate or heater. While it is heating, its room floor gets a warm wash and a faint pipe pattern in 2D and 2.5D, and a warm floor in 3D. Idle, off and unavailable show nothing.
 - Layout file: a new furniture symbol `worktop` with `pts`, a polygon of 3 to 64 points that does not cross itself. `x`, `y`, `w` and `h` stay its bounding box. `validate` names the piece when `pts` is missing, too short or long, not finite, crossing, or on another symbol; `migrate` drops what `validate` would refuse. Add > Furniture > Kitchen and dining lists "Worktop" (B54.1).
 - Card and Studio: a worktop is drawn as its own outline, in 2D with the furniture fill and a top edge (`color` overrides), in 2.5D and in 3D as a prism 90 cm high. One draw path, so the Studio and the card agree (B54.2).

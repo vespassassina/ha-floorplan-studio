@@ -653,8 +653,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       const own = ownersOf(m), pos = m.geometry.getAttribute("position"), nor = heatTint.size ? m.geometry.getAttribute("normal") : null;
       for (let i = 0; i < own.length; i++) {
         // The floor tint goes by the triangle's centre, not the vertex: a corner on a shared wall is owned by one neighbour only, and the tint would fade across the room.
-        const t = i - (i % 3), room = nor && i + 2 - (i % 3) < own.length ? roomOfPoint(roomShapes, (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3) : -1;
-        const l = lifts.get(own[i]), h = nor && room >= 0 && nor.getY(i) > 0.5 && Math.abs(pos.getY(i) - (roomSolid.get(room)?.z ?? NaN)) < 0.5 ? heatTint.get(room) : undefined;
+        const t = i - (i % 3), room = nor && nor.getY(i) > 0.5 && i + 2 - (i % 3) < own.length ? roomOfPoint(roomShapes, (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3) : -1;
+        const l = lifts.get(own[i]), h = nor && room >= 0 && Math.abs(pos.getY(i) - (roomSolid.get(room)?.z ?? NaN)) < 0.5 ? heatTint.get(room) : undefined;
         for (let k = 0; k < 3; k++) a[i * 3 + k] = (l ? l[k] : 1) * (h ? h[k] : 1);
       }
     }
@@ -834,11 +834,11 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     }
     return more;
   }
-  /** B54.4: what the floor of each heated room is multiplied by: white moved half way to the theme's `--fp-floor-heat`, scaled so its strongest channel stays 1 (it warms, it does not darken). */
+  /** B54.4: what the floor of each heated room is multiplied by: `0.7 + 0.9 * channel` of the theme's `--fp-floor-heat`. Red goes above 1 as a lamp's lift does and blue falls only a little, so a dark floor reads lighter and warmer (a tint capped at 1 only took blue away: midnight went 19,32,56 to 19,27,43). */
   const floorHeat = (rooms: readonly number[] | undefined): Map<number, Rgb> => {
     const out = new Map<number, Rgb>(), n = rooms?.length ? resolveColour(probe, "var(--fp-floor-heat)") : null;
     if (n === null) return out;
-    const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255), top = Math.max(...c, 1e-6), tint = c.map((v) => 0.5 + 0.5 * (v / top)) as Rgb;
+    const tint = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => 0.7 + 0.9 * (v / 255)) as Rgb;
     for (const r of rooms ?? []) if (roomSolid.has(r)) out.set(r, tint);
     return out;
   };

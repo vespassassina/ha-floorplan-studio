@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: Underfloor heat tint may exceed 1 (supersedes the cap in B54.4)
+
+Opus review of Sprint 54: the 3D floor tint was `0.5 + 0.5 * v / top`, so no channel could exceed 1 and on a dark floor it only
+removed blue (midnight 19,32,56 to 19,27,43; blueprint 18,33,54 to 18,27,40), which reads darker, not warmer. It is now
+`0.7 + 0.9 * channel` of `--fp-floor-heat`: red goes above 1 as a lamp lift does, blue falls a little. Still one multiply in
+`paintLifts`, no second mechanism (D27). Seen: light 228,222,206 to 255,227,186; midnight 19,32,56 to 26,34,52; blueprint 18,33,54 to 25,35,49.
+On a dark floor the change is real but modest: a multiply has little to lift.
+
 ## 2026-11-07: card cap 131,000 to 138,000 gzip
 
 Diego, mid Sprint 54: "make the budget larger and just roll". Underfloor took the card to 129,746 of 131,000, and the badges

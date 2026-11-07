@@ -19,7 +19,7 @@ const flagged = (on: boolean) => {
   return l;
 };
 
-async function boot(page: Page, layout: unknown, states: Record<string, unknown>) {
+async function boot(page: Page, layout: unknown, states: Record<string, unknown>, theme = "light") {
   await serve(page);
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto(`${ORIGIN}/harness.html`);
@@ -29,7 +29,7 @@ async function boot(page: Page, layout: unknown, states: Record<string, unknown>
     el.setConfig(config);
     el.hass = { states, callService: () => {} };
     return el.updateComplete;
-  }, [{ layout, floor: "ground", view: "3d", theme: "light", active_list: false }, states] as const);
+  }, [{ layout, floor: "ground", view: "3d", theme, active_list: false }, states] as const);
   await drawn(page);
   await still(page);
 }
@@ -51,24 +51,40 @@ const at = (page: Page, x: number, y: number, z: number) => page.evaluate(([x, y
 async function mean(page: Page, p: Where, half = 10): Promise<[number, number, number]> {
   return meanRgb((await readCanvasRect(page, { x: p.x - half, y: p.y - half, width: 2 * half, height: 2 * half })).data);
 }
-const warmth = (c: number[]) => c[0] / c[2];
+const luma = (c: number[]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 
-test("a flagged heater that is heating warms its room's floor; idle puts it back; the neighbour never moves", async ({ page }) => {
-  await boot(page, flagged(true), QUIET());
-  const living = await at(page, 100, 100, 1), kitchen = await at(page, 720, 60, 1);
-  const before = { living: await mean(page, living), kitchen: await mean(page, kitchen) };
-  expect((await live(page)).heated).toEqual([]);
+// Finding 16: the first version multiplied by at most 1, so on a dark floor it only took blue away (midnight 19,32,56 went to 19,27,43) and the
+// heating read darker, not warmer. Light proves nothing here, so each dark theme and a custom floor are read as well. Each state is a real read of the canvas.
+for (const theme of ["light", "midnight", "blueprint"]) {
+  test(`${theme}: a flagged heater that is heating warms its room's floor, never darker; idle puts it back; the neighbour never moves`, async ({ page }) => {
+    await boot(page, flagged(true), QUIET(), theme);
+    const living = await at(page, 100, 100, 1), kitchen = await at(page, 720, 60, 1);
+    const before = { living: await mean(page, living), kitchen: await mean(page, kitchen) };
+    expect((await live(page)).heated).toEqual([]);
+    await setStates(page, QUIET("heating"));
+    const after = { living: await mean(page, living), kitchen: await mean(page, kitchen) };
+    expect((await live(page)).heated).toEqual([0]);
+    expect(after.living[0], "red rises").toBeGreaterThan(before.living[0] + 3);
+    expect(luma(after.living), "not darker").toBeGreaterThanOrEqual(luma(before.living));
+    for (let k = 0; k < 3; k++) expect(Math.abs(after.kitchen[k] - before.kitchen[k]), `kitchen channel ${k}`).toBeLessThanOrEqual(1.5);
+    await setStates(page, QUIET("idle"));
+    const off = await mean(page, living);
+    for (let k = 0; k < 3; k++) expect(Math.abs(off[k] - before.living[k]), `living channel ${k} back`).toBeLessThanOrEqual(1.5);
+    expect((await live(page)).heated).toEqual([]);
+  });
+}
+
+test("a custom green floor is warmed, not darkened or turned to mud", async ({ page }) => {
+  const l = flagged(true);
+  l.floors.ground.rooms[0].color = "#4f8c50";
+  await boot(page, l, QUIET());
+  const living = await at(page, 100, 100, 1);
+  const before = await mean(page, living);
   await setStates(page, QUIET("heating"));
-  const after = { living: await mean(page, living), kitchen: await mean(page, kitchen) };
-  expect((await live(page)).heated).toEqual([0]);
-  // redder, by an asymmetric margin the lamp's lift (which also lifts blue) would not give; blue falls
-  expect(warmth(after.living)).toBeGreaterThan(warmth(before.living) * 1.08);
-  expect(after.living[2]).toBeLessThan(before.living[2] - 8);
-  for (let k = 0; k < 3; k++) expect(Math.abs(after.kitchen[k] - before.kitchen[k]), `kitchen channel ${k}`).toBeLessThanOrEqual(1.5);
-  await setStates(page, QUIET("idle"));
-  const off = await mean(page, living);
-  for (let k = 0; k < 3; k++) expect(Math.abs(off[k] - before.living[k]), `living channel ${k} back`).toBeLessThanOrEqual(1.5);
-  expect((await live(page)).heated).toEqual([]);
+  const after = await mean(page, living);
+  expect(after[0], "red rises").toBeGreaterThan(before[0] + 3);
+  expect(luma(after), "not darker").toBeGreaterThanOrEqual(luma(before));
+  expect(after[2], "blue keeps at least 80%").toBeGreaterThanOrEqual(before[2] * 0.8);
 });
 
 test("the same heating without the flag changes nothing", async ({ page }) => {
