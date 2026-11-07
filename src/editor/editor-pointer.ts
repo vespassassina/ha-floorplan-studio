@@ -1,4 +1,4 @@
-import { dist, edgeRooms, type Floor, insertPoint, nearestEdge, polys, type Pt, rotateAbout, snapped, snapPoint, stitch, type WallKind } from "../core";
+import { dist, edgePoint, edgeRooms, worktopIndex, worktopPts, worktopShift, type Floor, insertPoint, nearestEdge, polys, type Pt, rotateAbout, snapped, snapPoint, stitch, type WallKind } from "../core";
 import { type LooseRef, polyPts, ptOf, type PtRef, type Sel } from "./state";
 import { type Drag, type Hit, HOST, mirrorOnWall, round } from "./editor-kit";
 import { type Corner, furnitureNear, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo } from "./ops";
@@ -15,7 +15,7 @@ import type { FloorplanStudioEditor } from "./editor-app";
 // ---- the pointer: press, move, release, double-click, wheel, hit tests and the corner snap ---------------
 
 /** Does this point reference a corner of a zone? A zone never joins another polygon. */
-const isZoneRef = (f: Floor, ref: PtRef) => "poly" in ref && ref.poly[0] === "r" && (f.rooms[+ref.poly.slice(1)]?.kind === "zone" || f.rooms[+ref.poly.slice(1)]?.free === true); // a zone or a free room is never stitched
+const isZoneRef = (f: Floor, ref: PtRef) => "poly" in ref && (worktopIndex(ref.poly) !== null || (ref.poly[0] === "r" && (f.rooms[+ref.poly.slice(1)]?.kind === "zone" || f.rooms[+ref.poly.slice(1)]?.free === true))); // a zone, a free room or a worktop is never stitched
 
 function segDist(p: Pt, a: Pt, b: Pt): number {
   const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
@@ -35,6 +35,8 @@ function hitOf(el: Element | null): Hit {
   if (hp) { const [k, i, end] = (hp.getAttribute("data-hp") ?? "").split(":"); return { k: "loose", ref: { k: k as LooseRef["k"], i: +i, end: end as "a" | "b" } }; }
   const dh = el.closest("[data-dh]");
   if (dh) { const [i, end] = (dh.getAttribute("data-dh") ?? "").split(":"); return { k: "dend", i: +i, end: end as "a" | "b" }; }
+  const we = el.closest("[data-we]");
+  if (we) { const [i, e] = (we.getAttribute("data-we") ?? "").split(":"); return { k: "wedge", i: +i, e: +e }; }
   const fh = el.closest("[data-fh]");
   if (fh) { const [i, corner] = (fh.getAttribute("data-fh") ?? "").split(":"); return { k: "fscale", i: +i, corner: corner as Corner }; }
   const d = el.closest("[data-d]");
@@ -167,6 +169,7 @@ export const onDown = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
       const from = ptOf(f, ref);
       if (!from) break;
       st.sel = { t: "v", ref };
+      if ("poly" in ref && worktopIndex(ref.poly) !== null && f.furniture[worktopIndex(ref.poly)!]?.locked) break; // a locked worktop only selects
       ed.drag = { type: "corner", base, from: [from[0], from[1]], ref, moved: false, to: [from[0], from[1]] };
       break;
     }
@@ -204,6 +207,20 @@ export const onDown = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
       if (!m) break;
       st.sel = { t: "furn", i: hit.i };
       if (!m.locked) ed.drag = { type: "furn", base, i: hit.i, off: [p[0] - m.x, p[1] - m.y], moved: false };
+      break;
+    }
+    case "wedge": {
+      // B54.3: a press on a selected worktop's edge adds a corner there and carries it, as ONE undo step: the snapshot is taken now and the drag that may follow is part of it.
+      const m = f.furniture[hit.i], pts = m ? worktopPts(m) : null;
+      if (!m || !pts) break;
+      st.sel = { t: "furn", i: hit.i };
+      if (m.locked) break;
+      const q = edgePoint(pts[hit.e], pts[(hit.e + 1) % pts.length], p), g = insertPoint(f, `w${hit.i}`, hit.e, q);
+      if (g === f) { ed.status = "No corner added there: a worktop holds 3 to 64 corners and may not cross itself"; break; }
+      st.snapshot(); st.replaceFloor(g);
+      const ref: PtRef = { poly: `w${hit.i}`, j: hit.e + 1 };
+      st.sel = { t: "v", ref };
+      ed.drag = { type: "corner", base: structuredClone(g), from: q, ref, moved: true, to: q };
       break;
     }
     case "fscale": {
@@ -422,6 +439,12 @@ export const onMove = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
     }
     case "furn": {
       begin(ed, d);
+      if (worktopPts(d.base.furniture[d.i])) {
+        // B54.3: a worktop moves by its points; x and y follow as the box centre. Whole cm, so the points stay whole.
+        const m = d.base.furniture[d.i];
+        g = worktopShift(d.base, d.i, Math.round(g5(p[0] - d.off[0]) - m.x), Math.round(g5(p[1] - d.off[1]) - m.y));
+        break;
+      }
       g = structuredClone(d.base);
       g.furniture[d.i].x = g5(p[0] - d.off[0]);
       g.furniture[d.i].y = g5(p[1] - d.off[1]);
@@ -543,10 +566,8 @@ export const onDblClick = (ed: FloorplanStudioEditor, ev: MouseEvent) => {
   if (hit.k !== "edge") return;
   const pts = polyPts(ed.st.f, hit.poly);
   if (!pts) return;
-  const a = pts[hit.i], b = pts[(hit.i + 1) % pts.length], dx = b[0] - a[0], dy = b[1] - a[1];
-  const t = Math.max(0.05, Math.min(0.95, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
-  const { poly, i } = hit;
-  ed.commit((f) => insertPoint(f, poly, i, round([a[0] + dx * t, a[1] + dy * t])));
+  const a = pts[hit.i], b = pts[(hit.i + 1) % pts.length], { poly, i } = hit, q = edgePoint(a, b, p);
+  ed.commit((f) => insertPoint(f, poly, i, q));
   ed.st.sel = null;
   ed.requestUpdate();
 };

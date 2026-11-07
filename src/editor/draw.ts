@@ -1,4 +1,5 @@
-import { dist, stitch } from "../core";
+import { dist, stitch, worktopPtsProblem, WORKTOP_MAX_PTS } from "../core";
+import { boxOf } from "../core/polygon";
 import type { EdgeKind, Floor, Pt, RoomKind, WallKind } from "../core";
 import { closedLoop, MAX_RING } from "./ops";
 import { newId, slug, type Sel } from "./state";
@@ -7,13 +8,13 @@ import { newId, slug, type Sel } from "./state";
 // function that turns the finished shape into a new floor. The editor only
 // feeds it snapped points and draws what it reports.
 
-export type DrawKind = "room" | "zone" | "water" | "outline" | "wall" | "opening" | "extra";
+export type DrawKind = "room" | "zone" | "water" | "outline" | "wall" | "opening" | "extra" | "worktop";
 /** S4.2: the HA area a room or zone is drawn for, from "Areas not on the plan". */
 export interface AreaPreset { id: string; name: string }
 export interface Shape { kind: DrawKind; wall: WallKind; pts: Pt[]; area?: AreaPreset }
 export type ClickResult = "add" | "ignore" | "finish";
 
-const POLYGONS: readonly DrawKind[] = ["room", "zone", "water", "outline"];
+const POLYGONS: readonly DrawKind[] = ["room", "zone", "water", "outline", "worktop"];
 /** A single segment: the second click finishes it. Walls chain instead. */
 const SEGMENTS: readonly DrawKind[] = ["opening", "extra"];
 const MAX_TYPED_CM = 10000;
@@ -41,6 +42,7 @@ export class Draw {
     // Walls chain, but a click back on the first corner closes the loop exactly there. (S1.48)
     if (this.kind === "wall" && n >= 3 && dist(raw, this.points[0]) <= closeTh) { this.points.push([this.points[0][0], this.points[0][1]]); return "finish"; }
     if (n && dist(pt, this.points[n - 1]) < SAME) return "ignore";
+    if (this.kind === "worktop" && n >= WORKTOP_MAX_PTS) return "ignore"; // a worktop holds 64 points at most; the 65th click is not taken
     this.typed = "";
     this.points.push([pt[0], pt[1]]);
     return SEGMENTS.includes(this.kind) && this.points.length === 2 ? "finish" : "add";
@@ -129,6 +131,13 @@ export function roomKindFor(kinds: readonly WallKind[]): RoomKind {
 export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; sel: Sel; note?: string } {
   const g = structuredClone(f), pts = s.pts.map((p): Pt => [p[0], p[1]]);
   let sel: Sel = null;
+  if (s.kind === "worktop") {
+    // B54.3: a worktop is a piece of furniture with its own outline. It is not stitched into any room: it stands on the floor.
+    const why = worktopPtsProblem(pts);
+    if (why) return { floor: f, sel: null, note: `Worktop not added: it ${why}` };
+    g.furniture.push({ id: newId(g, floor, "furniture"), symbol: "worktop", ...boxOf(pts), rot: 0, pts });
+    return { floor: g, sel: { t: "furn", i: g.furniture.length - 1 } };
+  }
   if (s.kind === "outline") {
     // owk must track the outline point for point (Opus review): kept when the redraw has the same
     // point count as before (the old kinds still line up corner for corner), external otherwise, since

@@ -4972,7 +4972,7 @@ task measures its real figure and records it in DECISIONS.
 
 - [x] 2026-11-07 B54.1 The worktop's schema: `pts`, the box kept in step, `validate` (criterion 4).
 - [x] 2026-11-07 B54.2 The worktop drawn in 2D, 2.5D and 3D at 90 cm.
-- B54.3 Worktop editing: draw by points, vertex handles, add, remove, move, one undo step each. The polygon code is
+- [x] 2026-11-07 B54.3 Worktop editing: draw by points, vertex handles, add, remove, move, one undo step each. The polygon code is
   shared with rooms (criterion 5).
 - B54.4 `underfloor` on `climate` and `heater`: `--fp-floor-heat` in every theme, the wash and the pipe pattern in 2D,
   the warm floor in 3D (criterion 6).

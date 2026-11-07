@@ -11,6 +11,7 @@ export type Hit =
   | { k: "fscale"; i: number; corner: Corner }
   | { k: "door" | "opening" | "dev" | "furn" | "unl" | "wall" | "room" | "stairs" | "extra"; i: number }
   | { k: "edge"; poly: string; i: number }
+  | { k: "wedge"; i: number; e: number } // B54.3: edge e of worktop i
   | { k: "bg" };
 
 export type Drag =

@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: B54.3 The worktop edited
+
+A worktop is drawn by clicking points like a room (double-click or Enter ends, Esc cancels). A selected worktop shows a handle per
+point; drag one, click an edge to add one, Delete on a selected point removes it (never below 3), and dragging the piece moves every
+point. The writers are in `src/core/polygon.ts` (`worktopInsert`, `worktopRemove`, `worktopMove`, `worktopShift`, `worktopTurn`) and
+share the room panel's ring code. Each returns the piece with x, y, w, h re-fitted to the bounding box and rot 0, and refuses a result
+that is not a simple polygon, so the Studio cannot commit an invalid worktop (tested over every point and several moves, with
+`validate` after each). A worktop is not in `geometry.polys`: no snapping, stitching or door-hosting. One undo step per gesture, none
+when unchanged. Gzip -9 against 05b470f9, B54.1 to B54.3 together: card +968, 3d +15, form +564, panel +2212 bytes (before:
+129,295 / 164,882 / 26,700 / 204,128).
+
 ## 2026-11-07: B54.2 The worktop drawn
 
 One draw path: `renderFloor` (2D and 2.5D) and `buildScene` (3D) both frame a piece through `worktopFrame` (`src/core/polygon.ts`)
