@@ -4978,6 +4978,13 @@ task measures its real figure and records it in DECISIONS.
   the warm floor in 3D (criterion 6). Done: `heatedRooms` in core feeds the wash, the pipes and `Live3D.heated`; the 3D tint rides `paintLifts`.
   Card 129,746 gzip (was 129,295, +451).
 
+Closed 2026-11-07, released as 0.45.0. Tests at close: vitest 7,090+, Playwright 2,918 passed and 6 skipped; card 131,018 gzip
+(cap 138,000). Opus reopened it once: the 3D underfloor tint darkened dark themes (the old tint could not raise red), a refused
+worktop corner drag left an undo step, and retyping a turned piece to a worktop kept the wrong box. All fixed and re-checked, then
+two follow-ups (a wrong status once the undo history is full; a wrong reason on a corner dragged back). Lessons: a pixel test pins
+every theme it claims, not only the default; a gesture that every move refuses must not commit. Carried over: the 3D time-to-first-frame
+number from the wall tablet; the dark-theme heat tint is modest (a different mechanism if wanted).
+
 ### Sprint 55: room badges
 
 - B55.1 Schema: `badges`, `power`, `water`, with `validate`, and the room panel's settings and sensor lists.
