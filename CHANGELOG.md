@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.45.0 - 2026-11-07
 
 - Studio: dragging a worktop corner out and back to where it started no longer says the shape would cross itself.
 - Studio: deleting a worktop corner no longer says "No corner removed" after a long editing session (a full undo history fooled the check).
