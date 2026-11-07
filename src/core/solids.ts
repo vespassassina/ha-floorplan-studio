@@ -414,7 +414,7 @@ function prism(base: Pt[], h: number, px: Proj, z0 = 0): string | null {
  */
 export const FURNITURE_SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
   table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", wardrobe: "box", dresser: "box", nightstand: "box", desk: "box", armchair: "box", counter: "box", stove: "box", fridge: "box", dishwasher: "box", washer: "box", dryer: "box", rug: "flat", plant: "box", treadmill: "box", "barbell-rack": "box", "weight-rack": "box", "chaise-longue": "box", "cube-shelf": "box", mirror: "box", "mirror-stand": "box", "robot-vacuum": "box", "robot-dock": "box", tv: "box", computer: "box", speaker: "box",
-  car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
+  car: "box", worktop: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
 };
 /** How a piece of furniture draws in 2.5D. A piece that is not finite or not known is flat: the 2D path deals with it as ever. */
 export function furnitureMode(m: Furniture): "box" | "pole" | "flat" {

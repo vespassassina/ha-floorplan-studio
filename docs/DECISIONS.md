@@ -2,6 +2,20 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: B54.1 The worktop's schema
+
+`Furniture.symbol` gains `worktop`, and `Furniture.pts?: Pt[]` exists on it alone and is required there: 3 to 64 finite points
+within 10 km, a simple polygon (`isSimplePolygon`, `src/core/polygon.ts`: no repeated point, no edge touching a non-neighbour,
+no neighbour folded back on its shared corner, non-zero area). `x`, `y`, `w`, `h` stay the bounding box (`boxOf`) and `rot` 0;
+`pts` is the truth. `validate` names the piece for each failure and never throws on a hostile `pts` (a proxy, a getter, junk);
+`migrate` keeps `pts` only where `validate` would accept it and leaves a worktop without them to fail by name, inventing none.
+Every table that iterates `FURNITURE_SYMBOLS` took an entry: height 90, solid `box`, label "Worktop", area Kitchen and dining,
+unlinked, paintable, a thumbnail L in `icons.ts`, one bounding-box block in `furnitureBlocks` (a reader that knows only the
+box). Renderers draw it from `pts` (B54.2). Retyping a piece to `worktop` makes its turned footprint the points and sets `rot`
+0; away from it the points go. Fixtures that walk the union (`retype`, `mirror-schema`, `furniture-paint` pieces, and the
+per-symbol tables in `icons`, `link-electric`, `scene`, `solids-objects`) gained the one worktop entry; no assertion changed.
+Gzip: card +670, form +564, panel +792, 3d +5 (from 129,295 / 26,700 / 204,128 / 164,882).
+
 ## 2026-11-06: Outdoor light, night and day
 
 Diego: the plan is too dark outdoors at night to read, and by day the garden should follow the weather and the hour.

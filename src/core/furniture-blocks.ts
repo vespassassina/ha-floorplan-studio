@@ -87,6 +87,8 @@ export function furnitureBlocks(m: Furniture): Block[] {
       box(0, w, 0, h, H - top, H);
       break;
     }
+    // B54.1: a worktop is a polygon (`pts`), built from them in 2.5D and 3D; this one block is its bounding box, for a reader that knows only the box.
+    case "worktop": box(0, w, 0, h, 0, H); break;
     case "bathtub": {
       const base = lift(15, 0.3), rx = room(w, 8), ry = room(h, 8);
       box(0, w, 0, h, 0, base);

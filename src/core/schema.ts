@@ -1,5 +1,6 @@
 import { TEXTURE_IDS } from "./textures";
 import { WALL_COLOUR_KEYS } from "./wall-colour";
+import { worktopPtsProblem } from "./polygon";
 export type Pt = [number, number];
 export type RoomKind = "room" | "garden" | "pavement" | "fill" | "terrace" | "structure" | "zone" | "water";
 export type DoorKind = "door" | "glass" | "window" | "sealed" | "slit" | "fullwindow" | "open";
@@ -10,7 +11,7 @@ export type DeviceType =
   | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum" | "siren" | "alarm" | "fan" | "screen";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
-  | "bathtub" | "sofa-l" | "coffee-table" | "bookcase" | "buffet" | "wardrobe" | "dresser" | "nightstand" | "desk" | "armchair" | "counter" | "stove" | "fridge" | "dishwasher" | "washer" | "dryer" | "rug" | "plant" | "treadmill" | "barbell-rack" | "weight-rack" | "chaise-longue" | "cube-shelf" | "mirror" | "mirror-stand" | "robot-vacuum" | "robot-dock" | "tv" | "computer" | "speaker" | "tree" | "patio-wood" | "patio-concrete" | "car";
+  | "bathtub" | "sofa-l" | "coffee-table" | "bookcase" | "buffet" | "wardrobe" | "dresser" | "nightstand" | "desk" | "armchair" | "counter" | "stove" | "fridge" | "dishwasher" | "washer" | "dryer" | "rug" | "plant" | "treadmill" | "barbell-rack" | "weight-rack" | "chaise-longue" | "cube-shelf" | "mirror" | "mirror-stand" | "robot-vacuum" | "robot-dock" | "tv" | "computer" | "speaker" | "tree" | "patio-wood" | "patio-concrete" | "car" | "worktop";
 
 /** The twelve floor materials offered as swatches in the room panel (S1.35). Any #rrggbb is still valid on a room. */
 export const FLOOR_COLOURS: { name: string; hex: string }[] = [
@@ -153,7 +154,7 @@ export const MAX_CAR_ATTACHED = 24;
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. `height` is the size of the piece, `z` its bottom above the floor
  *  (a wall TV, a speaker): the top is z + height. */
-export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number; model?: CarModel; color?: string; /** B53.4: with `color`, the paint of any piece but a car (whose `color` is its body) and a tree; `texture` is a room texture. */ texture?: string; textureRot?: number; textureScale?: number; attached?: string[]; /** B53.11: a plant's moisture threshold, a whole percent from 1 to 99; absent means `MIN_MOISTURE`. */ minMoisture?: number; /** B53.2: a `sofa-l` with its chaise on the right. Only `true`, only on a `sofa-l`; absent means the chaise is on the left as the symbol is drawn. */ mirror?: true }
+export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: number; rot: number; w: number; h: number; name?: string; entity?: string; locked?: boolean; height?: number; z?: number; model?: CarModel; color?: string; /** B53.4: with `color`, the paint of any piece but a car (whose `color` is its body) and a tree; `texture` is a room texture. */ texture?: string; textureRot?: number; textureScale?: number; attached?: string[]; /** B53.11: a plant's moisture threshold, a whole percent from 1 to 99; absent means `MIN_MOISTURE`. */ minMoisture?: number; /** B53.2: a `sofa-l` with its chaise on the right. Only `true`, only on a `sofa-l`; absent means the chaise is on the left as the symbol is drawn. */ mirror?: true; /** B54.1: a `worktop` only, and required there: its outline in plan cm, 3 to 64 points, a simple polygon. `x`, `y`, `w` and `h` stay the bounding box (centre and size), `rot` 0; `pts` is the truth. */ pts?: Pt[] }
 /**
  * S4.25: an appliance placed on the plan with a fixed icon (by `type`, from `UNLINKED_TYPES`), not tied to a
  * single entity's state. `attached` is zero or more HA entities linked to it for reference only — it never
@@ -247,7 +248,7 @@ export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
-export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"];
+export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car", "worktop"];
 /** S4.25: the appliance types offered in the Add > Unlinked device menu — a curated subset of DEVICE_TYPES, each with a fixed icon and no linked-entity state. "heatpump" reuses the "ac" icon and colour; there is no separate type for it. */
 export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light", "fan"];
 
@@ -600,6 +601,9 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         if (m.symbol !== "sofa-l") errors.push(`${at} ${m.id} mirror is only allowed on a sofa-l`);
         else if (m.mirror !== true) errors.push(`${at} ${m.id} mirror must be true; leave it out for the chaise on the left`);
       }
+      // B54.1: a worktop is its `pts`; nothing else carries them.
+      if (m.symbol === "worktop") { const why = worktopPtsProblem(m.pts); if (why) errors.push(`${at} ${m.id} pts ${why}`); }
+      else if (m.pts !== undefined) errors.push(`${at} ${m.id} pts is only allowed on a worktop`);
       // S35.1: the car keys. `includes` on a list, so `__proto__` or `constructor` never match.
       if (m.model !== undefined && m.symbol !== "car") errors.push(`${at} ${m.id} model is only allowed on a car`);
       if (m.attached !== undefined && !isLinkable(m.symbol)) errors.push(`${at} ${m.id} attached is only allowed on a linked piece (a car, a plant, a tv, a speaker, a computer, an appliance, a treadmill or a robot)`);

@@ -9,7 +9,7 @@ import { EditorState } from "../../src/editor/state";
 
 // B53.4 (spec item 19a, criterion 3a): any furniture piece takes `color` or `texture` (+ `textureRot`, `textureScale`) as a room does.
 // A layout file is untrusted (finding 1): validate never throws and names the piece, migrate drops what validate would refuse.
-const piece = (symbol: string, extra: Record<string, unknown> = {}) => ({ id: "m1", symbol, x: 400, y: 300, rot: 30, w: 200, h: 90, ...extra });
+const piece = (symbol: string, extra: Record<string, unknown> = {}) => ({ id: "m1", symbol, x: 400, y: 300, rot: 30, w: 200, h: 90, ...(symbol === "worktop" ? { pts: [[0, 0], [100, 0], [100, 40], [40, 40], [40, 90], [0, 90]] } : {}), ...extra });
 const floorOf = (furniture: unknown[]): Floor => ({
   title: "G", outline: [[0, 0], [1000, 0], [1000, 800], [0, 800]], owk: ["external", "external", "external", "external"],
   rooms: [{ id: "r0", name: "Hall", area: "", kind: "room", pts: [[0, 0], [1000, 0], [1000, 800], [0, 800]], wk: ["wall", "wall", "wall", "wall"] }],

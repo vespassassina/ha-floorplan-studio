@@ -327,7 +327,7 @@ describe("scene: furniture, unlinked, stairs", () => {
   /** What a symbol becomes. Written out on purpose (finding 17). */
   const SYMBOL_DECISION: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
     table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", wardrobe: "box", dresser: "box", nightstand: "box", desk: "box", armchair: "box", counter: "box", stove: "box", fridge: "box", dishwasher: "box", washer: "box", dryer: "box", rug: "flat", plant: "box", tv: "box", computer: "box", speaker: "box", treadmill: "box", "barbell-rack": "box", "weight-rack": "box", "chaise-longue": "box", "cube-shelf": "box", mirror: "box", "mirror-stand": "box", "robot-vacuum": "box", "robot-dock": "box",
-    car: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
+    car: "box", worktop: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
   };
   it("decides every FurnitureSymbol", () => {
     expect(Object.keys(SYMBOL_DECISION).sort()).toEqual([...FURNITURE_SYMBOLS].sort());

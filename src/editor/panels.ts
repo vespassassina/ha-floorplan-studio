@@ -7,6 +7,7 @@ import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey,
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, MIN_MOISTURE, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
 import { bodyOf, furniturePaintable } from "../core";
+import { rectPts } from "../core/polygon";
 import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, Furniture, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -1287,6 +1288,9 @@ function acField(c: PanelCtx, i: number) {
  * validate, finding 12): a washer refuses the loose entity a tv may carry, and a mirror takes no paint. A test walks every pair.
  */
 export function retype(p: Furniture, from: string, to: string): void {
+  // B54.1: a worktop is its `pts`. Entering it, the piece's own footprint becomes them (turned as it was, then `rot` 0); leaving it, they go.
+  if (to === "worktop" && from !== "worktop") { p.pts = rectPts(p); p.rot = 0; }
+  if (to !== "worktop") delete p.pts;
   p.symbol = to as Furniture["symbol"];
   if (to !== "car") { delete p.model; if (from === "car") delete p.color; }
   if (!isLinkable(to)) delete p.attached; // B53.11: a car, an appliance and a plant hold attached entities

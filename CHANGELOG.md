@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Layout file: a new furniture symbol `worktop` with `pts`, a polygon of 3 to 64 points that does not cross itself. `x`, `y`, `w` and `h` stay its bounding box. `validate` names the piece when `pts` is missing, too short or long, not finite, crossing, or on another symbol; `migrate` drops what `validate` would refuse. Add > Furniture > Kitchen and dining lists "Worktop" (B54.1).
+
 ## 0.44.1 - 2026-11-06
 
 Outdoors is readable at night and follows the weather by day; two Studio menu fixes.

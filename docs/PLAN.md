@@ -4970,7 +4970,7 @@ task measures its real figure and records it in DECISIONS.
 
 ### Sprint 54: worktop and underfloor heating
 
-- B54.1 The worktop's schema: `pts`, the box kept in step, `validate` (criterion 4).
+- [x] 2026-11-07 B54.1 The worktop's schema: `pts`, the box kept in step, `validate` (criterion 4).
 - B54.2 The worktop drawn in 2D, 2.5D and 3D at 90 cm.
 - B54.3 Worktop editing: draw by points, vertex handles, add, remove, move, one undo step each. The polygon code is
   shared with rooms (criterion 5).
