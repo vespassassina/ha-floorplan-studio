@@ -7,7 +7,6 @@
 // Frame: x and y are the plan's, in cm, y down as on the plan; z is up, in cm, 0 the walking surface of the floor.
 // `opts.elevation` lifts the whole scene (the floor's slab top, `floorElevation`) so floors can be stacked.
 import { debugOnce } from "./debug-once";
-import { worktopFrame, worktopPts } from "./polygon";
 import type { FloorsAround } from "./stairs";
 import type { Device, Floor, FurnitureSymbol, Pt } from "./schema";
 
@@ -23,7 +22,7 @@ type BlockTone = import("./furniture-blocks").Block["tone"];
 export type SceneDeps = Pick<Blocks, "furnitureBlocks" | "darkenedHex"> & Pick<Heights, "deviceZ" | "doorSpan" | "edgeHeight" | "floorHeight" | "floorSlab" | "furnitureBottom" | "furnitureHeight" | "openingSpan" | "radiatorSpan" | "unlinkedHeight" | "wallHeight">
   & Pick<Render, "attachedTest" | "inside"> & Pick<typeof import("./stairs"), "resolveStairDirection"> & Pick<typeof import("./wall-colour"), "wallColourMap" | "wallEdgeKey">
   & Pick<Solids, "bodyOf" | "bodyPlacement" | "FURNITURE_SOLID" | "FRAME_PROUD" | "FRAME_WIDTH" | "KERB_HIGH" | "KERB_OUT" | "OPENING_FILL" | "OPENING_FRAMED" | "RADIATOR_DEEP" | "SPEAKER_HEIGHT" | "SPEAKER_SIDE" | "TV_HEIGHT" | "TV_THICK" | "TV_WIDTH" | "UNLINKED_BASE" | "WELL_DEPTH" | "pieceDevice" | "stairBlocks" | "turnAbout" | "tvPlacement" | "within">
-  & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape"> & Pick<typeof import("./car"), "carParts" | "carSpec"> & Pick<typeof import("./furniture-paint"), "furniturePaint">;
+  & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape"> & Pick<typeof import("./car"), "carParts" | "carSpec"> & Pick<typeof import("./furniture-paint"), "furniturePaint"> & Pick<typeof import("./polygon"), "worktopFrame" | "worktopPts">; // B54.2
 
 /**
  * A vertical extrusion of a polygon from `z0` to `z1` (every box is one), or a single point (a device with no body of its own).
@@ -87,7 +86,7 @@ const JOINT_TOLERANCE = 1;
 /** The scene builder, bound to the helpers of core it needs. The 3D chunk builds one per view; `core/scene.ts` binds the real ones for the tests. */
 export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) => Scene {
   const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, bodyOf, bodyPlacement, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, furnitureBlocks, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec, wallColourMap, wallEdgeKey } = d;
-  const { furniturePaint, darkenedHex: darkHex } = d; // B53.4
+  const { furniturePaint, darkenedHex: darkHex, worktopFrame, worktopPts } = d; // B53.4, B54.2
   const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && fin(p[0]) && fin(p[1]);
   const ring = (p: unknown): Pt[] | null => (Array.isArray(p) && p.length >= 3 && p.every(isPt) ? (p as Pt[]) : null);
