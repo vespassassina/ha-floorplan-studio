@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: The underfloor wash carries `data-uf`, not `data-fh` (Opus review of Sprint 54)
+
+`data-fh` is what the editor's furniture scale handle is hit-tested by (`closest("[data-fh]")`). The `floor-heat` polygon had
+the same attribute, which would have read as a handle the day the wash took a pointer. Renamed; the pipes keep `data-fp`.
+
 ## 2026-11-07: Retyping a turned piece to a worktop refits its box (Opus review of Sprint 54)
 
 `retype` set `pts` and `rot` 0 but kept the old `w` and `h`, so a 200 x 60 table turned 90 became a worktop whose box said

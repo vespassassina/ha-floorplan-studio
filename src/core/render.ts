@@ -1503,7 +1503,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (warned.has(i) && heatKind !== "temperature") out.push(`<polygon class="temp-wash temp-wash-${warned.get(i)}" data-tw="${i}" points="${pts(r.pts)}"/>`);
     // B54.4: underfloor heating at work. The wash gives way to a heat map (which already colours the room); the pipes stay. Classes, not attributes (finding 18).
     if (underfloor.has(i)) {
-      if (!heatKind) out.push(`<polygon class="floor-heat" data-fh="${i}" points="${pts(r.pts)}"/>`);
+      if (!heatKind) out.push(`<polygon class="floor-heat" data-uf="${i}" points="${pts(r.pts)}"/>`);
       out.push(`<polygon class="floor-pipes" data-fp="${i}" points="${pts(r.pts)}"/>`);
     }
   });

@@ -67,14 +67,15 @@ describe("renderFloor: the underfloor cue", () => {
   it("washes and patterns the room that holds the icon while hvac_action is heating, and no other room", () => {
     const html = renderFloor(floorOf([UF]), { scale: 1, state: heating });
     expect(wash(html)).toHaveLength(1);
-    expect(wash(html)[0]).toContain('data-fh="0"');
+    expect(wash(html)[0]).toContain('data-uf="0"');
+    expect(html).not.toContain("data-fh"); // the editor's scale handle reads data-fh, so a wash that carried it would be taken for one
     expect(pipes(html)).toHaveLength(1);
     expect(pipes(html)[0]).toContain('data-fp="0"');
     expect(html).toContain('id="fp-pipes"');
   });
   it("follows the room of the icon: moved into B, B is the one", () => {
     const html = renderFloor(floorOf([{ ...UF, x: 600 }]), { scale: 1, state: heating });
-    expect(wash(html)[0]).toContain('data-fh="1"');
+    expect(wash(html)[0]).toContain('data-uf="1"');
   });
   it("shows nothing for idle, off, unavailable, a missing attribute, a missing entity or a missing flag", () => {
     for (const s of [st("heat", { hvac_action: "idle" }), st("off", { hvac_action: "off" }), st("unavailable", { hvac_action: "heating" }), st("heat", {}), st("heat", { hvac_action: "cooling" }), st("off", { hvac_action: "heating" })])
@@ -88,7 +89,7 @@ describe("renderFloor: the underfloor cue", () => {
   });
   it("a heater bar (a, b) counts by its middle; a flagged device outside every room has no cue", () => {
     const bar = { id: "h", type: "heater", entity: "climate.floor", a: [500, 50], b: [700, 50], underfloor: true };
-    expect(wash(renderFloor(floorOf([bar]), { scale: 1, state: heating }))[0]).toContain('data-fh="1"');
+    expect(wash(renderFloor(floorOf([bar]), { scale: 1, state: heating }))[0]).toContain('data-uf="1"');
     expect(wash(renderFloor(floorOf([{ ...UF, x: 2000, y: 2000 }]), { scale: 1, state: heating }))).toHaveLength(0);
   });
   it("only a climate or heater: a light carrying the flag (refused by validate) draws no cue", () => {
