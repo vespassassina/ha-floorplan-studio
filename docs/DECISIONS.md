@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: A refused worktop Delete is read from the corner count, not the undo depth (B54 follow-up)
+
+The Delete check compared `undoDepth` before and after. History is capped at 100 (`MAX_HISTORY`), so with 100 steps stored
+a Delete that worked leaves the depth unchanged and the status wrongly read "No corner removed", over the autosave warning.
+It now compares the worktop's corner count.
+
 ## 2026-11-07: The underfloor wash carries `data-uf`, not `data-fh` (Opus review of Sprint 54)
 
 `data-fh` is what the editor's furniture scale handle is hit-tested by (`closest("[data-fh]")`). The `floor-heat` polygon had

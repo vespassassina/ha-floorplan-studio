@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio: deleting a worktop corner no longer says "No corner removed" after a long editing session (a full undo history fooled the check).
 - Studio: changing a turned piece into a worktop keeps its size right (the box now matches its points).
 - Studio: dragging a worktop corner where every move would make the shape cross itself leaves no undo step and says why; Delete on the third-last corner says why it did nothing.
 - Card: in 3D the floor warmed from below now reads lighter and warmer on dark themes and dark custom floors; it used to lose blue and look darker.

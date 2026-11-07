@@ -250,3 +250,19 @@ test("Add > Furniture > Worktop by real clicks on the menu, then three points an
   expect(st.n).toBe(before.n + 1);
   expect(st.hist).toBe(before.hist + 1);
 });
+
+const statusOf = (page: Page) => page.evaluate((tag) => (document.querySelector(tag) as any).status as string, EDITOR);
+
+test("Delete with the history full (100 steps) still removes the corner and does not claim it refused", async ({ page }) => {
+  const { o } = await drawn(page);
+  // the history is capped, so a successful commit leaves its length at 100: the refusal check must not read the depth
+  await page.evaluate((tag) => { const ed = document.querySelector(tag) as any; while (ed.st.hist.length < 100) ed.st.snapshot(); }, EDITOR);
+  expect((await state(page)).hist).toBe(100);
+  const p = await screen(page, L[5]);
+  await page.mouse.move(p.x, p.y);
+  await page.mouse.down(); await page.mouse.up();
+  await page.keyboard.press("Delete");
+  const st = await state(page);
+  expect(st.w[0].pts).toEqual(abs(o, L).slice(0, 5)); // the corner is gone
+  expect(await statusOf(page)).not.toMatch(/No corner removed/i);
+});
