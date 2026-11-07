@@ -266,3 +266,18 @@ test("Delete with the history full (100 steps) still removes the corner and does
   expect(st.w[0].pts).toEqual(abs(o, L).slice(0, 5)); // the corner is gone
   expect(await statusOf(page)).not.toMatch(/No corner removed/i);
 });
+
+test("a corner dragged out and dropped where it started leaves no step and does not say the shape crosses", async ({ page }) => {
+  const { after, o } = await drawn(page);
+  const h = await screen(page, L[2]); // (100, 0): an outer corner
+  const out = await screen(page, [150, 50]);
+  await page.mouse.move(h.x, h.y);
+  await page.mouse.down();
+  await page.mouse.move(out.x, out.y, { steps: 4 });
+  await page.mouse.move(h.x, h.y, { steps: 4 });
+  await page.mouse.up();
+  const st = await state(page);
+  expect(st.w[0].pts).toEqual(abs(o, L));
+  expect(st.hist).toBe(after.hist); // nothing moved, so no step
+  expect(await statusOf(page)).not.toMatch(/cross/i);
+});

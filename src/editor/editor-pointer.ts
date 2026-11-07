@@ -379,6 +379,7 @@ export const onMove = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
       begin(ed, d); d.to = to;
       // Shift: only the grabbed corner moves and leaves the others behind
       g = movePointAll(d.base, d.from, to, ev.shiftKey, d.ref);
+      if (g === d.base && dist(to, d.from) > 0) d.refused = true; // a refusing writer returns the floor it was given; a move back to the start does too, and is no refusal
       break;
     }
     case "edge": {
@@ -509,7 +510,8 @@ export const onUp = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
   if (d.type === "corner" && d.snapped && "poly" in d.ref && worktopIndex(d.ref.poly) !== null && JSON.stringify(st.f) === JSON.stringify(d.base)) {
     // Every move was refused (a worktop corner may not cross itself): the snapshot of the first move holds no change, so take it back.
     st.dropSnapshot();
-    ed.status = "Corner not moved: a worktop may not cross itself";
+    // Dragged out and back to the start is not a refusal: say "cross" only when a move was actually refused.
+    ed.status = d.refused ? "Corner not moved: a worktop may not cross itself" : "Corner not moved";
     ed.requestUpdate();
     return;
   }

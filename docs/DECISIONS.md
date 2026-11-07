@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: A worktop corner dropped where it started says nothing about crossing (B54 follow-up)
+
+Dragging out and back to the start made the last move a no-op, which the drop read as a refusal and said "may not cross
+itself". `onMove` now records a refusal only when the target differs from the start and the writer returned the base floor;
+the drop says "cross" only then, and otherwise just "Corner not moved". No undo step either way.
+
 ## 2026-11-07: A refused worktop Delete is read from the corner count, not the undo depth (B54 follow-up)
 
 The Delete check compared `undoDepth` before and after. History is capped at 100 (`MAX_HISTORY`), so with 100 steps stored
