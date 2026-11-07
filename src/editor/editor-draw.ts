@@ -42,13 +42,13 @@ export function stopDraw(ed: FloorplanStudioEditor, status = "Drawing cancelled"
 /** A snapped point for draw mode. A zone snaps to the grid only: its corners never join other shapes (S1.8). */
 export function snapDraw(ed: FloorplanStudioEditor, d: Draw, p: Pt, alt: boolean): Pt {
   ed.rayAim = null;
-  const s = snapCorner(ed, ed.st.f, p, NOWHERE, NO_REF, alt, d.points, d.kind === "zone");
+  const s = snapCorner(ed, ed.st.f, p, NOWHERE, NO_REF, alt, d.points, d.kind === "zone" || d.kind === "worktop");
   // S26.12: after a first point the segment goes on the nearest 15 degree ray, unless a corner caught the pointer (asked of the
   // corner search itself: a corner can sit on the plain grid point, so comparing coordinates cannot tell), an alignment with an
   // earlier point did (then the point is not the plain grid one), or Alt is held.
   const last = d.points[d.points.length - 1];
   if (alt || !last) return s;
-  if (d.kind !== "zone" && cornerHit(ed, ed.st.f, p, NOWHERE, NO_REF)) return s;
+  if (d.kind !== "zone" && d.kind !== "worktop" && cornerHit(ed, ed.st.f, p, NOWHERE, NO_REF)) return s;
   const g = ed.st.snapGrid || 1, free: Pt = [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g];
   if (s[0] !== free[0] || s[1] !== free[1]) return s;
   ed.rayAim = rayPoint(last, p, 15, ed.st.snapGrid); // the typed length goes along this exact ray, not along the whole-cm point
@@ -93,7 +93,7 @@ export function finishDraw(ed: FloorplanStudioEditor) {
     ed.changed(note || "Added the shape");
     // A room made from walls asks for its name at once. The press that closed it still has its default focus move to come, so wait it out.
     if (note) void ed.updateComplete.then(() => setTimeout(() => ed.renderRoot.querySelector<HTMLInputElement>("#rn")?.focus(), 0));
-  } else ed.requestUpdate();
+  } else { if (note) ed.status = note; ed.requestUpdate(); } // a refused shape (a worktop that crosses itself) says why, instead of vanishing
 }
 
 export function addDoor(ed: FloorplanStudioEditor, kind: "door" | "window" | "slit" | "open", len: number, at?: Pt) {
@@ -151,6 +151,7 @@ export function addStairs(ed: FloorplanStudioEditor) {
 export function addFurniture(ed: FloorplanStudioEditor, symbol: string) {
   if (!(FURNITURE_SYMBOLS as readonly string[]).includes(symbol)) return;
   if (ed.st.planLocked) { ed.planFixed(); return; }
+  if (symbol === "worktop") { startDraw(ed, "worktop"); return; } // B54.3: a worktop has no default shape; it is drawn point by point, like a room
   stopDraw(ed);
   const sym = symbol as keyof typeof FURNITURE, p = middle(ed) ? spawnDevice(ed) : spawn(ed), [x, y] = p, floor = ed.st.floor, before = counted(ed);
   // B53.12: a mirror lands on the nearest wall, turned with it (the same hosts a heater has).

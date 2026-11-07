@@ -9,7 +9,7 @@ import { cancelDeviceDrag, cancelTraceDrag, drawnDevices, selectDevices } from "
 import { closeAddDev, closeCtxMenu, closePlace, closeScene, toggleDevCols, toggleHa, toggleInstallCode } from "./editor-popups";
 import { finishDraw, placeTyped, stopDraw } from "./editor-draw";
 import { DRAW_HINT } from "./editor-kit";
-import { type Floor, polys } from "../core";
+import { type Floor, polys, removePoint, worktopIndex } from "../core";
 import { removeDevices } from "./bulk";
 import { polyPts } from "./state";
 import type { FloorplanStudioEditor } from "./editor-app";
@@ -95,6 +95,15 @@ export const onKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
   else if (s.t === "furn") del((f) => { f.furniture.splice(s.i, 1); });
   else if (s.t === "unl") del((f) => { f.unlinked.splice(s.i, 1); });
   else if (s.t === "stairs") del((f) => { f.stairs.splice(s.i, 1); });
+  else if (s.t === "v" && "poly" in s.ref && worktopIndex(s.ref.poly) !== null) {
+    // B54.3: a worktop corner goes alone, never below 3 (removePoint refuses; the commit then leaves no undo step), and the piece stays selected so its handles stay.
+    const { poly, j } = s.ref;
+    // Count corners, not undo steps: the history is capped at 100, so a Delete that worked leaves its depth unchanged too.
+    const corners = polyPts(ed.st.f, poly)?.length;
+    ed.commit((f) => removePoint(f, poly, j));
+    if (polyPts(ed.st.f, poly)?.length === corners) ed.status = "No corner removed: a worktop holds at least 3 corners";
+    ed.st.sel = { t: "furn", i: worktopIndex(poly)! }; ed.requestUpdate();
+  }
   else if (s.t === "v" && "poly" in s.ref && (polyPts(ed.st.f, s.ref.poly)?.length ?? 0) > 3) {
     const { poly, j } = s.ref;
     del((f) => { const P = polys(f).find((x) => x.id === poly); if (P) { P.pts.splice(j, 1); P.room?.wk.splice(j, 1); P.room?.wc?.splice(j, 1); if (poly === "o") { f.owk?.splice(j, 1); f.owc?.splice(j, 1); } } });

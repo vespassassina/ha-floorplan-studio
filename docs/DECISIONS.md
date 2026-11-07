@@ -2,6 +2,95 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: A worktop corner dropped where it started says nothing about crossing (B54 follow-up)
+
+Dragging out and back to the start made the last move a no-op, which the drop read as a refusal and said "may not cross
+itself". `onMove` now records a refusal only when the target differs from the start and the writer returned the base floor;
+the drop says "cross" only then, and otherwise just "Corner not moved". No undo step either way.
+
+## 2026-11-07: A refused worktop Delete is read from the corner count, not the undo depth (B54 follow-up)
+
+The Delete check compared `undoDepth` before and after. History is capped at 100 (`MAX_HISTORY`), so with 100 steps stored
+a Delete that worked leaves the depth unchanged and the status wrongly read "No corner removed", over the autosave warning.
+It now compares the worktop's corner count.
+
+## 2026-11-07: The underfloor wash carries `data-uf`, not `data-fh` (Opus review of Sprint 54)
+
+`data-fh` is what the editor's furniture scale handle is hit-tested by (`closest("[data-fh]")`). The `floor-heat` polygon had
+the same attribute, which would have read as a handle the day the wash took a pointer. Renamed; the pipes keep `data-fp`.
+
+## 2026-11-07: Retyping a turned piece to a worktop refits its box (Opus review of Sprint 54)
+
+`retype` set `pts` and `rot` 0 but kept the old `w` and `h`, so a 200 x 60 table turned 90 became a worktop whose box said
+200 wide over points 60 wide, against spec C20. It now takes `boxOf(pts)` for x, y, w, h.
+
+## 2026-11-07: A refused worktop corner drag leaves no undo step (Opus review of Sprint 54)
+
+`begin()` takes the undo snapshot on the first move, and `worktopMove` may refuse every move, so the release committed a step
+that held no change. `onUp` now takes the snapshot back when a worktop corner drag ends with the floor equal to the one it
+began on, and says "Corner not moved: a worktop may not cross itself". A refused Delete of a worktop corner says why too ("at
+least 3 corners"). A corner inserted from an edge took its snapshot at the press and is not affected.
+
+## 2026-11-07: Underfloor heat tint may exceed 1 (supersedes the cap in B54.4)
+
+Opus review of Sprint 54: the 3D floor tint was `0.5 + 0.5 * v / top`, so no channel could exceed 1 and on a dark floor it only
+removed blue (midnight 19,32,56 to 19,27,43; blueprint 18,33,54 to 18,27,40), which reads darker, not warmer. It is now
+`0.7 + 0.9 * channel` of `--fp-floor-heat`: red goes above 1 as a lamp lift does, blue falls a little. Still one multiply in
+`paintLifts`, no second mechanism (D27). Seen: light 228,222,206 to 255,227,186; midnight 19,32,56 to 26,34,52; blueprint 18,33,54 to 25,35,49.
+On a dark floor the change is real but modest: a multiply has little to lift.
+
+## 2026-11-07: card cap 131,000 to 138,000 gzip
+
+Diego, mid Sprint 54: "make the budget larger and just roll". Underfloor took the card to 129,746 of 131,000, and the badges
+(+1,800) and the worktop were still to come. `CARD_GROWTH_LIMIT` 40,220 to 47,220 over the pre-3D 90,780. Seven thousand is the
+room for Sprints 54 to 56; the next sprint that does not fit stops and asks again.
+
+## 2026-11-07: Underfloor heating (B54.4)
+
+`Device.underfloor?: true`, allowed on `climate` and `heater` only; `validate` refuses it elsewhere, `migrate` keeps it only
+from those two with the value `true`. The room is the one that holds the icon (`roomAt`); no room, no cue. While the
+entity's `hvac_action` is `heating`, `renderFloor` draws a `floor-heat` wash (`--fp-floor-heat`, in every theme) and a
+`floor-pipes` serpentine pattern in the same colour over the room fill; under a heat map the pattern stays and the wash
+gives way. Both are classes with `pointer-events:none`, not attributes, and nothing animates. In 3D, `Live3D.heated` lists
+the rooms and `paintLifts` multiplies those floor-top vertices toward `--fp-floor-heat` in the same pass that lifts a lit
+room, with no second mechanism. The editor's device panel has an Underfloor box for those two types. Replay needs no code.
+
+## 2026-11-07: B54.3 The worktop edited
+
+A worktop is drawn by clicking points like a room (double-click or Enter ends, Esc cancels). A selected worktop shows a handle per
+point; drag one, click an edge to add one, Delete on a selected point removes it (never below 3), and dragging the piece moves every
+point. The writers are in `src/core/polygon.ts` (`worktopInsert`, `worktopRemove`, `worktopMove`, `worktopShift`, `worktopTurn`) and
+share the room panel's ring code. Each returns the piece with x, y, w, h re-fitted to the bounding box and rot 0, and refuses a result
+that is not a simple polygon, so the Studio cannot commit an invalid worktop (tested over every point and several moves, with
+`validate` after each). A worktop is not in `geometry.polys`: no snapping, stitching or door-hosting. One undo step per gesture, none
+when unchanged. Gzip -9 against 05b470f9, B54.1 to B54.3 together: card +968, 3d +15, form +564, panel +2212 bytes (before:
+129,295 / 164,882 / 26,700 / 204,128).
+
+## 2026-11-07: B54.2 The worktop drawn
+
+One draw path: `renderFloor` (2D and 2.5D) and `buildScene` (3D) both frame a piece through `worktopFrame` (`src/core/polygon.ts`)
+before they read it, so x, y, w, h are the points' own bounding box and rot 0 whatever a hand-edited file says; a worktop whose
+`pts` fail `validate` draws as its box, like any piece. In 2D the symbol is one path in the 100 x 100 box the furniture transform
+scales (`worktopSvg`: `ff` fill, `currentColor` top edge, 3 wide, round joins), so the fill is `--fp-furniture`, `color` overrides it,
+and no new stylesheet rule exists. In 2.5D and 3D it is a prism of exactly the points (`prism` in `solids.ts`) at `FURNITURE_HEIGHTS.worktop`
+(90), with no `furnitureBlocks`. `num` rounds to 0.01, so the 2D group's scale (w / 100) can drift a worktop by up to 0.3 cm on a
+very large piece; the tests state that bound. Looked at in blueprint and light themes at 4x: an L and a 3-point triangle, with
+`color` set, correct in both. Size: no build was taken between B54.2 and B54.3, so the gzip figures are given once, at B54.3.
+
+## 2026-11-07: B54.1 The worktop's schema
+
+`Furniture.symbol` gains `worktop`, and `Furniture.pts?: Pt[]` exists on it alone and is required there: 3 to 64 finite points
+within 10 km, a simple polygon (`isSimplePolygon`, `src/core/polygon.ts`: no repeated point, no edge touching a non-neighbour,
+no neighbour folded back on its shared corner, non-zero area). `x`, `y`, `w`, `h` stay the bounding box (`boxOf`) and `rot` 0;
+`pts` is the truth. `validate` names the piece for each failure and never throws on a hostile `pts` (a proxy, a getter, junk);
+`migrate` keeps `pts` only where `validate` would accept it and leaves a worktop without them to fail by name, inventing none.
+Every table that iterates `FURNITURE_SYMBOLS` took an entry: height 90, solid `box`, label "Worktop", area Kitchen and dining,
+unlinked, paintable, a thumbnail L in `icons.ts`, one bounding-box block in `furnitureBlocks` (a reader that knows only the
+box). Renderers draw it from `pts` (B54.2). Retyping a piece to `worktop` makes its turned footprint the points and sets `rot`
+0; away from it the points go. Fixtures that walk the union (`retype`, `mirror-schema`, `furniture-paint` pieces, and the
+per-symbol tables in `icons`, `link-electric`, `scene`, `solids-objects`) gained the one worktop entry; no assertion changed.
+Gzip: card +670, form +564, panel +792, 3d +5 (from 129,295 / 26,700 / 204,128 / 164,882).
+
 ## 2026-11-06: Outdoor light, night and day
 
 Diego: the plan is too dark outdoors at night to read, and by day the garden should follow the weather and the hour.

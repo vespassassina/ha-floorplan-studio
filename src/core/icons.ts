@@ -108,6 +108,8 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   nightstand: { w: 45, h: 40, svg: r(4, 4, 92, 92, 5) + `<path d="M4 44 H96 M38 26 H62 M38 70 H62" ${S}/>` },
   desk: { w: 140, h: 70, svg: r(2, 4, 96, 92, 3) + `<path d="M2 80 H98" ${S} stroke-opacity=".5"/>` },
   armchair: { w: 85, h: 85, svg: r(6, 34, 88, 60, 14) + r(6, 6, 88, 30, 14) + r(6, 34, 18, 60, 8) + r(76, 34, 18, 60, 8) },
+  // B54.1: the menu thumbnail of a worktop, an L of counter; a placed worktop is drawn from its own `pts`, not from this.
+  worktop: { w: 240, h: 160, svg: `<path d="M2 2 H98 V40 H40 V98 H2 Z" ${SB}/>` },
   counter: { w: 240, h: 60, svg: r(2, 4, 96, 92, 1) + `<path d="M2 72 H98" ${S}/>` },
   stove: { w: 60, h: 60, svg: r(4, 4, 92, 92, 3) + [[28, 28], [72, 28], [28, 72], [72, 72]].map(([x, y]) => c(x, y, 14)).join("") },
   fridge: { w: 70, h: 65, svg: r(4, 4, 92, 92, 3) + `<path d="M4 38 H96 M84 20 V30 M84 48 V64" ${S}/>` },

@@ -1,4 +1,4 @@
-import { dist, floorPivot, type Pt, type Stairs, wallWidthAt } from "../core";
+import { dist, floorPivot, type Pt, type Stairs, wallWidthAt, worktopIndex, worktopPts } from "../core";
 import { num, planZero } from "./editor-kit";
 import { polyPts, ptOf } from "./state";
 import { type Corner, looseEnds } from "./ops";
@@ -71,7 +71,16 @@ export function planOverlay(ed: FloorplanStudioEditor, k: number): string {
   if (s?.t === "extra" && f.extras[s.i]) o.push(line(f.extras[s.i].a, f.extras[s.i].b, "hl", 'stroke-width="4"'));
   if (s?.t === "room" && f.rooms[s.i]) o.push(`<polygon class="hl${f.rooms[s.i].kind === "zone" ? " hl-zone" : ""}" points="${f.rooms[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
   if (s?.t === "stairs" && f.stairs[s.i]) o.push(`<polygon class="hl" ${stairsTurn(f.stairs[s.i])} points="${f.stairs[s.i].pts.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
-  if (s?.t === "furn" && f.furniture[s.i]) {
+  // The worktop whose handles show: the selected piece, or the one a selected corner belongs to (a corner press selects the corner, and the handles must stay).
+  const wi = s?.t === "furn" ? s.i : s?.t === "v" && "poly" in s.ref ? worktopIndex(s.ref.poly) : null;
+  const wt = wi !== null && wi !== undefined && f.furniture[wi] ? worktopPts(f.furniture[wi]) : null;
+  if (wt && wi !== null && wi !== undefined) {
+    const si = wi;
+    // B54.3: a worktop is its points. The outline, a wide invisible line per edge (a press adds a corner) and a dot per corner; no scale corners.
+    o.push(`<polygon class="hl" points="${wt.map((p) => `${num(p[0])},${num(p[1])}`).join(" ")}"/>`);
+    wt.forEach((a, e) => { const b = wt[(e + 1) % wt.length]; o.push(line(a, b, "we", `data-we="${si}:${e}"`)); });
+    wt.forEach((p, j) => o.push(`<circle class="h" data-h="w${si}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
+  } else if (s?.t === "furn" && f.furniture[s.i]) {
     const m = f.furniture[s.i];
     o.push(`<rect class="hl" x="-50" y="-50" width="100" height="100" transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)})"/>`);
     // S1.51: a corner handle at each of the box's four corners, turned by the piece's own rot like the highlight rect.

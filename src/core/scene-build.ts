@@ -22,7 +22,7 @@ type BlockTone = import("./furniture-blocks").Block["tone"];
 export type SceneDeps = Pick<Blocks, "furnitureBlocks" | "darkenedHex"> & Pick<Heights, "deviceZ" | "doorSpan" | "edgeHeight" | "floorHeight" | "floorSlab" | "furnitureBottom" | "furnitureHeight" | "openingSpan" | "radiatorSpan" | "unlinkedHeight" | "wallHeight">
   & Pick<Render, "attachedTest" | "inside"> & Pick<typeof import("./stairs"), "resolveStairDirection"> & Pick<typeof import("./wall-colour"), "wallColourMap" | "wallEdgeKey">
   & Pick<Solids, "bodyOf" | "bodyPlacement" | "FURNITURE_SOLID" | "FRAME_PROUD" | "FRAME_WIDTH" | "KERB_HIGH" | "KERB_OUT" | "OPENING_FILL" | "OPENING_FRAMED" | "RADIATOR_DEEP" | "SPEAKER_HEIGHT" | "SPEAKER_SIDE" | "TV_HEIGHT" | "TV_THICK" | "TV_WIDTH" | "UNLINKED_BASE" | "WELL_DEPTH" | "pieceDevice" | "stairBlocks" | "turnAbout" | "tvPlacement" | "within">
-  & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape"> & Pick<typeof import("./car"), "carParts" | "carSpec"> & Pick<typeof import("./furniture-paint"), "furniturePaint">;
+  & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape"> & Pick<typeof import("./car"), "carParts" | "carSpec"> & Pick<typeof import("./furniture-paint"), "furniturePaint"> & Pick<typeof import("./polygon"), "worktopFrame" | "worktopPts">; // B54.2
 
 /**
  * A vertical extrusion of a polygon from `z0` to `z1` (every box is one), or a single point (a device with no body of its own).
@@ -86,7 +86,7 @@ const JOINT_TOLERANCE = 1;
 /** The scene builder, bound to the helpers of core it needs. The 3D chunk builds one per view; `core/scene.ts` binds the real ones for the tests. */
 export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) => Scene {
   const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, bodyOf, bodyPlacement, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, furnitureBlocks, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec, wallColourMap, wallEdgeKey } = d;
-  const { furniturePaint, darkenedHex: darkHex } = d; // B53.4
+  const { furniturePaint, darkenedHex: darkHex, worktopFrame, worktopPts } = d; // B53.4, B54.2
   const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && fin(p[0]) && fin(p[1]);
   const ring = (p: unknown): Pt[] | null => (Array.isArray(p) && p.length >= 3 && p.every(isPt) ? (p as Pt[]) : null);
@@ -386,13 +386,15 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     }));
 
     // Furniture: a block, a trunk (a tree: the crown is the viewer's, from `ref.size`) or a flat slab, by FURNITURE_SOLID.
-    list(f.furniture).forEach((m, i) => piece(() => {
-      if (!isObj(m) || !has(FURNITURE_SOLID, m.symbol) || ![m.x, m.y, m.rot, m.w, m.h].every(fin) || !(m.w > 0) || !(m.h > 0)) return;
+    list(f.furniture).forEach((m0, i) => piece(() => {
+      if (!isObj(m0)) return;
+      const m = worktopFrame(m0);
+      if ( !has(FURNITURE_SOLID, m.symbol) || ![m.x, m.y, m.rot, m.w, m.h].every(fin) || !(m.w > 0) || !(m.h > 0)) return;
       const z0 = furnitureBottom(m as never), c: Pt = [m.x, m.y], pole = FURNITURE_SOLID[m.symbol as FurnitureSymbol] === "pole";
       // A tree is a trunk to treeShape's trunk top, and a crown (the viewer's) above it; any other piece stands to its height.
       const tree = pole ? treeShape(m as never) : null, h = z0 + (tree ? tree.trunkTop : furnitureHeight(m as never));
       const half = pole ? [TRUNK_SIDE / 2, TRUNK_SIDE / 2] : [m.w / 2, m.h / 2];
-      const base = ([[-half[0], -half[1]], [half[0], -half[1]], [half[0], half[1]], [-half[0], half[1]]] as Pt[]).map((q) => turnAbout([c[0] + q[0], c[1] + q[1]], pole ? 0 : m.rot, c));
+      const base = worktopPts(m) ?? ([[-half[0], -half[1]], [half[0], -half[1]], [half[0], half[1]], [-half[0], half[1]]] as Pt[]).map((q) => turnAbout([c[0] + q[0], c[1] + q[1]], pole ? 0 : m.rot, c));
       // A linked tv, speaker or computer (`pieceDevice`) carries its entity and its own colour: the viewer recolours it by state and hands a tap on it to the gesture code.
       const linked = pieceDevice(m as never);
       if (m.symbol === "car") { carSolids(m, i, z0, linked?.entity, add); return; }
@@ -407,7 +409,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
         return paintHex ? { role: dark ? `${role}-dark` : role, color: dark ? darkHex(paintHex) : paintHex } : { role: dark ? `${role}-dark` : role };
       };
       // B53.5: the blocks 2.5D draws (`furnitureBlocks`), in the piece's frame, turned about its middle. A dark one (leg, plinth) takes the `-dark` role.
-      const blocks = pole ? [] : furnitureBlocks(m as never);
+      // B54.2: a worktop with good points stands on exactly those.
+      const blocks = pole || worktopPts(m) ? [] : furnitureBlocks(m as never);
       if (!blocks.length) { add("furniture", `furniture:${i}`, m.symbol, { type: "prism", base, z0, z1: h }, ref, look("body")); return; }
       blocks.forEach((b, k) => add("furniture", k ? `furniture:${i}:b${k}` : `furniture:${i}`, m.symbol, { type: "prism", base: ([[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]] as Pt[]).map((q) => turnAbout([c[0] - m.w / 2 + q[0], c[1] - m.h / 2 + q[1]], m.rot, c)), z0: z0 + b.z0, z1: z0 + b.z1 }, ref, look(b.tone)));
     }));

@@ -11,11 +11,12 @@ export type Hit =
   | { k: "fscale"; i: number; corner: Corner }
   | { k: "door" | "opening" | "dev" | "furn" | "unl" | "wall" | "room" | "stairs" | "extra"; i: number }
   | { k: "edge"; poly: string; i: number }
+  | { k: "wedge"; i: number; e: number } // B54.3: edge e of worktop i
   | { k: "bg" };
 
 export type Drag =
   | { type: "pan"; sx: number; sy: number; v: View; button: number; moved: boolean }
-  | { type: "corner"; base: Floor; from: Pt; ref: PtRef; moved: boolean; to: Pt }
+  | { type: "corner"; base: Floor; from: Pt; ref: PtRef; moved: boolean; to: Pt; /** the first move took the undo snapshot (a corner inserted from an edge took it at the press) */ snapped?: true; /** a move was refused (the writer returned the base floor): only then does the drop say why */ refused?: true }
   | { type: "edge"; base: Floor; ends: { from: Pt; ref: PtRef }[]; start: Pt; moved: boolean; to: Pt[] }
   | { type: "dend"; base: Floor; i: number; end: "a" | "b"; moved: boolean }
   | { type: "door"; base: Floor; i: number; off: Pt; len: number; moved: boolean }

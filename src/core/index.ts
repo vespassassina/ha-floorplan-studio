@@ -8,6 +8,7 @@ export type { HaData } from "./ha";
 export { addCandidates, capEntityRows, entityCandidates, ENTITY_ROWS_MAX, areaChoices, areaMenuEntities, AREA_NOISE_TYPES, AREA_PLACEABLE_TYPES, areaMove, availableEntities, entitiesForType, furnitureForEntity, furnitureForType, haFloorIdsForPlanFloor, mainEntitiesByDevice, mainEntity, placeableDevicesInArea, placeableInArea, roomHaBox, switchChoicesForLight, typeForEntity, unplacedDevicesInArea, unplacedHaEntities } from "./ha";
 export type { AddCandidate, HaBox, HaBoxRow, SwitchChoice } from "./ha";
 export * from "./geometry";
+export { edgePoint, worktopIndex, worktopInsert, worktopMove, worktopPolyPts, worktopPts, worktopRemove, worktopShift, worktopTurn, worktopPtsProblem, WORKTOP_MAX_PTS } from "./polygon";
 export { DETAIL_LABELS, DETAIL_MODES, DETAIL_MID_FROM, DETAIL_NEAR_FROM, ICONS_MIN_PLAN_PX, ICONS_ON_PLAN_PX, ICONS_OFF_PLAN_PX, iconsHold, detailFor, detailLevel, parseDetailMode } from "./detail";
 export type { DetailLevel, DetailMode } from "./detail";
 export { SPIDER_GAP_PX, SPIDER_MAX, SPIDER_MIN_R_PX, STACK_PX, spiderLayout, stackGroups } from "./spider";

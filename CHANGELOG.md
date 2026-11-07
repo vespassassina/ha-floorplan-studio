@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.45.0 - 2026-11-07
+
+- Studio: dragging a worktop corner out and back to where it started no longer says the shape would cross itself.
+- Studio: deleting a worktop corner no longer says "No corner removed" after a long editing session (a full undo history fooled the check).
+- Studio: changing a turned piece into a worktop keeps its size right (the box now matches its points).
+- Studio: dragging a worktop corner where every move would make the shape cross itself leaves no undo step and says why; Delete on the third-last corner says why it did nothing.
+- Card: in 3D the floor warmed from below now reads lighter and warmer on dark themes and dark custom floors; it used to lose blue and look darker.
+- Studio and card: tick Underfloor on a climate or heater. While it is heating, its room floor gets a warm wash and a faint pipe pattern in 2D and 2.5D, and a warm floor in 3D. Idle, off and unavailable show nothing.
+- Layout file: a new furniture symbol `worktop` with `pts`, a polygon of 3 to 64 points that does not cross itself. `x`, `y`, `w` and `h` stay its bounding box. `validate` names the piece when `pts` is missing, too short or long, not finite, crossing, or on another symbol; `migrate` drops what `validate` would refuse. Add > Furniture > Kitchen and dining lists "Worktop" (B54.1).
+- Card and Studio: a worktop is drawn as its own outline, in 2D with the furniture fill and a top edge (`color` overrides), in 2.5D and in 3D as a prism 90 cm high. One draw path, so the Studio and the card agree (B54.2).
+- Studio: draw a worktop by clicking its points (double-click or Enter ends, Esc cancels). A selected worktop shows a handle per point: drag one, click an edge to add one, Delete removes one (never below 3). Moving the piece moves every point. Each gesture is one undo step (B54.3).
+
 ## 0.44.1 - 2026-11-06
 
 Outdoors is readable at night and follows the weather by day; two Studio menu fixes.

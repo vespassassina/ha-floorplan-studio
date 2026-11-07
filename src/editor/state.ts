@@ -1,4 +1,4 @@
-import { alignFloor, floorBelow, floorPlace, floorPose, normaliseTurn, placePoint, poseFromPlace, DETAIL_MODES, parseDetailMode, CAR_SPEC, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, WALL_COLOUR_KEYS, setEdgeColour, type WallColourKey, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { worktopIndex, worktopPolyPts, alignFloor, floorBelow, floorPlace, floorPose, normaliseTurn, placePoint, poseFromPlace, DETAIL_MODES, parseDetailMode, CAR_SPEC, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, WALL_COLOUR_KEYS, setEdgeColour, type WallColourKey, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import { CAR_MODELS, COORD_LIMIT, MAX_CAR_ATTACHED, isLinkable, MAX_VIEWS, MAX_VIEW_ZOOM } from "../core/schema";
 import type { SavedView } from "../core/schema";
 import { compact, rangeProblem, type HouseRange } from "./temp-range-ops";
@@ -152,6 +152,7 @@ const roomFieldOf = (type: DeviceType | undefined): RoomSensorField | undefined 
 
 export function polyPts(f: Floor, poly: string): Pt[] | undefined {
   if (poly === "o") return f.outline;
+  if (worktopIndex(poly) !== null) return worktopPolyPts(f, poly); // B54.3: "w<i>" is a worktop, which the room code then edits like a polygon
   const i = +poly.slice(1);
   return poly[0] === "r" ? f.rooms[i]?.pts : f.stairs[i]?.pts;
 }

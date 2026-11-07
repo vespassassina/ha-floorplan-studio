@@ -27,6 +27,7 @@ import { devsHave, layerHides, type LayerId, type PlanSel } from "./layers";
 import type { DetailLevel } from "./detail";
 import { wallColourMap, wallColourVars, wallEdgeKey } from "./wall-colour";
 import { DARKEN_PCT, mirrored } from "./furniture-blocks";
+import { symbolOf, worktopFrame, worktopPts } from "./polygon";
 import { bodyOf, bodyAir, bodyFlat, bodyWind, STEM_MIN_Z, turnAbout, furnitureLinked, furnitureCls, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, collectWalls, shadeMarkup, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
@@ -184,7 +185,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
 // token can never be added to one selector and forgotten in another. The "ha" theme is built from the same two.
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#2c7fb8;--fp-mirror:#b9d3de;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-fan:#1f9ec4;--fp-dev-car:#2e9e4f;--fp-plant-thirsty:#1e88d8;--fp-dev-speaker:#2c7fb8;--fp-dev-screen:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);--fp-moon:rgba(150,185,255,.16);
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-fan:#1f9ec4;--fp-dev-car:#2e9e4f;--fp-plant-thirsty:#1e88d8;--fp-dev-speaker:#2c7fb8;--fp-dev-screen:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);--fp-moon:rgba(150,185,255,.16);--fp-floor-heat:#e8641a;
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 /* Midnight (Diego's call, 2026-09-21, ex-"blueprint"): a deep navy ground, blue linework for walls, cool-white text, from the
    reference screenshot he supplied. It replaced HA's night-blue; light is unchanged. Every accent that carries meaning (device colours, the warn/danger/primary
@@ -199,7 +200,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
    line on the plan needs. The TV keeps #2c7fb8 (S9.3). */
 const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:var(--fp-room);--fp-garden:#1d2a42;--fp-terrace:#21304c;--fp-pavement:#233352;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#5fa8e8;--fp-mirror:#86a8c4;--fp-window:#5fa8e8;--fp-sealed:#9a8f80;--fp-water:#1f4a78;--fp-fill:#1a2a46;--fp-fill-line:#3a5684;
---fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-fan:#4cc3e8;--fp-dev-car:#4fd17a;--fp-plant-thirsty:#5bb8ff;--fp-dev-speaker:#2c7fb8;--fp-dev-screen:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);--fp-moon:rgba(150,185,255,.16);
+--fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-fan:#4cc3e8;--fp-dev-car:#4fd17a;--fp-plant-thirsty:#5bb8ff;--fp-dev-speaker:#2c7fb8;--fp-dev-screen:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);--fp-moon:rgba(150,185,255,.16);--fp-floor-heat:#ff7a2e;
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 
 // The three role-generated themes (2026-09-22, Diego's brief): each is one base hue shaded into every structural token, one
@@ -232,7 +233,7 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({ base: "#e3cd9c", fg: "#3a3226", fgAlp
    Solarized blue 55 % over base03, #15608c; windows keep the full blue. */
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#11424f;--fp-terrace:#124c5b;--fp-pavement:#135161;--fp-wall:#93a1a1;--fp-idle:#586e75;
 --fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-mirror:#7fb2b0;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#15608c;--fp-fill:#073642;--fp-fill-line:#586e75;
---fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-fan:#2aa198;--fp-dev-car:#859900;--fp-plant-thirsty:#268bd2;--fp-dev-speaker:#268bd2;--fp-dev-screen:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);--fp-moon:rgba(150,185,255,.16);
+--fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-fan:#2aa198;--fp-dev-car:#859900;--fp-plant-thirsty:#268bd2;--fp-dev-speaker:#268bd2;--fp-dev-screen:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);--fp-moon:rgba(150,185,255,.16);--fp-floor-heat:#cb4b16;
 --fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
@@ -370,6 +371,7 @@ ${THEME_EXTRAS}
    sits under the wall halo, finding 16). Not the motion border: that one is red and pulses. Both take pointer-events from a class
    rule (finding 18): an attribute would lose to any author rule. Not .tw: the studio's outline twisty owns that
    name in the same shadow root (finding 8). */
+.floor-heat{fill:var(--fp-floor-heat);fill-opacity:.24;stroke:none;pointer-events:none} .floor-pipes{fill:url(#fp-pipes);stroke:none;pointer-events:none}
 .temp-wash{pointer-events:none;stroke:none;fill-opacity:.3} .temp-wash-hot{fill:var(--fp-hot)} .temp-wash-cold{fill:var(--fp-cold)}
 .temp-edge{pointer-events:none;fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round} .temp-edge-hot{stroke:var(--fp-hot)} .temp-edge-cold{stroke:var(--fp-cold)}
 /* A room with a triggered motion sensor in it: one thin line inside its walls, in the sensor's own colour (a radar in
@@ -790,6 +792,8 @@ function structuralPoints(f: Floor): Pt[] {
   for (const k of ["walls", "doors", "openings", "extras"] as const) for (const o of f[k] ?? []) { add(o.a); add(o.b); }
   // S35.4: a car is 470 cm long, so its centre does not say where it ends; the frame holds its four turned corners. Other pieces count by their centre, as ever.
   for (const m of f.furniture ?? []) {
+    const wp = worktopPts(m); // B54.2: a worktop is its points
+    if (wp) { wp.forEach(add); continue; }
     if (m.symbol !== "car" || ![m.x, m.y, m.w, m.h, m.rot].every(Number.isFinite)) add([m.x, m.y]);
     else for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) add(turnAbout([m.x + (dx * m.w) / 2, m.y + (dy * m.h) / 2], m.rot, [m.x, m.y]).map((v) => Math.round(v * 1e6) / 1e6)); // rounded: cos 90 is not exactly 0
   }
@@ -811,6 +815,8 @@ const edgeClass = (kind: unknown) => `e${kind === "boundary" ? " nw" : kind === 
 const at = (p: Pt) => `${num(p[0])} ${num(p[1])}`;
 type Cls = "on" | "off" | "unavailable" | "danger";
 
+/** B54.4: a serpentine pipe run, 60 by 40 cm: two runs 20 cm apart, a bend at each end, the left bend carrying on into the next tile. */
+const PIPE_PATTERN = '<pattern id="fp-pipes" width="60" height="40" patternUnits="userSpaceOnUse"><path d="M10 10H50A10 10 0 0 1 50 30H10A10 10 0 0 0 10 50M10 -10A10 10 0 0 0 10 10" style="fill:none;stroke:var(--fp-floor-heat);stroke-width:3;stroke-linecap:round;stroke-opacity:.32"/></pattern>';
 const dead = (s: string) => s === "unavailable" || s === "unknown";
 
 /** A bound light is one lamp: on if either entity is on, unavailable only if every known state is dead. */
@@ -860,6 +866,23 @@ export function roomAt(f: Floor, p: Pt): number {
     if (a <= bestArea) { best = j; bestArea = a; } // a tie goes to the later room: it is drawn on top, the one a tap reaches
   });
   return best;
+}
+
+/** B54.4: the rooms warmed from below right now: those holding the icon of a climate or heater with `underfloor` whose `hvac_action` is `heating`.
+ *  The room is `roomAt` of the icon (a bar counts by its middle), the rule that gives every other device its room. Off, unavailable, unknown, idle,
+ *  a missing entity or a missing attribute heat nothing. Layout and state are untrusted: a bad slot is skipped, never a throw. The one rule behind the
+ *  2D wash and pipes and the 3D floor, so they cannot disagree. */
+export function heatedRooms(f: Floor, state: StateOverlay | undefined): Set<number> {
+  const out = new Set<number>();
+  for (const d of Array.isArray(f.devices) ? f.devices : []) {
+    if (!d || d.underfloor !== true || (d.type !== "climate" && d.type !== "heater")) continue;
+    const s = state?.[d.entity];
+    if (!s || dead(s.state) || s.state === "off" || s.attributes?.hvac_action !== "heating") continue;
+    const c = "a" in d && Array.isArray(d.a) && Array.isArray(d.b) ? mid(d.a, d.b) : ([(d as { x: number }).x, (d as { y: number }).y] as Pt);
+    const room = roomAt(f, c);
+    if (room >= 0) out.add(room);
+  }
+  return out;
 }
 
 /** S23.7: the kinds cut out of the wall like an opening. SWING_KINDS (door, glass door) draw no symbol: S25.D1 a hole, or a thick line when closed.
@@ -1434,7 +1457,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     ? `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000"><rect x="-100000" y="-100000" width="200000" height="200000" fill="white"/>${openingLines.join("")}</mask>`
     : "";
   const furnPatterns = furniturePatterns(f.furniture ?? []);
-  if (hatch || textured.length || furnPatterns || openingMask) out.push(`<defs>${hatch}${texturePatterns(textured)}${furnPatterns}${openingMask}</defs>`);
+  // B54.4: rooms warmed from below, and the one pipe pattern they share. Its colour is the token, read where the pattern sits.
+  const underfloor = heatedRooms(f, o.state);
+  const pipes = underfloor.size ? PIPE_PATTERN : "";
+  if (hatch || textured.length || furnPatterns || openingMask || pipes) out.push(`<defs>${hatch}${texturePatterns(textured)}${furnPatterns}${pipes}${openingMask}</defs>`);
   // S2.6: room_glow. A room glows when any light "in" it (point-in-polygon of the device's x,y; a light never has
   // a/b, only a heater does, but the same "a" in d guard the rest of the file uses is kept here too) is on. Untrusted
   // layout/state: a non-finite coordinate or a light outside every room's polygon is simply not counted, never thrown.
@@ -1475,6 +1501,11 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}${heat}${warned.has(i) ? ` temp-${warned.get(i)}` : ""}"${own}${heatStyle} points="${pts(r.pts)}"/>`);
     // S42.2: the wash, unless the temperature heat map already colours the room by its reading (the border below says it then).
     if (warned.has(i) && heatKind !== "temperature") out.push(`<polygon class="temp-wash temp-wash-${warned.get(i)}" data-tw="${i}" points="${pts(r.pts)}"/>`);
+    // B54.4: underfloor heating at work. The wash gives way to a heat map (which already colours the room); the pipes stay. Classes, not attributes (finding 18).
+    if (underfloor.has(i)) {
+      if (!heatKind) out.push(`<polygon class="floor-heat" data-uf="${i}" points="${pts(r.pts)}"/>`);
+      out.push(`<polygon class="floor-pipes" data-fp="${i}" points="${pts(r.pts)}"/>`);
+    }
   });
 
   f.stairs.forEach((t, i) => out.push(stairsGroup(t, i, o.around)));
@@ -1613,10 +1644,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   if (x25) {
     const segs = collectWalls(f, px, wallsModeOf(o.walls));
     solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state, segs));
-    f.furniture.forEach((m, i) => {
+    f.furniture.forEach((m0, i) => {
       if (layerHides(o.hiddenLayers, "furn", i, undefined, o.selection, o.keep)) return;
-      const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
-      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), sym.svg, px, furnitureWaves(o, m), carOf(o, m), linkOf(o, m)) : null;
+      const m = worktopFrame(m0), mode = furnitureMode(m), sym = FURNITURE[m.symbol];
+      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), symbolOf(m, sym.svg), px, furnitureWaves(o, m), carOf(o, m), linkOf(o, m)) : null;
       if (s) solids.push(s);
     });
     (f.unlinked ?? []).forEach((u, i) => { if (layerHides(o.hiddenLayers, "unl", i, u.type, o.selection, o.keep)) return; const s = unlinkedSolid(u, px); if (s) solids.push(s); });
@@ -1871,9 +1902,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   // Opus review of B53.10-B53.13: in 2D too a rug lies under every other piece, so one added later never covers a sofa or takes its click.
   if (rugSlot < 0) { rugSlot = out.length; out.push(""); }
-  f.furniture.forEach((m, i) => {
+  f.furniture.forEach((m0, i) => {
     if (layerHides(o.hiddenLayers, "furn", i, undefined, o.selection, o.keep)) return;
-    const sym = FURNITURE[m.symbol];
+    const m = worktopFrame(m0), sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = pieceOn(o, m, plugs) ? " on" : "";
     const dst = m.symbol === "rug" ? rugs : out;
@@ -1882,7 +1913,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (shade) dst.push(shade);
     const car = carOf(o, m), link = linkOf(o, m);
     const fp = furniturePaintLook(m);
-    dst.push(`<g data-f="${i}" class="furn${on}${furnitureCls(m)}${car?.cls ?? link?.cls ?? ""}${fp.cls}"${furnitureLinked(m)}${car?.style ?? fp.style} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : (link?.glow ?? "") + sym.svg}</g>`);
+    dst.push(`<g data-f="${i}" class="furn${on}${furnitureCls(m)}${car?.cls ?? link?.cls ?? ""}${fp.cls}"${furnitureLinked(m)}${car?.style ?? fp.style} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : (link?.glow ?? "") + symbolOf(m, sym.svg)}</g>`);
     if (car?.marks) dst.push(car.marks.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
     if (o.locate?.t === "furn" && o.locate.i === i) dst.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
     const waves = furnitureWaves(o, m);
