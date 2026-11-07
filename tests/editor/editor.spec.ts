@@ -7897,8 +7897,14 @@ test("Opus review CSS pair: each room sensor kind sits in a framed box, and its 
   expect(css.radius).not.toBe("0px");
   expect(css.hasPicker && css.hasRow).toBe(true);
   expect(css.rowPx).toBeLessThan(css.formPx);
-  // one box per kind
-  await expect(page.locator(".sens-box")).toHaveCount(3);
+  // one box per kind: temperature, humidity, motion, plus Power and Water (Sprint 55), each framed with its own picker
+  await expect(page.locator(".sens-box")).toHaveCount(5);
+  const boxes = await page.evaluate(([tag]) => {
+    const r = (document.querySelector(tag as string) as HTMLElement).shadowRoot ?? document;
+    return [...r.querySelectorAll(".sens-box")].map((b) => ({ border: getComputedStyle(b).borderTopWidth, ids: ["rtemp", "rhum", "rmot", "rpow", "rwat"].filter((id) => b.querySelector("#" + id)) }));
+  }, [EDITOR]);
+  for (const b of boxes) expect(b.border).toBe("1px");
+  expect(boxes.flatMap((b) => b.ids)).toEqual(["rtemp", "rhum", "rmot", "rpow", "rwat"]);
 });
 
 test("a door's Delete button comes before its sensors, as in the room panel (Diego, 2026-10-06)", async ({ page }) => {
