@@ -3,10 +3,11 @@ import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { repeat } from "lit/directives/repeat.js";
 import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, deviceZDefault, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
-import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
+import { worktopIndex, worktopPts, worktopTurn, STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
 import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, MIN_MOISTURE, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
 import { bodyOf, furniturePaintable } from "../core";
+import { rectPts } from "../core/polygon";
 import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, Furniture, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
@@ -463,7 +464,7 @@ function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
     ${heading("Appearance")}
     ${number(c, "x (cm)", "px", p[0], (x) => move([x, p[1]]))}
     ${number(c, "y (cm)", "py", p[1], (y) => move([p[0], y]))}
-    ${"poly" in s.ref && canDelete ? html`${heading("Danger")}<p>${button("delv", "Delete corner", () => { const ref = s.ref as { poly: string; j: number }; c.commit((f) => removePoint(f, ref.poly, ref.j)); c.select(null); }, "warn")}</p>` : nothing}`;
+    ${"poly" in s.ref && canDelete ? html`${heading("Danger")}<p>${button("delv", "Delete corner", () => { const ref = s.ref as { poly: string; j: number }; c.commit((f) => removePoint(f, ref.poly, ref.j)); const wi = worktopIndex(ref.poly); c.select(wi === null ? null : { t: "furn", i: wi }); }, "warn")}</p>` : nothing}`;
 }
 
 /** Delete for a room edge: it stops being drawn, on every room that shares it. A door or window on it asks first. */
@@ -1295,6 +1296,9 @@ function acField(c: PanelCtx, i: number) {
  * validate, finding 12): a washer refuses the loose entity a tv may carry, and a mirror takes no paint. A test walks every pair.
  */
 export function retype(p: Furniture, from: string, to: string): void {
+  // B54.1: a worktop is its `pts`. Entering it, the piece's own footprint becomes them (turned as it was, then `rot` 0); leaving it, they go.
+  if (to === "worktop" && from !== "worktop") { p.pts = rectPts(p); p.rot = 0; }
+  if (to !== "worktop") delete p.pts;
   p.symbol = to as Furniture["symbol"];
   if (to !== "car") { delete p.model; if (from === "car") delete p.color; }
   if (!isLinkable(to)) delete p.attached; // B53.11: a car, an appliance and a plant hold attached entities
@@ -1306,7 +1310,7 @@ export function retype(p: Furniture, from: string, to: string): void {
 
 function furniturePanel(c: PanelCtx, i: number) {
   const m = c.st.f.furniture[i];
-  const isCar = m.symbol === "car", linked = !isCar && isLinkable(m.symbol);
+  const isCar = m.symbol === "car", linked = !isCar && isLinkable(m.symbol), wt = worktopPts(m) !== null;
   // S1.51: width and depth are clamped to the same 5..2000 cm bounds the corner drag and validate() hold.
   const setSize = (k: "w" | "h") => (n: number) => c.commit((f) => { f.furniture[i][k] = Math.min(2000, Math.max(5, n)); });
   // `model` and `attached` belong to a car only (validate says so): leaving "car" takes them along, and its body colour (on another piece `color` is paint).
@@ -1328,14 +1332,17 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${heading("Appearance")}
     ${lockBox(c, "fulock", "furniture", i)}
     ${m.symbol === "sofa-l" ? mirrorBox(c, i) : nothing}
-    ${number(c, "width (cm)", "fw", m.w, setSize("w"))}
-    ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
+    ${wt ? nothing : html`${number(c, "width (cm)", "fw", m.w, setSize("w"))}
+    ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}`}
     ${heightField(c, "height (cm)", "fuht", m.height, isCar ? carSpec(m.model).height : FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}
     ${heightField(c, "bottom (cm)", "fuz", m.z, FURNITURE_Z[m.symbol] ?? 0, heightSetter(c, "furniture", i, "z"))}
     <p class="hint" id="fusize">H ${Math.round(furnitureHeight(m))} × W ${Math.round(m.w)} × L ${Math.round(m.h)} cm</p>
     ${furniturePaintable(m.symbol) ? paintControls(c, "furniture", i, "fp", m) : nothing}
-    ${rotationSlider(c, "frot", "furniture", i, m.rot)}
-    ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}
+    ${wt
+      // B54.3: a worktop turns by moving its points (rot stays 0), so there is no slider, no Reset and no width or depth: the corners are the size.
+      ? rotateButtons(c, "fr", (n) => c.commit((f) => worktopTurn(f, i, n)))
+      : html`${rotationSlider(c, "frot", "furniture", i, m.rot)}
+    ${rotateButtons(c, "fr", (n) => c.commit((f) => { f.furniture[i].rot = ((m.rot + n) % 360 + 360) % 360; }), { reset: () => { if (m.rot) c.commit((f) => { f.furniture[i].rot = 0; }); } })}`}
     ${heading("Danger")}
     <p>${button("fudel", "Delete", () => { c.commit((f) => { f.furniture.splice(i, 1); }); c.select(null); }, "warn")}</p>`;
 }

@@ -27,6 +27,7 @@ import { devsHave, layerHides, type LayerId, type PlanSel } from "./layers";
 import type { DetailLevel } from "./detail";
 import { wallColourMap, wallColourVars, wallEdgeKey } from "./wall-colour";
 import { DARKEN_PCT, mirrored } from "./furniture-blocks";
+import { symbolOf, worktopFrame, worktopPts } from "./polygon";
 import { bodyOf, bodyAir, bodyFlat, bodyWind, STEM_MIN_Z, turnAbout, furnitureLinked, furnitureCls, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, collectWalls, shadeMarkup, type Proj, type Solid, type WallsMode } from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
@@ -791,6 +792,8 @@ function structuralPoints(f: Floor): Pt[] {
   for (const k of ["walls", "doors", "openings", "extras"] as const) for (const o of f[k] ?? []) { add(o.a); add(o.b); }
   // S35.4: a car is 470 cm long, so its centre does not say where it ends; the frame holds its four turned corners. Other pieces count by their centre, as ever.
   for (const m of f.furniture ?? []) {
+    const wp = worktopPts(m); // B54.2: a worktop is its points
+    if (wp) { wp.forEach(add); continue; }
     if (m.symbol !== "car" || ![m.x, m.y, m.w, m.h, m.rot].every(Number.isFinite)) add([m.x, m.y]);
     else for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) add(turnAbout([m.x + (dx * m.w) / 2, m.y + (dy * m.h) / 2], m.rot, [m.x, m.y]).map((v) => Math.round(v * 1e6) / 1e6)); // rounded: cos 90 is not exactly 0
   }
@@ -1641,10 +1644,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   if (x25) {
     const segs = collectWalls(f, px, wallsModeOf(o.walls));
     solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state, segs));
-    f.furniture.forEach((m, i) => {
+    f.furniture.forEach((m0, i) => {
       if (layerHides(o.hiddenLayers, "furn", i, undefined, o.selection, o.keep)) return;
-      const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
-      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), sym.svg, px, furnitureWaves(o, m), carOf(o, m), linkOf(o, m)) : null;
+      const m = worktopFrame(m0), mode = furnitureMode(m), sym = FURNITURE[m.symbol];
+      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), symbolOf(m, sym.svg), px, furnitureWaves(o, m), carOf(o, m), linkOf(o, m)) : null;
       if (s) solids.push(s);
     });
     (f.unlinked ?? []).forEach((u, i) => { if (layerHides(o.hiddenLayers, "unl", i, u.type, o.selection, o.keep)) return; const s = unlinkedSolid(u, px); if (s) solids.push(s); });
@@ -1899,9 +1902,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   // Opus review of B53.10-B53.13: in 2D too a rug lies under every other piece, so one added later never covers a sofa or takes its click.
   if (rugSlot < 0) { rugSlot = out.length; out.push(""); }
-  f.furniture.forEach((m, i) => {
+  f.furniture.forEach((m0, i) => {
     if (layerHides(o.hiddenLayers, "furn", i, undefined, o.selection, o.keep)) return;
-    const sym = FURNITURE[m.symbol];
+    const m = worktopFrame(m0), sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = pieceOn(o, m, plugs) ? " on" : "";
     const dst = m.symbol === "rug" ? rugs : out;
@@ -1910,7 +1913,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (shade) dst.push(shade);
     const car = carOf(o, m), link = linkOf(o, m);
     const fp = furniturePaintLook(m);
-    dst.push(`<g data-f="${i}" class="furn${on}${furnitureCls(m)}${car?.cls ?? link?.cls ?? ""}${fp.cls}"${furnitureLinked(m)}${car?.style ?? fp.style} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : (link?.glow ?? "") + sym.svg}</g>`);
+    dst.push(`<g data-f="${i}" class="furn${on}${furnitureCls(m)}${car?.cls ?? link?.cls ?? ""}${fp.cls}"${furnitureLinked(m)}${car?.style ?? fp.style} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num((mirrored(m) ? -m.w : m.w) / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${car ? car.glow + carTop(m.model) : (link?.glow ?? "") + symbolOf(m, sym.svg)}</g>`);
     if (car?.marks) dst.push(car.marks.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
     if (o.locate?.t === "furn" && o.locate.i === i) dst.push(`<circle class="locate" cx="${num(m.x)}" cy="${num(m.y)}" r="${num(Math.max(m.w, m.h) / 2 + 8 * k)}"/>`);
     const waves = furnitureWaves(o, m);

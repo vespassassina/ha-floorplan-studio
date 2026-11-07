@@ -1,4 +1,4 @@
-import { MAX_ROOM_SENSORS, contentPoints, dist, movePoints, polyCentre, polys, stairSteps, stitch } from "../core";
+import { MAX_ROOM_SENSORS, contentPoints, dist, movePoints, polyCentre, polys, stairSteps, stitch, worktopIndex, worktopMove } from "../core";
 import type { Floor, Furniture, Pt, Room, Stairs, WallKind } from "../core";
 import { newId, type LooseRef, type PtRef } from "./state";
 
@@ -31,6 +31,8 @@ export function pointsNear(f: Floor, p: Pt): Pt[] {
  */
 export function movePointAll(f: Floor, from: Pt, to: Pt, detach = false, only?: PtRef): Floor {
   const t = round(to);
+  // B54.3: a worktop corner moves alone: it never joins a room's corner or drags a loose wall end along.
+  if (only && "poly" in only && worktopIndex(only.poly) !== null) return worktopMove(f, only.poly, only.j, t);
   if (detach && only && !("poly" in only)) {
     const g = structuredClone(f);
     g[only.k][only.i][only.end] = t;

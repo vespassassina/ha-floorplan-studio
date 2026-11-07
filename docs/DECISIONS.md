@@ -18,6 +18,42 @@ gives way. Both are classes with `pointer-events:none`, not attributes, and noth
 the rooms and `paintLifts` multiplies those floor-top vertices toward `--fp-floor-heat` in the same pass that lifts a lit
 room, with no second mechanism. The editor's device panel has an Underfloor box for those two types. Replay needs no code.
 
+## 2026-11-07: B54.3 The worktop edited
+
+A worktop is drawn by clicking points like a room (double-click or Enter ends, Esc cancels). A selected worktop shows a handle per
+point; drag one, click an edge to add one, Delete on a selected point removes it (never below 3), and dragging the piece moves every
+point. The writers are in `src/core/polygon.ts` (`worktopInsert`, `worktopRemove`, `worktopMove`, `worktopShift`, `worktopTurn`) and
+share the room panel's ring code. Each returns the piece with x, y, w, h re-fitted to the bounding box and rot 0, and refuses a result
+that is not a simple polygon, so the Studio cannot commit an invalid worktop (tested over every point and several moves, with
+`validate` after each). A worktop is not in `geometry.polys`: no snapping, stitching or door-hosting. One undo step per gesture, none
+when unchanged. Gzip -9 against 05b470f9, B54.1 to B54.3 together: card +968, 3d +15, form +564, panel +2212 bytes (before:
+129,295 / 164,882 / 26,700 / 204,128).
+
+## 2026-11-07: B54.2 The worktop drawn
+
+One draw path: `renderFloor` (2D and 2.5D) and `buildScene` (3D) both frame a piece through `worktopFrame` (`src/core/polygon.ts`)
+before they read it, so x, y, w, h are the points' own bounding box and rot 0 whatever a hand-edited file says; a worktop whose
+`pts` fail `validate` draws as its box, like any piece. In 2D the symbol is one path in the 100 x 100 box the furniture transform
+scales (`worktopSvg`: `ff` fill, `currentColor` top edge, 3 wide, round joins), so the fill is `--fp-furniture`, `color` overrides it,
+and no new stylesheet rule exists. In 2.5D and 3D it is a prism of exactly the points (`prism` in `solids.ts`) at `FURNITURE_HEIGHTS.worktop`
+(90), with no `furnitureBlocks`. `num` rounds to 0.01, so the 2D group's scale (w / 100) can drift a worktop by up to 0.3 cm on a
+very large piece; the tests state that bound. Looked at in blueprint and light themes at 4x: an L and a 3-point triangle, with
+`color` set, correct in both. Size: no build was taken between B54.2 and B54.3, so the gzip figures are given once, at B54.3.
+
+## 2026-11-07: B54.1 The worktop's schema
+
+`Furniture.symbol` gains `worktop`, and `Furniture.pts?: Pt[]` exists on it alone and is required there: 3 to 64 finite points
+within 10 km, a simple polygon (`isSimplePolygon`, `src/core/polygon.ts`: no repeated point, no edge touching a non-neighbour,
+no neighbour folded back on its shared corner, non-zero area). `x`, `y`, `w`, `h` stay the bounding box (`boxOf`) and `rot` 0;
+`pts` is the truth. `validate` names the piece for each failure and never throws on a hostile `pts` (a proxy, a getter, junk);
+`migrate` keeps `pts` only where `validate` would accept it and leaves a worktop without them to fail by name, inventing none.
+Every table that iterates `FURNITURE_SYMBOLS` took an entry: height 90, solid `box`, label "Worktop", area Kitchen and dining,
+unlinked, paintable, a thumbnail L in `icons.ts`, one bounding-box block in `furnitureBlocks` (a reader that knows only the
+box). Renderers draw it from `pts` (B54.2). Retyping a piece to `worktop` makes its turned footprint the points and sets `rot`
+0; away from it the points go. Fixtures that walk the union (`retype`, `mirror-schema`, `furniture-paint` pieces, and the
+per-symbol tables in `icons`, `link-electric`, `scene`, `solids-objects`) gained the one worktop entry; no assertion changed.
+Gzip: card +670, form +564, panel +792, 3d +5 (from 129,295 / 26,700 / 204,128 / 164,882).
+
 ## 2026-11-06: Outdoor light, night and day
 
 Diego: the plan is too dark outdoors at night to read, and by day the garden should follow the weather and the hour.

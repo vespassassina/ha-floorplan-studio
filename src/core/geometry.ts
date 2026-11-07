@@ -1,4 +1,5 @@
 import type { EdgeKind, Floor, Pt, Room, Stairs } from "./schema";
+import { worktopIndex, worktopInsert, worktopRemove } from "./polygon";
 
 /**
  * The `EdgeKind` of edge `i` of polygon `poly` ("o" the outline, "r<n>" a room, "w" a free wall), the same rule
@@ -200,6 +201,7 @@ export function stitch(f: Floor, pt: Pt): Floor {
 }
 
 export function insertPoint(f: Floor, poly: string, i: number, pt: Pt): Floor {
+  if (worktopIndex(poly) !== null) return worktopInsert(f, poly, i, pt); // B54.3: a worktop is not in `polys`, it has no room, kinds or colours
   const g = structuredClone(f);
   const P = polys(g).find((x) => x.id === poly);
   if (!P) return f;
@@ -214,6 +216,7 @@ export function insertPoint(f: Floor, poly: string, i: number, pt: Pt): Floor {
 
 /** Refuses (returns `f` itself) when the polygon would drop below 3 points. */
 export function removePoint(f: Floor, poly: string, j: number): Floor {
+  if (worktopIndex(poly) !== null) return worktopRemove(f, poly, j);
   const g = structuredClone(f);
   const P = polys(g).find((x) => x.id === poly);
   if (!P || P.pts.length <= 3) return f;

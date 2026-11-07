@@ -498,6 +498,7 @@ export class FloorplanStudioEditor extends LitElement {
     /* S36.5: a selected zone keeps reading as a zone: heavier and dashed. A class rule, not attributes, so it outranks nothing by accident (finding 18). */
     .hl.hl-zone{stroke-width:3;stroke-dasharray:6 4}
     .h{cursor:move} .h.on{fill:var(--fp-ink)}
+    .we{fill:none;stroke:transparent;stroke-width:14px;vector-effect:non-scaling-stroke;pointer-events:stroke;cursor:copy}
     .align-pivot{pointer-events:none} .align-pivot line{stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke}
     .len{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round;pointer-events:none;user-select:none}
     .lbl{pointer-events:none;user-select:none}

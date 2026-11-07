@@ -4,7 +4,7 @@ import { migrate } from "../../src/core/migrate";
 
 // B53.2, spec items 17 and 18: `mirror: true` flips the L sofa. It is valid on `sofa-l` only, and a layout file is untrusted
 // input (finding 1): validate never throws and names the piece, migrate keeps `mirror` only where validate would accept it.
-const piece = (symbol: string, extra: Record<string, unknown> = {}) => ({ id: "m1", name: "Couch", symbol, x: 100, y: 100, rot: 0, w: 240, h: 160, ...extra });
+const piece = (symbol: string, extra: Record<string, unknown> = {}) => ({ id: "m1", name: "Couch", symbol, x: 100, y: 100, rot: 0, w: 240, h: 160, ...(symbol === "worktop" ? { pts: [[0, 0], [100, 0], [100, 40], [40, 40], [40, 90], [0, 90]] } : {}), ...extra });
 const layoutOf = (m: unknown) => ({ version: 2, unit: "cm", north: 0, rotate: 0, catalog: [], floors: { Ground: { title: "G", outline: [[0, 0], [1000, 0], [1000, 800], [0, 800]], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [m], unlinked: [] } } });
 const errorsOf = (m: unknown): string[] => { const r = validate(layoutOf(m)); return r.ok ? [] : r.errors; };
 const furnitureOf = (l: unknown) => (l as Layout).floors.Ground.furniture[0] as unknown as Record<string, unknown>;

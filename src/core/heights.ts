@@ -15,6 +15,7 @@ export const FURNITURE_HEIGHTS: Record<FurnitureSymbol, number> = {
   table: 75, sofa: 85, bed: 55, cabinet: 180, chair: 90, sink: 90, toilet: 40, shower: 200, bathtub: 55, "sofa-l": 85, "coffee-table": 40, bookcase: 200, buffet: 85, wardrobe: 210, dresser: 85, nightstand: 55, desk: 75, armchair: 85, counter: 90, stove: 90, fridge: 185, dishwasher: 85, washer: 85, dryer: 85, rug: 1, plant: 90, treadmill: 140, "barbell-rack": 230, "weight-rack": 80, "chaise-longue": 80, "cube-shelf": 147, mirror: 100, "mirror-stand": 180, "robot-vacuum": 10, "robot-dock": 12, tv: 60, computer: 50, speaker: 30,
   tree: 400, // a garden tree, crown included
   "patio-wood": 5, "patio-concrete": 5, // a deck or slab: flat, but not zero so it can stand off the lawn
+  worktop: 90, // B54.1: a kitchen worktop, floor to its top
   car: 145, // the sedan's; a car piece without its own height takes its model's (`furnitureHeight`)
 };
 

@@ -16,6 +16,7 @@ function loaded(symbol: string): Furniture {
   if (symbol === "plant") m.minMoisture = 30;
   if (symbol === "car") { m.model = "suv"; m.color = "#aabbcc"; } else if (furniturePaintable(symbol)) { m.color = "#aabbcc"; m.texture = "wood-light"; m.textureRot = 10; m.textureScale = 1; }
   if (symbol === "sofa-l") m.mirror = true;
+  if (symbol === "worktop") m.pts = [[270, 270], [330, 270], [330, 300], [300, 300], [300, 330], [270, 330]];
   return m as unknown as Furniture;
 }
 

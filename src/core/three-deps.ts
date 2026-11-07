@@ -16,6 +16,7 @@ import { treeShape } from "./tree";
 import { wallColourMap, wallEdgeKey } from "./wall-colour";
 import { carParts, carSpec } from "./car";
 import { furniturePaint } from "./furniture-paint";
+import { worktopFrame, worktopPts } from "./polygon";
 import { carStatus } from "./car-status";
 import { linkedStatus } from "./link";
 import type { LiveDeps } from "./live-build";
@@ -26,7 +27,7 @@ export const sceneDeps: SceneDeps = {
   attachedTest, inside, resolveStairDirection,
   bodyOf, bodyPlacement, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH,
   pieceDevice, stairBlocks, turnAbout, tvPlacement, within, furnitureBlocks, darkenedHex,
-  DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec, wallColourMap, wallEdgeKey, furniturePaint,
+  DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec, wallColourMap, wallEdgeKey, furniturePaint, worktopFrame, worktopPts,
 };
 export const liveDeps: LiveDeps = {
   acMode, attachedTest, classOf, deviceMarkup, heatedRooms, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceDevice, bodyAir, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf, fxScale, carStatus, linkedStatus, thumbBox, thumbUrl,

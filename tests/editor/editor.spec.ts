@@ -2881,9 +2881,11 @@ test("Add, Wall, Zone, Stairs and Furniture all land right of the house, top ali
 
 test("S5.1: every FURNITURE_SYMBOLS entry can be placed from the Add menu, and the layout still validates", async ({ page }) => {
   const before = (await groundOf(page)).furniture.length;
-  for (const sym of FURNITURE_SYMBOLS) { await menu(page, "Add"); await pickFurniture(page, sym); }
+  // B54.3: a worktop is drawn point by point, not dropped; tests/editor/worktop.spec.ts covers drawing it.
+  const placed = FURNITURE_SYMBOLS.filter((sym) => sym !== "worktop");
+  for (const sym of placed) { await menu(page, "Add"); await pickFurniture(page, sym); }
   const l = await layoutOf(page), g = l.floors.ground;
-  expect(g.furniture.slice(before).map((m) => m.symbol)).toEqual([...FURNITURE_SYMBOLS]);
+  expect(g.furniture.slice(before).map((m) => m.symbol)).toEqual(placed);
   expect(validate(l).ok).toBe(true);
 });
 
