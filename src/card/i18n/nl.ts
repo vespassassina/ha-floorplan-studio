@@ -308,5 +308,18 @@ const c: Catalogue = {
   "{n} W": "{n} W",
   "{n} kWh": "{n} kWh",
   "{n} %": "{n} %",
+  "Cooling": "Koelt",
+  "Heating": "Verwarmt",
+  "Energy": "Energie",
+  "Just now": "Zojuist",
+  "Motion now": "Beweging nu",
+  "No motion recorded": "Geen beweging geregistreerd",
+  "No reading": "Geen meting",
+  "{action} to {to}": "{action} naar {to}",
+  "{action} to {to}, now {now}": "{action} naar {to}, nu {now}",
+  "{action}, now {now}": "{action}, nu {now}",
+  "{age} ago": "{age} geleden",
+  "{n} kW": "{n} kW",
+  "{on} of {n} on": "{on} van {n} aan",
 };
 export default c;

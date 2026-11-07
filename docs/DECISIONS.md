@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: What the four badges read and say (B55.2)
+
+`BADGE_OF: Record<DeviceType, BadgeKind | null>` feeds lights from `light`, climate from `climate`, `heater` and `ac`, motion from
+`motion` and `radar`; the other 28 types feed nothing, and a test walks `DEVICE_TYPES`. Energy has no device: it reads the
+room's `power` and `water` lists. Rules that spec F35 left open: heating and cooling come from `acMode`, the rule the plan's
+air icon already uses, and heating wins the colour over cooling; the energy badge is lit when the summed power is MORE than
+`plug_watts` (a plug is "at least"; a room that draws exactly the threshold is idle); water never lights it. "Last motion" is
+the newest `last_changed` of the room's motion sources that are off, counted back from `now`, which is the replay time in a
+replay; a change stamped after `now` reads "Just now", never a negative age. Temperatures in the climate row print in °C (HA gives
+no unit on climate attributes and the project is metric). Nine languages got the 13 new words.
+
 ## 2026-11-07: A room's badges, power and water are schema, and the Power and Water pickers read the device class (B55.1)
 
 `Room.badges?: { corner: nw|ne|sw|se }`, `Room.power?` and `Room.water?` (sensor ids, at most `MAX_ROOM_SENSORS`). `validate`
