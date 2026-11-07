@@ -115,7 +115,7 @@ const hex = (n: number) => n.toString(16).padStart(6, "0");
 const SWING = (70 * Math.PI) / 180;
 /** The lights' strength by day and by night, and how much more a lit room and a lamp's pool count at night, against the dark. */
 const DAY = { hemi: 1.6, sun: 1.9, boost: 1.3 }, NIGHT = { hemi: 0.5, sun: 0.35, boost: 3.5 };
-const EMPTY: Live3D = { pulse: [3, 1.4], night: false, labels: false, names: false, lights: [], doors: [], devices: [], pieces: [], rooms: [] };
+const EMPTY: Live3D = { pulse: [3, 1.4], night: false, labels: false, names: false, lights: [], heated: [], doors: [], devices: [], pieces: [], rooms: [] };
 const hexOf = (c: Color) => `#${c.getHexString()}`;
 
 /** A CSS colour the browser accepts, as 0xRRGGBB, or `null`. Resolved on `probe`, which sits inside the card and so sees its tokens. */
@@ -181,7 +181,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   let wallMeshes: Mesh[] = [], bodies: WallBody[] = [], lowered = new Set<string>(), walls: Walls = "cut";
   // ---- the live state (S12.5). `liveNow` is what core/live.ts last said; every part below is changed in place from it.
   let liveNow: Live3D | null = null, liveSig = "", builds = 0, pulsing = false, breathing = false, pulseStart = 0, liftKey = "";
-  let lifts = new Map<number, Rgb>(), roomShapes: RoomShape[] = [];
+  let lifts = new Map<number, Rgb>(), heatTint = new Map<number, Rgb>(), roomShapes: RoomShape[] = [];
   const roomSolid = new Map<number, { base: Poly; z: number; kind: string }>();
   let parts: { index: number; tag: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; shut?: boolean }[] = [];
   /** A linked tv, speaker or computer piece: a mesh of its own (so its colour can follow the state), at rest in the linked colour, on in the plan's on colour. */
@@ -638,16 +638,25 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     }
     return o;
   };
-  /** Multiplies the vertex colours of the lit rooms' floors, furniture and walls (white elsewhere): the lamp's room is brighter and warmer, the neighbour is not touched. */
+  /**
+   * Multiplies the vertex colours of the lit rooms' floors, furniture and walls (white elsewhere): the lamp's room is brighter and warmer, the neighbour is not touched.
+   * B54.4: the same pass multiplies the top face of a room warmed from below (`heatTint`) toward `--fp-floor-heat`, so a heating floor is one more lift, not a second mechanism.
+   * Only a face that points up and lies at the room's floor level: a rug, a wall or a piece of furniture keeps its own colour.
+   */
   function paintLifts(m: Mesh) {
-    const lit = lifts.size > 0;
+    const lit = lifts.size > 0 || heatTint.size > 0;
     if (!lit && !m.userData.lit) return;
     m.userData.lit = lit;
     const col = m.geometry.getAttribute("color") as BufferAttribute, a = col.array as Float32Array;
     if (!lit) a.fill(1);
     else {
-      const own = ownersOf(m);
-      for (let i = 0; i < own.length; i++) { const l = lifts.get(own[i]); a[i * 3] = l ? l[0] : 1; a[i * 3 + 1] = l ? l[1] : 1; a[i * 3 + 2] = l ? l[2] : 1; }
+      const own = ownersOf(m), pos = m.geometry.getAttribute("position"), nor = heatTint.size ? m.geometry.getAttribute("normal") : null;
+      for (let i = 0; i < own.length; i++) {
+        // The floor tint goes by the triangle's centre, not the vertex: a corner on a shared wall is owned by one neighbour only, and the tint would fade across the room.
+        const t = i - (i % 3), room = nor && i + 2 - (i % 3) < own.length ? roomOfPoint(roomShapes, (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3) : -1;
+        const l = lifts.get(own[i]), h = nor && room >= 0 && nor.getY(i) > 0.5 && Math.abs(pos.getY(i) - (roomSolid.get(room)?.z ?? NaN)) < 0.5 ? heatTint.get(room) : undefined;
+        for (let k = 0; k < 3; k++) a[i * 3 + k] = (l ? l[k] : 1) * (h ? h[k] : 1);
+      }
     }
     col.needsUpdate = true;
   }
@@ -825,6 +834,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     }
     return more;
   }
+  /** B54.4: what the floor of each heated room is multiplied by: white moved half way to the theme's `--fp-floor-heat`, scaled so its strongest channel stays 1 (it warms, it does not darken). */
+  const floorHeat = (rooms: readonly number[] | undefined): Map<number, Rgb> => {
+    const out = new Map<number, Rgb>(), n = rooms?.length ? resolveColour(probe, "var(--fp-floor-heat)") : null;
+    if (n === null) return out;
+    const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255), top = Math.max(...c, 1e-6), tint = c.map((v) => 0.5 + 0.5 * (v / top)) as Rgb;
+    for (const r of rooms ?? []) if (roomSolid.has(r)) out.set(r, tint);
+    return out;
+  };
   const rgbOf = (css: string | null): Rgb => {
     const n = resolveColour(probe, css ?? roleStyle("lamp").css);
     return n === null ? [1, 0.85, 0.6] : [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
@@ -864,7 +881,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     const sunNow = applySun(L, mode);
     const lit = L.lights.map((l) => ({ room: l.room, at: l.at, rgb: rgbOf(l.rgb), level: l.level, device: l.device, scale: l.scale ?? 1 }));
     lifts = roomLifts(lit, mode.boost);
-    const key = JSON.stringify([...lifts]);
+    heatTint = floorHeat(L.heated);
+    const key = JSON.stringify([[...lifts], [...heatTint]]);
     if (key !== liftKey) { liftKey = key; for (const m of meshes) paintLifts(m); for (const m of wallMeshes) paintLifts(m); }
     const b = plan?.bounds, centre: [number, number] = b ? [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2] : [0, 0];
     const here = lit.filter((l) => roomSolid.has(l.room));
@@ -982,7 +1000,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       }
     }
     for (const s of plan.solids) if (s.kind === "device" && s.shape.type === "point" && typeof s.ref.index === "number") deviceZ.set(s.ref.index, s.shape.z);
-    lifts = new Map(); liftKey = "";
+    lifts = new Map(); heatTint = new Map(); liftKey = "";
     bodies = wallBodies(plan.solids);
     lowered = new Set();
     buildMarkers();
@@ -1274,6 +1292,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           pools: pools.info(),
           glow: glow.info(),
           lifted: [...lifts.keys()].sort((a, b) => a - b),
+          heated: [...heatTint.keys()].sort((a, b) => a - b),
           rings: rings.info([...roomSolid.keys()]),
         };
       },

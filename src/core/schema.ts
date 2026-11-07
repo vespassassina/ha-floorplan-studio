@@ -121,8 +121,10 @@ export type DeviceBody = (typeof DEVICE_BODIES)[number];
  * `locked` (S26.1): the device does not move when dragged, alone or in a group; it can still be edited and deleted. Absent is false.
  * `view` (S40.3): a path inside Home Assistant, such as `/lovelace/terrace` (`isViewPath`). A tap on the icon opens that dashboard view, whatever the
  * card's `tap_action`; hold keeps its own action. An older card ignores it.
+ * `underfloor` (B54.4, climate and heater only): the device heats the floor of the room that holds its icon. While its `hvac_action` is
+ * `heating` that room is washed and patterned in 2D and warmed in 3D. Absent is false; an older card ignores it.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; body?: DeviceBody } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; underfloor?: true; body?: DeviceBody } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /**
  * S35.1: the car models, in the order the Studio lists them. `model`, `color` (`#rrggbb`) and `attached` (at most
  * `MAX_CAR_ATTACHED` entity ids) exist on a furniture piece with symbol `car` only; `entity` is then the car's main
@@ -542,6 +544,10 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
           if (d.type !== "light") errors.push(`${at} ${d.id} bound is only allowed on a light`);
           if (d.bound === d.entity) errors.push(`${at} ${d.id} bound must differ from entity`);
         }
+      }
+      if (d.underfloor !== undefined) {
+        if (d.underfloor !== true) errors.push(`${at} ${d.id} underfloor must be true; leave it out for no underfloor heating`);
+        else if (d.type !== "climate" && d.type !== "heater") errors.push(`${at} ${d.id} underfloor is only allowed on a climate or heater`);
       }
       // S14.3: the effect size, a percent of the type's own ring, aura or wave. Optional; absent is 100.
       if (d.fx !== undefined && !(typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX))

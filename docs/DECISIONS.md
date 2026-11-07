@@ -8,6 +8,16 @@ Diego, mid Sprint 54: "make the budget larger and just roll". Underfloor took th
 (+1,800) and the worktop were still to come. `CARD_GROWTH_LIMIT` 40,220 to 47,220 over the pre-3D 90,780. Seven thousand is the
 room for Sprints 54 to 56; the next sprint that does not fit stops and asks again.
 
+## 2026-11-07: Underfloor heating (B54.4)
+
+`Device.underfloor?: true`, allowed on `climate` and `heater` only; `validate` refuses it elsewhere, `migrate` keeps it only
+from those two with the value `true`. The room is the one that holds the icon (`roomAt`); no room, no cue. While the
+entity's `hvac_action` is `heating`, `renderFloor` draws a `floor-heat` wash (`--fp-floor-heat`, in every theme) and a
+`floor-pipes` serpentine pattern in the same colour over the room fill; under a heat map the pattern stays and the wash
+gives way. Both are classes with `pointer-events:none`, not attributes, and nothing animates. In 3D, `Live3D.heated` lists
+the rooms and `paintLifts` multiplies those floor-top vertices toward `--fp-floor-heat` in the same pass that lifts a lit
+room, with no second mechanism. The editor's device panel has an Underfloor box for those two types. Replay needs no code.
+
 ## 2026-11-06: Outdoor light, night and day
 
 Diego: the plan is too dark outdoors at night to read, and by day the garden should follow the weather and the hour.
