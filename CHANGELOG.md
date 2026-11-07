@@ -4,6 +4,7 @@
 
 - Layout file: a room may carry `badges: { corner }` (`nw`, `ne`, `sw` or `se`), `power` and `water` (sensor ids, at most 20 each). `validate` names a bad one; `migrate` drops it. Studio: the room panel's Sensors section has Badges (Off or a corner) and Power and Water pickers, suggested by device class (B55.1).
 - Core: `badgeInfo` and `BADGE_OF` decide what a room's lights, climate, motion and energy badges show and say, live and in a replay (B55.2). Nothing is drawn yet.
+- Plan: a room with `badges` shows small icons for its lights, climate, motion and energy in the chosen corner of its box. They keep their screen size under zoom, stay upright in a turned plan, and slide in from an L-room's empty corner (B55.3).
 
 ## 0.45.0 - 2026-11-07
 

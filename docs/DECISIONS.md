@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-07: Where the badges sit, and that the editor's take no click (B55.3)
+
+`renderFloor` draws them through `roomBadges` in `room-badges.ts`, so the card and the Studio share one draw path. Each icon is a
+9 px disc, 4 px apart, its centre 8 px plus the radius in from the chosen corner of the room's bounding box; all sizes are screen
+px times `kt`, so zoom does not change them, and a turned plan turns each one back about its centre. A row that would leave an
+L-room's empty corner slides in 32 steps along the line to the label point, until every disc (centre and its four sides) is inside
+the polygon; at worst it ends on the label point. The row sits left to right in plan axes: `ne` and `se` anchor its right end at
+the corner. Badges are not text, so they draw with labels off. They are `.cb` groups, separate from the rollup's `.room-badge`
+(hidden outside far and mid). A card badge takes the pointer (the bubble, B55.4); an editor badge takes none (`.cb-ed`). The
+energy glyph is an inlined MDI bolt, as `DEVICE_ICONS` has none. Lit colours are existing tokens: `--fp-dev-light`,
+`--fp-dev-motion`, `--fp-on`, and `--fp-dev-ac-heat` or `--fp-dev-ac-cool` for climate.
+
 ## 2026-11-07: What the four badges read and say (B55.2)
 
 `BADGE_OF: Record<DeviceType, BadgeKind | null>` feeds lights from `light`, climate from `climate`, `heater` and `ac`, motion from

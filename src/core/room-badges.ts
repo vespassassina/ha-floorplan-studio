@@ -1,5 +1,7 @@
-import type { Device, DeviceType, Floor } from "./schema";
-import { acMode, roomAt, classOf, type RenderOpts, type StateOverlay } from "./render";
+import { ROOM_CORNERS, type Device, type DeviceType, type Floor, type Pt, type RoomCorner } from "./schema";
+import { acMode, roomAt, classOf, inside, polyCentre, ROOM_OWNS, type RenderOpts, type StateOverlay } from "./render";
+import { DEVICE_ICONS } from "./icons";
+import { esc, num } from "./fmt";
 import { stateOf } from "./readings";
 import { meanText } from "./state-text";
 import { plugThreshold, wattsOf } from "./power";
@@ -118,4 +120,51 @@ export function badgeInfo(f: Floor, ri: number, opts: BadgeOpts): BadgeInfo[] {
   const state = opts.state && typeof opts.state === "object" ? (opts.state as StateOverlay) : undefined;
   const o = { ...opts, state, now } as RenderOpts;
   return kinds.map((k) => (k === "lights" ? lightsInfo(f, ri, o) : k === "climate" ? climateInfo(f, ri, o) : k === "motion" ? motionInfo(f, ri, o, now) : energyInfo(f, ri, o)));
+}
+
+// ---- B55.3 (F34, F36): the badges on the plan. Sizes are screen px; `kt` turns them into plan cm.
+const R_PX = 9, GAP_PX = 4, INSET_PX = 8, SLIDE_STEPS = 32;
+const BOLT = "M7,2V13H10V22L17,10H13L17,2H7Z"; // MDI "flash": DEVICE_ICONS has no energy glyph and the card imports no icon set at runtime
+const ICON_PATH: Record<BadgeKind, string> = { lights: DEVICE_ICONS.light, climate: DEVICE_ICONS.climate, motion: DEVICE_ICONS.motion, energy: BOLT };
+
+export interface BadgeDraw { f: Floor; o: RenderOpts; kt: number; up: (x: number, y: number) => string; editor: boolean }
+
+/** Centres of `n` icons in a corner of the box, left to right in plan axes. */
+function rowAt(box: [number, number, number, number], corner: RoomCorner, n: number, kt: number): Pt[] {
+  const [x0, y0, x1, y1] = box, edge = (INSET_PX + R_PX) * kt, pitch = (2 * R_PX + GAP_PX) * kt;
+  const y = corner[0] === "n" ? y0 + edge : y1 - edge;
+  const first = corner[1] === "w" ? x0 + edge : x1 - edge - (n - 1) * pitch;
+  return Array.from({ length: n }, (_, i) => [first + i * pitch, y] as Pt);
+}
+
+/** The row, slid along the line to the label point just far enough that every icon is inside the room (an L-room's empty corner). */
+function placed(pts: Pt[], row: Pt[], kt: number): Pt[] {
+  // "Inside" means the whole disc: the centre and its four sides, so an icon never sits on a wall.
+  const reach = R_PX * kt, clear = (c: Pt) => ([[0, 0], [reach, 0], [-reach, 0], [0, reach], [0, -reach]] as Pt[]).every(([dx, dy]) => inside([c[0] + dx, c[1] + dy], pts));
+  if (row.every(clear)) return row;
+  const mid: Pt = [row.reduce((s, c) => s + c[0], 0) / row.length, row[0][1]], to = polyCentre(pts);
+  const slid = (t: number) => row.map((c) => [c[0] + (to[0] - mid[0]) * t, c[1] + (to[1] - mid[1]) * t] as Pt);
+  for (let s = 1; s < SLIDE_STEPS; s++) if (slid(s / SLIDE_STEPS).every(clear)) return slid(s / SLIDE_STEPS);
+  return slid(1);
+}
+
+/** SVG for the badges of every room that asks for them. The card and the editor both come here (finding 8). Never throws on junk (finding 1). */
+export function roomBadges(d: BadgeDraw): string[] {
+  const out: string[] = [], rooms = Array.isArray(d.f?.rooms) ? d.f.rooms : [];
+  rooms.forEach((room, ri) => {
+    const corner = room?.badges?.corner;
+    if (!room || !ROOM_OWNS[room.kind] || !(ROOM_CORNERS as readonly unknown[]).includes(corner)) return;
+    const p = room.pts;
+    if (!Array.isArray(p) || p.length < 3 || !p.every((q) => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]))) return;
+    const infos = badgeInfo(d.f, ri, d.o);
+    if (!infos.length) return;
+    const box: [number, number, number, number] = [Math.min(...p.map((q) => q[0])), Math.min(...p.map((q) => q[1])), Math.max(...p.map((q) => q[0])), Math.max(...p.map((q) => q[1]))];
+    const centres = placed(p, rowAt(box, corner as RoomCorner, infos.length, d.kt), d.kt);
+    infos.forEach((b, i) => {
+      const [cx, cy] = centres[i], r = R_PX * d.kt, s = (r * 1.3) / 24; // the glyph is a 24-unit box; 1.3 radii across leaves a margin inside the disc
+      const cls = ["cb", `cb-${b.kind}`, b.on ? "on" : "", b.tone ? `cb-${b.tone}` : "", d.editor ? "cb-ed" : ""].filter(Boolean).join(" ");
+      out.push(`<g class="${cls}" data-cb="${ri}:${b.kind}" role="img" aria-label="${esc(b.title)}"${d.up(cx, cy)}><circle class="cb-bg" cx="${num(cx)}" cy="${num(cy)}" r="${num(r)}"/><path class="cb-i" d="${ICON_PATH[b.kind]}" transform="translate(${num(cx - 12 * s)} ${num(cy - 12 * s)}) scale(${num(s)})"/></g>`);
+    });
+  });
+  return out;
 }
