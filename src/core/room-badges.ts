@@ -1,5 +1,5 @@
 import { ROOM_CORNERS, type Device, type DeviceType, type Floor, type Pt, type RoomCorner } from "./schema";
-import { acMode, roomAt, classOf, inside, polyCentre, ROOM_OWNS, type RenderOpts, type StateOverlay } from "./render";
+import { acMode, roomAt, classOf, inside, polyCentre, ROOM_OWNS, WALL_WIDTH_EXTERNAL, type RenderOpts, type StateOverlay } from "./render";
 import { DEVICE_ICONS } from "./icons";
 import { esc, num } from "./fmt";
 import { stateOf } from "./readings";
@@ -127,7 +127,9 @@ const R_PX = 9, GAP_PX = 4, INSET_PX = 8, SLIDE_STEPS = 32;
 const BOLT = "M7,2V13H10V22L17,10H13L17,2H7Z"; // MDI "flash": DEVICE_ICONS has no energy glyph and the card imports no icon set at runtime
 const ICON_PATH: Record<BadgeKind, string> = { lights: DEVICE_ICONS.light, climate: DEVICE_ICONS.climate, motion: DEVICE_ICONS.motion, energy: BOLT };
 
-export interface BadgeDraw { f: Floor; o: RenderOpts; kt: number; up: (x: number, y: number) => string; editor: boolean }
+/** A room's name as drawn: where, how big, how many letters. `label` is absent when the plan shows no names. */
+export interface NameBox { at: Pt; size: number; len: number }
+export interface BadgeDraw { f: Floor; o: RenderOpts; kt: number; up: (x: number, y: number) => string; editor: boolean; label?: (ri: number) => NameBox | undefined }
 
 /** Centres of `n` icons in a corner of the box, left to right in plan axes. */
 function rowAt(box: [number, number, number, number], corner: RoomCorner, n: number, kt: number): Pt[] {
@@ -137,15 +139,39 @@ function rowAt(box: [number, number, number, number], corner: RoomCorner, n: num
   return Array.from({ length: n }, (_, i) => [first + i * pitch, y] as Pt);
 }
 
-/** The row, slid along the line to the label point just far enough that every icon is inside the room (an L-room's empty corner). */
-function placed(pts: Pt[], row: Pt[], kt: number): Pt[] {
-  // "Inside" means the whole disc: the centre and its four sides, so an icon never sits on a wall.
-  const reach = R_PX * kt, clear = (c: Pt) => ([[0, 0], [reach, 0], [-reach, 0], [0, reach], [0, -reach]] as Pt[]).every(([dx, dy]) => inside([c[0] + dx, c[1] + dy], pts));
+const segDist = (p: Pt, a: Pt, b: Pt): number => {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy, u = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+  return Math.hypot(p[0] - a[0] - u * dx, p[1] - a[1] - u * dy);
+};
+
+/**
+ * The row, moved off a corner that is not the room's (an L's empty corner), or off its name or a wall. First it slides along the line to the
+ * label point, stopping at the first step where every disc is clear; failing that, the clear spot nearest the corner on a grid over the box.
+ * A disc is clear when it is inside, a wall's reach (its radius plus half the wall) from EVERY edge, and its radius from the name's box.
+ * The wall reach is capped at the corner inset: a rectangle's corner always passes, at any zoom, and keeps its place.
+ */
+function placed(pts: Pt[], row: Pt[], kt: number, name?: NameBox): Pt[] {
+  const r = R_PX * kt, reach = r + Math.min(WALL_WIDTH_EXTERNAL / 2, INSET_PX * kt) - 1e-6;
+  const half = name ? (name.len * 0.6 * name.size) / 2 : 0;
+  const nb = name && Number.isFinite(name.at[0] + name.at[1] + half) ? [name.at[0] - half, name.at[1] - 0.75 * name.size, name.at[0] + half, name.at[1] + 0.25 * name.size] : null;
+  const clear = (c: Pt) => inside(c, pts)
+    && pts.every((a, i) => segDist(c, a, pts[(i + 1) % pts.length]) >= reach)
+    && (!nb || Math.hypot(Math.max(nb[0] - c[0], 0, c[0] - nb[2]), Math.max(nb[1] - c[1], 0, c[1] - nb[3])) >= r);
   if (row.every(clear)) return row;
   const mid: Pt = [row.reduce((s, c) => s + c[0], 0) / row.length, row[0][1]], to = polyCentre(pts);
   const slid = (t: number) => row.map((c) => [c[0] + (to[0] - mid[0]) * t, c[1] + (to[1] - mid[1]) * t] as Pt);
   for (let s = 1; s < SLIDE_STEPS; s++) if (slid(s / SLIDE_STEPS).every(clear)) return slid(s / SLIDE_STEPS);
-  return slid(1);
+  // The line met the name or a wall all the way: look everywhere, nearest the corner first.
+  const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const step = Math.max(r / 2, (x1 - x0) / 80, (y1 - y0) / 80);
+  let best: Pt[] | null = null, bestD = Infinity;
+  for (let y = y0; y <= y1; y += step) for (let x = x0; x <= x1; x += step) {
+    const d = Math.hypot(x - mid[0], y - mid[1]);
+    if (d >= bestD) continue;
+    const cand = row.map((c) => [c[0] - mid[0] + x, c[1] - mid[1] + y] as Pt);
+    if (cand.every(clear)) { best = cand; bestD = d; }
+  }
+  return best ?? slid(1);
 }
 
 /** SVG for the badges of every room that asks for them. The card and the editor both come here (finding 8). Never throws on junk (finding 1). */
@@ -159,7 +185,7 @@ export function roomBadges(d: BadgeDraw): string[] {
     const infos = badgeInfo(d.f, ri, d.o);
     if (!infos.length) return;
     const box: [number, number, number, number] = [Math.min(...p.map((q) => q[0])), Math.min(...p.map((q) => q[1])), Math.max(...p.map((q) => q[0])), Math.max(...p.map((q) => q[1]))];
-    const centres = placed(p, rowAt(box, corner as RoomCorner, infos.length, d.kt), d.kt);
+    const centres = placed(p, rowAt(box, corner as RoomCorner, infos.length, d.kt), d.kt, d.label?.(ri));
     infos.forEach((b, i) => {
       const [cx, cy] = centres[i], r = R_PX * d.kt, s = (r * 1.3) / 24; // the glyph is a 24-unit box; 1.3 radii across leaves a margin inside the disc
       const cls = ["cb", `cb-${b.kind}`, b.on ? "on" : "", b.tone ? `cb-${b.tone}` : "", d.editor ? "cb-ed" : ""].filter(Boolean).join(" ");

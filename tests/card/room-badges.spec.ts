@@ -58,7 +58,7 @@ const setLit = (page: Page, n: number, lit: boolean) => page.evaluate(([states])
   return el.updateComplete;
 }, [statesOf(n, lit)] as const);
 
-type Spot = { room: number; kind: string; x: number; y: number; top: boolean; inside: boolean; fromCorner: { dx: number; dy: number } };
+type Spot = { room: number; kind: string; x: number; y: number; top: boolean; inside: boolean; wallGap: number; nameGap: number; fromCorner: { dx: number; dy: number } };
 /** Every badge on the plan: where its middle is on screen, whether the real top element there is that badge, and whether the middle is inside its room. */
 const spots = (page: Page) => page.locator("floorplan-studio-card").evaluate((el): Spot[] => {
   const root = el.shadowRoot!, svg = root.querySelector("svg")!;
@@ -67,7 +67,14 @@ const spots = (page: Page) => page.locator("floorplan-studio-card").evaluate((el
     const x = c.left + c.width / 2, y = c.top + c.height / 2, poly = svg.querySelector<SVGPolygonElement>(`polygon[data-r="${r}"]`)!;
     const m = svg.getScreenCTM()!.inverse(), p = new DOMPoint(x, y).matrixTransform(m);
     const box = poly.getBoundingClientRect();
-    return { room: Number(r), kind, x, y, top: root.elementFromPoint(x, y)?.closest("g[data-cb]") === g, inside: poly.isPointInFill(p), fromCorner: { dx: Math.min(x - box.left, box.right - x), dy: Math.min(y - box.top, box.bottom - y) } };
+    // Finding 4 / review of S55: centre-inside passed while the row sat on the inner wall and on the name. In plan units, from the circle's own
+    // attributes (the same space as the polygon points and the name's box): the gap of its edge to the nearest wall line, and to the name's box.
+    const circle = g.querySelector("circle")!, cx = +circle.getAttribute("cx")!, cy = +circle.getAttribute("cy")!, rad = +circle.getAttribute("r")!;
+    const q = Array.from(poly.points, (v) => [v.x, v.y]);
+    const wallGap = Math.min(...q.map((a, i) => { const b = q[(i + 1) % q.length], dx = b[0] - a[0], dy = b[1] - a[1], u = Math.max(0, Math.min(1, ((cx - a[0]) * dx + (cy - a[1]) * dy) / (dx * dx + dy * dy))); return Math.hypot(cx - a[0] - u * dx, cy - a[1] - u * dy); })) - rad;
+    const name = svg.querySelector<SVGTextElement>(`text[data-rl="${r}"]`), bb = name?.getBBox();
+    const nameGap = bb ? Math.hypot(Math.max(bb.x - cx, 0, cx - (bb.x + bb.width)), Math.max(bb.y - cy, 0, cy - (bb.y + bb.height))) - rad : Infinity;
+    return { room: Number(r), kind, x, y, top: root.elementFromPoint(x, y)?.closest("g[data-cb]") === g, inside: poly.isPointInFill(p), wallGap, nameGap, fromCorner: { dx: Math.min(x - box.left, box.right - x), dy: Math.min(y - box.top, box.bottom - y) } };
   });
 });
 const bubble = (page: Page) => page.locator("floorplan-studio-card").evaluate((el) => {
@@ -88,6 +95,8 @@ for (const shapeName of ["rect", "L"] as const) for (const corner of CORNERS) {
     for (const s of all) {
       expect(s.top, `room ${s.room} ${s.kind}: the badge is the real top element at its middle`).toBe(true);
       expect(s.inside, `room ${s.room} ${s.kind}: inside its room`).toBe(true);
+      expect(s.wallGap, `room ${s.room} ${s.kind}: the disc keeps off every wall (half a 10 cm wall)`).toBeGreaterThanOrEqual(5 - 1e-6);
+      expect(s.nameGap, `room ${s.room} ${s.kind}: the disc is clear of the room's name`).toBeGreaterThanOrEqual(0);
     }
     if (shapeName === "rect") {
       // 8 px of inset plus the 9 px radius: the badge nearest the corner is 17 px from both sides of the box

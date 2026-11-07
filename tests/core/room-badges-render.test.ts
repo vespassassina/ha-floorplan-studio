@@ -53,6 +53,8 @@ describe("renderFloor: room badges", () => {
       const bs = badges(draw([room({ badges: { corner } }, L)], ALL));
       expect(bs, corner).toHaveLength(3);
       for (const b of bs) expect(inside([b.cx, b.cy], L), `${corner} icon at ${b.cx},${b.cy}`).toBe(true);
+      // inside is not enough: the whole disc keeps off every wall (radius 18 + half a 10 cm wall, scale 0.5). Review of S55: it sat on the inner wall.
+      for (const b of bs) for (let i = 0; i < L.length; i++) expect(segDist([b.cx, b.cy], L[i], L[(i + 1) % L.length]), `${corner} icon at ${b.cx},${b.cy} edge ${i}`).toBeGreaterThanOrEqual(23 - 1e-6);
     }
     // the ne corner of the box (400,0) is outside the L: the row is not where a rectangle would put it
     const ne = badges(draw([room({ badges: { corner: "ne" } }, L)], ALL)), rect = badges(draw([room({ badges: { corner: "ne" } })], ALL));
@@ -87,4 +89,41 @@ describe("renderFloor: room badges", () => {
     const html = draw([room(), { ...room({ badges: { corner: "nw" } }, sq(500, 0, 300, 300), "Hall"), id: "r2" }], [dev("light", "light.h", 600, 100)]);
     expect(badges(html).map((b) => [b.ri, b.kind, b.cx])).toEqual([[1, "lights", 534]]);
   });
+});
+
+// Opus review of S55: in an L the slid row landed on the room's name and across the inner corner wall. A badge disc must keep the wall's
+// reach (its radius plus half the wall's thickness) from EVERY edge, and clear of the name, not only be inside the polygon.
+const BATH: Pt[] = [[300, 450], [1100, 450], [1100, 700], [700, 700], [700, 550], [300, 550]];
+const HALL: Pt[] = [[0, 0], [600, 0], [600, 150], [200, 150], [200, 450], [0, 450]];
+const segDist = (p: Pt, a: Pt, b: Pt) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy, t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+};
+/** The room's name as the card draws it: its box in plan cm, from the `<text>` the renderer wrote (width 0.6 em a letter, as its own placer assumes). */
+const labelBox = (html: string, name: string): [number, number, number, number] => {
+  const m = html.match(new RegExp(`<text class="lbl[^"]*" x="([-\\d.]+)" y="([-\\d.]+)"[^>]*font-size="([-\\d.]+)"[^>]*>${name}</text>`));
+  expect(m, `label ${name}`).not.toBeNull();
+  const x = +m![1], y = +m![2], size = +m![3], w = name.length * 0.6 * size;
+  return [x - w / 2, y - 0.75 * size, x + w / 2, y + 0.25 * size];
+};
+const MASKS: Device[][] = [
+  [dev("light", "light.a", 0, 0)], [dev("light", "light.a", 0, 0), dev("ac", "climate.a", 0, 0)],
+  [dev("light", "light.a", 0, 0), dev("ac", "climate.a", 0, 0), dev("motion", "binary_sensor.a", 0, 0)],
+];
+describe("renderFloor: room badges in an L keep off the walls and the name", () => {
+  for (const [name, pts, at] of [["Bath", BATH, [900, 500]], ["Hall", HALL, [100, 300]]] as const) for (const corner of ROOM_CORNERS) for (const withPower of [false, true]) for (const [k, devs] of MASKS.entries()) {
+    it(`${name} ${corner} ${devs.length} device(s)${withPower ? " + power" : ""} (${k})`, () => {
+      const html = draw([room({ badges: { corner }, ...(withPower ? WITH_POWER : {}) }, pts as unknown as Pt[], name)], devs.map((d) => ({ ...d, x: at[0], y: at[1] }) as Device));
+      const bs = badges(html);
+      expect(bs).toHaveLength(devs.length + (withPower ? 1 : 0));
+      const [lx0, ly0, lx1, ly1] = labelBox(html, name), reach = 18 + 5; // radius 9 px, half of a 10 cm wall, at 2 cm a px
+      for (const b of bs) {
+        const where = `${name} ${corner} ${b.kind} at ${b.cx},${b.cy}`;
+        expect(inside([b.cx, b.cy], pts as unknown as Pt[]), where).toBe(true);
+        for (let i = 0; i < pts.length; i++) expect(segDist([b.cx, b.cy], pts[i] as Pt, pts[(i + 1) % pts.length] as Pt), `${where}: edge ${i}`).toBeGreaterThanOrEqual(reach - 1e-6);
+        const gx = Math.max(lx0 - b.cx, 0, b.cx - lx1), gy = Math.max(ly0 - b.cy, 0, b.cy - ly1);
+        expect(Math.hypot(gx, gy), `${where}: clear of the name box`).toBeGreaterThanOrEqual(b.r);
+      }
+    });
+  }
 });

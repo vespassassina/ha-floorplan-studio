@@ -2156,7 +2156,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   out.push(...thumbs, ...tags); // S16.3: pictures over the icons; S23.3: over every icon, under the editor's handles
   if (showText) out.push(...badges({ f, state: o.state, attn: o.attention, k: kt, up, screenOff, anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 }, hasValue: (i) => heated.has(i) })); // S25.3: shown by CSS at far and mid only; text, so none with labels off
-  out.push(...roomBadges({ f, o, kt, up, editor: !!o.editor })); // S55: not text, so drawn with labels off too; the card's own bubble reads them
+  out.push(...roomBadges({ f, o, kt, up, editor: !!o.editor, label: (i) => (showText && nameAt[i] ? { at: nameAt[i].at, size: nameAt[i].size, len: String(f.rooms[i].name).length } : undefined) })); // S55: not text, so drawn with labels off too; the card's own bubble reads them
   if (o.editor && o.handles !== false)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
   out.push(...ringOut);
