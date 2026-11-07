@@ -124,6 +124,8 @@ export function rolesToTokens(roles: ThemeRoles): string {
     // paper and still leave a dark theme's rooms distinct from its background.
     `--fp-night:rgba(4,10,30,.45)`,
     `--fp-moon:rgba(150,185,255,.16)`,
+    // B54.4: the warm colour of an underfloor-heated floor, brighter on a dark ground so the wash still reads.
+    `--fp-floor-heat:${roles.dark ? "#ff7a2e" : "#e8641a"}`,
     `--fp-on-dark:#fff`, `--fp-on-light:#2b2a27`,
   ].join(";");
 }

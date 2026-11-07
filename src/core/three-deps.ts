@@ -1,7 +1,7 @@
 // What the 3D chunk takes from core, handed over by the card (see scene-build.ts). Only the card imports this file, so the
 // helpers it names are the copies the 2D plan already uses: one in the page. Every name here is used by the 2D or 2.5D plan too.
 import { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight } from "./heights";
-import { acMode, attachedTest, classOf, deviceMarkup, inside, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS } from "./render";
+import { acMode, attachedTest, classOf, deviceMarkup, heatedRooms, inside, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS } from "./render";
 import { resolveStairDirection } from "./stairs";
 import { darkenedHex, furnitureBlocks } from "./furniture-blocks";
 import { thumbBox, thumbUrl } from "./camera-thumb";
@@ -29,7 +29,7 @@ export const sceneDeps: SceneDeps = {
   DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec, wallColourMap, wallEdgeKey, furniturePaint,
 };
 export const liveDeps: LiveDeps = {
-  acMode, attachedTest, classOf, deviceMarkup, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceDevice, bodyAir, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf, fxScale, carStatus, linkedStatus, thumbBox, thumbUrl,
+  acMode, attachedTest, classOf, deviceMarkup, heatedRooms, lightFill, lightOpacity, MOTION_PULSE_S, MOTION_PULSES, motionRooms, personRoom, pieceDevice, bodyAir, pieceOn, polyCentre, roomAt, roomReadout, ROOM_OWNS, doorStateOf, fxScale, carStatus, linkedStatus, thumbBox, thumbUrl,
 };
 export const textureDeps = { texture: textureTile };
 export type TextureDeps = typeof textureDeps;

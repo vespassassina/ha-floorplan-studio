@@ -571,6 +571,12 @@ function lockBox(c: PanelCtx, id: string, list: "devices" | "furniture" | "unlin
   return html`<label><input type="checkbox" id=${id} .checked=${live(locked)} @change=${(e: Event) => c.commit((f) => { if ((e.target as HTMLInputElement).checked) f[list][i].locked = true; else delete f[list][i].locked; })}> Lock</label>`;
 }
 
+/** B54.4: the Underfloor box of a climate or heater. Ticked writes `underfloor: true`, unticked removes the key; the same value again is no step. */
+function underfloorBox(c: PanelCtx, i: number) {
+  const on = c.st.f.devices[i].underfloor === true;
+  return html`<label title="While it is heating, the room that holds this icon is washed warm and patterned with pipes."><input type="checkbox" id="vunderfloor" .checked=${live(on)} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).checked; if (v !== on) c.commit((f) => { if (v) f.devices[i].underfloor = true; else delete f.devices[i].underfloor; }); }}> Underfloor</label>`;
+}
+
 /** B53.2: the Mirror box of an L sofa. Ticked writes `mirror: true`, unticked removes the key; the same value again is no step. */
 function mirrorBox(c: PanelCtx, i: number) {
   const on = c.st.f.furniture[i].mirror === true;
@@ -988,6 +994,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${viewField(c, i)}
     ${d.type === "camera" ? hint("Cone: 120° field of view, 1 m deep.") : nothing}
     ${d.type === "heater" ? heaterFields(c, i) : nothing}
+    ${d.type === "climate" || d.type === "heater" ? underfloorBox(c, i) : nothing}
     ${d.type === "ac" ? acField(c, i) : nothing}
     ${d.type === "plug" ? powerField(c, i) : nothing}
     ${d.type === "person" ? roomSensorField(c, i) : nothing}
@@ -1037,6 +1044,7 @@ function deviceTypeField(c: PanelCtx, i: number) {
     dv.type = t as DeviceType;
     if (t !== "light") { delete dv.bound; delete dv.motion; }
     if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
+    if (t !== "climate" && t !== "heater") delete dv.underfloor;
     if (t !== "ac") delete dv.linked;
     if (t !== "person") delete dv.room;
     if (t !== "plug") delete dv.power;

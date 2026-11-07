@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Studio and card: tick Underfloor on a climate or heater. While it is heating, its room floor gets a warm wash and a faint pipe pattern in 2D and 2.5D, and a warm floor in 3D. Idle, off and unavailable show nothing.
+
 ## 0.44.1 - 2026-11-06
 
 Outdoors is readable at night and follows the weather by day; two Studio menu fixes.
