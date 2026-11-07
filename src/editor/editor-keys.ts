@@ -98,9 +98,9 @@ export const onKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
   else if (s.t === "v" && "poly" in s.ref && worktopIndex(s.ref.poly) !== null) {
     // B54.3: a worktop corner goes alone, never below 3 (removePoint refuses; the commit then leaves no undo step), and the piece stays selected so its handles stay.
     const { poly, j } = s.ref;
-    const steps = ed.st.hist.length;
+    const steps = ed.st.undoDepth;
     ed.commit((f) => removePoint(f, poly, j));
-    if (ed.st.hist.length === steps) ed.status = "No corner removed: a worktop holds at least 3 corners";
+    if (ed.st.undoDepth === steps) ed.status = "No corner removed: a worktop holds at least 3 corners";
     ed.st.sel = { t: "furn", i: worktopIndex(poly)! }; ed.requestUpdate();
   }
   else if (s.t === "v" && "poly" in s.ref && (polyPts(ed.st.f, s.ref.poly)?.length ?? 0) > 3) {
