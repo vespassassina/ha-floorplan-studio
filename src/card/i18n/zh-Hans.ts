@@ -321,5 +321,11 @@ const c: Catalogue = {
   "{age} ago": "{age}前",
   "{n} kW": "{n} kW",
   "{on} of {n} on": "{on}/{n} 已开",
+  "Live": "实时",
+  "Electricity (battery ignored)": "电力（忽略电池）",
+  "Solar": "太阳能",
+  "Gas": "燃气",
+  "Water": "水",
+  "no data": "无数据",
 };
 export default c;

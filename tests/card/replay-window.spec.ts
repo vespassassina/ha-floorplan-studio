@@ -53,9 +53,9 @@ async function boot(page: Page, o: Opts = {}) {
       callService: () => Promise.resolve(),
       connection: {
         sendMessagePromise: (m: { type: string; entity_ids?: string[]; start_time: string; end_time: string }) => {
+          if (m.type !== "history/history_during_period") return Promise.resolve({});
           const startSec = Date.parse(m.start_time) / 1000, out: Record<string, unknown[]> = {};
           (w.__asks as unknown[]).push(m);
-          if (m.type !== "history/history_during_period") return Promise.resolve(out);
           for (const id of m.entity_ids ?? []) {
             if (!rows[id]) continue;
             const mine = rows[id].map((r) => (r.lu === "start" ? { ...r, lu: startSec } : r)).filter((r) => (r.lu as number) >= startSec);

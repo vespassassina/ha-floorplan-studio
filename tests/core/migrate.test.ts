@@ -393,3 +393,21 @@ describe("floor trace image (S7.11)", () => {
     expect(validate(m).ok).toBe(true);
   });
 });
+
+describe("layout energy settings (B56.4)", () => {
+  it("keeps valid energy settings and drops invalid energy shapes without throwing", () => {
+    const l: any = structuredClone(demo);
+    l.energy = { hide: ["gas"], show: "cost", spark: false };
+    const kept = migrate(l);
+    expect(kept.energy).toEqual({ hide: ["gas"], show: "cost", spark: false });
+    expect(validate(kept).ok).toBe(true);
+
+    for (const bad of [null, "bad", { hide: ["battery"] }, { show: "all" }, { spark: 1 }, { extra: true }]) {
+      const d: any = structuredClone(demo);
+      d.energy = bad;
+      const m = migrate(d);
+      expect(m.energy).toBeUndefined();
+      expect(validate(m).ok).toBe(true);
+    }
+  });
+});

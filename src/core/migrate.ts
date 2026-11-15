@@ -1,7 +1,7 @@
 import { stairSteps } from "./geometry";
 import { TEXTURE_IDS } from "./textures";
 import { worktopPtsProblem } from "./polygon";
-import { isEntityId, isLinkable, roomBadgesProblem, MAX_ROOM_SENSORS, strictEntity, validMinMoisture, isViewPath, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, tempRangeProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
+import { isEntityId, isLinkable, roomBadgesProblem, MAX_ROOM_SENSORS, strictEntity, validMinMoisture, isViewPath, CAR_MODELS, COORD_LIMIT, FX_MIN, FX_MAX, MAX_CAR_ATTACHED, MAX_VIEWS, viewProblems, tempRangeProblems, energyProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"], ["unlinked", "unlinked"]];
@@ -175,6 +175,7 @@ export function migrate(x: unknown): Layout {
   if (src.colors !== undefined) out.colors = src.colors; // passed through; validate judges it. Never invented.
   if (src.wallColors !== undefined) out.wallColors = src.wallColors; // B53.9: the same
   if (src.tempRange !== undefined && !tempRangeProblems(src.tempRange, true).length) out.tempRange = src.tempRange; // S42.1: a range is a convenience; a bad one is dropped, never the plan
+  if (src.energy !== undefined && !energyProblems(src.energy).length) out.energy = src.energy; // B56.4: the same
   if (Array.isArray(src.views)) out.views = keepViews(src.views, floors); // S33.6: a view is a convenience; a bad one is dropped, never the plan
   if (Array.isArray(out.catalog) && v === 1) for (const c of out.catalog) c.type = RENAME[c.type] ?? c.type;
   if (!Array.isArray(out.catalog)) out.catalog = buildCatalog(out);

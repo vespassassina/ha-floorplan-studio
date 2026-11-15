@@ -749,3 +749,33 @@ describe("S8.7: a light's motion field", () => {
     expect(has(l, /motion must be an entity id/)).toBe(true);
   });
 });
+
+describe("B56.4: Layout.energy settings", () => {
+  const has = (l: any, re: RegExp) => errorsOf(l).some((e) => re.test(e));
+
+  it("accepts energy absent or with valid hide, show, and spark fields", () => {
+    const l = clone();
+    expect(errorsOf(l)).toEqual([]);
+    l.energy = { hide: ["solar", "water"], show: "cost", spark: false };
+    expect(errorsOf(l)).toEqual([]);
+    l.energy = { show: "use" };
+    expect(errorsOf(l)).toEqual([]);
+  });
+
+  it("rejects invalid energy shapes, unknown sources, duplicate hide, bad show, or non-boolean spark without throwing", () => {
+    for (const [bad, re] of [
+      ["bad", /energy must be an object/],
+      [{ extra: 1 }, /energy has an unknown key/],
+      [{ hide: "solar" }, /energy hide/],
+      [{ hide: ["battery"] }, /energy hide/],
+      [{ hide: ["solar", "solar"] }, /energy hide/],
+      [{ show: "all" }, /energy show/],
+      [{ spark: "yes" }, /energy spark/],
+    ] as const) {
+      const l = clone();
+      l.energy = bad;
+      expect(has(l, re), JSON.stringify(bad)).toBe(true);
+    }
+    expect(() => errorsOf({ ...clone(), energy: null })).not.toThrow();
+  });
+});

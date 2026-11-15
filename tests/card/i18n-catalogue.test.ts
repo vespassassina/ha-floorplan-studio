@@ -16,10 +16,10 @@ import type { Catalogue, Entry } from "../../src/core/i18n";
 // Not covered, on purpose (docs/DECISIONS.md, 2026-10-25): the Edit-card form (config-editor.ts), the dashboard strategy
 // (strategy.ts) and the 3D chunk (three/). They are English and are in the PLAN backlog.
 
-const SRC = ["src/card", "src/card/replay", "src/card/overview", "src/core"]; // S40.1: the replay chunk draws the open bar, with t() calls of its own; B52.2: so does the overview chunk
+const SRC = ["src/card", "src/card/replay", "src/card/energy", "src/card/overview", "src/core"]; // S40.1: the replay chunk draws the open bar, with t() calls of its own; B52.2: so does the overview chunk; B56.2: energy chunk
 const SKIP = new Set(["src/card/config-editor.ts", "src/card/strategy.ts", "src/card/i18n.ts", "src/core/i18n.ts"]);
 const files = SRC.flatMap((d) => readdirSync(d).filter((f) => f.endsWith(".ts")).map((f) => `${d}/${f}`)).filter((f) => !SKIP.has(f));
-const TEMPLATE_FILES = ["floorplan-studio-card", "popup-ui", "room-scenes-ui", "search-box", "more-menu", "card-replay", "replay/bar", "overview/panel"].map((n) => `src/card/${n}.ts`);
+const TEMPLATE_FILES = ["floorplan-studio-card", "popup-ui", "room-scenes-ui", "search-box", "more-menu", "card-replay", "replay/bar", "energy/index", "overview/panel"].map((n) => `src/card/${n}.ts`);
 
 /** The label tables the card shows through `t(TABLE[x])`: their values are keys too. */
 const TABLES: Record<string, Record<string, string>> = { THEME_LABELS, DETAIL_LABELS, WALLS_LABELS, BELOW_LABELS, HEAT_LABELS, OFF_GROUP_LABEL };
@@ -68,13 +68,13 @@ const categories = (code: string) => { const r = new Intl.PluralRules(code); ret
 /** A translation may equal its English key only where the word is the same in that language (or is a name, a unit or a symbol). */
 const NAMES = ["Blueprint", "Solarized", "Home Assistant", "A-Team", "Cyberpunk", "Carpenter Brut", "UPS", "Radar", "Firmware", "{n} min", "{n} kWh"];
 const SAME: Record<string, string[]> = {
-  it: ["Area", "Auto", "Media", "Computer", "Inverter", "Server", "Access point"],
-  es: ["Terminal", "Auto", "Media", "Error"],
-  pt: ["Terminal", "Auto", "Media"],
-  "pt-BR": ["Terminal", "Auto", "Media"],
+  it: ["Area", "Auto", "Media", "Computer", "Inverter", "Server", "Access point", "Live", "Gas"],
+  es: ["Terminal", "Auto", "Media", "Error", "Solar", "Gas"],
+  pt: ["Terminal", "Auto", "Media", "Solar"],
+  "pt-BR": ["Terminal", "Auto", "Media", "Solar"],
   fr: ["Attention · {n}", "Pause", "Terminal", "Auto", "Minimal", "Contact", "Vibration"],
-  de: ["Detail", "Details", "Pause", "Terminal", "Minimal", "Computer", "Server", "Vibration", "Boiler", "Person", "Alarm"],
-  nl: ["open", "Plant", "Labels", "Detail", "Details", "Model", "Terminal", "Auto", "Media", "Contact", "Camera", "Computer", "Server", "Boiler", "Printer", "Alarm", "alarm"],
+  de: ["Detail", "Details", "Pause", "Terminal", "Minimal", "Computer", "Server", "Vibration", "Boiler", "Person", "Alarm", "Live", "Solar", "Gas"],
+  nl: ["open", "Plant", "Labels", "Detail", "Details", "Model", "Terminal", "Auto", "Media", "Contact", "Camera", "Computer", "Server", "Boiler", "Printer", "Alarm", "alarm", "Live", "Gas", "Water"],
   "zh-Hans": [],
   pl: ["Start", "Model", "Terminal", "Auto", "Media", "Alarm", "alarm"],
 };

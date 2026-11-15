@@ -162,7 +162,7 @@ export function make(d: OverviewDeps) {
   function keyToggle(c: FloorplanStudioCard, r: RoomDeviceRow, row: Element | null): void {
     const d = c._floor()?.devices[r.index];
     const b = row?.getBoundingClientRect();
-    if (!c._replay && !c._kiosk() && openView(d?.view)) return; // as its tap does (the replay guard of the popup says "Replaying")
+    if (!c._replayGuard().replaying() && !c._kiosk() && openView(d?.view)) return; // as its tap does (the replay guard of the popup says "Replaying")
     if (d?.type === "vacuum") { openVacuumDialog(c, d); return; } // as its tap on the plan does
     if (d) openPopup(c, { device: d, index: r.index }, { x: b ? b.left + b.width / 2 : 0, y: b ? b.bottom : 0 }, row);
   }

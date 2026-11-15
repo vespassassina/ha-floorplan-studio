@@ -69,6 +69,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `active_list` | `true` | `false` hides the Overview sheet and Search; the popup floats at every width — see Overview, below |
 | `center` | unset | `[x, y]`, plan cm: the point a pinned card zooms in on — see A card for one room, below. A non-array, wrong length, or non-finite value is ignored, silently, and the card shows the whole floor |
 | `zoom_level` | `1` | how far in a pinned card starts: `1` is the whole floor, `2` is half its width and height, and so on up to `8`. Anything other than a finite number is the default, `1`; an in-range-but-odd number (`0`, negative, past `8`) clamps instead of being refused |
+| `replay` | unset | `"always"` keeps the 24-hour replay bar open at the bottom of the card, resting at `Live` with no history request until you drag the slider or press Play; a `Live` button and 5 minutes of inactivity return it to `Live`. Ignored in `kiosk: true`; any other value leaves the bar on the ⋯ menu and the `R` key |
 
 ```yaml
 type: custom:floorplan-studio-card
@@ -1098,6 +1099,12 @@ with its own colour keeps it. There are no textures. Shadows are baked contact s
   and a double tap or the wheel neither picks nor clears. The ball is 24 cm wide
   to the eye and 48 cm to the finger. On a phone the sheet rises to half and the
   camera frames the room above it (see Framing, above).
+
+## Replay and energy counters
+
+Open the replay bar from the **Replay** button in the ⋯ menu (or press `R`), or set `replay: "always"` in the card's configuration to keep the bar open at the bottom of the plan (ignored under `kiosk: true`). With `replay: "always"`, the bar starts parked at **Live** with the slider at the right end and makes zero history or energy requests until you drag the slider or press Play; live taps and room selection continue to work normally. While scrubbing or playing back, press **Live** (or `Escape`, or wait 5 minutes with no interaction) to return to Live without closing the bar.
+
+When Home Assistant's Energy dashboard is configured, the replay bar also shows compact house energy chips (Electricity — calculated as grid import + solar generation − grid export, battery ignored — Solar, Gas and Water) accumulated from the start of the active replay window up to the scrubbed time, with cost in your Home Assistant currency (`stat_cost`/`stat_compensation`, fixed price, or 5-minute entity price mean), a sparkline up to `t`, and `"no data"` if a required statistic has no recorder data. If Energy is not configured or your account cannot read `energy/get_prefs`, the chips stay hidden. You can filter which counters, values (use, cost, or both) and sparklines appear from the Studio Floor panel's **Energy counters** settings.
 
 ## Known limits
 

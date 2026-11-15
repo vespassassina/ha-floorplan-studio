@@ -1,6 +1,6 @@
-import { worktopIndex, worktopPolyPts, alignFloor, floorBelow, floorPlace, floorPose, normaliseTurn, placePoint, poseFromPlace, DETAIL_MODES, parseDetailMode, CAR_SPEC, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, WALL_COLOUR_KEYS, setEdgeColour, type WallColourKey, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { worktopIndex, worktopPolyPts, alignFloor, floorBelow, floorPlace, floorPose, normaliseTurn, placePoint, poseFromPlace, DETAIL_MODES, parseDetailMode, CAR_SPEC, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, WALL_COLOUR_KEYS, setEdgeColour, type WallColourKey, unplacedHaEntities, validate, viewBoxFor, energyProblems } from "../core";
 import { CAR_MODELS, COORD_LIMIT, MAX_CAR_ATTACHED, isLinkable, MAX_VIEWS, MAX_VIEW_ZOOM } from "../core/schema";
-import type { SavedView } from "../core/schema";
+import type { HouseEnergy, SavedView } from "../core/schema";
 import { compact, rangeProblem, type HouseRange } from "./temp-range-ops";
 import { camThumbOf } from "../core/camera-thumb";
 import { furniturePaintable } from "../core/furniture-paint";
@@ -965,6 +965,20 @@ export class EditorState {
     if (JSON.stringify(next) === JSON.stringify(this.layout.tempRange ?? {})) return false;
     this.snapshot();
     if (Object.keys(next).length) this.layout.tempRange = next; else delete this.layout.tempRange;
+    return true;
+  }
+  /** B56.4: sets the replay bar's energy counter preferences (`hide`, `show`, `spark`). Defaults vanish cleanly; one undo step, none when invalid or unchanged. */
+  setHouseEnergy(patch: HouseEnergy): boolean {
+    this.fresh();
+    const raw: Record<string, unknown> = { ...(this.layout.energy ?? {}), ...patch };
+    if (energyProblems(raw).length) return false;
+    const next: HouseEnergy = {};
+    if (Array.isArray(raw.hide) && raw.hide.length) next.hide = [...raw.hide];
+    if (raw.show !== undefined && raw.show !== "both") next.show = raw.show as HouseEnergy["show"];
+    if (raw.spark === false) next.spark = false;
+    if (JSON.stringify(next) === JSON.stringify(this.layout.energy ?? {})) return false;
+    this.snapshot();
+    if (Object.keys(next).length) this.layout.energy = next; else delete this.layout.energy;
     return true;
   }
   /**

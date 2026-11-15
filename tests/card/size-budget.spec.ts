@@ -223,3 +223,29 @@ test("the card file does not carry the Overview: a rule and a label of the sheet
     expect(chunk, `the chunk holds ${word}`).toContain(word); // so the check above can fail
   }
 });
+
+// B56.2 (docs/specs/batch-s52.md items 40–48, criterion 11): energy counters are a lazy chunk loaded only when replay is used.
+const ENERGY_CHUNK_LIMIT = 6000;
+const energyChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-energy-.+\.js$/.test(f));
+
+test(`there is exactly one energy chunk, at most ${ENERGY_CHUNK_LIMIT} bytes gzipped, importing nothing from card/core, and named in card by import()`, () => {
+  expect(energyChunks()).toHaveLength(1);
+  const [f] = energyChunks();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(ENERGY_CHUNK_LIMIT);
+  const chunk = readFileSync(`dist/${f}`, "utf8");
+  expect(chunk, "the chunk imports nothing").not.toMatch(/\bfrom\s*["'][^"']+["']|\bimport\s*\(/);
+  expect(chunk).toContain("energy/get_prefs");
+  expect(chunk).toContain("recorder/statistics_during_period");
+  expect(readFileSync("dist/floorplan-studio-card.js", "utf8")).toMatch(/"\.\/floorplan-studio-energy-[\w-]+\.js"/);
+  expect(readFileSync("dist/floorplan-studio-card.js", "utf8"), "the build put the file's name in").not.toContain("__FPENERGY_CHUNK__");
+});
+
+test("the card file does not carry the energy parser/math: fp-energy-v1 and energy/get_prefs are only in the energy chunk", () => {
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  const chunk = readFileSync(`dist/${energyChunks()[0]}`, "utf8");
+  for (const word of ["fp-energy-v1", "energy/get_prefs", "recorder/statistics_during_period"]) {
+    expect(card, `the card holds ${word}`).not.toContain(word);
+    expect(chunk, `the chunk holds ${word}`).toContain(word);
+  }
+});

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+Replay always visible and house energy counters: the replay bar can stay parked at Live with zero history load until scrubbed, and shows Home Assistant's electricity, solar, gas and water totals and cost up to the scrubbed moment.
+
+- Card config: `replay: "always"` keeps the replay bar visible at the bottom of the card (ignored under `kiosk: true`), resting at `Live` with no history or energy calls until you scrub or press Play; a `Live` button, `Escape`, or 5 minutes without activity returns the bar to `Live` without closing it (B56.1).
+- Card replay: lazy-loads a separate energy chunk (`energy/get_prefs` once, 5-minute `recorder/statistics_during_period` per window) when replay wakes, keeping the main card bundle untouched and hiding the chips cleanly when Energy is unconfigured or refused (B56.2).
+- Card replay: computes Electricity (`gridFrom + solar - gridTo`, battery ignored), Solar, Gas and Water counters up to `t` with linear interpolation inside the active 5-minute bucket, cost priority (`stat_cost`/`stat_compensation`, fixed price, 5-minute entity price mean, or none) in `hass.config.currency`, sparkline up to `t`, and `"no data"` on recorder gaps (B56.3).
+- Card, layout schema and Studio: compact energy chips in the replay bar wrap cleanly on narrow cards; `layout.energy` (`hide`, `show`, `spark`) persists house counter preferences across `validate`, `migrate`, Studio Floor panel ("Energy counters") and all nine card translations (B56.4).
+
 ## 0.46.0 - 2026-11-07
 
 Room badges: a small icon row in a room's corner shows its lights, climate, motion and energy at a glance; hover or tap one to read it.

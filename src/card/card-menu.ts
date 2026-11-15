@@ -6,7 +6,7 @@ import type { Pt } from "./viewport";
 import { html, nothing } from "lit";
 import { attentionOf, openSearch, pickFloor, pickedFloorKey } from "./card-overview";
 import { popupInSheet } from "./card-sheet";
-import { canReplay, openReplay } from "./card-replay";
+import { canReplay, openReplay, replayAlways } from "./card-replay";
 import { saveViewNow } from "./card-view-state";
 import { resetView } from "./card-zoom";
 import type { FloorplanStudioCard, CardView } from "./floorplan-studio-card";
@@ -64,7 +64,7 @@ export function menuSections(c: FloorplanStudioCard): MenuSection[] {
   const view = c._viewPick(), live3d = view === "3d" && c._shows3d(), f = c._floor();
   const radio = (label: string, value: string, checked: boolean): MenuItem => ({ kind: "radio", label, value, checked });
   // First: the menu is long, and Replay pushed last sat below the fold where nobody found it.
-  if (canReplay(c) && !c._replay) out.push({ items: [{ kind: "action", label: t("Replay"), value: "replay" }] });
+  if (canReplay(c) && !c._replay && !replayAlways(c)) out.push({ items: [{ kind: "action", label: t("Replay"), value: "replay" }] });
   if (c._viewSwitchOn()) {
     out.push({ label: t("View"), items: VIEW_OPTIONS.map((o) => radio(o.label, `view:${o.value}`, o.value === view)) });
     if (view === "2.5d") {

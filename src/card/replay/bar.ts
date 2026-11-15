@@ -47,6 +47,11 @@ export interface BarModel {
   /** R2.6: the filters of this floor's history (absent: all on, no button), and the floor's rooms, indexed as `Onset.rooms`. Layout data: any element may be junk. */
   filter?: FilterState;
   rooms?: readonly ({ name?: unknown } | undefined)[];
+  /** B56.1: bar stays mounted at "now" (`always: true`); `idle: true` means sitting live with no history fetch yet. */
+  always?: boolean;
+  idle?: boolean;
+  /** B56.4: optional energy counter chips template rendered inside the bar's head row. */
+  energy?: unknown;
 }
 /** What the card draws with: lit's `html` and `nothing`, its translators, and the X's path. */
 export interface BarTools { html: typeof Html; nothing: typeof Nothing; t(key: string, vars?: Record<string, string | number>): string; tn(one: string, other: string, n: number): string; close: string }
@@ -55,11 +60,11 @@ export interface BarHandlers { key(e: KeyboardEvent): void; play(): void; seek(m
 /** Colours only through `--fp-*`. The time cell reserves the longest form of its window ("Wed 09:00", "Oct 28, 12:00") so the slider, whose column follows the head, does not move as the weekday or the day's digits change. The strip sits above the slider in the same column; its 8 px margins are the thumb's half width. */
 const MARKER_CSS = `
 .fp-rp-prev{grid-area:prev} .fp-rp-next{grid-area:next}
-.fp-rp-head{grid-area:time;display:flex;align-items:center;gap:8px;min-width:0}
+.fp-rp-head{grid-area:time;display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}
 .fp-rp-len{display:inline-flex;gap:4px}
 .fp-replay .fp-rp-time[data-h="48"]{min-width:10ch} .fp-replay .fp-rp-time[data-h="168"]{min-width:14ch}
 .fp-replay .fp-rp-len button,.fp-replay .fp-rp-menu button{min-width:0;padding:0 8px;font-size:12px}
-.fp-replay .fp-rp-len button[aria-pressed=true],.fp-replay .fp-rp-menu button[aria-pressed=true],.fp-replay .fp-rp-filtered{background:var(--fp-ink);color:var(--fp-room)}
+.fp-replay .fp-rp-len button[aria-pressed=true],.fp-replay .fp-rp-menu button[aria-pressed=true],.fp-replay .fp-rp-filtered,.fp-replay .fp-rp-close[aria-pressed=true]{background:var(--fp-ink);color:var(--fp-room)}
 .fp-replay{position:relative}
 .fp-rp-menu{position:absolute;left:8px;bottom:100%;z-index:4;box-sizing:border-box;width:max-content;max-width:calc(100% - 16px);max-height:min(50vh,16em);overflow:auto;padding:8px;display:flex;flex-direction:column;gap:6px;background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:12px}
 .fp-rp-menu>div{display:flex;flex-wrap:wrap;gap:4px}
@@ -129,21 +134,21 @@ export function barView({ html, nothing, t, tn, close }: BarTools, m: BarModel, 
       ${rooms.length ? html`<div role="group" aria-label=${t("Rooms")}>${rooms.map(([i, n]) => html`<button type="button" data-r=${i} title=${n} aria-pressed=${pressed(f.rooms.has(i))} @click=${() => fs?.room(i)}>${n}</button>`)}</div>` : nothing}
     </div>`;
   };
-  const none = tn("{n} entity on this floor has no history", "{n} entities on this floor have no history", m.missing), play = m.playing ? t("Pause") : t("Play");
-  return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} aria-busy=${m.ready || m.failed ? "false" : "true"} @keydown=${h.key}>
-    <div class="fp-rp-head"><span class="fp-rp-time" data-h=${m.hours}>${shown}</span>
+  const none = tn("{n} entity on this floor has no history", "{n} entities on this floor have no history", m.missing), play = m.playing ? t("Pause") : t("Play"), endLbl = m.always ? t("Live") : t("Close replay");
+  return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} aria-busy=${m.ready || m.failed || (m.always && m.idle) ? "false" : "true"} @keydown=${h.key}>
+    ${m.energy ?? nothing}<div class="fp-rp-head"><span class="fp-rp-time" data-h=${m.hours}>${shown}</span>
     <div class="fp-rp-len" role="group" aria-label=${t("Window")}>${WINDOWS.map((w) => html`<button type="button" aria-pressed=${w.hours === m.hours ? "true" : "false"} @click=${() => h.length(w.hours)}>${w.hours > 48 ? t("{n} d", { n: w.hours / 24 }) : t("{n} h", { n: w.hours })}</button>`)}</div>
     ${m.ready && fs ? html`<button type="button" class="fp-rp-filter ${off ? "fp-rp-filtered" : ""}" aria-label=${name} title=${name} aria-expanded=${fs.open ? "true" : "false"} @click=${(e: Event) => { fs.button = e.currentTarget as HTMLElement; fs.show(!fs.open); }}>${icon(FILTER)}</button>` : nothing}</div>
     ${m.ready && fs?.open ? menu() : nothing}
     ${go(-1, "fp-rp-prev", t("Previous event"), PREV)}
-    <button type="button" class="fp-rp-play" aria-label=${play} title=${play} ?disabled=${!m.ready} @click=${h.play}>${icon(m.playing ? PAUSE : PLAY)}</button>
+    <button type="button" class="fp-rp-play" aria-label=${play} title=${play} ?disabled=${!m.ready && !(m.always && m.idle)} @click=${h.play}>${icon(m.playing ? PAUSE : PLAY)}</button>
     ${go(1, "fp-rp-next", t("Next event"), NEXT)}
     <style>${MARKER_CSS}</style>
     <div class="fp-rp-track">${m.ready ? strip() : nothing}
-    <input type="range" class="fp-rp-range" min="0" max=${m.max} step="1" .value=${String(m.value)} ?disabled=${!m.ready} aria-label=${t("Replay time")} aria-valuetext=${text}
+    <input type="range" class="fp-rp-range" min="0" max=${m.max} step="1" .value=${String(m.value)} ?disabled=${m.always ? m.failed : !m.ready} aria-label=${t("Replay time")} aria-valuetext=${text}
       @input=${(e: Event) => h.seek(Number((e.target as HTMLInputElement).value))}></div>
     ${m.ready ? html`<button type="button" class="fp-rp-info" aria-label=${none} aria-pressed=${m.info ? "true" : "false"} title=${none} @click=${h.info}>${icon(INFO)}</button>` : nothing}
-    <button type="button" class="fp-rp-close" aria-label=${t("Close replay")} title=${t("Close replay")} @click=${h.close}>${icon(close)}</button>
+    <button type="button" class="fp-rp-close" aria-label=${endLbl} title=${endLbl} aria-pressed=${m.always ? (m.idle ? "true" : "false") : nothing} @click=${h.close}>${m.always ? endLbl : icon(close)}</button>
     <span class="fp-rp-msg" role="status">${m.message || (m.note ? t("Replaying") : m.said === m.at && onset ? text : m.info ? [none, m.purgedFrom ? t("History is kept from {when}", { when: dayAndTime(m.purgedFrom, m.hass) }) : ""].filter(Boolean).join(". ") : "")}</span>
   </div>`;
 }

@@ -321,5 +321,11 @@ const c: Catalogue = {
   "{age} ago": "{age} temu",
   "{n} kW": "{n} kW",
   "{on} of {n} on": "{on} z {n} włączonych",
+  "Live": "Na żywo",
+  "Electricity (battery ignored)": "Energia elektryczna (bateria pominięta)",
+  "Solar": "Energia słoneczna",
+  "Gas": "Gaz",
+  "Water": "Woda",
+  "no data": "brak danych",
 };
 export default c;

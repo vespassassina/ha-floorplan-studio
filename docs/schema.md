@@ -303,12 +303,36 @@ A named way of looking at the plan, saved in the Studio and offered by every car
 export interface SavedView { id: string; name: string; floor: string; mode?: "2d" | "2.5d" | "3d"; rotation?: number; zoom?: number; center?: Pt }
 ```
 
+## ENERGY_KINDS
+
+B56.4: the house energy sources offered on the replay bar (`electricity`, `solar`, `gas`, `water`). Battery is not shown.
+
+```ts
+export const ENERGY_KINDS = ["electricity", "solar", "gas", "water"] as const;
+```
+
+## ENERGY_SHOWS
+
+B56.4: what each energy chip prints: usage, cost, or both (the default).
+
+```ts
+export const ENERGY_SHOWS = ["use", "cost", "both"] as const;
+```
+
+## HouseEnergy
+
+B56.4: house energy counter settings for the replay bar (`hide`, `show`, `spark`), set in the Studio.
+
+```ts
+export interface HouseEnergy { hide?: EnergyKind[]; show?: EnergyShow; spark?: boolean }
+```
+
 ## Layout
 
 `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned.
 
 ```ts
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; /** B53.9: the colour of every wall of a kind, `#rrggbb`; absent is the theme's. `parapet` follows `external`. */ wallColors?: { wall?: string; external?: string; fence?: string }; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; /** B53.9: the colour of every wall of a kind, `#rrggbb`; absent is the theme's. `parapet` follows `external`. */ wallColors?: { wall?: string; external?: string; fence?: string }; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; energy?: HouseEnergy; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 ```
 
 ## MAX_TRACE_BYTES

@@ -32,7 +32,7 @@ export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from 
 export { DOUBLE_TAP_MS, DOUBLE_TAP_PX } from "./card-zoom"; // the 3D host and its test read them from here
 import { chooserDialogTemplate, coverDialogTemplate, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
-import { closeReplay, REPLAY_CSS, replayBar, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
+import { closeReplay, isReplaying, REPLAY_CSS, replayBar, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
 import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, onCardDown, onSheetClick, onSheetDown, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
@@ -63,8 +63,8 @@ export interface Hass {
   /** S37.5: the user's language code as HA writes it ("it", "pt-BR", "zh-Hans"); `locale.language` is the same value on a frontend that has no top-level field. */
   language?: string;
   locale?: { language?: string; time_format?: string };
-  /** Home's location, for the replayed sun. Shape from the frontend's `HassConfig` (`hass.config.latitude`, `longitude`); only these two are read. */
-  config?: { latitude?: number; longitude?: number };
+  /** Home's location and currency. Shape from the frontend's `HassConfig` (`hass.config.latitude`, `longitude`, `currency`). */
+  config?: { latitude?: number; longitude?: number; currency?: string };
   callService?(domain: string, service: string, data?: Record<string, unknown>): Promise<unknown>;
   /** HA's own display text for a state ("21.5 °C", "Heat/Cool"). Absent on an old frontend; the card then prints the raw state. */
   formatEntityState?(stateObj: HassEntity): string;
@@ -87,6 +87,8 @@ export interface FloorplanStudioCardConfig {
   /** S14.8: a plug that is on is tinted from idle to hot by its draw, between these two wattages (default 0 and 2000). Both must be numbers with from < to, else the default pair. See docs/card.md, Plugs. */
   plug_heat_from?: number;
   plug_heat_to?: number;
+  /** B56.1 (docs/card.md, Replay): `"always"` shows the replay bar at live without fetching history until dragged back, and returns to live after 5 min idle or on Live. Anything else keeps the Replay button. */
+  replay?: "always";
   room_glow?: boolean;
   layout?: Layout;
   layout_url?: string;
@@ -722,7 +724,7 @@ export class FloorplanStudioCard extends LitElement {
     const r = i === null ? null : svg?.querySelector(`g[data-x="${i}"]`)?.getBoundingClientRect();
     if (!svg || !t || !r) return false;
     // Enter and Space do what a tap does: a device with a `view` opens it (kiosk ignores it; a replay leaves the key to the popup path, which says "Replaying").
-    if (!this._replay && !this._kiosk() && "device" in t && openView(t.device.view)) return true;
+    if (!isReplaying(this) && !this._kiosk() && "device" in t && openView(t.device.view)) return true;
     this._openPopup(t, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, svg);
     return true;
   }
@@ -961,7 +963,7 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S39.3: a tap acts on nothing in the past; the bar says why. Passed to the gesture binders. */
   _replayGuard() {
-    return { replaying: () => this._replay !== null, onReplay: () => replayTap(this) };
+    return { replaying: () => isReplaying(this), onReplay: () => replayTap(this) };
   }
 
   /** B53.13: `layout` with the sensors of each electric piece's plug attached (`plugMeters`); remembers the registry it used. */
