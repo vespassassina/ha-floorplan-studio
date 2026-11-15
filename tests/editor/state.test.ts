@@ -1054,3 +1054,37 @@ describe("EditorState.pendingMotion (Opus review finding 3: tied to the device i
     expect(st.pendingMotion).toBe("");
   });
 });
+
+describe("EditorState.setHouseEnergy (B56.4)", () => {
+  const layout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      ground: { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
+    },
+    catalog: [],
+  });
+
+  it("sets hide/show/spark, prunes defaults so energy vanishes when back to default, and undoes cleanly", () => {
+    const st = new EditorState(layout(), "ground");
+    expect(st.setHouseEnergy({ show: "both", spark: true, hide: [] })).toBe(false);
+    expect(st.layout.energy).toBeUndefined();
+
+    expect(st.setHouseEnergy({ hide: ["solar"], show: "cost", spark: false })).toBe(true);
+    expect(st.layout.energy).toEqual({ hide: ["solar"], show: "cost", spark: false });
+    expect(st.setHouseEnergy({ hide: ["solar"] })).toBe(false);
+
+    expect(st.setHouseEnergy({ hide: [], show: "both", spark: true })).toBe(true);
+    expect(st.layout.energy).toBeUndefined();
+
+    st.undo();
+    expect(st.layout.energy).toEqual({ hide: ["solar"], show: "cost", spark: false });
+  });
+
+  it("rejects invalid patches cleanly without recording an undo step", () => {
+    const st = new EditorState(layout(), "ground");
+    expect(st.setHouseEnergy({ hide: ["battery" as never] })).toBe(false);
+    expect(st.setHouseEnergy({ show: "nope" as never })).toBe(false);
+    expect(st.setHouseEnergy({ spark: 1 as never })).toBe(false);
+    expect(st.layout.energy).toBeUndefined();
+  });
+});

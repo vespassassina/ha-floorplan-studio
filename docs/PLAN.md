@@ -5003,13 +5003,13 @@ no end-to-end test of the Studio live-view hover.
 
 ### Sprint 56: replay always visible, energy counters
 
-- B56.1 `replay: always`: rests at live, fetches on the first drag back, has a Live button and returns after 5 minutes
+- [x] 2026-11-15 B56.1 `replay: always`: rests at live, fetches on the first drag back, has a Live button and returns after 5 minutes
   idle. DECISIONS gives the freeze reason (criterion 10).
-- B56.2 First, check `energy/get_prefs` as a non-admin on Diego's HA. Then the energy chunk and its loader: the prefs
+- [x] 2026-11-15 B56.2 First, check `energy/get_prefs` as a non-admin on Diego's HA. Then the energy chunk and its loader: the prefs
   and one 5-minute statistics call, with stubs copied from HA's replies (criteria 11 and 15).
-- B56.3 The counter maths: the sum to t, interpolation inside a bucket, the electricity formula, and the cost rules
+- [x] 2026-11-15 B56.3 The counter maths: the sum to t, interpolation inside a bucket, the electricity formula, and the cost rules
   (criteria 11 and 12).
-- B56.4 The chips: icon, value and sparkline; the settings to hide each chip, choose use, cost or both, and turn the
+- [x] 2026-11-15 B56.4 The chips: icon, value and sparkline; the settings to hide each chip, choose use, cost or both, and turn the
   sparkline off.
 
 ### Sprint 57: the overlay chart and the device tree

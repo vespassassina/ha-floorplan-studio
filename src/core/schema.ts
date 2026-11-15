@@ -207,8 +207,16 @@ export const MAX_VIEWS = 24;
 export const MAX_VIEW_ZOOM = 8;
 /** A named way of looking at the plan, saved in the Studio and offered by every card. `floor` is a key of `floors`; `mode` is how it opens (left out: the viewer's choice); `rotation` is the turn in degrees, a multiple of 45 from 0 to 315; `zoom` (1 to 8) and `center` (cm) come together or not at all. No 3D camera. */
 export interface SavedView { id: string; name: string; floor: string; mode?: "2d" | "2.5d" | "3d"; rotation?: number; zoom?: number; center?: Pt }
+/** B56.4: the house energy sources offered on the replay bar (`electricity`, `solar`, `gas`, `water`). Battery is not shown. */
+export const ENERGY_KINDS = ["electricity", "solar", "gas", "water"] as const;
+export type EnergyKind = (typeof ENERGY_KINDS)[number];
+/** B56.4: what each energy chip prints: usage, cost, or both (the default). */
+export const ENERGY_SHOWS = ["use", "cost", "both"] as const;
+export type EnergyShow = (typeof ENERGY_SHOWS)[number];
+/** B56.4: house energy counter settings for the replay bar (`hide`, `show`, `spark`), set in the Studio. */
+export interface HouseEnergy { hide?: EnergyKind[]; show?: EnergyShow; spark?: boolean }
 /** `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned. */
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; /** B53.9: the colour of every wall of a kind, `#rrggbb`; absent is the theme's. `parapet` follows `external`. */ wallColors?: { wall?: string; external?: string; fence?: string }; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; /** B53.9: the colour of every wall of a kind, `#rrggbb`; absent is the theme's. `parapet` follows `external`. */ wallColors?: { wall?: string; external?: string; fence?: string }; palette?: string[]; views?: SavedView[]; tempRange?: { min?: number; max?: number; hold?: number }; energy?: HouseEnergy; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 
 /** S7.11: the most characters a floor's `trace.src` may hold, the whole data URL: 4 MB. */
 export const MAX_TRACE_BYTES = 4 * 1024 * 1024;
@@ -300,6 +308,27 @@ export function tempRangeProblems(v: unknown, house: boolean): string[] {
   return out;
 }
 
+/** B56.4: what is wrong with `layout.energy`, as short phrases; empty when good. Shared by `validate` and `migrate`. Never throws. */
+export function energyProblems(v: unknown): string[] {
+  if (!isObj(v)) return ["must be an object like { hide: [\"gas\"], show: \"both\", spark: true }"];
+  const out: string[] = [], keys = ["hide", "show", "spark"];
+  for (const k of Object.keys(v)) if (!keys.includes(k)) out.push(`has an unknown key ${JSON.stringify(k)}; allowed: ${keys.join(", ")}`);
+  const get = (k: string) => (Object.prototype.hasOwnProperty.call(v, k) ? v[k] : undefined);
+  const hide = get("hide");
+  if (hide !== undefined) {
+    if (!Array.isArray(hide)) out.push("hide must be a list of energy sources");
+    else if (hide.some((s) => typeof s !== "string" || !(ENERGY_KINDS as readonly string[]).includes(s)))
+      out.push(`hide entries must be one of ${ENERGY_KINDS.join(", ")}`);
+    else if (new Set(hide).size !== hide.length) out.push("hide must not repeat a source");
+  }
+  const show = get("show");
+  if (show !== undefined && (typeof show !== "string" || !(ENERGY_SHOWS as readonly string[]).includes(show)))
+    out.push(`show must be one of ${ENERGY_SHOWS.join(", ")}`);
+  const spark = get("spark");
+  if (spark !== undefined && typeof spark !== "boolean") out.push("spark must be true or false");
+  return out;
+}
+
 /** Checks a v2 layout. Never throws; returns every problem it finds. */
 export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false; errors: string[] } {
   const errors: string[] = [];
@@ -329,6 +358,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
   }
   if (!isObj(x.floors)) errors.push("floors must be an object");
   if (x.tempRange !== undefined) for (const p of tempRangeProblems(x.tempRange, true)) errors.push(`tempRange ${p}`);
+  if (x.energy !== undefined) for (const p of energyProblems(x.energy)) errors.push(`energy ${p}`);
   if (x.views !== undefined) {
     if (!Array.isArray(x.views)) errors.push("views must be a list");
     else if (x.views.length > MAX_VIEWS) errors.push(`views holds at most ${MAX_VIEWS}, found ${x.views.length}; delete some`);

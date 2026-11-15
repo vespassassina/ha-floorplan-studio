@@ -91,6 +91,8 @@ Panels for entity-backed things (rooms with an area, devices) also show
 Home Assistant context — the room's helpers and automations, a device's
 more-info — where a writer is configured.
 
+The default **Floor** panel includes an **Energy counters** section (`layout.energy`): checkboxes for Electricity, Solar, Gas and Water to choose which house counters are shown in card replay, a **Show** selector (Use and cost, Use only, Cost only), and a **Sparkline** toggle. Each change is one undo step, and defaults are omitted when saving.
+
 A **car piece** has a **Car** block. **Model** lists the nine models, each with a top-view swatch; picking one sets the
 footprint to that model's (a size you typed is replaced; Undo brings it back) and drops a typed height, in one undo step.
 **Colour** is the layout's palette, a colour input, or Theme colour; a colour that is not a built-in swatch joins the

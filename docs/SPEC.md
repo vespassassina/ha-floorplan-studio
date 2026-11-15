@@ -102,6 +102,7 @@ in `prompts/`, then fixed in the editor.
   and drops a `views` that is not an array, so a stranger's file opens without its bad views. Deleting a floor deletes its views in
   the same undo step. The schema stays v2: a card older than 0.31.0 drops `views` when it loads the layout. Studio: View, Saved views;
   card: the Views section of the ⋯ menu.
+- `energy` (optional, B56.4) is the house's replay energy-counter settings, `{ hide?: ("electricity" | "solar" | "gas" | "water")[], show?: "use" | "cost" | "both", spark?: boolean }` (`HouseEnergy`, `energyProblems`). `hide` has no repeats; `show` defaults to `"both"`, `spark` to `true`, and writers omit defaults and delete an empty object. `validate` checks every field and never throws; `migrate` preserves a valid `energy` and drops an invalid one without throwing. The Studio's floor panel has an "Energy counters" section.
 - `floor.offset` (optional, S27.2) is where the floor sits in the house, in cm, x
   right and y down as every plan point. A point's place in the house is its
   stored point plus the floor's offset; stored coordinates never change. Absent
@@ -880,6 +881,8 @@ resolves each to the first device (then linked piece) in layout order on a floor
 row. The Favourites section sits above Attention in the Overview level only, folds like a category, and each row carries the
 popup's primary button (`_popupOp`, `_runOp`), with the confirm step for every type but a light. `searchIndex(index, query,
 limit, first?)` ranks a favourite before a shorter name in the same tier; the Studio passes none. Studio: none, on purpose.
+
+**Replay always and energy counters (B56.1–B56.4; `docs/specs/batch-s52.md`).** Card key `replay: "always"` shows the replay bar at the bottom of the card from first paint (except in `kiosk: true`), resting at `Live` at the right end of the slider with zero history or energy websocket calls while untouched, and live device taps and room picks working normally. Dragging the slider or pressing Play wakes replay, fetches the window's history and energy statistics, and starts a 5-minute idle timer reset by any scrub, Play/Pause, window chip or chip click; the `Live` button (or Escape, or 5 minutes idle) returns the bar to `Live` without unmounting it. When replay wakes, the card lazy-loads `src/card/energy/index.ts` (`floorplan-studio-energy-<hash>.js`), calls `energy/get_prefs` once and `recorder/statistics_during_period` (`period: "5minute"`, `units: { energy: "kWh" }`, `types: ["change"]` plus `"mean"` when price entities exist) per window, and draws compact chips in `.fp-replay` (`grid-area: en`, top row) for configured sources (`electricity = gridFrom + solar - gridTo` with battery ignored, `solar`, `gas`, `water`), linearly interpolated inside the active 5-minute bucket, with cost priority (`stat_cost`/`stat_compensation` -> `number_energy_price` -> `entity_energy_price` 5-minute `mean` -> none), `hass.config.currency`, sparkline up to `t`, and `"no data"` when a required statistic has no rows. A refused or unconfigured `energy/get_prefs` hides the chips cleanly.
 
 ## Search (both apps)
 

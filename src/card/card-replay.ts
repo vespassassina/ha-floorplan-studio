@@ -13,6 +13,7 @@ import { NO_ANSWER, STALE_PAGE } from "./load";
 import { closePopup } from "./card-popup";
 import { attentionOf } from "./card-overview";
 import type { FloorplanStudioCard, Hass, HassEntity } from "./floorplan-studio-card";
+import type { EnergyPrefs, StatsIndex } from "./energy";
 import type { HistoryIndex } from "./replay/history";
 import type { Onset } from "./replay/events";
 import type { FilterState } from "./replay/filters";
@@ -28,12 +29,15 @@ const PLAY_MS_PER_MS = 1440;
 const MAX_STEP_MS = 500;
 const FETCH_TIMEOUT_MS = 20000;
 const NOTE_MS = 2000;
+/** B56.1: an idle always-visible bar returns to Live after 5 minutes with no touch. */
+export const IDLE_MS = 5 * 60_000;
 
 const FETCH_FAILED = mark("Could not load the history: {why}");
 const TIMED_OUT = mark("no answer in 20 s");
 
 type States = Record<string, HassEntity>;
 interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; onsets?: Onset[]; missing: number; why?: string; ids?: string[]; purgedFrom?: number | null; filter?: FilterState }
+interface EnergyState { status: "idle" | "loading" | "ready" | "none"; prefs?: EnergyPrefs; stats?: StatsIndex; hours?: number; end?: number }
 export interface ReplayState {
   /** The moment the bar opened: the end of the slider. */
   end: number;
@@ -61,10 +65,19 @@ export interface ReplayState {
   width: number;
   /** The onset a button jump went to, ms: the status line speaks it while the moment on show is still that one (focus stays on the button, so `aria-valuetext` is never read). */
   said?: number;
+  /** B56.1: true for `replay: "always"`; `idle` means the bar is sitting at Live with no history fetch yet. */
+  always: boolean;
+  idle: boolean;
+  idleTimer: ReturnType<typeof setTimeout> | null;
+  /** B56.1: Play was pressed while idle before the floor history arrived; start playback once `ready`. */
+  wantPlay?: boolean;
+  /** B56.2: lazy Energy prefs and 5-minute statistics for the current window. */
+  energy: EnergyState;
 }
 
 type Lib = typeof import("./replay/history");
 let lib: Lib | null = null;
+let libPromise: Promise<Lib> | null = null;
 /** The build puts the chunk's hashed file name here (vite.config.ts); unbuilt (vitest, dev) it stays a placeholder and the plain import is used. */
 const CHUNK_FILE = "__FPREPLAY_CHUNK__";
 let libTries = 0;
@@ -72,11 +85,29 @@ let libTries = 0;
  * for the same file under a new query. A failed load is not cached here, so closing the bar and opening it again is the retry. */
 async function loadLib(): Promise<Lib> {
   if (lib) return lib;
+  if (libPromise) return libPromise;
   const n = libTries++;
-  lib = n > 0 && /^floorplan-studio-replay-.+\.js$/.test(CHUNK_FILE)
-    ? await import(/* @vite-ignore */ `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${CHUNK_FILE}?r=${n}`)
-    : await import("./replay/history");
-  return lib!;
+  libPromise = (n > 0 && /^floorplan-studio-replay-.+\.js$/.test(CHUNK_FILE)
+    ? import(/* @vite-ignore */ `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${CHUNK_FILE}?r=${n}`)
+    : import("./replay/history"))
+    .then((m) => { lib = m; libPromise = null; return m; }, (e) => { libPromise = null; throw e; });
+  return libPromise;
+}
+
+type EnergyLib = typeof import("./energy");
+let energyLib: EnergyLib | null = null;
+let energyPromise: Promise<EnergyLib> | null = null;
+const ENERGY_CHUNK_FILE = "__FPENERGY_CHUNK__";
+let energyTries = 0;
+async function loadEnergy(): Promise<EnergyLib> {
+  if (energyLib) return energyLib;
+  if (energyPromise) return energyPromise;
+  const n = energyTries++;
+  energyPromise = (n > 0 && /^floorplan-studio-energy-.+\.js$/.test(ENERGY_CHUNK_FILE)
+    ? import(/* @vite-ignore */ `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${ENERGY_CHUNK_FILE}?e=${n}`)
+    : import("./energy"))
+    .then((m) => { energyLib = m; energyPromise = null; return m; }, (e) => { energyPromise = null; throw e; });
+  return energyPromise;
 }
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && s !== "") : []);
@@ -195,12 +226,113 @@ export function canReplay(c: FloorplanStudioCard): boolean {
   return !c._kiosk() && !!c._layout && !!c._hass?.connection?.sendMessagePromise;
 }
 
+/** B56.1: `replay: "always"` keeps the bar visible at Live with zero history calls until touched. */
+export function replayAlways(c: FloorplanStudioCard): boolean {
+  return canReplay(c) && (c._config as { replay?: unknown } | null)?.replay === "always";
+}
+
+/** True while actually scrubbing/playing history (not idle at Live). */
+export function isReplaying(c: FloorplanStudioCard): boolean {
+  return !!c._replay && !c._replay.idle;
+}
+
+function clearIdle(r: ReplayState): void {
+  if (r.idleTimer !== null) globalThis.clearTimeout(r.idleTimer);
+  r.idleTimer = null;
+}
+
+function armIdle(c: FloorplanStudioCard, r: ReplayState): void {
+  clearIdle(r);
+  if (r.always && !r.idle) r.idleTimer = globalThis.setTimeout(() => returnToLive(c), IDLE_MS);
+}
+
+/** B56.1: return an always-visible bar to Live without unmounting it. */
+function returnToLive(c: FloorplanStudioCard): void {
+  const r = c._replay;
+  if (!r || !r.always) return;
+  stopFrames(r);
+  clearIdle(r);
+  if (r.noteTimer !== null) globalThis.clearTimeout(r.noteTimer);
+  r.noteTimer = null;
+  r.note = false;
+  r.playing = false;
+  r.idle = true;
+  r.wantPlay = false;
+  r.end = Date.now();
+  r.t = r.end;
+  r.drawnT = r.end;
+  r.drawn = null;
+  r.mix = null;
+  r.info = false;
+  r.said = undefined;
+  r.floors.forEach((fh, key) => {
+    fh.filter?.show(false);
+    if (fh.filter) r.filters.set(key, fh.filter);
+  });
+  r.floors.clear();
+  r.energy = { status: r.energy.status === "none" ? "none" : "idle", prefs: r.energy.prefs };
+  c._syncTimer();
+  paintBar(c);
+  c.requestUpdate();
+}
+
+async function syncEnergy(c: FloorplanStudioCard, r: ReplayState): Promise<void> {
+  if (r.idle || r.energy.status === "none" || r.energy.status === "loading") return;
+  if (r.energy.status === "ready" && r.energy.hours === r.hours && r.energy.end === r.end) return;
+  const conn = c._hass?.connection;
+  if (!conn?.sendMessagePromise) return;
+  const reqHours = r.hours, reqEnd = r.end, reqStart = reqEnd - reqHours * 3600000;
+  r.energy = { ...r.energy, status: "loading", hours: reqHours, end: reqEnd };
+  const ask = <T = unknown>(m: Record<string, unknown>) => withTimeout(conn.sendMessagePromise<T>(m as never), FETCH_TIMEOUT_MS);
+  let eLib: EnergyLib;
+  try {
+    eLib = await loadEnergy();
+    if (!r.energy.prefs) {
+      const prefs = await eLib.fetchEnergyPrefs(ask);
+      if (!prefs) { r.energy = { status: "none" }; return; }
+      r.energy.prefs = prefs;
+    }
+  } catch {
+    if (c._replay === r) r.energy = { status: "none" };
+    return;
+  }
+  try {
+    const stats = await eLib.fetchEnergyStats(ask, r.energy.prefs, reqStart, reqEnd);
+    if (c._replay !== r || r.idle || r.hours !== reqHours || r.end !== reqEnd) return;
+    r.energy = { status: "ready", prefs: r.energy.prefs, stats, hours: reqHours, end: reqEnd };
+  } catch {
+    if (c._replay !== r || r.idle || r.hours !== reqHours || r.end !== reqEnd) return;
+    // Prefs succeeded so configured chips stay visible and show "no data" rather than 0 on a stats failure.
+    r.energy = { status: "ready", prefs: r.energy.prefs, stats: new Map(), hours: reqHours, end: reqEnd };
+  }
+  paintBar(c);
+}
+
+function wakeFromIdle(c: FloorplanStudioCard, r: ReplayState): void {
+  if (!r.idle) return;
+  closePopup(c);
+  r.idle = false;
+  if (!r.floors.size) {
+    r.end = Date.now();
+    r.t = r.end;
+    r.drawnT = r.end;
+  }
+  c._syncTimer();
+  const key = c._floorKey(), f = c._floor();
+  if (key && f && !r.floors.has(key)) {
+    const fh: FloorHistory = { status: "loading", missing: 0, filter: r.filters.get(key) };
+    r.floors.set(key, fh);
+    void fetchFloor(c, r, fh, f);
+  }
+  c.requestUpdate();
+}
+
 /** `focus`: the Replay button opened it, so the bar hands focus to Play once the history is there (`paintBar`). The flag lives on the bar, so a bar closed by anything leaves none behind. */
 export function openReplay(c: FloorplanStudioCard, focus = false): void {
   if (c._replay || !canReplay(c)) return;
   closePopup(c);
   const end = Date.now();
-  c._replay = { end, hours: 24, t: end, drawnT: end, playing: false, floors: new Map(), filters: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null, focus, width: 0 };
+  c._replay = { end, hours: 24, t: end, drawnT: end, playing: false, floors: new Map(), filters: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null, focus, width: 0, always: false, idle: false, idleTimer: null, energy: { status: "idle" } };
   c._syncTimer(); // the motion fade follows the replayed moment now, not the clock
   c.requestUpdate();
 }
@@ -214,6 +346,7 @@ export function closeReplay(c: FloorplanStudioCard, back = false): void {
   if (!r) return;
   if (back) focusBack.add(c);
   stopFrames(r);
+  clearIdle(r);
   if (r.noteTimer !== null) globalThis.clearTimeout(r.noteTimer);
   c._replay = null;
   r.floors.forEach((fh) => fh.filter?.show(false)); // an open list holds a click listener on the document
@@ -231,14 +364,30 @@ const floorHistory = (c: FloorplanStudioCard): FloorHistory | undefined => {
   return key ? c._replay?.floors.get(key) : undefined;
 };
 
-/** After every render: the first time a floor is on show while the bar is open, one call for its entities (spec item 4). */
+/** After every render: the first time a floor is on show while the bar is open (and active), one call for its entities (spec item 4). */
 export function syncReplay(c: FloorplanStudioCard): void {
+  const always = replayAlways(c);
+  if (!c._replay && always) {
+    const end = Date.now();
+    const init: ReplayState = { end, hours: 24, t: end, drawnT: end, playing: false, floors: new Map(), filters: new Map(), drawn: null, raf: null, last: 0, note: false, noteTimer: null, info: false, mix: null, focus: false, width: 0, always: true, idle: true, idleTimer: null, energy: { status: "idle" } };
+    c._replay = init;
+    if (!lib) void loadLib().then(() => { if (c._replay === init) paintBar(c); }, () => {});
+  } else if (c._replay?.always && !always) {
+    closeReplay(c);
+    return;
+  }
   const r = c._replay, key = c._floorKey(), f = c._floor();
+  if (r && r.always && r.idle) {
+    const now = Date.now();
+    r.end = now; r.t = now; r.drawnT = now;
+  }
   paintBar(c);
   if (focusBack.delete(c)) {
     c.shadowRoot!.querySelector<HTMLElement>(".fp-rp-open")?.focus();
   }
-  if (!r || !key || !f || r.floors.has(key)) return;
+  if (!r || r.idle) return;
+  void syncEnergy(c, r);
+  if (!key || !f || r.floors.has(key)) return;
   const fh: FloorHistory = { status: "loading", missing: 0, filter: r.filters.get(key) };
   r.floors.set(key, fh);
   void fetchFloor(c, r, fh, f);
@@ -267,7 +416,13 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
     // Our own timeout carries the English key; the reasons Home Assistant gives are its own words.
     fh.why = (e as { code?: unknown } | null)?.code === "timeout" ? t(TIMED_OUT) : typeof m === "string" && m ? m : t(NO_ANSWER);
   }
-  if (c._replay === r) c.requestUpdate();
+  if (c._replay !== r) return;
+  if (fh.status === "ready" && !r.idle) {
+    if (r.wantPlay) { r.wantPlay = false; togglePlay(c, r); return; }
+    show(c, r, r.t, true);
+    return;
+  }
+  c.requestUpdate();
 }
 
 /** What a state looks like to the frontend's own formatters: they read `entity_id`. */
@@ -353,7 +508,7 @@ function step(c: FloorplanStudioCard, ts: number): void {
   const dt = r.last ? Math.min(MAX_STEP_MS, Math.max(0, ts - r.last)) : 0;
   r.last = ts;
   r.t = Math.min(r.end, r.t + dt * PLAY_MS_PER_MS);
-  if (r.t >= r.end) { r.playing = false; r.raf = null; show(c, r, r.end, true); paintBar(c); return; }
+  if (r.t >= r.end) { r.playing = false; r.raf = null; show(c, r, r.end, true); armIdle(c, r); paintBar(c); return; }
   show(c, r, r.t);
   r.raf = globalThis.requestAnimationFrame((n) => step(c, n));
 }
@@ -366,16 +521,28 @@ function setHours(c: FloorplanStudioCard, r: ReplayState, hours: number): void {
   r.playing = false; // the head would run on a floor with no history until the new reply is in; Play is the user's
   r.floors.forEach((fh, key) => fh.filter && r.filters.set(key, fh.filter)); // switched-off groups and rooms stay off, a room too whose onsets are not in the new window
   r.floors.clear();
+  if (r.always && r.idle) {
+    wakeFromIdle(c, r);
+    armIdle(c, r);
+    return;
+  }
+  armIdle(c, r);
   seek(c, r, r.t);
 }
 
 function togglePlay(c: FloorplanStudioCard, r: ReplayState): void {
-  if (r.playing) { r.playing = false; stopFrames(r); paintBar(c); return; }
+  if (r.playing) { r.playing = false; stopFrames(r); armIdle(c, r); paintBar(c); return; }
+  if (r.always && r.idle) {
+    wakeFromIdle(c, r);
+    armIdle(c, r);
+    if (floorHistory(c)?.status !== "ready") { r.wantPlay = true; paintBar(c); return; }
+  }
   if (floorHistory(c)?.status !== "ready") return;
   if (r.t >= r.end) seek(c, r, startOf(r)); // from the end, again from the beginning
   r.playing = true;
   r.last = 0;
   r.raf = globalThis.requestAnimationFrame((n) => step(c, n));
+  armIdle(c, r);
   paintBar(c);
 }
 
@@ -386,6 +553,7 @@ function jumpBy(c: FloorplanStudioCard, r: ReplayState, dir: 1 | -1, said = fals
   r.playing = false;
   stopFrames(r);
   r.said = said ? o.t : undefined;
+  armIdle(c, r);
   seek(c, r, o.t);
 }
 
@@ -395,18 +563,24 @@ function onKey(c: FloorplanStudioCard, ev: KeyboardEvent): void {
   if (!r || ev.ctrlKey || ev.metaKey || ev.altKey) return;
   const onButton = (ev.composedPath()[0] as Element | undefined)?.tagName === "BUTTON";
   const stop = () => { ev.preventDefault(); ev.stopPropagation(); };
-  // The filter list is the innermost thing open: Escape closes it first, the bar on the next press.
+  // The filter list is the innermost thing open: Escape closes it first, the bar on the next press (or Live in always mode).
   const menu = floorHistory(c)?.filter;
-  if (ev.key === "Escape") { stop(); if (menu?.open) menu.show(false, true); else closeReplay(c, true); return; }
+  if (ev.key === "Escape") { stop(); if (menu?.open) { menu.show(false, true); armIdle(c, r); } else if (r.always) { if (!r.idle) returnToLive(c); } else closeReplay(c, true); return; }
   if (ev.shiftKey && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) { stop(); jumpBy(c, r, ev.key === "ArrowLeft" ? -1 : 1, onButton); return; }
   if (onButton) return; // Space and Enter on a button are the button's own
   if (ev.key === " ") { stop(); togglePlay(c, r); return; }
-  if (floorHistory(c)?.status !== "ready") return;
-  const w = lib!.windowOf(r.hours); // the history is ready, so the chunk is here
+  if (!lib || (!r.idle && floorHistory(c)?.status !== "ready")) return;
+  const w = lib.windowOf(r.hours);
   const m = keyMinute(ev.key, minuteOf(r, r.drawnT), w.arrow, w.hours * 60, w.page);
   if (m === null) return;
   stop();
-  seek(c, r, startOf(r) + m * 60000);
+  const target = startOf(r) + m * 60000;
+  if (r.idle) {
+    if (target >= r.end) return;
+    wakeFromIdle(c, r);
+  }
+  armIdle(c, r);
+  seek(c, r, target);
 }
 
 /** A tap while replaying acts on nothing; the bar says why for a moment (spec item 9). */
@@ -423,7 +597,7 @@ const HISTORY = `${UI_ICONS.reset}M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V
 
 /** The place of the bar in the card's template. Its contents are painted by `paintBar`, on their own, so a minute of play need not draw the plan. */
 export function replayBar(c: FloorplanStudioCard) {
-  if (c._replay) return html`<div class="fp-rp-wrap"></div>`;
+  if (c._replay || replayAlways(c)) return html`<div class="fp-rp-wrap"></div>`;
   // S40.1: while the bar is closed, a slim button where it will sit. The label is the icon's name under 640 px (CSS hides the word).
   return canReplay(c) ? html`<div class="fp-rp-wrap fp-rp-idle"><button type="button" class="fp-rp-open" title=${t("Replay")} @click=${() => openReplay(c, true)}>${c._icon(HISTORY)}<span class="fp-rp-word">${t("Replay")}</span></button></div>` : nothing;
 }
@@ -453,20 +627,34 @@ function paintBar(c: FloorplanStudioCard): void {
 function barView(c: FloorplanStudioCard, r: ReplayState) {
   const fh = floorHistory(c), ready = fh?.status === "ready", failed = fh?.status === "error";
   const shown = replayTime(r.drawnT, c._hass);
-  const message = failed ? t(FETCH_FAILED, { why: fh.why ?? t(NO_ANSWER) })
+  const message = r.idle ? ""
+    : failed ? t(FETCH_FAILED, { why: fh.why ?? t(NO_ANSWER) })
     : !ready ? t("Loading history…")
     : "";
-  const close = () => closeReplay(c, true), key = (e: KeyboardEvent) => onKey(c, e);
+  const close = () => (r.always ? returnToLive(c) : closeReplay(c, true)), key = (e: KeyboardEvent) => onKey(c, e);
+  const endLbl = r.always ? t("Live") : t("Close replay");
   // The full bar is drawn by the replay chunk (replay/bar.ts). Until it is there, a shell with the way out and the message.
-  if (!lib) return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} @keydown=${key}><button type="button" class="fp-rp-close" aria-label=${t("Close replay")} @click=${close}>${c._icon(UI_ICONS.close)}</button><span class="fp-rp-msg" role="status">${message}</span></div>`;
-  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: r.hours * 60, hours: r.hours, purgedFrom: fh?.purgedFrom, hass: c._hass, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, filter: fh && (fh.filter ??= lib.newFilter(() => paintBar(c))), rooms: c._floor()?.rooms, end: r.end, width: r.width, at: r.drawnT, said: r.said },
-    { key, close, play: () => togglePlay(c, r), seek: (m) => seek(c, r, startOf(r) + m * 60000), jump: (ms) => seek(c, r, ms), jumpBy: (d) => jumpBy(c, r, d, true), length: (h) => setHours(c, r, h), info: () => { r.info = !r.info; r.said = undefined; paintBar(c); } });
+  if (!lib) return html`<div class="fp-replay" role="group" tabindex="-1" aria-label=${t("Replay")} @keydown=${key}><button type="button" class="fp-rp-close" aria-label=${endLbl} aria-pressed=${r.always ? (r.idle ? "true" : "false") : nothing} @click=${close}>${r.always ? endLbl : c._icon(UI_ICONS.close)}</button><span class="fp-rp-msg" role="status">${message}</span></div>`;
+  const energy = energyLib && !r.idle && r.energy.status === "ready" && r.energy.prefs && r.energy.stats
+    ? energyLib.energyChipsView({ html, nothing, t }, {
+        prefs: r.energy.prefs,
+        stats: r.energy.stats,
+        startMs: startOf(r),
+        tMs: r.drawnT,
+        endMs: r.end,
+        currency: c._hass?.config?.currency,
+        settings: (c._layout as { energy?: Parameters<EnergyLib["energyChipsView"]>[1]["settings"] } | null)?.energy,
+        hass: c._hass,
+      })
+    : undefined;
+  return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: r.hours * 60, hours: r.hours, purgedFrom: fh?.purgedFrom, hass: c._hass, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, filter: fh && (fh.filter ??= lib.newFilter(() => { armIdle(c, r); paintBar(c); })), rooms: c._floor()?.rooms, end: r.end, width: r.width, at: r.drawnT, said: r.said, always: r.always, idle: r.idle, energy },
+    { key, close, play: () => togglePlay(c, r), seek: (m) => { if (r.always && r.idle) wakeFromIdle(c, r); armIdle(c, r); seek(c, r, startOf(r) + m * 60000); }, jump: (ms) => { armIdle(c, r); seek(c, r, ms); }, jumpBy: (d) => jumpBy(c, r, d, true), length: (h) => setHours(c, r, h), info: () => { r.info = !r.info; r.said = undefined; armIdle(c, r); paintBar(c); } });
 }
 
 /** The stylesheet of the bar. Colours only through `--fp-*`. Under 640 px of card the time sits above the slider. */
 export const REPLAY_CSS = `
     .fp-rp-wrap { grid-area: bar; container-type: inline-size; min-width: 0; z-index: 3; }
-    .fp-replay { box-sizing: border-box; display: grid; grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto; grid-template-areas: "time prev play next range info close" "msg msg msg msg msg msg msg"; align-items: center; column-gap: 8px; padding: 6px 8px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border-top: 1px solid var(--fp-idle); }
+    .fp-replay { box-sizing: border-box; display: grid; grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto; grid-template-areas: "en en en en en en en" "time prev play next range info close" "msg msg msg msg msg msg msg"; align-items: center; column-gap: 8px; padding: 6px 8px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border-top: 1px solid var(--fp-idle); }
     .fp-rp-time { grid-area: time; min-width: 4.5em; font-variant-numeric: tabular-nums; font-weight: 600; }
     .fp-rp-play { grid-area: play; } .fp-rp-range { min-width: 0; width: 100%; } .fp-rp-info { grid-area: info; } .fp-rp-close { grid-area: close; }
     .fp-rp-msg { grid-area: msg; min-height: 0; color: var(--fp-text); }
@@ -476,5 +664,5 @@ export const REPLAY_CSS = `
     .fp-replay button svg, .fp-rp-open svg { width: 18px; height: 18px; display: block; }
     .fp-rp-idle { padding: 0 8px; } .fp-rp-open { gap: 6px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); }
     .fp-replay input[type=range] { accent-color: var(--fp-ink); }
-    @container (max-width: 640px) { .fp-rp-word { display: none; } .fp-replay { grid-template-columns: auto auto auto minmax(0, 1fr) auto auto; grid-template-areas: "time time time time time time" "prev play next range info close" "msg msg msg msg msg msg"; } }
+    @container (max-width: 640px) { .fp-rp-word { display: none; } .fp-replay { grid-template-columns: auto auto auto minmax(0, 1fr) auto auto; grid-template-areas: "en en en en en en" "time time time time time time" "prev play next range info close" "msg msg msg msg msg msg"; } }
 `;

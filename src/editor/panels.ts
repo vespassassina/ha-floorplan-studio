@@ -5,10 +5,10 @@ import { repeat } from "lit/directives/repeat.js";
 import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, deviceZDefault, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { worktopIndex, worktopPts, worktopTurn, STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import { CAR_MODELS, DEVICE_BODIES, MAX_CAR_ATTACHED, MIN_MOISTURE, ROOM_CORNERS, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
+import { CAR_MODELS, DEVICE_BODIES, ENERGY_KINDS, ENERGY_SHOWS, MAX_CAR_ATTACHED, MIN_MOISTURE, ROOM_CORNERS, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
 import { bodyOf, furniturePaintable } from "../core";
 import { boxOf, rectPts } from "../core/polygon";
-import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, Floor, Furniture, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
+import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, EnergyKind, EnergyShow, Floor, Furniture, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
@@ -389,6 +389,25 @@ function bulkBound(c: PanelCtx, mine: number[], lights: number[]) {
     ${combo("vbound", "Controlled by", common, options, set, bounds.size > 1 ? "(mixed)" : "(none)")}`;
 }
 
+const ENERGY_KIND_LABELS: Record<EnergyKind, string> = { electricity: "Electricity", solar: "Solar", gas: "Gas", water: "Water" };
+const ENERGY_SHOW_LABELS: Record<EnergyShow, string> = { both: "Usage and cost", use: "Usage only", cost: "Cost only" };
+
+function houseEnergyPanel(c: PanelCtx) {
+  const cur = c.st.layout.energy ?? {}, hidden = new Set(cur.hide ?? []);
+  const toggle = (k: EnergyKind, on: boolean) => {
+    const next = new Set(hidden);
+    if (on) next.delete(k); else next.add(k);
+    c.edited?.(c.st.setHouseEnergy({ hide: ENERGY_KINDS.filter((x) => next.has(x)) }));
+  };
+  return html`
+    <div class="row">${ENERGY_KINDS.map((k) => html`<label><input type="checkbox" id=${`en-${k}`} .checked=${live(!hidden.has(k))} @change=${(e: Event) => toggle(k, (e.target as HTMLInputElement).checked)}> ${ENERGY_KIND_LABELS[k]}</label>`)}</div>
+    <label for="enShow">Show</label>
+    <select id="enShow" .value=${live(cur.show ?? "both")} @change=${(e: Event) => c.edited?.(c.st.setHouseEnergy({ show: val(e) as EnergyShow }))}>
+      ${ENERGY_SHOWS.map((s) => html`<option value=${s}>${ENERGY_SHOW_LABELS[s]}</option>`)}
+    </select>
+    <label><input type="checkbox" id="enSpark" .checked=${live(cur.spark !== false)} @change=${(e: Event) => c.edited?.(c.st.setHouseEnergy({ spark: (e.target as HTMLInputElement).checked }))}> Sparkline</label>`;
+}
+
 /** Shown when nothing is selected: the current floor. */
 function floorPanel(c: PanelCtx) {
   const { st } = c, key = st.floor, keys = Object.keys(st.layout.floors), i = keys.indexOf(key), title = st.f.title || key;
@@ -417,7 +436,9 @@ function floorPanel(c: PanelCtx) {
       ? html`<p id="fconfirm" role="alert">Delete floor ${title} and everything on it?</p>
         <div class="row">${button("fdelyes", "Delete", () => c.floors.remove(key), "danger")}${button("fdelno", "Cancel", () => { st.confirmDelete = false; c.refresh(); })}</div>`
       : html`<p><button class="btn danger" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
-    ${hint("Deleting a floor returns its devices to Add.")}`;
+    ${hint("Deleting a floor returns its devices to Add.")}
+    ${heading("Energy counters")}
+    ${houseEnergyPanel(c)}`;
 }
 
 /** S4.2: HA areas no room or zone on any floor uses, as buttons that start drawing a room for one. Nothing when every area is on the plan. */

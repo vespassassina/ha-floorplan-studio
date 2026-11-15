@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-15: Energy lazy chunk, bundle budgets and counter layout (B56.2–B56.4)
+
+1. `src/card/energy/index.ts` ships as `floorplan-studio-energy-<hash>.js` (3,532 B gzip vs 6,000 B cap; zero runtime imports from card/core), loaded lazily alongside the replay chunk when replay wakes. Measured post-B56.4 build sizes: `floorplan-studio-card.js` 136,742 B gzip, `floorplan-studio-replay-*.js` 5,954 B gzip (vs 6,000 B cap; unused event-rule re-exports removed from `replay/history.ts` to keep the replay chunk inside budget).
+2. Energy chips render as a dedicated top row in `.fp-replay` (`grid-area: en`, `flex-wrap: wrap`) instead of inside `.fp-rp-head`'s `auto` grid column, so `input.fp-rp-range` keeps full track width on medium/wide cards (such as 900 px) while narrow viewports wrap the chips onto two lines cleanly with zero overlap against the time and slider rows.
+
+## 2026-11-15: `replay: always` surface-freeze addition and `energy/get_prefs` access (B56.1)
+
+1. `replay?: "always"` is added to `FloorplanStudioCardConfig` (`docs/specs/batch-s52.md` item 39, criterion 10) and recorded in `tests/card/surface-freeze.test.ts`. Any other value (including absent, boolean, or another string) keeps the existing `Replay` button. While idle at Live (`_replay.idle`), `isReplaying` is false so live device taps, dialogs, and overview toggles keep working; seeking back, jumping, picking a window, or pressing Play loads the replay chunk and fetches history, and clicking `Live` or 5 minutes without a touch (`IDLE_MS`) returns to Live without unmounting the bar.
+2. Verified against Home Assistant core (`homeassistant/components/energy/websocket_api.py`): `energy/get_prefs` does not carry `@websocket_api.require_admin`, and returns `not_found` when Energy is unconfigured. Non-admin refusal or unconfigured rejection is still caught cleanly by hiding the energy counter chips.
+
 ## 2026-11-07: The badge bubble finds a badge by position, not by event target (B55.4)
 
 One component, `bindBadgeBubble` in `badge-bubble.ts`, serves the card and the Studio live view. The Studio's badges take no
