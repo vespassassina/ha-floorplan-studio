@@ -127,7 +127,7 @@ test("a language chunk imports nothing: it is data", () => {
 
 // S38.0 (docs/DECISIONS.md, 2026-10-27): the Edit-card form is a chunk of its own (floorplan-studio-form-<hash>.js), fetched by import()
 // from getConfigElement(). Home Assistant loads the form only when someone edits the card, so no viewer pays for it in the card file.
-const FORM_CHUNK_LIMIT = 28000; // B53.13: measured 26,525, next 1,000, plus 1,000 (DECISIONS). Was 26,000 // gzip; 24.8 KB when written (the form is a bundle of its own: it carries its copy of lit and of the validator), with room for the fields that follow
+const FORM_CHUNK_LIMIT = 29000; // S62: measured 28,121, next 1,000 (lamp schema validation). Was 28,000 (B53.13), 26,000 (S38.0)
 const formChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-form-.+\.js$/.test(f));
 
 test("the card file does not hold the Edit-card form: its element name and a label of its markup are only in the form chunk", () => {
@@ -245,6 +245,30 @@ test("the card file does not carry the energy parser/math: fp-energy-v1 and ener
   const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
   const chunk = readFileSync(`dist/${energyChunks()[0]}`, "utf8");
   for (const word of ["fp-energy-v1", "energy/get_prefs", "recorder/statistics_during_period"]) {
+    expect(card, `the card holds ${word}`).not.toContain(word);
+    expect(chunk, `the chunk holds ${word}`).toContain(word);
+  }
+});
+
+// S62 (docs/specs/lamps.md): lamp symbols and light emissions are a lazy chunk loaded only when a layout has `d.lamp`.
+const LAMP_CHUNK_LIMIT = 10000;
+const lampChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-lamp-.+\.js$/.test(f));
+
+test(`there is exactly one lamp chunk, at most ${LAMP_CHUNK_LIMIT} bytes gzipped, importing nothing from card/core, and named in card by import()`, () => {
+  expect(lampChunks()).toHaveLength(1);
+  const [f] = lampChunks();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(LAMP_CHUNK_LIMIT);
+  const chunk = readFileSync(`dist/${f}`, "utf8");
+  expect(chunk, "the chunk imports nothing").not.toMatch(/\bfrom\s*["'][^"']+["']|\bimport\s*\(/);
+  expect(readFileSync("dist/floorplan-studio-card.js", "utf8")).toMatch(/"\.\/floorplan-studio-lamp-[\w-]+\.js"/);
+  expect(readFileSync("dist/floorplan-studio-card.js", "utf8"), "the build put the file's name in").not.toContain("__FPLAMP_CHUNK__");
+});
+
+test("the card file does not carry the lamp symbols: lamp-aura-flood and fp-spot-falloff are only in the lamp chunk", () => {
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  const chunk = readFileSync(`dist/${lampChunks()[0]}`, "utf8");
+  for (const word of ["lamp-aura-flood", "fp-spot-falloff", "lamp-aura-strip"]) {
     expect(card, `the card holds ${word}`).not.toContain(word);
     expect(chunk, `the chunk holds ${word}`).toContain(word);
   }

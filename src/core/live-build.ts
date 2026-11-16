@@ -14,7 +14,7 @@ type Render = typeof import("./render");
 export type LiveDeps = Pick<Render, "acMode" | "attachedTest" | "heatedRooms" | "classOf" | "deviceMarkup" | "lightFill" | "lightOpacity" | "MOTION_PULSE_S" | "MOTION_PULSES" | "motionRooms" | "personRoom" | "pieceOn" | "polyCentre" | "roomAt" | "roomReadout" | "ROOM_OWNS">
   & Pick<typeof import("./camera-thumb"), "thumbBox" | "thumbUrl"> & Pick<typeof import("./solids"), "pieceDevice" | "bodyAir"> & Pick<typeof import("./car-status"), "carStatus"> & Pick<typeof import("./link"), "linkedStatus"> & Pick<typeof import("./door-state"), "doorStateOf"> & Pick<typeof import("./schema"), "fxScale">;
 
-export interface LiveLight { device: number; room: number; at: Pt; /** The lamp's own CSS colour, or null for the theme's light colour. */ rgb: string | null; /** 0..1 */ level: number; /** S14.3: the lamp's effect size as a fraction; absent at 100 %, so a layout that never sets it gives the same JSON as before. */ scale?: number }
+export interface LiveLight { device: number; room: number; at: Pt; /** The lamp's own CSS colour, or null for the theme's light colour. */ rgb: string | null; /** 0..1 */ level: number; /** S14.3: the lamp's effect size as a fraction; absent at 100 %, so a layout that never sets it gives the same JSON as before. */ scale?: number; /** S62: optional lamp kind & emission parameters. */ lamp?: Device["lamp"] & { rot?: number } }
 export interface LiveDevice {
   type: string;
   /** The classes of the icon group (`dev dev-light on`), the same string the plan writes. */
@@ -93,7 +93,8 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
         out[i] = { type: String(d.type), klass: `dev dev-${d.type}${ac}${bound} ${cls}`, style: style.join(";"), icon, name: String(d.name ?? d.id ?? ""), value, state: base, playing: (d.type === "speaker" || d.type === "media") && s?.state === "playing", ...(ring ? { at: polyCentre(ring) } : {}), ...(url ? { thumb: { url, ...thumbBox([0, 0], ct!, 1) } } : {}) };
         if (d.type === "light" && base === "on") {
           const st = o.state?.[d.entity];
-          lights.push({ device: i, room: roomAt(safe, at), at, rgb: lightFill(st), level: lightOpacity(st) ?? 1, ...(fxScale(d) !== 1 ? { scale: fxScale(d) } : {}) });
+          const rot = typeof d.rot === "number" && Number.isFinite(d.rot) ? d.rot : undefined;
+          lights.push({ device: i, room: roomAt(safe, at), at, rgb: lightFill(st), level: lightOpacity(st) ?? 1, ...(fxScale(d) !== 1 ? { scale: fxScale(d) } : {}), ...(d.lamp ? { lamp: { ...d.lamp, ...(rot !== undefined ? { rot } : {}) } } : {}) });
         }
       } catch (e) { debugOnce("3D live state: a device could not be read and draws nothing", e); }
     });

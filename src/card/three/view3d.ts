@@ -879,14 +879,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     const L = liveNow ?? EMPTY, mode = L.night ? NIGHT : DAY;
     hemi.intensity = mode.hemi;
     const sunNow = applySun(L, mode);
-    const lit = L.lights.map((l) => ({ room: l.room, at: l.at, rgb: rgbOf(l.rgb), level: l.level, device: l.device, scale: l.scale ?? 1 }));
+    const lit = L.lights.map((l) => ({ room: l.room, at: l.at, rgb: rgbOf(l.rgb), level: l.level, device: l.device, scale: l.scale ?? 1, lamp: l.lamp }));
     lifts = roomLifts(lit, mode.boost);
     heatTint = floorHeat(L.heated);
     const key = JSON.stringify([[...lifts], [...heatTint]]);
     if (key !== liftKey) { liftKey = key; for (const m of meshes) paintLifts(m); for (const m of wallMeshes) paintLifts(m); }
     const b = plan?.bounds, centre: [number, number] = b ? [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2] : [0, 0];
     const here = lit.filter((l) => roomSolid.has(l.room));
-    pools.set(pickLights(here, centre, MAX_POOLS).map((l) => { const r = roomSolid.get(l.room)!; return { at: l.at, z: r.z, base: r.base, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale }; }));
+    pools.set(pickLights(here, centre, MAX_POOLS).map((l) => { const r = roomSolid.get(l.room)!; return { at: l.at, z: r.z, base: r.base, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale, lamp: l.lamp }; }));
     container.dataset.pools = `${pools.visible()}/${here.length}`;
     // The same lamps light the walls of their rooms: a lamp's own height is its icon's (held under the walls), else a standing lamp's.
     // S23.8: the theme kind is the one the 2D glow blends by (`--fp-glow-blend`, ink.ts themeExtras): multiply means a light theme.

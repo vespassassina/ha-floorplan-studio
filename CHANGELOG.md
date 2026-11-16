@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.47.0 - 2026-11-16
+
+Lamps that look the part (S62): seven `device.lamp` kinds (`floor`, `desk`, `strip`, `ceiling`, `spot`, `pole`, `flood`) on `light` devices, with dedicated symbols, room-clipped 2D/2.5D emissions, 3D fixture shapes and floor pools/cones, a lazy `floorplan-studio-lamp-<hash>.js` chunk, and Studio fields & plan drag handles.
+
+- Layout schema and validation: `device.lamp` (`kind`, `height`, `length`, `diameter`, `angle`, `reach`) validated on `light` devices only (`LAMP_DEFAULTS`, `LAMP_BOUNDS`) (S62.1).
+- Card & Studio 2D/2.5D: lazy `floorplan-studio-lamp-<hash>.js` chunk loaded only when `device.lamp` is present, drawing distinct symbols and emissions (`ceiling`/`spot` at room ceiling height; `flood` clipped to ahead room) (S62.2).
+- Card 3D: 3D fixture solids at lamp height and shaped/wall-clipped pools and `flood` cones with zero per-frame cost (S62.3).
+- Studio: Lamp kind selector, kind-specific fields, and plan drag handles for `strip`, `ceiling`, and `flood` (one undo step per drag); changing device type off `light` clears `lamp` (S62.4).
 
 Replay always visible and house energy counters: the replay bar can stay parked at Live with zero history load until scrubbed, and shows Home Assistant's electricity, solar, gas and water totals and cost up to the scrubbed moment.
 

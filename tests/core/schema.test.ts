@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { FLOOR_COLOURS, ROOM_KINDS, STAIR_SHAPES, validate } from "../../src/core/schema";
+import { FLOOR_COLOURS, LAMP_BOUNDS, LAMP_KINDS, ROOM_KINDS, STAIR_SHAPES, validate } from "../../src/core/schema";
 
 const clone = () => structuredClone(demo) as any;
 const errorsOf = (l: unknown) => {
@@ -777,5 +777,47 @@ describe("B56.4: Layout.energy settings", () => {
       expect(has(l, re), JSON.stringify(bad)).toBe(true);
     }
     expect(() => errorsOf({ ...clone(), energy: null })).not.toThrow();
+  });
+});
+
+describe("S62.1: Device.lamp", () => {
+  const has = (l: any, re: RegExp) => errorsOf(l).some((e) => re.test(e));
+  const light = (l: any) => l.floors.ground.devices.find((d: any) => d.type === "light");
+
+  it("accepts every kind in LAMP_KINDS with defaults and valid bounds", () => {
+    for (const kind of LAMP_KINDS) {
+      const l = clone();
+      light(l).lamp = { kind };
+      expect(errorsOf(l), kind).toEqual([]);
+      const bounds = LAMP_BOUNDS[kind] as Record<string, readonly [number, number]>;
+      for (const [k, [min, max]] of Object.entries(bounds)) {
+        const lMin = clone(); light(lMin).lamp = { kind, [k]: min };
+        expect(errorsOf(lMin), `${kind}.${k}=${min}`).toEqual([]);
+        const lMax = clone(); light(lMax).lamp = { kind, [k]: max };
+        expect(errorsOf(lMax), `${kind}.${k}=${max}`).toEqual([]);
+      }
+    }
+  });
+
+  it("rejects lamp on a non-light device, unknown kinds, out-of-range numbers, and mismatched parameters", () => {
+    const lNonLight = clone();
+    const sw = lNonLight.floors.ground.devices.find((d: any) => d.type !== "light");
+    sw.lamp = { kind: "floor" };
+    expect(has(lNonLight, /lamp is only allowed on a light/)).toBe(true);
+
+    for (const [bad, re] of [
+      [{ kind: "chandelier" }, /lamp\.kind must be one of/],
+      ["floor", /lamp\.kind must be one of/],
+      [{ kind: "floor", height: 10 }, /lamp\.height must be 40\.\.300/],
+      [{ kind: "floor", length: 100 }, /lamp\.length invalid for floor/],
+      [{ kind: "strip", length: 5 }, /lamp\.length must be 20\.\.1000/],
+      [{ kind: "ceiling", diameter: 500 }, /lamp\.diameter must be 10\.\.200/],
+      [{ kind: "flood", angle: 5 }, /lamp\.angle must be 15\.\.160/],
+      [{ kind: "flood", reach: NaN }, /lamp\.reach must be 50\.\.1000/],
+    ] as const) {
+      const l = clone();
+      light(l).lamp = bad;
+      expect(has(l, re), JSON.stringify(bad)).toBe(true);
+    }
   });
 });

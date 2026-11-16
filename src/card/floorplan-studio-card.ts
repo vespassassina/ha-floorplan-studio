@@ -218,6 +218,13 @@ const loadLib3d = (): Promise<Lib3d> => {
   return lib3dLoading;
 };
 
+let lampLib: import("../core/render").LampRenderer | null = null;
+let lampLoading: Promise<void> | null = null;
+const ensureLampLib = (card: FloorplanStudioCard, f: Floor): void => {
+  if (lampLib || lampLoading || !f.devices.some((d) => d.type === "light" && d.lamp)) return;
+  lampLoading = import("./lamp").then((m) => { lampLib = m.lampRenderer; lampLoading = null; card.requestUpdate(); }, () => { lampLoading = null; });
+};
+
 /** What the 3D chunk takes from code the 2D plan also ships (S36.4). The chunk may not import it: it would import the card. */
 const DEPS_3D = { scene: sceneDeps, live: liveDeps, texture: textureDeps.texture, floorsAroundKey, floorsBelow, floorElevation, floorPlace, plugThreshold, bindDeviceActions };
 
@@ -1854,7 +1861,9 @@ export class FloorplanStudioCard extends LitElement {
     const svgClass = (this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable") + (turn ? " fp-turning" : "") + (showZoomButtons && this._ghost() !== undefined ? " fp-clear-stack" : "");
     // S12.3: 3D takes the plan's place once its module is loaded and WebGL works; until then, and if it cannot, the 2D plan is on show.
     const live3d = this._shows3d();
+    if (!live3d) ensureLampLib(this, f);
     const body = live3d ? "" : renderFloor(f, {
+      lampLib: lampLib ?? undefined,
       scale: this._scale(fit),
       tr: currentLanguage() ? t : undefined, // S38.8: English keeps the type id in a title, as before; another language names the type
 

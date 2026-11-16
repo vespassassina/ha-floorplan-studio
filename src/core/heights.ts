@@ -7,6 +7,15 @@ import type { Device, Door, DoorKind, DeviceType, EdgeKind, Floor, FurnitureSymb
 
 export const DEFAULT_FLOOR_HEIGHT = 250;
 export const DEFAULT_SLAB = 25;
+export const LAMP_DEFAULTS = {
+  floor: { height: 150 },
+  desk: {},
+  strip: { length: 150 },
+  ceiling: { diameter: 40 },
+  spot: {},
+  pole: { height: 80 },
+  flood: { angle: 60, reach: 300 },
+} as const;
 /** The range `validate` accepts for any height, sill or mount height. */
 export const MAX_HEIGHT = 1000;
 

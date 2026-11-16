@@ -103,6 +103,22 @@ export function planOverlay(ed: FloorplanStudioEditor, k: number): string {
   if (open) o.push(line(open.a, open.b, "door open", `stroke-width="${wallWidthAt(f, open.a, open.b)}" pointer-events="none"`));
   for (const r of looseEnds(f)) { const p = f[r.k][r.i][r.end]; o.push(`<circle class="h" data-hp="${r.k}:${r.i}:${r.end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(4.5 * k)}"/>`); }
   if (s?.t === "door" && f.doors[s.i]) for (const end of ["a", "b"] as const) { const p = f.doors[s.i][end]; o.push(`<circle class="h" data-dh="${s.i}:${end}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`); }
+  if (s?.t === "dev") {
+    const dv = f.devices[s.i];
+    if (dv?.type === "light" && dv.lamp && "x" in dv) {
+      const rot = ((dv.rot ?? 0) * Math.PI) / 180;
+      const mode = dv.lamp.kind === "strip" || dv.lamp.kind === "ceiling" || dv.lamp.kind === "flood" ? dv.lamp.kind : null;
+      if (mode) {
+        const hx = mode === "strip" ? dv.x + ((dv.lamp.length ?? 150) / 2) * Math.cos(rot)
+          : mode === "ceiling" ? dv.x + (dv.lamp.diameter ?? 40) / 2
+            : dv.x + (dv.lamp.reach ?? 300) * Math.sin(rot);
+        const hy = mode === "strip" ? dv.y + ((dv.lamp.length ?? 150) / 2) * Math.sin(rot)
+          : mode === "ceiling" ? dv.y
+            : dv.y - (dv.lamp.reach ?? 300) * Math.cos(rot);
+        o.push(`<circle class="h" data-lh="${s.i}:${mode}" cx="${num(hx)}" cy="${num(hy)}" r="${num(5 * k)}"/>`);
+      }
+    }
+  }
   if (s?.t === "v") { const p = ptOf(f, s.ref); if (p) o.push(`<circle class="h on" pointer-events="none" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`); }
   o.push(...lens); // over every handle dot; a label takes no pointer, so the dots under it stay grabbable
   // Draw mode: the placed points and a dashed rubber band. Only the editor draws these; the card never sees them.

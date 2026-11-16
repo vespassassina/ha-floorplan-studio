@@ -5,10 +5,10 @@ import { repeat } from "lit/directives/repeat.js";
 import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, deviceZDefault, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { worktopIndex, worktopPts, worktopTurn, STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import { CAR_MODELS, DEVICE_BODIES, ENERGY_KINDS, ENERGY_SHOWS, MAX_CAR_ATTACHED, MIN_MOISTURE, ROOM_CORNERS, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
-import { bodyOf, furniturePaintable } from "../core";
+import { CAR_MODELS, DEVICE_BODIES, ENERGY_KINDS, ENERGY_SHOWS, LAMP_BOUNDS, LAMP_KINDS, MAX_CAR_ATTACHED, MIN_MOISTURE, ROOM_CORNERS, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
+import { LAMP_DEFAULTS, bodyOf, furniturePaintable } from "../core";
 import { boxOf, rectPts } from "../core/polygon";
-import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, EnergyKind, EnergyShow, Floor, Furniture, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
+import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, EnergyKind, EnergyShow, Floor, Furniture, LampKind, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
 import { bindLights, lockDevices, removeDevices } from "./bulk";
 import { setRoomList, type RoomSensorField, movePointAll, openingToWall, resizeSegment, roundStairs, rotateSegment, setSecondEnd, stairsAt, wallToOpening } from "./ops";
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
@@ -1001,6 +1001,48 @@ function bodyField(c: PanelCtx, i: number) {
   return select("Body", "vbody", value, ["", ...choices], set, { ...BODY_NAMES, "": `Default (${BODY_NAMES[bodyOf({ ...d, body: undefined })]})` });
 }
 
+const LAMP_KIND_LABELS: Record<LampKind, string> = {
+  floor: "Floor lamp",
+  desk: "Desk lamp",
+  strip: "LED strip",
+  ceiling: "Ceiling lamp",
+  spot: "Ceiling spot",
+  pole: "Garden pole",
+  flood: "Floodlight",
+};
+
+function lampFields(c: PanelCtx, i: number) {
+  const d = c.st.f.devices[i];
+  const lk = d.lamp, kind = lk?.kind;
+  const setKind = (next: string) => c.commit((f) => {
+    if (!next) delete f.devices[i].lamp;
+    else f.devices[i].lamp = { kind: next as LampKind };
+  });
+  const numField = (id: string, label: string, key: "height" | "length" | "diameter" | "angle" | "reach", def: number, [min, max]: readonly [number, number]) => {
+    const cur = lk?.[key];
+    return html`<label for=${id}>${label}</label><input id=${id} type="number" min=${min} max=${max} placeholder=${String(def)} .value=${live(cur !== undefined ? String(cur) : "")} @change=${(e: Event) => {
+      const raw = val(e).trim();
+      c.commit((f) => {
+        const curLamp = f.devices[i].lamp;
+        if (!curLamp) return;
+        if (!raw) { delete (curLamp as unknown as Record<string, unknown>)[key]; return; }
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return;
+        (curLamp as unknown as Record<string, unknown>)[key] = Math.min(max, Math.max(min, Math.round(n)));
+      });
+    }}>`;
+  };
+  return html`<label for="vlamp">lamp kind</label><select id="vlamp" .value=${live(kind ?? "")} @change=${(e: Event) => setKind(val(e))}>
+      <option value="">Default (bulb)</option>
+      ${LAMP_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${LAMP_KIND_LABELS[k]}</option>`)}
+    </select>
+    ${kind === "floor" ? numField("vlampH", "lamp height (cm)", "height", LAMP_DEFAULTS.floor.height, LAMP_BOUNDS.floor.height) : nothing}
+    ${kind === "pole" ? numField("vlampH", "pole height (cm)", "height", LAMP_DEFAULTS.pole.height, LAMP_BOUNDS.pole.height) : nothing}
+    ${kind === "strip" ? numField("vlampLen", "strip length (cm)", "length", LAMP_DEFAULTS.strip.length, LAMP_BOUNDS.strip.length) : nothing}
+    ${kind === "ceiling" ? numField("vlampDia", "diameter (cm)", "diameter", LAMP_DEFAULTS.ceiling.diameter, LAMP_BOUNDS.ceiling.diameter) : nothing}
+    ${kind === "flood" ? html`${numField("vlampAng", "cone angle (°)", "angle", LAMP_DEFAULTS.flood.angle, LAMP_BOUNDS.flood.angle)}${numField("vlampReach", "reach (cm)", "reach", LAMP_DEFAULTS.flood.reach, LAMP_BOUNDS.flood.reach)}` : nothing}`;
+}
+
 function devicePanel(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   // Opus review of S8.9: areaDiffField renders nothing without c.moveArea, so a Links heading over just an
@@ -1013,6 +1055,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${heading("Identity")}
     ${deviceTypeField(c, i)}
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
+    ${d.type === "light" ? lampFields(c, i) : nothing}
     ${heading("Home Assistant")}
     ${deviceEntity(c, i)}
     ${viewField(c, i)}
@@ -1066,7 +1109,7 @@ function deviceTypeField(c: PanelCtx, i: number) {
   const set = (t: string) => c.commit((f) => {
     const dv = f.devices[i];
     dv.type = t as DeviceType;
-    if (t !== "light") { delete dv.bound; delete dv.motion; }
+    if (t !== "light") { delete dv.bound; delete dv.motion; delete dv.lamp; }
     if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
     if (t !== "climate" && t !== "heater") delete dv.underfloor;
     if (t !== "ac") delete dv.linked;

@@ -1,4 +1,4 @@
-import { dist, edgePoint, edgeRooms, worktopIndex, worktopPts, worktopShift, type Floor, insertPoint, nearestEdge, polys, type Pt, rotateAbout, snapped, snapPoint, stitch, type WallKind } from "../core";
+import { dist, edgePoint, edgeRooms, worktopIndex, worktopPts, worktopShift, type Floor, insertPoint, LAMP_BOUNDS, nearestEdge, polys, type Pt, rotateAbout, snapped, snapPoint, stitch, type WallKind } from "../core";
 import { type LooseRef, polyPts, ptOf, type PtRef, type Sel } from "./state";
 import { type Drag, type Hit, HOST, mirrorOnWall, round } from "./editor-kit";
 import { type Corner, furnitureNear, gridRound, looseEnds, movePointAll, pivotOnArc, pointsNear, scaleFurniture, segmentAt, snapRoomTo } from "./ops";
@@ -39,6 +39,8 @@ function hitOf(el: Element | null): Hit {
   if (we) { const [i, e] = (we.getAttribute("data-we") ?? "").split(":"); return { k: "wedge", i: +i, e: +e }; }
   const fh = el.closest("[data-fh]");
   if (fh) { const [i, corner] = (fh.getAttribute("data-fh") ?? "").split(":"); return { k: "fscale", i: +i, corner: corner as Corner }; }
+  const lh = el.closest("[data-lh]");
+  if (lh) { const [i, mode] = (lh.getAttribute("data-lh") ?? "").split(":"); return { k: "lamph", i: +i, mode: mode as "strip" | "ceiling" | "flood" }; }
   const d = el.closest("[data-d]");
   if (d) return { k: "door", i: +(d.getAttribute("data-d") ?? -1) };
   // An opening line has no data attribute (core draws it, the card must not change): it is the n-th `line.opening` of the plan.
@@ -228,6 +230,13 @@ export const onDown = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
       if (!m) break;
       st.sel = { t: "furn", i: hit.i };
       if (!m.locked) ed.drag = { type: "fscale", base, i: hit.i, corner: hit.corner, moved: false };
+      break;
+    }
+    case "lamph": {
+      const dv = f.devices[hit.i];
+      if (!dv) break;
+      st.sel = { t: "dev", i: hit.i };
+      if (!dv.locked) ed.drag = { type: "lamph", base, i: hit.i, mode: hit.mode, moved: false };
       break;
     }
     case "unl": {
@@ -470,6 +479,27 @@ export const onMove = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
       begin(ed, d);
       g = structuredClone(d.base);
       g.furniture[d.i] = next;
+      break;
+    }
+    case "lamph": {
+      const dv0 = d.base.devices[d.i];
+      if (!dv0 || !("x" in dv0) || !dv0.lamp) break;
+      const dx = p[0] - dv0.x, dy = p[1] - dv0.y, r = Math.hypot(dx, dy);
+      const clamp = (v: number, [lo, hi]: readonly [number, number]) => Math.max(lo, Math.min(hi, Math.round(v)));
+      const deg = (a: number) => Math.round(((a * 180 / Math.PI) % 360 + 360) % 360);
+      begin(ed, d);
+      g = structuredClone(d.base);
+      const dv = g.devices[d.i];
+      if (!dv || !("x" in dv) || !dv.lamp) break;
+      if (d.mode === "strip") {
+        dv.lamp.length = clamp(r * 2, LAMP_BOUNDS.strip.length);
+        dv.rot = deg(Math.atan2(dy, dx));
+      } else if (d.mode === "ceiling") {
+        dv.lamp.diameter = clamp(r * 2, LAMP_BOUNDS.ceiling.diameter);
+      } else {
+        dv.lamp.reach = clamp(r, LAMP_BOUNDS.flood.reach);
+        dv.rot = deg(Math.atan2(dx, -dy));
+      }
       break;
     }
     case "room": {

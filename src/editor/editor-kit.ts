@@ -9,6 +9,7 @@ export type Hit =
   | { k: "loose"; ref: LooseRef }
   | { k: "dend"; i: number; end: "a" | "b" }
   | { k: "fscale"; i: number; corner: Corner }
+  | { k: "lamph"; i: number; mode: "strip" | "ceiling" | "flood" }
   | { k: "door" | "opening" | "dev" | "furn" | "unl" | "wall" | "room" | "stairs" | "extra"; i: number }
   | { k: "edge"; poly: string; i: number }
   | { k: "wedge"; i: number; e: number } // B54.3: edge e of worktop i
@@ -29,6 +30,7 @@ export type Drag =
   | { type: "furn"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "unl"; base: Floor; i: number; off: Pt; moved: boolean }
   | { type: "fscale"; base: Floor; i: number; corner: Corner; moved: boolean }
+  | { type: "lamph"; base: Floor; i: number; mode: "strip" | "ceiling" | "flood"; moved: boolean }
   | { type: "room"; base: Floor; list: "rooms" | "stairs"; i: number; start: Pt; moved: boolean; alt?: boolean }
   /** S40.2: Move is on and the plan was pressed: the trace image follows the pointer. `from`: its place at the press; `before`: the layout as the first real move found it. */
   | { type: "trace"; start: Pt; from: Pt; moved: boolean; before: Layout | null };

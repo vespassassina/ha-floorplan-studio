@@ -726,6 +726,14 @@ differently:
   or its switch is on. A tap's button always acts on the light itself; the switch is
   never one of the S10.4 chooser's entities (below) — it stays reachable from
   inside the light's own more-info dialog instead.
+- **Lamps (`device.lamp`, S62)** — a `light` device with a `lamp` block draws
+  its own symbol and light shape instead of the default bulb: `floor` (tall
+  pole + shade), `desk` (articulated arm + shade), `strip` (rotatable LED bar
+  and capsule glow), `ceiling` (round fixture + wide pool), `spot` (recessed
+  spot + tight pool), `pole` (garden bollard + wide ground pool), and `flood`
+  (rotatable floodlight + room-clipped light cone). The lazy
+  `floorplan-studio-lamp-<hash>.js` chunk loads only when a layout contains at
+  least one device with `lamp`.
 - **Motion sensor** — red the moment it triggers, with a strong red disc and
   a ring pulsing out from it while it stays on. It then fades back to grey
   over `fade` seconds from when it last went off — even if it's already off
@@ -1057,7 +1065,7 @@ with its own colour keeps it. There are no textures. Shadows are baked contact s
   moves: a still model, a settled pulse and a Home Assistant update that changes
   nothing cost no frame at all. A fade asks for at most one frame a second.
 - **Live state in 3D (S12.5).** The same rules as 2D, from the same helpers.
-  - *Lights.* A lit light device lights the room it hangs in (the 2D rule): its floor, furniture and walls take a lift toward the lamp's colour, and a soft pool sits under the lamp. The neighbouring room does not change. **At most 8 lamps get a pool**, the 8 nearest the middle of the house; every lit room is lifted whatever the count. The card says so in the view's `data-pools="shown/lit"`. Night (the sun rule) darkens the scene and leaves lit rooms bright.
+  - *Lights.* A lit light device lights the room it hangs in (the 2D rule): its floor, furniture and walls take a lift toward the lamp's colour, and a soft pool sits under the lamp (lamps with `device.lamp` render their 3D fixture shape at its height — `ceiling` and `spot` at the room's ceiling — and shape their floor pool or wall-clipped `flood` cone with zero per-frame cost). The neighbouring room does not change. **At most 8 lamps get a pool**, the 8 nearest the middle of the house; every lit room is lifted whatever the count. The card says so in the view's `data-pools="shown/lit"`. Night (the sun rule) darkens the scene and leaves lit rooms bright.
   - *Doors and windows.* A plain door shows its leaf only while its sensor says closed (no sensor, unavailable or unknown: a hole); an open one (or an open cover door) swings about 70 degrees about its hinge, in red. A window's pane is there while it is closed and gone when it is open; a glass door's pane follows the door rule. Sealed doors do not change. An alarmed door (vibration) stays shut and turns red.
   - *Devices.* The small balls take their colour from the `--fp-dev-*` tokens and the state, as the 2D icons do. Person, radar, vibration and the plug-power rule are the 2D helpers. A speaker that is playing has lit drivers; a TV that is on has a lit screen; a heating radiator is tinted with `--fp-heater`. A device with a body, and a sensor that belongs to a room, shows no ball.
   - *Room motion.* A room with a `motion` list gets a red edge on its floor outline: three pulses when a sensor trips, then steady, then it fades by `last_changed` and the `fade` setting, as in 2D. With reduced motion the edge is steady. The view draws frames only while a pulse plays.

@@ -13,7 +13,8 @@ const POOL_LIFT = 0.6, RING_LIFT = 1;
 /** cm. The motion edge: a band this far in from the room's outline (past the wall), this wide. */
 export const EDGE_FROM = 12, EDGE_TO = 22;
 
-export interface PoolSpec { at: readonly [number, number]; z: number; base: Poly; rgb: Rgb; level: number; room: number; boost: number; /** S14.3: the lamp's effect size as a fraction (1 = 100 %); the pool reaches `POOL_REACH` times it. */ scale?: number }
+export interface LampPool { kind: string; length?: number; rot?: number; angle?: number; reach?: number }
+export interface PoolSpec { at: readonly [number, number]; z: number; base: Poly; rgb: Rgb; level: number; room: number; boost: number; /** S14.3: the lamp's effect size as a fraction (1 = 100 %); the pool reaches `POOL_REACH` times it. */ scale?: number; lamp?: LampPool }
 
 /** `MAX_POOLS` flat discs of light, made once and moved: a lamp that turns on or off changes numbers, never the scene's children. */
 export function createPools(scene: Scene) {
@@ -42,7 +43,7 @@ export function createPools(scene: Scene) {
       slots.forEach((s, i) => {
         const p = specs[i];
         if (!p) { s.mesh.visible = false; s.key = ""; s.room = -1; return; }
-        const scale = p.scale ?? 1, key = JSON.stringify([p.at, p.z, p.room, p.rgb, p.level, p.boost, p.base, scale]);
+        const scale = p.scale ?? 1, key = JSON.stringify([p.at, p.z, p.room, p.rgb, p.level, p.boost, p.base, scale, p.lamp ?? null]);
         s.mesh.visible = true;
         s.room = p.room;
         if (key === s.key) return;
@@ -51,19 +52,39 @@ export function createPools(scene: Scene) {
         const strength = 0.5 * Math.max(0, Math.min(1, p.level)) * p.boost, y = p.z + POOL_LIFT;
         pos.setXYZ(0, p.at[0], y, p.at[1]);
         col.setXYZ(0, p.rgb[0] * strength, p.rgb[1] * strength, p.rgb[2] * strength);
-        const reach = POOL_REACH * scale;
+        const lk = p.lamp, kind = lk?.kind;
+        const baseReach = kind === "desk" ? POOL_REACH * 0.7 : kind === "ceiling" ? POOL_REACH * 1.1 : kind === "pole" ? POOL_REACH * 1.4 : kind === "spot" ? POOL_REACH * 0.35 : kind === "flood" ? (lk?.reach ?? 300) : POOL_REACH;
+        const reach = baseReach * scale;
+        const floodAng = kind === "flood" ? Math.min(160, Math.max(15, lk?.angle ?? 60)) * (Math.PI / 180) : 0;
+        const floodStart = (-90 + (lk?.rot ?? 0)) * (Math.PI / 180) - floodAng / 2;
+        const stripRot = ((lk?.rot ?? 0) * Math.PI) / 180, stripHalf = Math.max(10, (lk?.length ?? 150) / 2), stripRad = 55 * scale;
         let extent = 0;
         for (let r = 0; r < RAYS; r++) {
-          const ang = (r / RAYS) * Math.PI * 2, dx = Math.cos(ang), dy = Math.sin(ang);
+          if (kind === "flood" && r === RAYS - 1) {
+            for (let k = 1; k <= RINGS; k++) {
+              const v = 1 + (k - 1) * RAYS + r;
+              pos.setXYZ(v, p.at[0], y, p.at[1]);
+              col.setXYZ(v, 0, 0, 0);
+            }
+            continue;
+          }
+          const ang = kind === "flood" ? floodStart + (r / (RAYS - 2)) * floodAng : (r / RAYS) * Math.PI * 2;
+          const dx = Math.cos(ang), dy = Math.sin(ang);
+          let rayReach = reach;
+          if (kind === "strip") {
+            const rel = ang - stripRot, ca = Math.abs(Math.cos(rel)), sa = Math.abs(Math.sin(rel));
+            rayReach = Math.min(stripHalf / Math.max(0.05, ca) + stripRad * 0.4, stripRad / Math.max(0.05, sa));
+          }
           // The wall stops the light: the ray is shortened until its end lies in the room (exact for a room the lamp sees whole).
           let t = 1;
-          if (!inPoly(p.base, p.at[0] + dx * reach, p.at[1] + dy * reach)) {
+          if (!inPoly(p.base, p.at[0] + dx * rayReach, p.at[1] + dy * rayReach)) {
             let lo = 0, hi = 1;
-            for (let c = 0; c < CLIP_STEPS; c++) { const m = (lo + hi) / 2; if (inPoly(p.base, p.at[0] + dx * reach * m, p.at[1] + dy * reach * m)) lo = m; else hi = m; }
+            for (let c = 0; c < CLIP_STEPS; c++) { const m = (lo + hi) / 2; if (inPoly(p.base, p.at[0] + dx * rayReach * m, p.at[1] + dy * rayReach * m)) lo = m; else hi = m; }
             t = lo;
           }
           for (let k = 1; k <= RINGS; k++) {
-            const f = k / RINGS, len = reach * t * f, v = 1 + (k - 1) * RAYS + r, fall = (1 - f) * (1 - f) * strength;
+            const f = k / RINGS, len = rayReach * t * f, v = 1 + (k - 1) * RAYS + r;
+            const fall = (kind === "spot" ? Math.pow(1 - f, 3) : (1 - f) * (1 - f)) * strength;
             pos.setXYZ(v, p.at[0] + dx * len, y, p.at[1] + dy * len);
             if (len > extent) extent = len;
             col.setXYZ(v, p.rgb[0] * fall, p.rgb[1] * fall, p.rgb[2] * fall);
