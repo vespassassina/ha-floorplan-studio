@@ -462,6 +462,10 @@ enough, Load says so and changes nothing: crop the scan or remove another
 floor's image. File, Export leaves it out unless you tick
 **Include trace image**, so a file you hand to an assistant stays small.
 
+## Lamps
+
+On any `light` device, the inspector shows **Lamp kind** (`Default (bulb)` plus `Floor lamp`, `Desk lamp`, `LED strip`, `Ceiling lamp`, `Ceiling spot`, `Garden pole`, and `Floodlight`) along with kind-specific fields (`height`, `length`, `diameter`, `angle`, `reach`). `LED strip`, `Ceiling lamp`, and `Floodlight` also show a plan drag handle (`strip` length + rotation, `ceiling` diameter, `flood` reach + rotation), recorded as one undo step per drag. Changing a light's type to anything else clears `lamp`.
+
 ## Starting from photos instead
 
 If you'd rather not draw the outline by hand, an AI assistant can trace it

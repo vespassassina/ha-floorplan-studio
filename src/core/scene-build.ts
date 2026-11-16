@@ -19,8 +19,8 @@ type Solids = typeof import("./solids");
 type Schema = typeof import("./schema");
 type Blocks = typeof import("./furniture-blocks");
 type BlockTone = import("./furniture-blocks").Block["tone"];
-export type SceneDeps = Pick<Blocks, "furnitureBlocks" | "darkenedHex"> & Pick<Heights, "deviceZ" | "doorSpan" | "edgeHeight" | "floorHeight" | "floorSlab" | "furnitureBottom" | "furnitureHeight" | "openingSpan" | "radiatorSpan" | "unlinkedHeight" | "wallHeight">
-  & Pick<Render, "attachedTest" | "inside"> & Pick<typeof import("./stairs"), "resolveStairDirection"> & Pick<typeof import("./wall-colour"), "wallColourMap" | "wallEdgeKey">
+export type SceneDeps = Pick<Blocks, "furnitureBlocks" | "darkenedHex"> & Pick<Heights, "deviceZ" | "doorSpan" | "edgeHeight" | "floorHeight" | "floorSlab" | "furnitureBottom" | "furnitureHeight" | "openingSpan" | "radiatorSpan" | "roomHeight" | "unlinkedHeight" | "wallHeight">
+  & Pick<Render, "attachedTest" | "inside" | "roomAt"> & Pick<typeof import("./stairs"), "resolveStairDirection"> & Pick<typeof import("./wall-colour"), "wallColourMap" | "wallEdgeKey">
   & Pick<Solids, "bodyOf" | "bodyPlacement" | "FURNITURE_SOLID" | "FRAME_PROUD" | "FRAME_WIDTH" | "KERB_HIGH" | "KERB_OUT" | "OPENING_FILL" | "OPENING_FRAMED" | "RADIATOR_DEEP" | "SPEAKER_HEIGHT" | "SPEAKER_SIDE" | "TV_HEIGHT" | "TV_THICK" | "TV_WIDTH" | "UNLINKED_BASE" | "WELL_DEPTH" | "pieceDevice" | "stairBlocks" | "turnAbout" | "tvPlacement" | "within">
   & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape"> & Pick<typeof import("./car"), "carParts" | "carSpec"> & Pick<typeof import("./furniture-paint"), "furniturePaint"> & Pick<typeof import("./polygon"), "worktopFrame" | "worktopPts">; // B54.2
 
@@ -85,7 +85,7 @@ const JOINT_TOLERANCE = 1;
 
 /** The scene builder, bound to the helpers of core it needs. The 3D chunk builds one per view; `core/scene.ts` binds the real ones for the tests. */
 export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) => Scene {
-  const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, bodyOf, bodyPlacement, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, furnitureBlocks, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec, wallColourMap, wallEdgeKey } = d;
+  const { deviceZ, doorSpan, edgeHeight, floorHeight, floorSlab, furnitureBottom, furnitureHeight, openingSpan, radiatorSpan, roomHeight, unlinkedHeight, wallHeight, attachedTest, inside, resolveStairDirection, roomAt, bodyOf, bodyPlacement, FURNITURE_SOLID, KERB_HIGH, FRAME_PROUD, FRAME_WIDTH, KERB_OUT, OPENING_FILL, OPENING_FRAMED, RADIATOR_DEEP, SPEAKER_HEIGHT, SPEAKER_SIDE, TV_HEIGHT, TV_THICK, TV_WIDTH, UNLINKED_BASE, WELL_DEPTH, pieceDevice, stairBlocks, turnAbout, tvPlacement, within, furnitureBlocks, DEVICE_TYPES, ROOM_KINDS, WALL_KINDS, treeShape, carParts, carSpec, wallColourMap, wallEdgeKey } = d;
   const { furniturePaint, darkenedHex: darkHex, worktopFrame, worktopPts } = d; // B53.4, B54.2
   const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && fin(p[0]) && fin(p[1]);
@@ -456,7 +456,45 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       }
       if (solids.length > before) return;
       const at: Pt | null = has2() ? [dev.x as number, dev.y as number] : isPt(dev.a) && isPt(dev.b) ? [(dev.a[0] + dev.b[0]) / 2, (dev.a[1] + dev.b[1]) / 2] : null;
-      if (at) add("device", id, type, { type: "point", at, z: Math.min(deviceZ(dev), Math.max(0, wallTop - ICON_MARGIN)) }, ref, paint);
+      if (!at) return;
+      if (type === "light" && isObj(dev.lamp)) {
+        const lk = dev.lamp as NonNullable<Device["lamp"]>, rot = fin(dev.rot) ? dev.rot : 0;
+        const holder = roomAt(f, at), ceilZ = holder >= 0 ? roomHeight(f, f.rooms[holder]) : floorHeight(f);
+        const oct = (cx: number, cy: number, r: number): Pt[] => Array.from({ length: 8 }, (_, k) => { const a = (k * Math.PI) / 4; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; });
+        const box = (w: number, h: number): Pt[] => ([[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]] as Pt[]).map((q) => turnAbout([at[0] + q[0], at[1] + q[1]], rot, at));
+        const bodyRef: SolidRef = { index: i, id: text(d.id), entity: text(d.entity), body: "lamp" };
+        let lampZ = Math.min(deviceZ(dev), Math.max(0, wallTop - ICON_MARGIN));
+        if (lk.kind === "floor") {
+          const h = fin(lk.height) ? lk.height : 150; lampZ = h;
+          add("device", `${id}:base`, type, { type: "prism", base: oct(at[0], at[1], 14), z0: 0, z1: 3 }, bodyRef, paint);
+          add("device", `${id}:pole`, type, { type: "prism", base: box(4, 4), z0: 3, z1: Math.max(10, h - 22) }, bodyRef, paint);
+          add("device", `${id}:shade`, type, { type: "prism", base: oct(at[0], at[1], 16), z0: Math.max(10, h - 22), z1: h }, bodyRef, paint);
+        } else if (lk.kind === "desk") {
+          const z0 = fin(dev.z) ? dev.z : 75; lampZ = z0 + 28;
+          add("device", `${id}:base`, type, { type: "prism", base: oct(at[0], at[1], 10), z0, z1: z0 + 3 }, bodyRef, paint);
+          add("device", `${id}:stem`, type, { type: "prism", base: box(3, 3), z0: z0 + 3, z1: z0 + 20 }, bodyRef, paint);
+          add("device", `${id}:shade`, type, { type: "prism", base: oct(at[0], at[1], 9), z0: z0 + 20, z1: z0 + 28 }, bodyRef, paint);
+        } else if (lk.kind === "strip") {
+          const len = fin(lk.length) ? lk.length : 150, z0 = fin(dev.z) ? dev.z : 0; lampZ = z0 + 4;
+          add("device", `${id}:strip`, type, { type: "prism", base: box(len, 6), z0, z1: z0 + 4 }, bodyRef, paint);
+        } else if (lk.kind === "ceiling") {
+          const r = (fin(lk.diameter) ? lk.diameter : 40) / 2, z1 = fin(dev.z) ? dev.z : ceilZ; lampZ = z1 - 4;
+          add("device", `${id}:ceil`, type, { type: "prism", base: oct(at[0], at[1], r), z0: Math.max(0, z1 - 6), z1 }, bodyRef, paint);
+        } else if (lk.kind === "spot") {
+          const z1 = fin(dev.z) ? dev.z : ceilZ; lampZ = z1 - 4;
+          add("device", `${id}:spot`, type, { type: "prism", base: oct(at[0], at[1], 7), z0: Math.max(0, z1 - 8), z1 }, bodyRef, paint);
+        } else if (lk.kind === "pole") {
+          const h = fin(lk.height) ? lk.height : 80; lampZ = h;
+          add("device", `${id}:post`, type, { type: "prism", base: box(6, 6), z0: 0, z1: Math.max(10, h - 10) }, bodyRef, paint);
+          add("device", `${id}:head`, type, { type: "prism", base: box(14, 14), z0: Math.max(10, h - 10), z1: h }, bodyRef, paint);
+        } else if (lk.kind === "flood") {
+          const z0 = fin(dev.z) ? dev.z : 220; lampZ = z0;
+          add("device", `${id}:flood`, type, { type: "prism", base: box(14, 10), z0, z1: z0 + 10 }, bodyRef, paint);
+        }
+        add("device", id, type, { type: "point", at, z: lampZ }, ref, paint);
+        return;
+      }
+      add("device", id, type, { type: "point", at, z: Math.min(deviceZ(dev), Math.max(0, wallTop - ICON_MARGIN)) }, ref, paint);
     }));
 
     const lo: [number, number, number] = [Infinity, Infinity, Infinity], hi: [number, number, number] = [-Infinity, -Infinity, -Infinity];

@@ -342,6 +342,19 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   and unlink; the automation it names does the actual work, and unlinking
   removes only this field, never the automation in Home Assistant. Must
   differ from `entity`, same rule as `bound`.
+- `device.lamp` (lights only, optional, S62; `docs/specs/lamps.md`): shapes a
+  `light` device's symbol, 2D/2.5D emission, and 3D body without changing its
+  entity, `bound`, scenes, or tap behaviour. `kind` is one of `floor`, `desk`,
+  `strip`, `ceiling`, `spot`, `pole`, `flood` (absent = default bulb and soft
+  aura). Optional numeric fields per kind (absent reads `LAMP_DEFAULTS`):
+  `height` (cm: `floor` 60–240 default 160, `pole` 30–300 default 100),
+  `length` (cm: `strip` 30–600 default 150), `diameter` (cm: `ceiling` 15–150
+  default 40), `angle` (degrees: `flood` 15–160 default 60), and `reach` (cm:
+  `flood` 50–1000 default 300). `ceiling` and `spot` mount at the holding
+  room's `roomHeight` (falling back to `floorHeight` outside rooms); `flood`
+  clips to the ahead room in 2D/2.5D and rays-to-wall-base in 3D. `validate`
+  refuses `lamp` on any non-`light` device, unknown `kind`, out-of-range
+  numbers, or unknown keys.
 - `furniture.symbol`: table, sofa, sofa-l, coffee-table, bed, cabinet, bookcase,
   buffet, wardrobe, dresser, nightstand, desk, armchair, counter, stove, fridge, dishwasher, washer, dryer, rug, plant, chair,
   sink, toilet, shower, bathtub, tv, computer, speaker, tree, patio-wood, patio-concrete, car, treadmill, barbell-rack, weight-rack,

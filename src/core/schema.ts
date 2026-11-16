@@ -135,8 +135,34 @@ export type DeviceBody = (typeof DEVICE_BODIES)[number];
  * card's `tap_action`; hold keeps its own action. An older card ignores it.
  * `underfloor` (B54.4, climate and heater only): the device heats the floor of the room that holds its icon. While its `hvac_action` is
  * `heating` that room is washed and patterned in 2D and warmed in 3D. Absent is false; an older card ignores it.
+ * `lamp` (S62, lights only): optional lamp shape and emission profile (`floor`, `desk`, `strip`, `ceiling`, `spot`, `pole`, `flood`). Absent keeps the plain light icon and soft aura.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; underfloor?: true; body?: DeviceBody } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export const LAMP_KINDS = ["floor", "desk", "strip", "ceiling", "spot", "pole", "flood"] as const;
+export type LampKind = (typeof LAMP_KINDS)[number];
+export interface LampSpec {
+  kind: LampKind;
+  /** `floor` (40–300 cm, default 150) and `pole` (20–300 cm, default 80). */
+  height?: number;
+  /** `strip` length in cm (20–1000, default 150). Oriented by `Device.rot`. */
+  length?: number;
+  /** `ceiling` diameter in cm (10–200, default 40). */
+  diameter?: number;
+  /** `flood` beam angle in degrees (15–160, default 60). Oriented by `Device.rot`. */
+  angle?: number;
+  /** `flood` reach in cm (50–1000, default 300). */
+  reach?: number;
+}
+export const LAMP_BOUNDS = {
+  floor: { height: [40, 300] as const },
+  desk: {},
+  strip: { length: [20, 1000] as const },
+  ceiling: { diameter: [10, 200] as const },
+  spot: {},
+  pole: { height: [20, 300] as const },
+  flood: { angle: [15, 160] as const, reach: [50, 1000] as const },
+} as const;
+
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; underfloor?: true; body?: DeviceBody; lamp?: LampSpec } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /**
  * S35.1: the car models, in the order the Studio lists them. `model`, `color` (`#rrggbb`) and `attached` (at most
  * `MAX_CAR_ATTACHED` entity ids) exist on a furniture piece with symbol `car` only; `entity` is then the car's main
@@ -593,6 +619,19 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (d.underfloor !== undefined) {
         if (d.underfloor !== true) errors.push(`${at} ${d.id} underfloor must be true; leave it out for no underfloor heating`);
         else if (d.type !== "climate" && d.type !== "heater") errors.push(`${at} ${d.id} underfloor is only allowed on a climate or heater`);
+      }
+      if (d.lamp !== undefined) {
+        if (d.type !== "light") errors.push(`${at} ${d.id} lamp is only allowed on a light`);
+        else if (!isObj(d.lamp) || !(LAMP_KINDS as readonly unknown[]).includes(d.lamp.kind)) errors.push(`${at} ${d.id} lamp.kind must be one of ${LAMP_KINDS.join(",")}`);
+        else {
+          const b = LAMP_BOUNDS[d.lamp.kind as LampKind] as Record<string, readonly [number, number] | undefined>;
+          for (const [k, v] of Object.entries(d.lamp)) {
+            if (k === "kind" || v === undefined) continue;
+            const r = b[k];
+            if (!r) errors.push(`${at} ${d.id} lamp.${k} invalid for ${d.lamp.kind}`);
+            else if (typeof v !== "number" || !Number.isFinite(v) || v < r[0] || v > r[1]) errors.push(`${at} ${d.id} lamp.${k} must be ${r[0]}..${r[1]}`);
+          }
+        }
       }
       // S14.3: the effect size, a percent of the type's own ring, aura or wave. Optional; absent is 100.
       if (d.fx !== undefined && !(typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX))

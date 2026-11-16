@@ -30,8 +30,14 @@ import { wallColourMap, wallColourVars, wallEdgeKey } from "./wall-colour";
 import { DARKEN_PCT, mirrored } from "./furniture-blocks";
 import { symbolOf, worktopFrame, worktopPts } from "./polygon";
 import { bodyOf, bodyAir, bodyFlat, bodyWind, STEM_MIN_Z, turnAbout, furnitureLinked, furnitureCls, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, collectWalls, shadeMarkup, type Proj, type Solid, type WallsMode } from "./solids";
-import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
-import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
+import { deviceZ, edgeHeight, floorHeight, roomHeight, wallHeight } from "./heights";
+import type { Device, DeviceType, EdgeKind, Floor, Furniture, LampKind, LampSpec, Layout, Pt, RoomKind, Stairs } from "./schema";
+export type { LampKind, LampSpec };
+
+export interface LampRenderer {
+  aura(ctx: { kind: LampKind; c: readonly [number, number]; rot: number; scale: number; reach: number; lamp: LampSpec; style: string; clip: string; defs: Set<string>; out: string[] }): void;
+  icon(ctx: { kind: LampKind; k: number; lamp: LampSpec }): string;
+}
 
 export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
 /** S38.8: the type in a device's `<title>`: its id, or, when the host translates, the label's translation (`DEVICE_TYPE_LABELS`, whose
@@ -73,6 +79,8 @@ export interface RenderOpts {
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean; /** S29.9: false leaves out the editor's corner handles (Align mode is read-only); absent is as before. */ handles?: boolean;
   /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point placed by `placePoint({ turn, shift })` (`floorPlace`; `turn` in degrees clockwise, absent is 0, so a ghost without a turn is drawn exactly as before; a `turn` that is not a finite number within -360..360 draws nothing). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
   ghost?: { floor: Floor; shift: Pt; turn?: number };
+  /** S62: optional lazy-loaded lamp renderer for devices with `d.lamp`. */
+  lampLib?: LampRenderer;
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
   /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
@@ -567,9 +575,11 @@ ${THEME_EXTRAS}
 .win-pane{fill:color-mix(in srgb,var(--fp-window) 15%,var(--fp-bg));stroke:none;pointer-events:none} .win-pane.open,.win-pane.alarm{fill:color-mix(in srgb,var(--fp-open-door) 15%,var(--fp-bg))}
 .win-jamb{fill:none;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none} .win-jamb.open,.win-jamb.alarm,.win-jamb.cover-open{stroke:var(--fp-open-door)}
 .dev.unbound path{stroke:var(--fp-warn);stroke-width:1.5;stroke-dasharray:3 2} .dev path{fill:var(--fp-idle);fill-opacity:.7}
+.dev-light .lamp-stroke{fill:none;stroke:var(--fp-idle);stroke-opacity:.7}
 /* S23.4 (V10): an on glyph is ink on its solid disc, 4.5:1 in every theme. g.dev.on path (0,2,2) on purpose: it must beat
    .dev.dev-motion path's fade, .dev.outdoor path and .dev-camera path, and still lose to the camera cone (0,3,1). */
 g.dev.on path{fill:var(--fp-dev-ink,var(--fp-on-dark));fill-opacity:1}
+g.dev.on .lamp-stroke{fill:none;stroke:var(--fp-dev-ink,var(--fp-on-dark));stroke-opacity:1}
 .dev-camera path{fill:var(--fp-dev-camera)} .dev.dev-camera path.cone{fill:var(--fp-dev-camera);fill-opacity:var(--fp-alpha);pointer-events:none} .dev.outdoor path{fill:var(--fp-dev-garden)}
 /* S2.9: --fp-dev names the active colour per type; switch and humidity fall back to idle grey (on and off look the same). */
 ${DEV_ON_RULES}
@@ -1413,9 +1423,23 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   /** Where a device's icon, and everything it carries, is drawn. 2.5D lifts a high mount (a ceiling light, a camera) to
    * where the real thing hangs; a person, a heater bar, a low device and all of 2D stay at `c`. The pin and stem stay
    * at `c`, on the floor. */
+  const lampLiftZ = (d: Device, c: Pt): number => {
+    const lk = d.type === "light" ? d.lamp : undefined;
+    if (!lk) return deviceZ(d);
+    if (typeof d.z === "number" && Number.isFinite(d.z)) return d.z;
+    if (lk.kind === "ceiling" || lk.kind === "spot") {
+      const h = roomAt(f, c);
+      return h >= 0 ? roomHeight(f, f.rooms[h]) : floorHeight(f);
+    }
+    if (lk.kind === "floor") return lk.height ?? 150;
+    if (lk.kind === "pole") return lk.height ?? 80;
+    if (lk.kind === "desk") return 75;
+    if (lk.kind === "flood") return 220;
+    return 0;
+  };
   const iconAt = (d: Device, c: Pt): Pt => {
     if (!x25 || d.type === "person" || "a" in d) return c;
-    const z = deviceZ(d);
+    const z = lampLiftZ(d, c);
     // A speaker's default is the top of its cabinet, 30 cm, and a floor console's is 60: below the stem threshold, but still lifted onto the box they stand on.
     const body = bodyOf(d);
     return z >= STEM_MIN_Z || ((body === "speaker" || body === "ac-floor") && z > 0) ? px.lift(c, z) : c;
@@ -1549,7 +1573,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // devices loop below, so two overlapping auras never sit between one lamp's icon and the next lamp's icon; the
   // icons themselves (drawn after every aura) stay on top and legible. The colour is the lamp's own rgb_color, read
   // the same way as the device group's --fp-dev-fill (S2.2): from the light entity's own state, never the bound switch's.
-  let falloff = false; // S23.8: the shared falloff mask, written once before the first aura that needs it
+  const auraDefs = new Set<string>(); // S23.8 + S62: each shared falloff mask written once before the first aura that needs it
   f.devices.forEach((d, i) => {
     if (d.type !== "light") return;
     if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
@@ -1561,24 +1585,32 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S23.4: a dimmed lamp's brightness moved here from its glyph, which is now solid ink on a solid disc.
     const vars = [fill ? `--fp-aura:${fill}` : "", level !== null ? `--fp-dev-opacity:${num(level)}` : ""].filter(Boolean);
     const style = vars.length ? ` style="${vars.join(";")}"` : "";
-    const reach = num(LIGHT_REACH * fxScale(d)); // S14.3: the lamp's own effect size; 150 at the default
-    if (!falloff) {
-      falloff = true;
-      out.push(`<defs><radialGradient id="fp-lamp-grad"><stop offset="0" stop-opacity="1"/><stop offset=".6" stop-opacity=".33"/><stop offset="1" stop-opacity="0"/></radialGradient>` +
-        `<mask id="fp-lamp-falloff" class="fp-falloff" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fp-lamp-grad)"/></mask></defs>`);
-    }
+    const sc = fxScale(d), reach = num(LIGHT_REACH * sc); // S14.3: the lamp's own effect size; 150 at the default
+    const rot = typeof d.rot === "number" && Number.isFinite(d.rot) ? d.rot : 0;
+    const probeAt: Pt = d.lamp?.kind === "flood"
+      ? [floorAt[0] + 15 * Math.sin((rot * Math.PI) / 180), floorAt[1] - 15 * Math.cos((rot * Math.PI) / 180)]
+      : floorAt;
     // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (`roomAt`: a zone, a structure
     // and a fill are not rooms; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
-    const holder = roomAt(f, floorAt), own = holder < 0 ? null : ring(f.rooms[holder]);
+    const holder = roomAt(f, probeAt), own = holder < 0 ? null : ring(f.rooms[holder]);
+    let clip = "";
     if (own) {
       // The aura hangs with the lamp (`c`), so its clip takes the same lift off the floor.
       const lift = c[0] !== floorAt[0] || c[1] !== floorAt[1] ? ` transform="translate(${at([c[0] - floorAt[0], c[1] - floorAt[1]])})"` : "";
       const cid = `fp-aura-${tag(`${pts(own)}${lift}`)}`;
       out.push(`<clipPath id="${cid}"${lift}><polygon points="${pts(own)}"/></clipPath>`);
-      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" clip-path="url(#${cid})" mask="url(#fp-lamp-falloff)"${style}/>`);
+      clip = ` clip-path="url(#${cid})"`;
+    }
+    if (d.lamp && o.lampLib) {
+      o.lampLib.aura({ kind: d.lamp.kind, c, rot, scale: sc, reach: LIGHT_REACH * sc, lamp: d.lamp, style, clip, defs: auraDefs, out });
       return;
     }
-    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" mask="url(#fp-lamp-falloff)"${style}/>`);
+    if (!auraDefs.has("fp-lamp-falloff")) {
+      auraDefs.add("fp-lamp-falloff");
+      out.push(`<defs><radialGradient id="fp-lamp-grad"><stop offset="0" stop-opacity="1"/><stop offset=".6" stop-opacity=".33"/><stop offset="1" stop-opacity="0"/></radialGradient>` +
+        `<mask id="fp-lamp-falloff" class="fp-falloff" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fp-lamp-grad)"/></mask></defs>`);
+    }
+    out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}"${clip} mask="url(#fp-lamp-falloff)"${style}/>`);
   });
 
   const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline, wk: f.owk }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];
@@ -2044,8 +2076,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const title = `${esc(typeName(d.type, o.tr))}: ${esc(label)}${w === null ? "" : `, ${num(Math.round(w * 10) / 10)} W`}${bound ? ` + ${esc(typeof bname === "string" && bname ? bname : bound)}` : ""}`;
     // The group turns by `rot` about the icon's centre; the icon turns back so the glyph stays upright (only what else is drawn in the group turns).
     const rot = !person && typeof d.rot === "number" && Number.isFinite(d.rot) && d.rot !== 0 ? d.rot : 0;
-    // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) does not.
-    const back = (rot + planDeg) % 360 ? rot + planDeg : 0;
+    const keepRot = d.type === "light" && (d.lamp?.kind === "strip" || d.lamp?.kind === "flood");
+    // A turned plan turns the group again from outside; the icon takes that back too, the cone (in the group's frame) and directional lamps do not.
+    const back = keepRot ? 0 : (rot + planDeg) % 360 ? rot + planDeg : 0;
+    const devIcon = d.type === "light" && d.lamp && o.lampLib
+      ? icon.replace(/<circle class="halo"[^/]*\/><path d="[^"]*"\/>/, o.lampLib.icon({ kind: d.lamp.kind, k, lamp: d.lamp }))
+      : icon;
     // Camera: a 120 degree, 100 cm cone about "up" (-90 degrees), in plan units (the group is scaled by k). It comes first, so the icon covers its tip.
     let cone = "", clip = "";
     if (d.type === "camera") {
@@ -2091,7 +2127,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const size = `x="${num(q[0] - b.w / 2)}" y="${num(q[1] - b.h / 2)}" width="${num(b.w)}" height="${num(b.h)}"`;
       thumbs.push(`<g class="fp-cam-thumb${o.editor ? " fp-cam-ed" : ""}" data-cam${o.editor ? "x" : ""}="${i}"${up(q[0], q[1])}><title>${esc(label)}</title><rect class="fp-cam-bg" ${size} rx="${num(3 * k)}"/><image class="fp-cam-img" href="${esc(url)}" ${size} preserveAspectRatio="xMidYMid slice"/></g>`);
     }
-    (sp ? ringOut : out).push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${sp ? " spider" : ""}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${needs.has(i) ? " needs-attention" : ""}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}${o.locate?.t === "dev" && o.locate.i === i ? `<circle class="locate" cx="12" cy="12" r="16"/>` : ""}</g>`);
+    (sp ? ringOut : out).push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${sp ? " spider" : ""}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${needs.has(i) ? " needs-attention" : ""}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${devIcon}</g>` : devIcon}${o.locate?.t === "dev" && o.locate.i === i ? `<circle class="locate" cx="12" cy="12" r="16"/>` : ""}</g>`);
     if (sp && showText) { // S25.5: the member's name, outward of the ring's side so it never covers the next member
       const right = sp[0] >= ringCx, lx = sp[0] + (right ? 1 : -1) * 20 * k, ly = sp[1] + 4 * kt;
       ringOut.push(`<text class="spider-lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="${right ? "start" : "end"}" font-size="${num(12 * kt)}">${esc(label)}</text>`);

@@ -8319,6 +8319,12 @@ costs most, so those two are the only red buttons.
 - `@types/node` is a dev dependency: the Playwright spec reads files and needs node typings for `tsc`.
 - Playwright: `webServer` waits on `/standalone.html` because the dev root has no `index.html`.
 
+## 2026-11-15 Sprint 62 — Lamps That Look the Part
+
+- **Lazy lamp chunk (`floorplan-studio-lamp-<hash>.js`)**: `src/card/lamp/index.ts` has zero runtime imports from `core/` or `card/`, and `floorplan-studio-card.ts` loads it only when `f.devices.some((d) => d.type === "light" && d.lamp)` so `floorplan-studio-card.js` stays under `138,000 B` gzip.
+- **`FORM_CHUNK_LIMIT` (`28000 -> 29000` B gzip)**: `src/card/config-editor.ts` imports `../core` (bringing `schema.ts` validation into the form chunk). Adding `d.lamp` validation moved the form chunk to ~28.1 KB gzip, so `FORM_CHUNK_LIMIT` in `tests/card/size-budget.spec.ts` was raised to `29000` alongside adding `LAMP_CHUNK_LIMIT = 10000`.
+- **Ceiling mounting & floor-clipped flood cone**: `ceiling` and `spot` lamps mount at the holding room's `roomHeight` (falling back to `floorHeight` outside rooms). `flood` clips to the ahead room in 2D/2.5D and casts ray-clipped floor cone sectors (`0..RAYS-2`, with `RAYS-1` collapsed cleanly to avoid wrapping back across the cone) in 3D with zero per-frame cost.
+
 ## 2026-09-19 Review fixes for S1 (Opus review)
 
 - `validate` never throws and checks every array field, the enums (room and door kind, device type, furniture symbol), finite numbers (north, coordinates) and door names. Layout files are untrusted input.
