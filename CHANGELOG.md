@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.48.0 - 2026-11-17
+
+Energy overlay chart and per-device electricity breakdown (S57): tap any energy chip in the replay bar to open a see-through, draggable 5-minute bar chart and inspect your per-device electricity consumption tree up to the scrubbed time.
+
+- Card replay: tapping an energy chip opens a see-through overlay with 5-minute bars across the replay window, faded bars after `t`, and a marker line at `t`, dragged by its header inside the card (one chart open at a time) (B57.1).
+- Card replay: opening the Electricity chip shows Home Assistant's `device_consumption` breakdown nested by `included_in_stat` alongside the **Untracked** remainder (B57.2).
+
 ## 0.47.0 - 2026-11-16
 
 Lamps that look the part (S62): seven `device.lamp` kinds (`floor`, `desk`, `strip`, `ceiling`, `spot`, `pole`, `flood`) on `light` devices, with dedicated symbols, room-clipped 2D/2.5D emissions, 3D fixture shapes and floor pools/cones, a lazy `floorplan-studio-lamp-<hash>.js` chunk, and Studio fields & plan drag handles.

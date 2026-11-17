@@ -12,12 +12,14 @@ export interface EnergySettings { hide?: readonly EnergySourceKind[]; show?: "us
 export type EnergyAsk = <T = unknown>(msg: Record<string, unknown>) => Promise<T>;
 export interface CostRule { statCost?: string; fixedPrice?: number; priceEntity?: string }
 export interface EnergyFlow { stat: string; cost: CostRule }
+export interface EnergyDevice { stat: string; name?: string; parent?: string }
 export interface EnergyPrefs {
   gridFrom: EnergyFlow[];
   gridTo: EnergyFlow[];
   solar: EnergyFlow[];
   gas: EnergyFlow[];
   water: EnergyFlow[];
+  devices: EnergyDevice[];
 }
 export interface StatRow { start: number; end: number; change: number | null; mean: number | null }
 export type StatsIndex = Map<string, StatRow[]>;
@@ -35,8 +37,20 @@ export interface EnergyModel {
   currency?: string;
   settings?: EnergySettings;
   hass?: { language?: string; locale?: { language?: string }; states?: Record<string, { attributes?: Record<string, unknown> } | undefined> };
+  active?: EnergySourceKind | null;
+  onPick?: (kind: EnergySourceKind) => void;
 }
 export interface EnergyTools { html: typeof Html; nothing: typeof Nothing; t(key: string, vars?: Record<string, string | number>): string }
+export interface EnergyBucket { start: number; end: number; value: number }
+export interface DeviceNode { stat: string; name: string; use: number | null; children: DeviceNode[] }
+export interface DeviceTree { roots: DeviceNode[]; untracked: number | null }
+export interface EnergyOverlayModel extends EnergyModel {
+  kind: EnergySourceKind;
+  closeIcon: string;
+  pos?: { x: number; y: number } | null;
+  onClose: () => void;
+  onDragStart: (e: PointerEvent) => void;
+}
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const statStr = (v: unknown): string | undefined => (typeof v === "string" && v && !RESERVED.has(v) ? v : undefined);
@@ -57,7 +71,7 @@ function readCost(s: Record<string, unknown>, exp = false): CostRule {
 /** Parse HA's `energy/get_prefs` reply (supports both unified grid fields and legacy flow_from/flow_to arrays). */
 export function parseEnergyPrefs(raw: unknown): EnergyPrefs | null {
   if (!isObj(raw) || !Array.isArray(raw.energy_sources)) return null;
-  const prefs: EnergyPrefs = { gridFrom: [], gridTo: [], solar: [], gas: [], water: [] };
+  const prefs: EnergyPrefs = { gridFrom: [], gridTo: [], solar: [], gas: [], water: [], devices: [] };
   for (const s of raw.energy_sources) {
     if (!isObj(s) || typeof s.type !== "string") continue;
     if (s.type === "grid") {
@@ -84,6 +98,16 @@ export function parseEnergyPrefs(raw: unknown): EnergyPrefs | null {
       if (st) prefs[s.type].push({ stat: st, cost: readCost(s) });
     }
   }
+  if (Array.isArray(raw.device_consumption)) {
+    for (const d of raw.device_consumption) {
+      if (!isObj(d)) continue;
+      const stat = statStr(d.stat_consumption);
+      if (!stat) continue;
+      const name = typeof d.name === "string" && d.name.trim() ? d.name.trim() : undefined;
+      const parent = statStr(d.included_in_stat);
+      prefs.devices.push({ stat, ...(name ? { name } : {}), ...(parent && parent !== stat ? { parent } : {}) });
+    }
+  }
   return prefs.gridFrom.length || prefs.gridTo.length || prefs.solar.length || prefs.gas.length || prefs.water.length ? prefs : null;
 }
 
@@ -99,6 +123,7 @@ export function statIdsFor(prefs: EnergyPrefs): { ids: string[]; needMean: boole
       needMean = true;
     }
   }
+  for (const d of prefs.devices) ids.add(d.stat);
   return { ids: [...ids].sort(), needMean };
 }
 
@@ -313,13 +338,111 @@ function sparkSvg(html: typeof Html, points: number[]): unknown {
   return html`<svg class="fp-en-spark" viewBox="0 0 36 14" aria-hidden="true"><polyline fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points=${pts}/></svg>`;
 }
 
+/** Collect 5-minute buckets across `[startMs, endMs]` for one energy source kind (B57.1). */
+export function bucketsAt(
+  prefs: EnergyPrefs,
+  stats: StatsIndex,
+  kind: EnergySourceKind,
+  startMs: number,
+  endMs: number,
+): EnergyBucket[] {
+  const byStart = new Map<number, number>();
+  const addFlows = (flows: readonly EnergyFlow[], sign: 1 | -1) => {
+    for (const flow of flows) {
+      for (const b of stats.get(flow.stat) ?? []) {
+        if (b.end <= startMs || b.start >= endMs || b.change === null) continue;
+        byStart.set(b.start, (byStart.get(b.start) ?? 0) + sign * b.change);
+      }
+    }
+  };
+  if (kind === "electricity") {
+    addFlows(prefs.gridFrom, 1);
+    addFlows(prefs.solar, 1);
+    addFlows(prefs.gridTo, -1);
+  } else {
+    addFlows(kind === "solar" ? prefs.solar : kind === "gas" ? prefs.gas : prefs.water, 1);
+  }
+  return [...byStart.entries()].sort((a, b) => a[0] - b[0]).map(([start, value]) => ({ start, end: start + STEP_MS, value }));
+}
+
+/** Build the nested `device_consumption` tree and untracked remainder up to `tMs` (B57.2). */
+export function deviceTreeAt(
+  prefs: EnergyPrefs,
+  stats: StatsIndex,
+  startMs: number,
+  tMs: number,
+  hass?: EnergyModel["hass"],
+  totalUse?: number | null,
+): DeviceTree {
+  const byStat = new Map<string, { raw: EnergyDevice; node: DeviceNode }>();
+  const order: string[] = [];
+  for (const d of prefs.devices) {
+    if (byStat.has(d.stat)) continue;
+    const attrName = hass?.states?.[d.stat]?.attributes?.friendly_name;
+    const name = d.name ?? (typeof attrName === "string" && attrName.trim() ? attrName.trim() : d.stat);
+    const intg = integrateChange(stats.get(d.stat), startMs, tMs);
+    byStat.set(d.stat, { raw: d, node: { stat: d.stat, name, use: intg ? intg.total : null, children: [] } });
+    order.push(d.stat);
+  }
+  const hasCycle = (stat: string, parent: string): boolean => {
+    let cur: string | undefined = parent;
+    const seen = new Set<string>([stat]);
+    while (cur) {
+      if (seen.has(cur)) return true;
+      seen.add(cur);
+      cur = byStat.get(cur)?.raw.parent;
+    }
+    return false;
+  };
+  const roots: DeviceNode[] = [];
+  for (const stat of order) {
+    const entry = byStat.get(stat)!;
+    const parent = entry.raw.parent;
+    if (parent && byStat.has(parent) && !hasCycle(stat, parent)) {
+      byStat.get(parent)!.node.children.push(entry.node);
+    } else {
+      roots.push(entry.node);
+    }
+  }
+  let tracked = 0;
+  let anyRoot = false;
+  for (const r of roots) {
+    if (r.use !== null) { tracked += r.use; anyRoot = true; }
+  }
+  const untracked = totalUse !== null && totalUse !== undefined && roots.length > 0 && anyRoot
+    ? Math.max(0, totalUse - tracked)
+    : null;
+  return { roots, untracked };
+}
+
 /** Colours only through `--fp-*`. One row wrapping to two lines on narrow cards. */
 export const ENERGY_CSS = `
 .fp-en-chips{grid-area:en;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding-bottom:4px;min-width:0}
-.fp-en-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border:1px solid var(--fp-idle);border-radius:999px;font-size:12px;line-height:1.25;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--fp-ink);background:var(--fp-room)}
+.fp-en-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border:1px solid var(--fp-idle);border-radius:999px;font-size:12px;line-height:1.25;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--fp-ink);background:var(--fp-room);cursor:pointer}
+.fp-en-chip[aria-pressed=true]{background:var(--fp-ink);color:var(--fp-room);border-color:var(--fp-ink)}
+.fp-en-chip[aria-pressed=true] .fp-en-cost,.fp-en-chip[aria-pressed=true] .fp-en-spark{color:var(--fp-room)}
 .fp-en-chip svg{width:14px;height:14px;flex:none;display:block}
 .fp-en-chip .fp-en-spark{width:32px;height:12px;color:var(--fp-text)}
 .fp-en-cost{color:var(--fp-text)}
+.fp-en-overlay{position:absolute;left:12px;top:12px;z-index:4;width:min(340px,calc(100% - 24px));max-height:calc(100% - 80px);display:flex;flex-direction:column;background:color-mix(in srgb,var(--fp-room) 86%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid var(--fp-idle);border-radius:12px;color:var(--fp-ink);font:12px/1.35 var(--fp-font,system-ui,sans-serif);box-shadow:0 6px 20px rgba(0,0,0,.18);overflow:hidden}
+.fp-en-oh{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--fp-idle);cursor:grab;user-select:none;touch-action:none}
+.fp-en-oh:active{cursor:grabbing}
+.fp-en-oh svg{width:16px;height:16px;flex:none;display:block}
+.fp-en-otitle{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fp-en-oval{font-variant-numeric:tabular-nums;color:var(--fp-text);white-space:nowrap}
+.fp-en-oclose{appearance:none;background:none;border:0;color:var(--fp-ink);cursor:pointer;padding:2px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}
+.fp-en-oclose svg{width:16px;height:16px}
+.fp-en-obody{padding:8px 10px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.fp-en-chart{width:100%;height:92px;display:block;overflow:visible}
+.fp-en-bar{fill:var(--fp-ink)}
+.fp-en-bar-after{opacity:.25}
+.fp-en-tline{fill:var(--fp-dev-light)}
+.fp-en-zero{stroke:var(--fp-idle);stroke-width:1}
+.fp-en-tree{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.fp-en-tree ul{list-style:none;margin:3px 0 0;padding-left:14px;border-left:1px solid var(--fp-idle);display:flex;flex-direction:column;gap:3px}
+.fp-en-row{display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}
+.fp-en-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fp-en-untracked{color:var(--fp-text);padding-top:4px;border-top:1px dashed var(--fp-idle)}
 `;
 
 /** Draw the compact counter chips for the replay bar's head row. */
@@ -332,8 +455,10 @@ export function energyChipsView({ html, nothing, t }: EnergyTools, m: EnergyMode
   return html`<style>${ENERGY_CSS}</style><div class="fp-en-chips">${kinds.map((k) => {
     const label = k === "electricity" ? t("Electricity (battery ignored)") : k === "solar" ? t("Solar") : k === "gas" ? t("Gas") : t("Water");
     const c = counterAt(m.prefs, m.stats, k, m.startMs, m.tMs, m.endMs);
+    const pressed = m.active === k ? "true" : "false";
+    const click = m.onPick ? () => m.onPick!(k) : undefined;
     if (c.status === "nodata") {
-      return html`<span class="fp-en-chip" data-k=${k} title=${label}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${ICONS[k]} fill="currentColor"/></svg><span>${t("no data")}</span></span>`;
+      return html`<button type="button" class="fp-en-chip" data-k=${k} title=${label} aria-pressed=${pressed} aria-expanded=${pressed} @click=${click}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${ICONS[k]} fill="currentColor"/></svg><span>${t("no data")}</span></button>`;
     }
     const unit = unitFor(k, m.prefs, m);
     const num = fmtNum(c.use, lang);
@@ -342,13 +467,74 @@ export function energyChipsView({ html, nothing, t }: EnergyTools, m: EnergyMode
     const costText = c.cost === "nodata" ? t("no data") : typeof c.cost === "number" ? fmtMoney(c.cost, m.currency, lang) : "";
     const showUse = show === "use" || show === "both" || (show === "cost" && !hasCost);
     const showCost = hasCost && (show === "cost" || show === "both");
-    return html`<span class="fp-en-chip" data-k=${k} title=${label}>
+    return html`<button type="button" class="fp-en-chip" data-k=${k} title=${label} aria-pressed=${pressed} aria-expanded=${pressed} @click=${click}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${ICONS[k]} fill="currentColor"/></svg>
       ${showUse ? html`<span>${useText}</span>` : nothing}
       ${showCost ? html`<span class="fp-en-cost">${costText}</span>` : nothing}
       ${spark && c.points.length ? sparkSvg(html, c.points) : nothing}
-    </span>`;
+    </button>`;
   })}</div>`;
+}
+
+function renderNode(tools: EnergyTools, node: DeviceNode, lang: string | undefined): unknown {
+  const { html, nothing, t } = tools;
+  const val = node.use === null ? t("no data") : t("{n} kWh", { n: fmtNum(node.use, lang) });
+  return html`<li>
+    <div class="fp-en-row"><span class="fp-en-name" title=${node.name}>${node.name}</span><span>${val}</span></div>
+    ${node.children.length ? html`<ul>${node.children.map((ch) => renderNode(tools, ch, lang))}</ul>` : nothing}
+  </li>`;
+}
+
+/** Draw the see-through draggable 5-minute bar overlay chart and electricity device tree (B57.1, B57.2). */
+export function energyOverlayView(tools: EnergyTools, m: EnergyOverlayModel): unknown {
+  const { html, nothing, t } = tools;
+  const lang = m.hass?.language ?? m.hass?.locale?.language;
+  const k = m.kind;
+  const title = k === "electricity" ? t("Electricity (battery ignored)") : k === "solar" ? t("Solar") : k === "gas" ? t("Gas") : t("Water");
+  const unit = unitFor(k, m.prefs, m);
+  const c = counterAt(m.prefs, m.stats, k, m.startMs, m.tMs, m.endMs);
+  const totalText = c.status === "nodata" ? t("no data") : unit === "kWh" ? t("{n} kWh", { n: fmtNum(c.use, lang) }) : `${fmtNum(c.use, lang)} ${unit}`;
+  const costText = c.status === "ok" && typeof c.cost === "number" ? fmtMoney(c.cost, m.currency, lang) : "";
+  const buckets = bucketsAt(m.prefs, m.stats, k, m.startMs, m.endMs);
+  const span = Math.max(STEP_MS, m.endMs - m.startMs);
+  const W = 300, H = 84;
+  const maxPos = Math.max(1e-6, ...buckets.map((b) => b.value));
+  const minNeg = Math.min(0, ...buckets.map((b) => b.value));
+  const range = Math.max(1e-6, maxPos - minNeg);
+  const zeroY = H - ((-minNeg) / range) * (H - 8) - 4;
+  const tX = Math.max(0, Math.min(W, ((m.tMs - m.startMs) / span) * W));
+  const barW = Math.max(1.5, (STEP_MS / span) * W - 0.6);
+  const tree = k === "electricity" && m.prefs.devices.length
+    ? deviceTreeAt(m.prefs, m.stats, m.startMs, m.tMs, m.hass, c.status === "ok" ? c.use : null)
+    : null;
+  const posStyle = m.pos ? `left:${m.pos.x}px;top:${m.pos.y}px` : "";
+  return html`<div class="fp-en-overlay" role="dialog" aria-label=${title} data-k=${k} style=${posStyle}>
+    <div class="fp-en-oh" @pointerdown=${m.onDragStart}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${ICONS[k]} fill="currentColor"/></svg>
+      <span class="fp-en-otitle">${title}</span>
+      <span class="fp-en-oval">${totalText}${costText ? ` · ${costText}` : ""}</span>
+      <button type="button" class="fp-en-oclose" aria-label=${t("Close chart")} title=${t("Close chart")} @pointerdown=${(e: Event) => e.stopPropagation()} @click=${m.onClose}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${m.closeIcon} fill="currentColor"/></svg>
+      </button>
+    </div>
+    <div class="fp-en-obody">
+      <svg class="fp-en-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label=${title}>
+        <line class="fp-en-zero" x1="0" y1=${zeroY.toFixed(1)} x2=${W} y2=${zeroY.toFixed(1)}/>
+        ${buckets.map((b) => {
+          const x = ((b.start - m.startMs) / span) * W;
+          const h = (Math.abs(b.value) / range) * (H - 8);
+          const y = b.value >= 0 ? zeroY - h : zeroY;
+          const cls = b.start >= m.tMs ? "fp-en-bar fp-en-bar-after" : "fp-en-bar";
+          return html`<rect class=${cls} x=${x.toFixed(2)} y=${y.toFixed(2)} width=${barW.toFixed(2)} height=${Math.max(1, h).toFixed(2)} rx="0.5"/>`;
+        })}
+        <rect class="fp-en-tline" x=${Math.max(0, tX - 0.75).toFixed(2)} y="0" width="1.5" height=${H}/>
+      </svg>
+      ${tree ? html`<ul class="fp-en-tree">
+        ${tree.roots.map((r) => renderNode(tools, r, lang))}
+        ${tree.untracked !== null ? html`<li class="fp-en-row fp-en-untracked"><span class="fp-en-name">${t("Untracked")}</span><span>${t("{n} kWh", { n: fmtNum(tree.untracked, lang) })}</span></li>` : nothing}
+      </ul>` : nothing}
+    </div>
+  </div>`;
 }
 
 /** Fetch HA Energy preferences (`energy/get_prefs`). */

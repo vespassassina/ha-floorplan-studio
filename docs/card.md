@@ -1114,6 +1114,8 @@ Open the replay bar from the **Replay** button in the ⋯ menu (or press `R`), o
 
 When Home Assistant's Energy dashboard is configured, the replay bar also shows compact house energy chips (Electricity — calculated as grid import + solar generation − grid export, battery ignored — Solar, Gas and Water) accumulated from the start of the active replay window up to the scrubbed time, with cost in your Home Assistant currency (`stat_cost`/`stat_compensation`, fixed price, or 5-minute entity price mean), a sparkline up to `t`, and `"no data"` if a required statistic has no recorder data. If Energy is not configured or your account cannot read `energy/get_prefs`, the chips stay hidden. You can filter which counters, values (use, cost, or both) and sparklines appear from the Studio Floor panel's **Energy counters** settings.
 
+Click any energy chip to open a see-through, draggable 5-minute bar overlay chart inside the card (one at a time; bars after `t` fade out, with a vertical line marking `t`). Opening the Electricity chip also shows Home Assistant's `device_consumption` breakdown nested by `included_in_stat`, together with the **Untracked** remainder.
+
 ## Known limits
 
 - **A device found by Search, or a row that is a device, does not move the 3D camera.** The device's popup opens; only a room pick (a tap on its floor, or a Search result that is a room) glides the camera.
