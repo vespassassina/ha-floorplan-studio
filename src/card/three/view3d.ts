@@ -13,7 +13,7 @@ import { loftTriangles, prismTriangles, type Triangles } from "./mesh";
 import { lowerWalls, wallBodies, wallZ, type WallBody, type Walls } from "./cut";
 import { Orbit } from "./orbit";
 import { glide } from "./frame3d";
-import { MARKER_R, Picker, type Pick } from "./pick";
+import { MARKER_R, Picker, type Pick, type Ray } from "./pick";
 import { dimRgb, parsePaintDim, roleStyle, wallOwnCss, type PaintDim } from "./palette";
 import { MAX_POOLS, outwardSign, pickLights, roomLifts, roomOfPoint, WALL_REACH, type Poly, type Rgb, type RoomShape } from "./light";
 import { createPools, createRings } from "./fx";
@@ -37,15 +37,18 @@ export interface View3DOptions {
   turnDeg: number;
   /** Called after the person moved the camera (a drag, a wheel turn, a pinch), once per gesture event: the card saves the camera for the floor, debounced. Never called for a `setCamera` or `reset`. */
   onCamera?(): void;
+  /** S58.1: called after each frame is rendered, so the Studio can keep projected 3D overlays aligned with the camera. */
+  onFrame?(): void;
 }
 /** The camera as `Orbit.state` says it: numbers that do not depend on the size of the view. */
+export type Hit3D = { kind: "cam" | "device"; index: number } | { kind: "solid"; solid: Solid; pt: [number, number, number] };
 export interface CameraState { az: number; polar: number; zoom: number; dx: number; dz: number }
 export interface View3D {
   /**
-   * Replaces the scene with this floor's, alone: no other floor is drawn. Never throws. The camera keeps its azimuth and polar and
-   * frames this floor; the old meshes are disposed.
+   * Replaces the scene with this floor's, alone: no other floor is drawn. Never throws. Unless `keep` is true, the camera keeps
+   * its azimuth and polar and frames this floor; when `keep` is true (interactive Studio edits) the current camera stays put.
    */
-  setFloor(floor: unknown, around?: unknown): void;
+  setFloor(floor: unknown, around?: unknown, keep?: boolean): void;
   /**
    * S27.7: the floors below the one `setFloor` drew, under it. Each entry is `{ floor, elevation, shift, turn }`: `elevation` is the floor's
    * walking surface in the frame of the current floor (cm, negative below it, `floorElevation` differences) and `shift` and `turn` are `floorPlace` (cm in plan x and y, and degrees clockwise: a point of the floor is drawn at `R(turn) · p + shift`; `turn` absent is 0). `mode`: "ghost" (translucent, no depth write), "solid" (their own colours), anything else draws none. They are never
@@ -66,6 +69,12 @@ export interface View3D {
   setFrame(frame: { cover: { top: number; right: number; bottom: number; left: number }; room: number | null }): void;
   /** What is under this point of the page (client coordinates), or null: the same answer a tap there gets. */
   pick(clientX: number, clientY: number): Pick | null;
+  /** Ray in plan coordinates (x east, y south, z up, cm) through a point on the page, or null outside the canvas. */
+  rayAt(clientX: number, clientY: number): Ray | null;
+  /** Nearest solid and 3D hit point in plan cm under this page point (Studio picking). */
+  hit(clientX: number, clientY: number): Hit3D | null;
+  /** Projects a plan point (x, y, z in cm) into container-relative px and whether it lies in front of the camera. */
+  project(x: number, y: number, z: number): { x: number; y: number; front: boolean } | null;
   /** The picked room (its index on the floor) gets a dashed ring along its outline, just above its floor; null removes it. A room with no floor of its own (a zone) gets none. */
   setRing(room: number | null): void;
   /**
@@ -169,7 +178,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   let forcedSun: unknown;
   scene.add(sun);
 
-  let framed = false;
+  let framed = false, inDraw = false;
   let orbit = new Orbit({ min: [0, 0, 0], max: [0, 0, 0] }, 1, FOV, opts.turnDeg);
   let plan: Plan3D | null = null, themeKey = "", meshes: Mesh[] = [], crowns: Mesh[] = [], raf = 0, dragged = false;
   // S28.8: the ground plane and one contact-shadow mesh per drawn floor. `shadeOn` is a test switch (the pixel test compares with and without).
@@ -258,6 +267,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       overlay.place(project, hidden, w, h);
       container.dataset.drawn = String(+(container.dataset.drawn ?? 0) + 1);
       publish();
+      inDraw = true;
+      try { opts.onFrame?.(); } finally { inDraw = false; }
     } catch (err) {
       debugOnce("3D view: a frame could not be drawn", err);
       fail("it could not start");
@@ -1015,17 +1026,21 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
 
   resize();
   const api: View3D = {
-    setFloor(floor, around) {
+    setFloor(floor, around, keep) {
       try { plan = buildScene(floor as never, { around: around as never }); } catch (e) { debugOnce("3D view: the floor could not be built", e); plan = null; }
       clear(); // the old floor's meshes go now, before the new ones are made
       const bounds = plan?.bounds ?? { min: [0, 0, 0] as [number, number, number], max: [0, 0, 0] as [number, number, number] };
-      focused = null; // the focus is the old floor's
-      if (framed) { stopGlide(false); orbit.reframe(bounds); } // the same way of looking, at the new floor
-      else {
-        const { w, h } = size();
-        orbit = new Orbit(bounds, w / h, FOV, opts.turnDeg);
-        syncVisible(); // a new floor keeps the room the list takes
-        framed = true;
+      if (!keep || !framed) {
+        focused = null; // the focus is the old floor's
+        if (framed) { stopGlide(false); orbit.reframe(bounds); } // the same way of looking, at the new floor
+        else {
+          const { w, h } = size();
+          orbit = new Orbit(bounds, w / h, FOV, opts.turnDeg);
+          syncVisible(); // a new floor keeps the room the list takes
+          framed = true;
+        }
+      } else {
+        orbit.setBounds(bounds);
       }
       if (!orbit.finite) { fail("it could not start"); return; } // numbers no camera can frame: say so, do not draw a blank
       build();
@@ -1081,6 +1096,15 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       }
       want();
     },
+    rayAt(clientX, clientY) {
+      if (disposed) return null;
+      const r = canvas.getBoundingClientRect();
+      if (!(r.width > 0 && r.height > 0) || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+      if (!inDraw) prepare();
+      raycaster.setFromCamera(new Vector2(((clientX - r.left) / r.width) * 2 - 1, -(((clientY - r.top) / r.height) * 2 - 1)), camera);
+      const o = raycaster.ray.origin, d = raycaster.ray.direction; // three's frame to the plan's: (x, y, z) -> (x, z, y)
+      return { o: [o.x, o.z, o.y], d: [d.x, d.z, d.y] };
+    },
     pick(clientX, clientY) {
       if (disposed || !plan || !picker) return null;
       const r = canvas.getBoundingClientRect();
@@ -1089,10 +1113,26 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       if (cam !== null) return { type: "cam", index: cam };
       const icon = overlay.hit(clientX - r.left, clientY - r.top); // an icon is on top of the model: it is what a tap on it means
       if (icon !== null) return { type: "device", index: icon };
-      prepare();
-      raycaster.setFromCamera(new Vector2(((clientX - r.left) / r.width) * 2 - 1, -(((clientY - r.top) / r.height) * 2 - 1)), camera);
-      const o = raycaster.ray.origin, d = raycaster.ray.direction; // three's frame to the plan's: (x, y, z) -> (x, z, y)
-      return picker.pick({ o: [o.x, o.z, o.y], d: [d.x, d.z, d.y] }, (sol) => wallZ(sol, lowered, CUT_WALL_HEIGHT));
+      const ray = api.rayAt(clientX, clientY);
+      return ray ? picker.pick(ray, (sol) => wallZ(sol, lowered, CUT_WALL_HEIGHT)) : null;
+    },
+    hit(clientX, clientY) {
+      if (disposed || !plan || !picker) return null;
+      const r = canvas.getBoundingClientRect();
+      if (!(r.width > 0 && r.height > 0) || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+      const cam = overlay.hitCam(clientX - r.left, clientY - r.top);
+      if (cam !== null) return { kind: "cam", index: cam };
+      const icon = overlay.hit(clientX - r.left, clientY - r.top);
+      if (icon !== null) return { kind: "device", index: icon };
+      const ray = api.rayAt(clientX, clientY);
+      if (!ray) return null;
+      const h = picker.hit(ray, (sol) => wallZ(sol, lowered, CUT_WALL_HEIGHT));
+      return h ? { kind: "solid", solid: h.solid, pt: h.pt } : null;
+    },
+    project(x, y, z) {
+      if (disposed || ![x, y, z].every(Number.isFinite)) return null;
+      if (!inDraw) prepare();
+      return project([x, z, y]);
     },
     setRing(room) {
       const next = typeof room === "number" && Number.isFinite(room) ? room : null;

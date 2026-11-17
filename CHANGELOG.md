@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.50.0 - 2026-11-17
+
+Side-by-side 3D Studio in the Editor (Sprints 58–61): preview and directly edit your home in 3D alongside the 2D plan, with zero bytes added to the dashboard card.
+
+- **3D Preview Split Pane (Stage 1):** Added a **3D** toggle button in the Studio toolbar that opens a resizable side-by-side 3D view (`#pane3d` + draggable divider) powered by the card's existing lazy 3D chunk. Rebuilds within 80 ms of edits, highlights selected rooms and objects, syncs live Home Assistant device states and night mode, and adds `Walls: cut/low/full` and camera `Reset` controls.
+- **3D Pick & Move (Stage 2):** Shared selection across 2D and 3D panes. Drag devices, furniture and unlinked appliances on the floor plane with grid snapping (`Alt` disables snap), press `R` to rotate by 15°, `Shift`-drag to adjust vertical `z` height (`0–1000 cm`), and `Escape` to cancel—each drag recorded as a single undo step.
+- **3D Structure Editing (Stage 3):** Projected 3D handles (`#ov3d`) let you drag wall ends, room corners, worktop corners and straight stair corners on the floor plane, plus vertically drag wall height, room ceiling height, door/window sill & head, and floor height & slab thickness with full schema validation and single-step undo.
+
 ## 0.49.0 - 2026-11-17
 
 Brighter daytime themes, compact device popups, and a streamlined Studio inspector for easier editing.

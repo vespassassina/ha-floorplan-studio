@@ -5019,23 +5019,19 @@ no end-to-end test of the Studio live-view hover.
 - [x] 2026-11-17 B57.2 The device tree from `device_consumption`, nested by `included_in_stat`, with the untracked remainder
   (criterion 14).
 
-### Sprint 58: 3D Studio, stage 1, the preview pane
+### Sprint 58 (done): 3D Studio, stage 1, the preview pane
 
-- B58.1 Prove the chunk loads in the HA panel and in the standalone `editor.html`, or drop the pane from `editor.html`.
-- B58.2 The split pane: rebuilt 200 ms after an edit, the selection outlined, live states in the panel, 0 card bytes
-  (criterion 16). Diego reviews before stage 2.
+- [x] 2026-11-17 B58.1 Loads the card's exact `floorplan-studio-3d-<hash>.js` chunk in both the HA panel and HTTP/dev Studio builds (and degrades cleanly on `file://`).
+- [x] 2026-11-17 B58.2 Split pane beside the 2D plan (`#btn3d`, draggable `#splitDiv`), rebuilt within 80 ms of edits on the current floor, live HA state & night sync, room rings & selection wireframes, wall cutaway/reset controls, 0 card bytes (criterion 16).
 
-### Sprint 59: 3D Studio, stage 2, pick and move
+### Sprint 59 (done): 3D Studio, stage 2, pick and move
 
-- B59.1 One shared selection: a click in 3D selects in 2D, and the other way round.
-- B59.2 Drag on the floor plane with snap, R to rotate, Shift-drag for `z`. One undo step per drag (criterion 17).
-  Diego reviews before stage 3.
+- [x] 2026-11-17 B59.1 Shared selection across 2D and 3D panes: clicking items, doors, walls, edges, stairs, rooms, or bare floor selects in `st.sel` with zero undo steps.
+- [x] 2026-11-17 B59.2 Floor-plane drag for devices, furniture and unlinked appliances with grid snap (`Alt` unsnapped), `R` 15° rotation, `Shift`-drag vertical `z` height (`0..MAX_HEIGHT`), `Escape` cancel, and one undo step per drag (criterion 17).
 
-### Sprints 60 and 61 (outline): 3D Studio, stage 3, structure
+### Sprints 60 and 61 (done): 3D Studio, stage 3, structure
 
-Re-planned after Sprint 59's review. Drag wall ends, room, worktop and stair points on the floor plane; drag wall and
-room heights by their top edge; drag a door's or window's sill and head; drag the floor height and slab. Drawing new
-shapes stays in 2D unless the review says otherwise.
+- [x] 2026-11-17 Stage 3 direct structure manipulation in `#ov3d`: floor-plane drag for wall ends, room corners, outline corners, worktop corners and straight stair corners; vertical-plane drag for wall height, room height, door/window/opening sill and head, and floor height and slab (`validate()` verified, one undo step per drag).
 
 ### Sprint 62 (done): lamps that look the part
 

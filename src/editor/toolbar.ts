@@ -176,6 +176,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
         <!-- S8.10 follow-up: status is the cluster's first item; growing it moves only its own left edge, never
              a button after it (see .status's own comment above). -->
         <label class="lockplan ${st.planLocked ? "on" : ""}" title=${st.planLocked ? "The plan is locked: walls, rooms, doors, windows, stairs and furniture stay as they are. Click to unlock it. Devices and objects can still be added, moved and removed" : "The plan is editable. Click to lock it: walls, rooms, doors, windows, stairs and furniture then stay as they are"}><input type="checkbox" id="fixPlan" aria-label="Lock plan" .checked=${live(st.planLocked)} @change=${(e: Event) => h.setPlanLocked((e.target as HTMLInputElement).checked)}><span class="lk" aria-hidden="true" style=${maskOf(st.planLocked ? UI_ICONS.lock : UI_ICONS.lockOpen)}></span><span>${st.planLocked ? "Plan locked" : "Plan editable"}</span></label>
+        <button class="chip" id="btn3d" aria-pressed=${pressed(h.open3d)} title="Show 3D preview side by side" @click=${() => h.toggle3d()}>3D</button>
         ${hiddenNote ? html`<button class="btn layers-note" id="layersNote" title="Open the Layers tab" @click=${h.openLayers}>${hiddenNote}</button>` : nothing}
         <details class="menu" id="mAdd" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Add</summary><div class="box">
           <details class="sub" id="addOpenings" @toggle=${onSubToggle}><summary class="btn">Openings</summary>
