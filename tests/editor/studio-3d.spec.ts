@@ -13,7 +13,9 @@ const layoutOf = (page: Page) =>
   page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as unknown as { layout: Layout }).layout)) as Layout, EDITOR);
 
 async function centerDiffCm(page: Page, selector: string, pt: [number, number]): Promise<number> {
-  return page.evaluate(([tag, sel, xy]) => {
+  await page.locator(`${EDITOR} #btn3d`).click();
+  await expect(page.locator(`${EDITOR} .canvas > svg`)).toBeVisible();
+  const diff = await page.evaluate(([tag, sel, xy]) => {
     const el = document.querySelector(tag as string) as unknown as {
       toSvg(ev: { clientX: number; clientY: number }): [number, number];
       shadowRoot: ShadowRoot;
@@ -22,6 +24,8 @@ async function centerDiffCm(page: Page, selector: string, pt: [number, number]):
     const c2 = el.toSvg({ clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 });
     return Math.hypot(c2[0] - (xy as [number, number])[0], c2[1] - (xy as [number, number])[1]);
   }, [EDITOR, selector, pt] as const);
+  await open3d(page);
+  return diff;
 }
 
 const stage = (page: Page) => page.locator(`${EDITOR} #stage3d`);
@@ -52,20 +56,25 @@ async function dragMouse(page: Page, from: { x: number; y: number }, to: { x: nu
 }
 
 test.describe("Stage 1: 3D preview split pane (criterion 16)", () => {
-  test("toggles side-by-side 3D view, resizes divider, syncs room rings, cycles walls and resets camera", async ({ page }) => {
+  test("toggles full-canvas 3D view from top button, syncs room rings, cycles walls and resets camera", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(String(e)));
 
     await openEditor(page);
     await expect(page.locator(`${EDITOR} #pane3d`)).toHaveCount(0);
+    await expect(page.locator(`${EDITOR} #btn3d`)).toHaveText("3D");
+    await expect(page.locator(`${EDITOR} .canvas > svg`)).toBeVisible();
+    const canvasBox = (await page.locator(`${EDITOR} .canvas`).boundingBox())!;
 
     await open3d(page);
+    await expect(page.locator(`${EDITOR} #btn3d`)).toHaveText("2D");
+    await expect(page.locator(`${EDITOR} #btn3d`)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(`${EDITOR} .canvas > svg`)).not.toBeVisible();
+    await expect(page.locator(`${EDITOR} .canvas > .zoom`)).not.toBeVisible();
 
-    const svgBox = (await page.locator(`${EDITOR} .canvas > svg`).boundingBox())!;
     const p3dBox = (await page.locator(`${EDITOR} #pane3d`).boundingBox())!;
-    expect(svgBox.width).toBeGreaterThan(200);
-    expect(p3dBox.width).toBeGreaterThan(200);
-    expect(Math.abs(svgBox.width - p3dBox.width)).toBeLessThan(20);
+    expect(Math.abs(p3dBox.width - canvasBox.width)).toBeLessThanOrEqual(4);
+    expect(Math.abs(p3dBox.height - canvasBox.height)).toBeLessThanOrEqual(4);
 
     // Canvas actually renders colourful house geometry (non-blank)
     const cBox = (await page.locator(`${EDITOR} #stage3d canvas`).boundingBox())!;
@@ -74,16 +83,8 @@ test.describe("Stage 1: 3D preview split pane (criterion 16)", () => {
     for (let i = 0; i < px.length; i += 3) cols.add((px[i] << 16) | (px[i + 1] << 8) | px[i + 2]);
     expect(cols.size).toBeGreaterThan(10);
 
-    // Drag split divider to grow 2D and narrow 3D
-    const divBox = (await page.locator(`${EDITOR} #splitDiv`).boundingBox())!;
-    await dragMouse(page, { x: divBox.x + divBox.width / 2, y: divBox.y + divBox.height / 2 }, { x: divBox.x + 110, y: divBox.y + divBox.height / 2 });
-    const svgAfter = (await page.locator(`${EDITOR} .canvas > svg`).boundingBox())!;
-    const p3dAfter = (await page.locator(`${EDITOR} #pane3d`).boundingBox())!;
-    expect(svgAfter.width).toBeGreaterThan(svgBox.width + 80);
-    expect(p3dAfter.width).toBeLessThan(p3dBox.width - 80);
-
-    // Selecting a room in 2D highlights its ring in 3D
-    await page.locator(`${EDITOR} .canvas > svg polygon[data-r="0"]`).click({ position: { x: 40, y: 40 } });
+    // Selecting a room in the Outline tree highlights its ring in 3D
+    await page.locator(`${EDITOR} #outlineTree`).getByText("Living").first().click();
     await expect.poll(() => stage(page).getAttribute("data-ring")).toBe("0");
 
     // Orbit camera, then reset it
@@ -100,9 +101,11 @@ test.describe("Stage 1: 3D preview split pane (criterion 16)", () => {
     await page.locator(`${EDITOR} #walls3d`).click();
     await expect(page.locator(`${EDITOR} #walls3d`)).toContainText("Walls: full");
 
-    // Toggle 3D off closes pane and disposes canvas
+    // Toggle 3D off returns to full 2D canvas and disposes 3D pane
     await page.locator(`${EDITOR} #btn3d`).click();
+    await expect(page.locator(`${EDITOR} #btn3d`)).toHaveText("3D");
     await expect(page.locator(`${EDITOR} #pane3d`)).toHaveCount(0);
+    await expect(page.locator(`${EDITOR} .canvas > svg`)).toBeVisible();
     expect(errors).toEqual([]);
   });
 
@@ -116,12 +119,13 @@ test.describe("Stage 1: 3D preview split pane (criterion 16)", () => {
       el.hassState = { "light.demo_living": { state: "on", attributes: { brightness: 255 }, last_changed: new Date().toISOString() } };
     }, EDITOR);
 
-    // Move Living light in 2D and verify 3D scene updates and follows within 500 ms on edit
-    const devBox = (await page.locator(`${EDITOR} .canvas > svg g.dev[data-x="0"]`).boundingBox())!;
-    const beforeDraws = await drawn(page);
     const where0 = await page.evaluate(() => ((window as unknown as { __fp3d?: Fp3d }).__fp3d)?.where("device", 0) ?? null);
+
+    // Switch to 2D, move Living light, switch back to 3D and verify 3D scene reflects the move
+    await page.locator(`${EDITOR} #btn3d`).click();
+    const devBox = (await page.locator(`${EDITOR} .canvas > svg g.dev[data-x="0"]`).boundingBox())!;
     await dragMouse(page, { x: devBox.x + devBox.width / 2, y: devBox.y + devBox.height / 2 }, { x: devBox.x + devBox.width / 2 + 60, y: devBox.y + devBox.height / 2 });
-    await expect.poll(() => drawn(page)).toBeGreaterThan(beforeDraws);
+    await open3d(page);
     await expect.poll(async () => {
       const w = await page.evaluate(() => ((window as unknown as { __fp3d?: Fp3d }).__fp3d)?.where("device", 0) ?? null);
       return w && where0 ? Math.hypot(w.x - where0.x, w.y - where0.y) : 0;
@@ -269,8 +273,8 @@ test.describe("Stage 3: 3D structure editing (corners, wall/room/floor heights, 
     await open3d(page);
     await page.locator(`${EDITOR} label.lockplan`).click();
 
-    // Select Room 0 in 2D -> room corner & height handles appear in #ov3d
-    await page.locator(`${EDITOR} .canvas > svg polygon[data-r="0"]`).click({ position: { x: 40, y: 40 } });
+    // Select Room 0 via Outline tree -> room corner & height handles appear in #ov3d
+    await page.locator(`${EDITOR} #outlineTree`).getByText("Living").first().click();
     await expect(page.locator(`${EDITOR} #ov3d [data-h3d="room-h"]`)).toHaveCount(1);
 
     // Drag room height up
@@ -283,7 +287,7 @@ test.describe("Stage 3: 3D structure editing (corners, wall/room/floor heights, 
     expect((await layoutOf(page)).floors.ground.rooms[0].height).toBeUndefined();
 
     // Re-select Room 0 and drag its corner 2 in 3D (inner shared corner [500, 400])
-    await page.locator(`${EDITOR} .canvas > svg polygon[data-r="0"]`).click({ position: { x: 40, y: 40 } });
+    await page.locator(`${EDITOR} #outlineTree`).getByText("Living").first().click();
     const hCorner = (await page.locator(`${EDITOR} #ov3d [data-hid="corner:r0:2"]`).boundingBox())!;
     const beforePt = (await layoutOf(page)).floors.ground.rooms[0].pts[2];
     await dragMouse(page, { x: hCorner.x + hCorner.width / 2, y: hCorner.y + hCorner.height / 2 }, { x: hCorner.x + hCorner.width / 2 + 50, y: hCorner.y + hCorner.height / 2 });
@@ -297,7 +301,12 @@ test.describe("Stage 3: 3D structure editing (corners, wall/room/floor heights, 
     const beforeFirst = await drawn(page);
     await page.locator(`${EDITOR} button[data-f="first"]`).click();
     await waitDrawn(page, beforeFirst + 1);
-    await page.locator(`${EDITOR} .canvas > svg line[data-d="0"]`).first().click({ force: true });
+    const selectFirstDoor = async () => {
+      await page.locator(`${EDITOR} #btn3d`).click();
+      await page.locator(`${EDITOR} .canvas > svg line[data-d="0"]`).first().click({ force: true });
+      await open3d(page);
+    };
+    await selectFirstDoor();
     await expect(page.locator(`${EDITOR} #ov3d [data-h3d="sill"]`)).toHaveCount(1);
     await expect(page.locator(`${EDITOR} #ov3d [data-h3d="head"]`)).toHaveCount(1);
 
@@ -308,7 +317,7 @@ test.describe("Stage 3: 3D structure editing (corners, wall/room/floor heights, 
     expect(validate(lSill).ok).toBe(true);
     await page.locator(`${EDITOR} #undo`).click();
 
-    await page.locator(`${EDITOR} .canvas > svg line[data-d="0"]`).first().click({ force: true });
+    await selectFirstDoor();
     const hHead = (await page.locator(`${EDITOR} #ov3d [data-h3d="head"]`).boundingBox())!;
     await dragMouse(page, { x: hHead.x + hHead.width / 2, y: hHead.y + hHead.height / 2 }, { x: hHead.x + hHead.width / 2, y: hHead.y + hHead.height / 2 - 35 });
     const lHead = await layoutOf(page);
@@ -339,7 +348,9 @@ test.describe("Stage 3: 3D structure editing (corners, wall/room/floor heights, 
     expect(validate(lWallH).ok).toBe(true);
     await page.locator(`${EDITOR} #undo`).click();
 
+    await page.locator(`${EDITOR} #btn3d`).click();
     await page.locator(`${EDITOR} .canvas > svg [data-w="0"]`).first().click({ force: true });
+    await open3d(page);
     const hWallEnd = (await page.locator(`${EDITOR} #ov3d [data-hid="corner:walls:0:a"]`).boundingBox())!;
     await dragMouse(page, { x: hWallEnd.x + hWallEnd.width / 2, y: hWallEnd.y + hWallEnd.height / 2 }, { x: hWallEnd.x + hWallEnd.width / 2 + 45, y: hWallEnd.y + hWallEnd.height / 2 });
     const lWallEnd = await layoutOf(page);
@@ -347,8 +358,10 @@ test.describe("Stage 3: 3D structure editing (corners, wall/room/floor heights, 
     expect(validate(lWallEnd).ok).toBe(true);
     await page.locator(`${EDITOR} #undo`).click();
 
-    // Select Stair 0 on ground and drag a corner in 3D
+    // Select Stair 0 on ground in 2D and drag a corner in 3D
+    await page.locator(`${EDITOR} #btn3d`).click();
     await page.locator(`${EDITOR} .canvas > svg [data-s="0"]`).click({ force: true });
+    await open3d(page);
     await expect(page.locator(`${EDITOR} #ov3d [data-hid="corner:s0:0"]`)).toHaveCount(1);
     const sBefore = (await layoutOf(page)).floors.ground.stairs[0].pts[0];
     const hStair = (await page.locator(`${EDITOR} #ov3d [data-hid="corner:s0:0"]`).boundingBox())!;
@@ -358,16 +371,18 @@ test.describe("Stage 3: 3D structure editing (corners, wall/room/floor heights, 
     expect(validate(lStair).ok).toBe(true);
     await page.locator(`${EDITOR} #undo`).click();
 
-    // Add a worktop by drawing its points on the 2D plan, finish with Enter, and drag its 3D corner handle
-    const beforeWt = await drawn(page);
+    // Add a worktop (auto-switches to 2D for drawing), finish with Enter, switch back to 3D and drag its corner handle
+    const furnCountBefore = (await layoutOf(page)).floors.ground.furniture.length;
     await page.locator(`${EDITOR} #mAdd > summary`).click();
     await page.locator(`${EDITOR} #addFurn > summary`).click();
     await page.locator(`${EDITOR} #addFurn-worktop`).click();
+    await expect(page.locator(`${EDITOR} .canvas > svg`)).toBeVisible();
     const sBox = (await page.locator(`${EDITOR} .canvas > svg`).boundingBox())!;
     const ox = sBox.x + sBox.width * 0.35, oy = sBox.y + sBox.height * 0.35;
     for (const [dx, dy] of [[0, 0], [80, 0], [80, 60], [0, 60]]) await page.mouse.click(ox + dx, oy + dy);
     await page.keyboard.press("Enter");
-    await waitDrawn(page, beforeWt + 1);
+    await expect.poll(async () => (await layoutOf(page)).floors.ground.furniture.length).toBe(furnCountBefore + 1);
+    await open3d(page);
     await expect(page.locator(`${EDITOR} #ov3d [data-hid^="corner:w"]`).first()).toBeVisible();
     const wIdx = (await layoutOf(page)).floors.ground.furniture.length - 1;
     const wtBefore = (await layoutOf(page)).floors.ground.furniture[wIdx].pts![0];

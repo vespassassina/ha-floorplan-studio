@@ -78,7 +78,6 @@ export class FloorplanStudioEditor extends LitElement {
     haListLoading: { state: true },
     haListErr: { state: true },
     open3d: { state: true },
-    splitRatio: { state: true },
   };
   declare floor: string;
   /** S37.3: where the "too narrow" message sends the person: the host (the panel) sets it to the dashboard. Unset on the standalone page, which has none. */
@@ -103,9 +102,7 @@ export class FloorplanStudioEditor extends LitElement {
   declare haListLoading: boolean;
   declare haListErr: string;
   declare open3d: boolean;
-  declare splitRatio: number;
   studio3d = new Studio3D(this);
-  splitDrag: { startX: number; startRatio: number; totalW: number } | null = null;
 
   st = new EditorState();
   drag: Drag | null = null;
@@ -208,7 +205,6 @@ export class FloorplanStudioEditor extends LitElement {
     this.haListLoading = false;
     this.haListErr = "";
     this.open3d = false;
-    this.splitRatio = 0.5;
   }
 
   /** What Home Assistant has (floors, areas, entities), set by the host. With it the name fields are dropdowns and linked names are refreshed once, without an undo step. */
@@ -481,12 +477,9 @@ export class FloorplanStudioEditor extends LitElement {
     .canvas>svg.drawing,.canvas>svg.drawing *{cursor:crosshair}
     /* S7.11: the scan is drawn under everything; see-through room fills keep it visible where a room is already traced. Editor only. */
     .canvas>svg.tracing .room{fill-opacity:.4}
-    /* S58.1: 3D preview split pane beside the 2D plan */
-    .canvas.split{display:flex;flex-direction:row;align-items:stretch}
-    .canvas.split>svg{flex:0 0 calc(var(--split,50%) - 3px);width:auto;min-width:140px;height:100%}
-    .split-div{flex:none;width:6px;cursor:col-resize;touch-action:none;background:color-mix(in srgb,var(--fp-idle) 65%,transparent);transition:background .12s}
-    .split-div:hover,.split-div.on{background:var(--fp-ink)}
-    .pane3d{flex:1 1 0%;min-width:140px;height:100%;position:relative;overflow:hidden;background:var(--fp-bg)}
+    /* S58.1: 3D view replaces the canvas; toggle back to 2D via the same top button */
+    .canvas.in3d>svg,.canvas.in3d>.zoom{display:none}
+    .pane3d{width:100%;height:100%;position:relative;overflow:hidden;background:var(--fp-bg)}
     .stage3d{position:absolute;inset:0 0 24px 0}
     .ov3d{position:absolute;inset:0 0 24px 0;width:100%;height:calc(100% - 24px);pointer-events:none;overflow:hidden;cursor:default}
     .ov3d .w3d{fill:none;stroke:var(--fp-window);stroke-width:1.75;pointer-events:none}
@@ -774,26 +767,6 @@ export class FloorplanStudioEditor extends LitElement {
     this.open3d = !this.open3d;
     this.requestUpdate();
   }
-  onSplitDown = (ev: PointerEvent) => {
-    if (ev.button !== 0) return;
-    const el = ev.currentTarget as HTMLElement, canvas = el.parentElement;
-    if (!canvas) return;
-    ev.preventDefault();
-    try { el.setPointerCapture(ev.pointerId); } catch { /* synthetic */ }
-    this.splitDrag = { startX: ev.clientX, startRatio: this.splitRatio, totalW: Math.max(280, canvas.getBoundingClientRect().width) };
-  };
-  onSplitMove = (ev: PointerEvent) => {
-    const d = this.splitDrag;
-    if (!d) return;
-    this.splitRatio = Math.min(0.8, Math.max(0.2, d.startRatio + (ev.clientX - d.startX) / d.totalW));
-    this.requestUpdate();
-  };
-  onSplitUp = (ev: PointerEvent) => {
-    if (!this.splitDrag) return;
-    this.splitDrag = null;
-    try { (ev.currentTarget as HTMLElement).releasePointerCapture(ev.pointerId); } catch { /* not captured */ }
-    this.requestUpdate();
-  };
 
   toggleSide = () => toggleSide(this); // editor-search.ts
 
@@ -956,10 +929,10 @@ export class FloorplanStudioEditor extends LitElement {
       ${this.errors.length ? html`<div class="errors" id="errors" role="alert"><strong>That layout was not used.</strong><ul>${this.errors.map((e) => html`<li>${e}</li>`)}</ul><button class="btn" id="errclose" @click=${() => { this.errors = []; }}>Dismiss</button></div>` : nothing}
       <div class="ed">
         ${sideView(this, find.tree)}
-        <div class=${`canvas${this.open3d ? " split" : ""}`} style=${this.open3d ? `--split:${(this.splitRatio * 100).toFixed(2)}%` : nothing}>
+        <div class=${`canvas${this.open3d ? " in3d" : ""}`}>
           <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label=${`Floor plan, ${f.title || st.floor}`} class=${[this.draw ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @animationend=${this.onSwitchEnd} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
           <!-- After the plan svg in the DOM, not before: specs and code that ask for "the first svg" must get the plan, not a button icon. It sits on top by z-index. -->
-          <div class="zoom" role="group" aria-label="Zoom" style=${this.open3d ? `right:calc(${((1 - this.splitRatio) * 100).toFixed(2)}% + 10px)` : nothing}>
+          <div class="zoom" role="group" aria-label="Zoom">
             <button class="btn" id="zin" title="Zoom in" aria-label="Zoom in" @click=${() => zoomBy(this, 1 / 1.25)}>+</button>
             <button class="btn" id="zout" title="Zoom out" aria-label="Zoom out" @click=${() => zoomBy(this, 1.25)}>&minus;</button>
             <button class="btn" id="zreset" title="Reset view: fit the whole floor, plan upright (Space)" aria-label="Reset view, 0" @click=${() => resetView(this)}>0</button>
@@ -967,7 +940,6 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="vrotr" title="Rotate view right" aria-label="Rotate view right" @click=${() => turnBy(this, ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateRight} fill="currentColor"/></svg></button>
           </div>
           ${this.open3d ? html`
-            <div class=${`split-div${this.splitDrag ? " on" : ""}`} id="splitDiv" role="separator" aria-orientation="vertical" aria-label="Resize 2D and 3D panes" @pointerdown=${this.onSplitDown} @pointermove=${this.onSplitMove} @pointerup=${this.onSplitUp} @pointercancel=${this.onSplitUp}></div>
             <div class="pane3d" id="pane3d" @contextmenu=${(e: Event) => e.preventDefault()}>
               <div class="stage3d" id="stage3d"></div>
               <svg class="ov3d" id="ov3d" aria-hidden="true"></svg>

@@ -21,6 +21,7 @@ const NO_REF: PtRef = { k: "walls", i: -1, end: "a" };
 export function startDraw(ed: FloorplanStudioEditor, kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
   if (ed.st.planLocked) { ed.planFixed(); return; }
   closeAlign(ed, false); // review 29: a draw and Align never run together
+  ed.open3d = false;
   ed.traceMove = false; // S40 review: Move takes the press before Draw sees it, so Draw would be dead
   ed.draw = new Draw(kind, wall, area);
   ed.hover = ed.aim = ed.rayAim = null;
