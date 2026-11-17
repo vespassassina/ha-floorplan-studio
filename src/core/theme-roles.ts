@@ -53,7 +53,7 @@ function hslToHex(h: number, s: number, l: number): string {
 
 /** One structural surface's position on the base ramp: 0 is the background, 1 is the strongest linework (an external wall). */
 const RAMP: [string, number][] = [
-  ["bg", 0], ["room", 0.08], ["garden", 0.14], ["water", 0.16], ["terrace", 0.18], ["pavement", 0.20], ["fill", 0.22],
+  ["bg", 0], ["room", 0.10], ["garden", 0.14], ["water", 0.16], ["terrace", 0.18], ["pavement", 0.20], ["fill", 0.22],
   ["fillLine", 0.30], ["idle", 0.42], ["sealed", 0.42], ["tread", 0.55], ["wallEdge", 0.55], ["wallFence", 0.55], ["furniture", 0.62],
   ["wall", 0.78], ["wallExternal", 0.92],
 ];
@@ -62,7 +62,7 @@ const RAMP: [string, number][] = [
  * depending on `dark`, saturation eases up slightly for the strongest shades so linework doesn't wash out. */
 function shade(base: string, dark: boolean, t: number): string {
   const [h, s0] = hexToHsl(base);
-  const l = dark ? lerp(9, 78, t) : lerp(95, 14, t);
+  const l = dark ? lerp(11.5, 80, t) : lerp(95, 14, t);
   const s = clamp(s0 * lerp(0.75, 1.15, t), 8, 85);
   return hslToHex(h, s, l);
 }
@@ -113,8 +113,8 @@ export function rolesToTokens(roles: ThemeRoles): string {
     // --fp-furniture (S23.6) is a ramp shade a step past the edge (.62: at .55 beach-house's sand was 1.77:1 on the grey room), so furniture belongs to the theme; still not --fp-idle, so changing
     // idle-device colouring never moves furniture and vice versa (Diego, 2026-09-23).
     `--fp-warn:#f28c28`, `--fp-danger:#b02a2a`, `--fp-primary:#1f6699`, `--fp-furniture:${shades.furniture}`,
-    // S23.6: paint the user chose is dimmed on a dark theme, never recoloured; a light theme shows it as chosen.
-    `--fp-paint-dim:${roles.dark ? "brightness(.62) saturate(.85)" : "none"}`,
+    // S23.6: paint the user chose is gently softened on a dark theme by day, never recoloured; a light theme shows it as chosen.
+    `--fp-paint-dim:${roles.dark ? "brightness(.76) saturate(.92)" : "none"}`,
     // S28 final: how much white a 3D crown takes on a dark theme, so it reads against a dark ground at night; none on a light theme.
     `--fp-crown-lift:${roles.dark ? "45%" : "0%"}`,
     `--fp-wall-external:${shades.wallExternal}`, `--fp-wall-fence:${shades.wallFence}`,

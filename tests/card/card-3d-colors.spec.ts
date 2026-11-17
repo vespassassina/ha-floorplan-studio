@@ -93,6 +93,6 @@ test("3D paint: a dark theme dims user paint as the 2D plan does, a light theme 
   const mid = await probe(await page.context().newPage(), "midnight", false, false);
   const l = L(light.painted), m = L(mid.painted);
   expect(m / l, `midnight ${m} over light ${l}`).toBeGreaterThan(0.45);
-  expect(m / l).toBeLessThan(0.78); // brightness .62 and a little saturation off; lighting is the same in both
+  expect(m / l).toBeLessThan(0.85); // brightness .76 and a little saturation off; lighting is the same in both
   expect(light.painted[2], "light keeps the picked blue").toBeGreaterThan(190);
 });
