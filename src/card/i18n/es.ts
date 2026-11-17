@@ -327,5 +327,7 @@ const c: Catalogue = {
   "Gas": "Gas",
   "Water": "Agua",
   "no data": "sin datos",
+  "Untracked": "Sin seguimiento",
+  "Close chart": "Cerrar gráfico",
 };
 export default c;

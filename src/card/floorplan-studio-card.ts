@@ -32,7 +32,7 @@ export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from 
 export { DOUBLE_TAP_MS, DOUBLE_TAP_PX } from "./card-zoom"; // the 3D host and its test read them from here
 import { chooserDialogTemplate, coverDialogTemplate, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
-import { closeReplay, isReplaying, REPLAY_CSS, replayBar, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
+import { closeReplay, isReplaying, REPLAY_CSS, replayBar, replayEnergyOverlay, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
 import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, onCardDown, onSheetClick, onSheetDown, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
@@ -1912,7 +1912,7 @@ export class FloorplanStudioCard extends LitElement {
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? optionsMenu(this) : null;
     const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
-    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${replayEnergyOverlay(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */

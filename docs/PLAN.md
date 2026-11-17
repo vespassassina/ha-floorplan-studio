@@ -5012,11 +5012,11 @@ no end-to-end test of the Studio live-view hover.
 - [x] 2026-11-15 B56.4 The chips: icon, value and sparkline; the settings to hide each chip, choose use, cost or both, and turn the
   sparkline off.
 
-### Sprint 57: the overlay chart and the device tree
+### Sprint 57 (done): the overlay chart and the device tree
 
-- B57.1 The see-through overlay chart: 5-minute bars, faded after t, a line at t, dragged by its header within the
+- [x] 2026-11-17 B57.1 The see-through overlay chart: 5-minute bars, faded after t, a line at t, dragged by its header within the
   card, one at a time (criterion 13).
-- B57.2 The device tree from `device_consumption`, nested by `included_in_stat`, with the untracked remainder
+- [x] 2026-11-17 B57.2 The device tree from `device_consumption`, nested by `included_in_stat`, with the untracked remainder
   (criterion 14).
 
 ### Sprint 58: 3D Studio, stage 1, the preview pane

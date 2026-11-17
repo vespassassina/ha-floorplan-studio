@@ -13,7 +13,7 @@ import { NO_ANSWER, STALE_PAGE } from "./load";
 import { closePopup } from "./card-popup";
 import { attentionOf } from "./card-overview";
 import type { FloorplanStudioCard, Hass, HassEntity } from "./floorplan-studio-card";
-import type { EnergyPrefs, StatsIndex } from "./energy";
+import type { EnergyPrefs, EnergySourceKind, StatsIndex } from "./energy";
 import type { HistoryIndex } from "./replay/history";
 import type { Onset } from "./replay/events";
 import type { FilterState } from "./replay/filters";
@@ -37,7 +37,7 @@ const TIMED_OUT = mark("no answer in 20 s");
 
 type States = Record<string, HassEntity>;
 interface FloorHistory { status: "loading" | "ready" | "error"; index?: HistoryIndex; onsets?: Onset[]; missing: number; why?: string; ids?: string[]; purgedFrom?: number | null; filter?: FilterState }
-interface EnergyState { status: "idle" | "loading" | "ready" | "none"; prefs?: EnergyPrefs; stats?: StatsIndex; hours?: number; end?: number }
+interface EnergyState { status: "idle" | "loading" | "ready" | "none"; prefs?: EnergyPrefs; stats?: StatsIndex; hours?: number; end?: number; chart?: EnergySourceKind | null; chartPos?: { x: number; y: number } | null }
 export interface ReplayState {
   /** The moment the bar opened: the end of the slider. */
   end: number;
@@ -263,6 +263,7 @@ function returnToLive(c: FloorplanStudioCard): void {
   r.drawnT = r.end;
   r.drawn = null;
   r.mix = null;
+  r.energy.chart = null;
   r.info = false;
   r.said = undefined;
   r.floors.forEach((fh, key) => {
@@ -645,10 +646,69 @@ function barView(c: FloorplanStudioCard, r: ReplayState) {
         currency: c._hass?.config?.currency,
         settings: (c._layout as { energy?: Parameters<EnergyLib["energyChipsView"]>[1]["settings"] } | null)?.energy,
         hass: c._hass,
+        active: r.energy.chart ?? null,
+        onPick: (k) => {
+          armIdle(c, r);
+          r.energy.chart = r.energy.chart === k ? null : k;
+          c.requestUpdate();
+        },
       })
     : undefined;
   return lib.barView({ html, nothing, t, tn, close: UI_ICONS.close }, { shown, value: minuteOf(r, r.drawnT), max: r.hours * 60, hours: r.hours, purgedFrom: fh?.purgedFrom, hass: c._hass, ready, failed, playing: r.playing, note: r.note, info: r.info, missing: fh?.missing ?? 0, message, onsets: fh?.onsets, filter: fh && (fh.filter ??= lib.newFilter(() => { armIdle(c, r); paintBar(c); })), rooms: c._floor()?.rooms, end: r.end, width: r.width, at: r.drawnT, said: r.said, always: r.always, idle: r.idle, energy },
     { key, close, play: () => togglePlay(c, r), seek: (m) => { if (r.always && r.idle) wakeFromIdle(c, r); armIdle(c, r); seek(c, r, startOf(r) + m * 60000); }, jump: (ms) => { armIdle(c, r); seek(c, r, ms); }, jumpBy: (d) => jumpBy(c, r, d, true), length: (h) => setHours(c, r, h), info: () => { r.info = !r.info; r.said = undefined; armIdle(c, r); paintBar(c); } });
+}
+
+function dragEnergyOverlay(c: FloorplanStudioCard, r: ReplayState, ev: PointerEvent): void {
+  if (ev.button !== 0) return;
+  const header = ev.currentTarget as HTMLElement | null;
+  const ov = header?.closest(".fp-en-overlay") as HTMLElement | null;
+  if (!header || !ov) return;
+  ev.preventDefault();
+  armIdle(c, r);
+  const host = c.getBoundingClientRect(), box = ov.getBoundingClientRect();
+  const baseX = box.left - host.left, baseY = box.top - host.top;
+  const sx = ev.clientX, sy = ev.clientY;
+  const maxX = Math.max(8, host.width - box.width - 8), maxY = Math.max(8, host.height - box.height - 8);
+  const clampPos = (cx: number, cy: number) => ({
+    x: Math.round(Math.max(8, Math.min(maxX, baseX + cx - sx))),
+    y: Math.round(Math.max(8, Math.min(maxY, baseY + cy - sy))),
+  });
+  try { header.setPointerCapture(ev.pointerId); } catch { /* synthetic */ }
+  const onMove = (m: PointerEvent) => {
+    const p = clampPos(m.clientX, m.clientY);
+    r.energy.chartPos = p;
+    ov.style.left = `${p.x}px`;
+    ov.style.top = `${p.y}px`;
+  };
+  const onEnd = () => {
+    header.removeEventListener("pointermove", onMove);
+    header.removeEventListener("pointerup", onEnd);
+    header.removeEventListener("pointercancel", onEnd);
+  };
+  header.addEventListener("pointermove", onMove);
+  header.addEventListener("pointerup", onEnd);
+  header.addEventListener("pointercancel", onEnd);
+}
+
+/** B57.1/B57.2: render the see-through draggable 5-minute energy overlay chart when a chip is open. */
+export function replayEnergyOverlay(c: FloorplanStudioCard) {
+  const r = c._replay;
+  if (!r || r.idle || !energyLib || r.energy.status !== "ready" || !r.energy.chart || !r.energy.prefs || !r.energy.stats) return null;
+  return energyLib.energyOverlayView({ html, nothing, t }, {
+    kind: r.energy.chart,
+    prefs: r.energy.prefs,
+    stats: r.energy.stats,
+    startMs: startOf(r),
+    tMs: r.drawnT,
+    endMs: r.end,
+    currency: c._hass?.config?.currency,
+    settings: (c._layout as { energy?: Parameters<EnergyLib["energyChipsView"]>[1]["settings"] } | null)?.energy,
+    hass: c._hass,
+    closeIcon: UI_ICONS.close,
+    pos: r.energy.chartPos,
+    onClose: () => { armIdle(c, r); r.energy.chart = null; c.requestUpdate(); },
+    onDragStart: (e) => dragEnergyOverlay(c, r, e),
+  });
 }
 
 /** The stylesheet of the bar. Colours only through `--fp-*`. Under 640 px of card the time sits above the slider. */

@@ -327,5 +327,7 @@ const c: Catalogue = {
   "Gas": "燃气",
   "Water": "水",
   "no data": "无数据",
+  "Untracked": "未追踪",
+  "Close chart": "关闭图表",
 };
 export default c;

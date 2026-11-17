@@ -3,8 +3,11 @@ import { html, nothing, render } from "lit";
 import { t } from "../../src/core/i18n";
 import {
   ENERGY_CHUNK,
+  bucketsAt,
   counterAt,
+  deviceTreeAt,
   energyChipsView,
+  energyOverlayView,
   parseEnergyPrefs,
   parseStats,
   statIdsFor,
@@ -283,5 +286,99 @@ describe("energyChipsView rendering and settings (B56.4)", () => {
     expect(filtered[0].textContent).not.toContain("kWh");
     expect(filtered[0].textContent).toContain("€0.90");
     expect(host.querySelectorAll(".fp-en-spark")).toHaveLength(0);
+  });
+});
+
+describe("B57.1/B57.2: bucketsAt, deviceTreeAt and energyOverlayView", () => {
+  const PREFS_WITH_DEVICES = {
+    energy_sources: [
+      { type: "grid", stat_energy_from: "sensor.grid_import", stat_energy_to: "sensor.grid_export" },
+      { type: "solar", stat_energy_from: "sensor.solar_prod" },
+    ],
+    device_consumption: [
+      { stat_consumption: "sensor.hvac", name: "Heat pump" },
+      { stat_consumption: "sensor.hvac_fan", name: "Fan", included_in_stat: "sensor.hvac" },
+      { stat_consumption: "sensor.ev", name: "EV charger" },
+      { stat_consumption: "sensor.cyc_a", included_in_stat: "sensor.cyc_b" },
+      { stat_consumption: "sensor.cyc_b", included_in_stat: "sensor.cyc_a" },
+    ],
+  };
+
+  it("parses device_consumption, includes device stat IDs, and builds nested tree with untracked remainder", () => {
+    const prefs = parseEnergyPrefs(PREFS_WITH_DEVICES)!;
+    expect(prefs.devices).toHaveLength(5);
+    const { ids } = statIdsFor(prefs);
+    expect(ids).toContain("sensor.hvac");
+    expect(ids).toContain("sensor.hvac_fan");
+    expect(ids).toContain("sensor.ev");
+
+    const stats = parseStats(
+      {
+        "sensor.grid_import": rows(T0, [2, 2, 2]),
+        "sensor.grid_export": rows(T0, [0, 0, 0]),
+        "sensor.solar_prod": rows(T0, [1, 1, 1]),
+        "sensor.hvac": rows(T0, [1, 1, 1]),
+        "sensor.hvac_fan": rows(T0, [0.2, 0.2, 0.2]),
+        "sensor.ev": rows(T0, [0.5, 0.5, 0.5]),
+      },
+      ids,
+    );
+
+    const tMs = T0 + 2 * B5;
+    const c = counterAt(prefs, stats, "electricity", T0, tMs, T0 + 3 * B5);
+    expect(c.status).toBe("ok");
+    if (c.status !== "ok") return;
+    expect(c.use).toBeCloseTo(6);
+
+    const tree = deviceTreeAt(prefs, stats, T0, tMs, undefined, c.use);
+    expect(tree.roots.map((r) => r.stat)).toEqual(["sensor.hvac", "sensor.ev", "sensor.cyc_a", "sensor.cyc_b"]);
+    expect(tree.roots[0].children.map((ch) => ch.stat)).toEqual(["sensor.hvac_fan"]);
+    expect(tree.roots[0].use).toBeCloseTo(2);
+    expect(tree.roots[0].children[0].use).toBeCloseTo(0.4);
+    expect(tree.roots[1].use).toBeCloseTo(1);
+    expect(tree.untracked).toBeCloseTo(3);
+  });
+
+  it("collects 5-minute buckets and renders overlay with faded post-t bars and t-line", () => {
+    const prefs = parseEnergyPrefs(PREFS_WITH_DEVICES)!;
+    const { ids } = statIdsFor(prefs);
+    const stats = parseStats(
+      {
+        "sensor.grid_import": rows(T0, [1, 2, 3, 4]),
+        "sensor.grid_export": rows(T0, [0, 0, 1, 0]),
+        "sensor.solar_prod": rows(T0, [0.5, 0.5, 0.5, 0.5]),
+        "sensor.hvac": rows(T0, [0.5, 0.5, 0.5, 0.5]),
+        "sensor.hvac_fan": rows(T0, [0.1, 0.1, 0.1, 0.1]),
+        "sensor.ev": rows(T0, [0.2, 0.2, 0.2, 0.2]),
+      },
+      ids,
+    );
+    const buckets = bucketsAt(prefs, stats, "electricity", T0, T0 + 4 * B5);
+    expect(buckets.map((b) => b.value)).toEqual([1.5, 2.5, 2.5, 4.5]);
+
+    const host = document.createElement("div");
+    render(
+      energyOverlayView(
+        { html, nothing, t },
+        {
+          kind: "electricity",
+          prefs,
+          stats,
+          startMs: T0,
+          tMs: T0 + 2 * B5,
+          endMs: T0 + 4 * B5,
+          closeIcon: "M0,0",
+          onClose: () => {},
+          onDragStart: () => {},
+        },
+      ) as never,
+      host,
+    );
+    expect(host.querySelectorAll(".fp-en-bar")).toHaveLength(4);
+    expect(host.querySelectorAll(".fp-en-bar-after")).toHaveLength(2);
+    expect(host.querySelector(".fp-en-tline")).not.toBeNull();
+    expect(host.querySelector(".fp-en-tree")?.textContent).toContain("Heat pump");
+    expect(host.querySelector(".fp-en-tree")?.textContent).toContain("Fan");
+    expect(host.querySelector(".fp-en-untracked")?.textContent).toContain("Untracked");
   });
 });
