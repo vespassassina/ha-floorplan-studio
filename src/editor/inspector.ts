@@ -61,26 +61,30 @@ export const inspectorCss = css`
     .imodes .tab:disabled{opacity:.4;cursor:default}
     /* S22.6: the aside is its own scroll container, as tall as the canvas beside it (same height rule, same floor), so
        a long room panel scrolls inside it and the plan stays put; before, it grew the page and scrolling it moved the plan away. */
-    aside{display:flex;flex-direction:column;gap:12px;overflow:auto;max-height:max(420px, var(--fp-editor-height,calc(100vh - 150px)))}
-    aside label{display:block;font-size:.85em;margin-top:6px;opacity:.8}
+    aside{display:flex;flex-direction:column;gap:8px;overflow:auto;max-height:max(420px, var(--fp-editor-height,calc(100vh - 150px)))}
+    aside label{display:block;font-size:.85em;margin-top:4px;opacity:.8}
     aside input:not([type=checkbox]),aside select{width:100%;box-sizing:border-box}
     /* S10.1: fp-combo sizes itself (its own :host rule); margin-top here only matches the spacing a select/input
        gets from the label above it. Since S22.6 the aside scrolls, so a combo's dropdown (position:absolute, inside
        its shadow root) that reaches past the aside's bottom extends the scroll area instead of spilling over the page. */
     aside fp-combo{margin-top:2px}
+    .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;align-items:end}
+    .rotrow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px}
+    .rotrow>span:first-child{font-size:.85em;opacity:.8;margin-right:auto}
+    .rotrow .btn{padding:2px 6px;font-size:12px}
     .row{display:flex;gap:6px}
     /* S8.9.1 / Opus review of S8.9: hints are written to fit one line at the sidebar's own width; nowrap+ellipsis
        is a safety net only, and only for the sidebar's own static hints (.fit: the hint() helper's output and the
        fixed "Nothing selected." messages). A confirm prompt or the trace-image instructions build their own <p
        class="hint"> without .fit, and wrap normally: their text is never a tooltip fallback away from the user. */
-    .hint{font-size:.85em;opacity:.75;margin:6px 0}
+    .hint{font-size:.85em;opacity:.75;margin:3px 0}
     .hint.fit{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     /* A hint that carries its own button (Help) never clips it: full width, wraps instead of ellipsising. */
     .hint.help-line{white-space:normal;overflow:visible;text-overflow:clip;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
     /* S8.9: a selection panel's section headings (Identity, Home Assistant, Links, Appearance, Automations, Danger),
        a divider above each except the first so the groups read apart without adding a new colour. */
-    h4.pnl-h{margin:10px 0 2px;padding-top:8px;border-top:1px solid var(--fp-idle);font-size:.8em;font-weight:600;text-transform:uppercase;letter-spacing:.03em;opacity:.7}
-    summary.pnl-h{cursor:pointer;margin:10px 0 2px;padding-top:8px;border-top:1px solid var(--fp-idle);font-size:.8em;font-weight:600;text-transform:uppercase;letter-spacing:.03em;list-style:none;display:flex;align-items:center;gap:4px}
+    h4.pnl-h{margin:8px 0 2px;padding-top:6px;border-top:1px solid var(--fp-idle);font-size:.8em;font-weight:600;text-transform:uppercase;letter-spacing:.03em;opacity:.7}
+    summary.pnl-h{cursor:pointer;margin:8px 0 2px;padding-top:6px;border-top:1px solid var(--fp-idle);font-size:.8em;font-weight:600;text-transform:uppercase;letter-spacing:.03em;list-style:none;display:flex;align-items:center;gap:4px}
     summary.pnl-h::-webkit-details-marker{display:none}
     summary.pnl-h::before{content:"▾";opacity:.6;width:1em}
     details.pnl-sec:not([open])>summary.pnl-h::before{content:"▸"}
