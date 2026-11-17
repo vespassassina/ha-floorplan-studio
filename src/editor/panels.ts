@@ -413,8 +413,7 @@ function floorPanel(c: PanelCtx) {
   const { st } = c, key = st.floor, keys = Object.keys(st.layout.floors), i = keys.indexOf(key), title = st.f.title || key;
   const hasUnbound = st.f.devices.some((d) => d.entity === "");
   return html`<strong>Floor</strong>
-    ${hint("Nothing selected. Click the plan to edit.")}
-    <p class="hint help-line">Need help? Open Help. <button class="btn" id="floorHelp" @click=${() => c.help()}>Help</button></p>
+    <p class="hint fit help-line">Nothing selected. Click the plan to edit. <button class="btn" id="floorHelp" @click=${() => c.help()}>Help</button></p>
     ${heading("Identity")}
     ${!st.ha || !st.f.ha ? html`<label for="ft">floor title</label>
     <input id="ft" type="text" .value=${live(st.f.title)} @change=${(e: Event) => { c.floors.rename(key, val(e)); c.refresh(); }}>` : nothing}
@@ -422,8 +421,7 @@ function floorPanel(c: PanelCtx) {
       <button class="btn" id="fup" title="Higher floor: later in the chips" ?disabled=${i < 0 || i >= keys.length - 1} @click=${() => c.floors.move(key, 1)}>Move up</button>
       <button class="btn" id="fdown" title="Lower floor: earlier in the chips" ?disabled=${i <= 0} @click=${() => c.floors.move(key, -1)}>Move down</button>
     </div>
-    ${heightField(c, "floor height (cm)", "fht", st.f.height, DEFAULT_FLOOR_HEIGHT, (n) => c.commit((f) => { setHeight(f, "height", n); }))}
-    ${heightField(c, "slab (cm)", "fslab", st.f.slab, DEFAULT_SLAB, (n) => c.commit((f) => { setHeight(f, "slab", n); }))}
+    <div class="grid2"><div>${heightField(c, "floor height (cm)", "fht", st.f.height, DEFAULT_FLOOR_HEIGHT, (n) => c.commit((f) => { setHeight(f, "height", n); }))}</div><div>${heightField(c, "slab (cm)", "fslab", st.f.slab, DEFAULT_SLAB, (n) => c.commit((f) => { setHeight(f, "slab", n); }))}</div></div>
     ${heading("Temperature range")}
     ${houseRangePanel(c)}
     ${st.ha ? heading("Home Assistant") : nothing}
@@ -431,14 +429,14 @@ function floorPanel(c: PanelCtx) {
     ${st.ha ? unplacedAreas(c, st.ha) : nothing}
     ${hasUnbound ? heading("Links") : nothing}
     ${unboundList(c)}
+    ${heading("Energy counters")}
+    ${houseEnergyPanel(c)}
     ${heading("Danger")}
     ${st.confirmDelete
       ? html`<p id="fconfirm" role="alert">Delete floor ${title} and everything on it?</p>
         <div class="row">${button("fdelyes", "Delete", () => c.floors.remove(key), "danger")}${button("fdelno", "Cancel", () => { st.confirmDelete = false; c.refresh(); })}</div>`
       : html`<p><button class="btn danger" id="fdel" ?disabled=${keys.length < 2} title=${keys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => { st.confirmDelete = true; c.refresh(); }}>Delete floor</button></p>`}
-    ${hint("Deleting a floor returns its devices to Add.")}
-    ${heading("Energy counters")}
-    ${houseEnergyPanel(c)}`;
+    ${hint("Deleting a floor returns its devices to Add.")}`;
 }
 
 /** S4.2: HA areas no room or zone on any floor uses, as buttons that start drawing a room for one. Nothing when every area is on the plan. */
@@ -483,8 +481,7 @@ function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
   const canDelete = "poly" in s.ref && (polyPts(c.st.f, s.ref.poly)?.length ?? 0) > 3;
   return html`<strong>Corner</strong>
     ${heading("Appearance")}
-    ${number(c, "x (cm)", "px", p[0], (x) => move([x, p[1]]))}
-    ${number(c, "y (cm)", "py", p[1], (y) => move([p[0], y]))}
+    <div class="grid2"><div>${number(c, "x (cm)", "px", p[0], (x) => move([x, p[1]]))}</div><div>${number(c, "y (cm)", "py", p[1], (y) => move([p[0], y]))}</div></div>
     ${"poly" in s.ref && canDelete ? html`${heading("Danger")}<p>${button("delv", "Delete corner", () => { const ref = s.ref as { poly: string; j: number }; c.commit((f) => removePoint(f, ref.poly, ref.j)); const wi = worktopIndex(ref.poly); c.select(wi === null ? null : { t: "furn", i: wi }); }, "warn")}</p>` : nothing}`;
 }
 
@@ -553,8 +550,7 @@ function wallPanel(c: PanelCtx, i: number) {
       c.commit((f) => wallToOpening(f, i, c.st.floor));
       c.select({ t: "opening", i: c.st.f.openings.length - 1 });
     }}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === w.kind}>${WALL_LABELS[k]}</option>`)}<option value="opening">Opening (a gap in the wall)</option></select>
-    ${number(c, "length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}
-    ${heightField(c, "height (cm)", "wht", w.height, wallHeight(c.st.f, { ...w, height: undefined }), heightSetter(c, "walls", i, "height"))}
+    <div class="grid2"><div>${number(c, "length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}</div><div>${heightField(c, "height (cm)", "wht", w.height, wallHeight(c.st.f, { ...w, height: undefined }), heightSetter(c, "walls", i, "height"))}</div></div>
     ${heading("Appearance")}
     ${wallColourRow(c, "w", i, w.color, "wcol")}
     <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>
@@ -676,8 +672,7 @@ function doorPanel(c: PanelCtx, i: number) {
     ${heading("Identity")}
     ${text("name", "dn", d.name, (v) => c.commit((f) => { f.doors[i].name = v; }))}
     ${select("type", "dk", d.kind, DOOR_KINDS, (v) => c.commit((f) => { f.doors[i].kind = v as typeof d.kind; }), DOOR_KIND_NAMES)}
-    ${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}
-    ${heightField(c, "height (cm)", "dht", d.height, dflt.head - dflt.sill, heightSetter(c, "doors", i, "height"))}
+    <div class="grid2"><div>${number(c, "length (cm)", "dl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.doors[i], resizeSegment(d.a, d.b, Math.max(20, n))); f.doors[i].locked = true; }))}</div><div>${heightField(c, "height (cm)", "dht", d.height, dflt.head - dflt.sill, heightSetter(c, "doors", i, "height"))}</div></div>
     ${d.kind === "window" || d.kind === "slit" || d.kind === "fullwindow" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, dflt.sill, heightSetter(c, "doors", i, "sill")) : nothing}
     <p>${button("deld", "Delete", () => { c.commit((f) => { f.doors.splice(i, 1); }); c.select(null); }, "warn")}</p>
     ${heading("Home Assistant")}
@@ -1051,7 +1046,6 @@ function devicePanel(c: PanelCtx, i: number) {
   const hasAutomations = !!(c.makeLight && c.st.canMakeLight(i)) || !!(c.controlsAutomation && d.type === "switch") || !!(c.scheduleAutomation && SCHEDULABLE.includes(d.type));
   return html`<strong>${d.name ?? d.id}</strong>
     ${hint("a" in d ? "Drag to move; it aligns to the wall." : "Drag to move.")}
-    ${hint("Removed devices return to Add.")}
     ${heading("Identity")}
     ${deviceTypeField(c, i)}
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
@@ -1072,8 +1066,9 @@ function devicePanel(c: PanelCtx, i: number) {
     ${areaDiffField(c, i)}
     ${heading("Appearance")}
     ${lockBox(c, "vlock", "devices", i)}
-    ${heightField(c, "mount height (cm)", "vz", d.z, deviceZDefault(d), heightSetter(c, "devices", i, "z"))}
-    ${drawsEffect(d) ? fxField(c, d.fx, heightSetter(c, "devices", i, "fx")) : nothing}
+    ${drawsEffect(d)
+      ? html`<div class="grid2"><div>${heightField(c, "mount height (cm)", "vz", d.z, deviceZDefault(d), heightSetter(c, "devices", i, "z"))}</div><div>${fxField(c, d.fx, heightSetter(c, "devices", i, "fx"))}</div></div>`
+      : heightField(c, "mount height (cm)", "vz", d.z, deviceZDefault(d), heightSetter(c, "devices", i, "z"))}
     ${bodyField(c, i)}
     ${rotateButtons(c, "vrot", (n) => c.commit((f) => { const r = (((d.rot ?? 0) + n) % 360 + 360) % 360; if (r) f.devices[i].rot = r; else delete f.devices[i].rot; }), { reset: () => { if (d.rot) c.commit((f) => { delete f.devices[i].rot; }); } })}
     ${hasAutomations ? heading("Automations") : nothing}
@@ -1398,10 +1393,8 @@ function furniturePanel(c: PanelCtx, i: number) {
     ${heading("Appearance")}
     ${lockBox(c, "fulock", "furniture", i)}
     ${m.symbol === "sofa-l" ? mirrorBox(c, i) : nothing}
-    ${wt ? nothing : html`${number(c, "width (cm)", "fw", m.w, setSize("w"))}
-    ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}`}
-    ${heightField(c, "height (cm)", "fuht", m.height, isCar ? carSpec(m.model).height : FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}
-    ${heightField(c, "bottom (cm)", "fuz", m.z, FURNITURE_Z[m.symbol] ?? 0, heightSetter(c, "furniture", i, "z"))}
+    ${wt ? nothing : html`<div class="grid2"><div>${number(c, "width (cm)", "fw", m.w, setSize("w"))}</div><div>${number(c, "depth (cm)", "fh", m.h, setSize("h"))}</div></div>`}
+    <div class="grid2"><div>${heightField(c, "height (cm)", "fuht", m.height, isCar ? carSpec(m.model).height : FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}</div><div>${heightField(c, "bottom (cm)", "fuz", m.z, FURNITURE_Z[m.symbol] ?? 0, heightSetter(c, "furniture", i, "z"))}</div></div>
     <p class="hint" id="fusize">H ${Math.round(furnitureHeight(m))} × W ${Math.round(m.w)} × L ${Math.round(m.h)} cm</p>
     ${furniturePaintable(m.symbol) ? paintControls(c, "furniture", i, "fp", m) : nothing}
     ${wt

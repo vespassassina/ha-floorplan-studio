@@ -371,11 +371,11 @@ export class FloorplanStudioEditor extends LitElement {
     .btn.danger{background:var(--fp-danger);color:var(--fp-on-dark);border-color:var(--fp-danger)}
     .btn.warn{background:var(--fp-warn);color:var(--fp-on-light);border-color:var(--fp-warn)}
     /* Round red X, icon only: the room Sensors section's Remove. Square box so 50% is a circle. */
-    .btn.rm-x{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:26px;height:26px;padding:0;border-radius:50%;background:var(--fp-danger);color:var(--fp-on-dark);border-color:var(--fp-danger);vertical-align:middle}
-    .btn.rm-x svg{width:16px;height:16px;fill:currentColor;pointer-events:none}
+    .btn.rm-x{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:22px;height:22px;flex:none;padding:0;border-radius:50%;background:var(--fp-danger);color:var(--fp-on-dark);border-color:var(--fp-danger);vertical-align:middle}
+    .btn.rm-x svg{width:14px;height:14px;fill:currentColor;pointer-events:none}
     /* The room Sensors section: one framed box per kind round its picker and its list, names smaller than the form text. */
-    .sens-box{border:1px solid var(--fp-primary);border-radius:6px;padding:6px 8px;margin:6px 0;background:color-mix(in srgb,var(--fp-primary) 7%,transparent)}
-    .sens-box .attach-row{font-size:11px}
+    .sens-box{border:1px solid var(--fp-primary);border-radius:6px;padding:4px 8px;margin:4px 0;background:color-mix(in srgb,var(--fp-primary) 7%,transparent)}
+    .sens-box .attach-row{display:flex;align-items:center;gap:6px;margin:2px 0;font-size:11px}
     .attach-row .eid{font-size:.8em;opacity:.7}
     .devcols-panel{position:fixed;z-index:30;width:560px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
     .devcols-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--fp-idle);font-weight:600;cursor:move;touch-action:none}

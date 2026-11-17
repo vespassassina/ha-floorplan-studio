@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.49.0 - 2026-11-17
+
+Brighter daytime themes, compact device popups, and a streamlined Studio inspector for easier editing.
+
+- Card daylight & theme vibrancy: lifted dark-theme room/background contrast and softened daytime dimming on custom room colours and floor textures (wood, tiles), while preserving deep night-mode shading and wall-side depth in 2.5D and 3D.
+- Card popups & Overview: placed the device state pill inline in the popup header, aligned More info cleanly beside the primary action button, tightened slider spacing on desktop (keeping 44 px touch targets on mobile), and refined Overview padding.
+- Studio inspector: paired related numeric fields (height/slab, x/y, length/height, width/depth, mount Z/effect size) into 2-column rows, tightened sensor boxes and panel spacing, removed redundant hint clutter, and moved Delete floor below Energy counters.
+
 ## 0.48.0 - 2026-11-17
 
 Energy overlay chart and per-device electricity breakdown (S57): tap any energy chip in the replay bar to open a see-through, draggable 5-minute bar chart and inspect your per-device electricity consumption tree up to the scrubbed time.
