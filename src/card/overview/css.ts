@@ -11,7 +11,7 @@ export const OVERVIEW_CSS = `
   /* Opus review finding 5: min(200px, 45%) instead of a flat 200px, so a narrow (phone-width) card gets a panel
      that fits it rather than one that is most of the card's own width at 200px on a ~380px card. */
   .fp-active { grid-area: stage; position: absolute; top: 8px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 16px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
-  .fp-active-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 6px 8px; user-select: none; font: 600 12px/1.2 var(--fp-font, system-ui, sans-serif); border-bottom: 1px solid var(--fp-idle); }
+  .fp-active-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 6px 10px; user-select: none; font: 600 12px/1.2 var(--fp-font, system-ui, sans-serif); border-bottom: 1px solid var(--fp-idle); }
   .fp-active-title { flex: 1; }
   .fp-active-count { font-weight: 400; color: var(--fp-text); }
   .fp-active-collapse { border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 2px 4px; }
@@ -22,7 +22,7 @@ export const OVERVIEW_CSS = `
   button.fp-cat { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; text-align: left; border: none; background: transparent; padding: 0 2px; cursor: pointer; border-radius: 4px; }
   .fp-cat-name { flex: 1; min-width: 0; }
   .fp-cat-chev { flex: 0 0 10px; }
-  .fp-active-row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: none; background: transparent; color: inherit; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); padding: 4px 2px; cursor: pointer; border-radius: 4px; }
+  .fp-active-row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: none; background: transparent; color: inherit; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); padding: 4px 4px; cursor: pointer; border-radius: 6px; }
   .fp-active-row svg { width: 16px; height: 16px; flex: 0 0 16px; fill: var(--fp-active-row-color, var(--fp-ink)); }
   .fp-active-empty { margin: 4px 2px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
   /* S11.3/S11.4: the room section and the details under a row. Same card chrome and tokens as the list above. */
@@ -59,7 +59,7 @@ export const OVERVIEW_CSS = `
   .fp-room-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   /* S24.7: the Overview. The header's chips sit under the title; the alerts chip in the warn colour. */
   .fp-crumb { font-weight: 400; color: var(--fp-text); }
-  .fp-ov-chips { flex: 0 0 100%; font: 400 11px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
+  .fp-ov-chips { flex: 0 0 100%; font: 400 11px/1.35 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
   .fp-chip-warn { color: var(--fp-warn); font-weight: 600; }
   /* Folded, the header is one line so it covers as little plan as before S24.7; the crumb goes, the chips end in an ellipsis. */
   .fp-ov-search:empty { display: none; }

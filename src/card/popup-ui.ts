@@ -57,22 +57,26 @@ export interface PopupView {
 
 export const POPUP_CSS = css`
   /* S14.2: the tap popup and the hover tooltip are card chrome like the dialogs, outside the plan. The popup's buttons are 44 px tall, a touch target. */
-  .fp-pop { position: absolute; z-index: 3; box-sizing: border-box; width: min(240px, calc(100% - 8px)); max-height: calc(100% - 16px); display: flex; flex-direction: column; gap: 8px; padding: 12px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 10px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); font: 13px/1.3 var(--fp-font, system-ui, sans-serif); }
+  .fp-pop { position: absolute; z-index: 3; box-sizing: border-box; width: min(248px, calc(100% - 8px)); max-height: calc(100% - 16px); display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); font: 13px/1.3 var(--fp-font, system-ui, sans-serif); }
   /* The sliders scroll inside the card-high cap; the name, the state and the buttons stay put. */
-  .fp-pop-sliders { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; flex: 0 1 auto; }
+  .fp-pop-sliders { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; flex: 0 1 auto; }
   .fp-pop > * { flex-shrink: 0; }
   .fp-pop > .fp-pop-sliders { flex-shrink: 1; }
-  .fp-pop-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
-  .fp-pop-state { opacity: 0.8; overflow-wrap: anywhere; white-space: pre-line; }
+  .fp-pop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .fp-pop-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; min-width: 0; }
+  .fp-pop-state { font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--fp-ink) 10%, transparent); opacity: 0.9; overflow-wrap: anywhere; white-space: pre-line; flex-shrink: 0; max-width: 55%; text-align: right; }
+  .fp-pop-state:empty { display: none; }
+  .fp-pop-actions { display: flex; align-items: center; gap: 6px; }
   .fp-pop button { min-height: 44px; font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; padding: 0 12px; cursor: pointer; }
-  .fp-pop button.fp-pop-primary { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; }
-  .fp-pop button.fp-pop-more { background: transparent; border-color: transparent; text-decoration: underline; min-height: 36px; }
+  .fp-pop button.fp-pop-primary { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; flex: 1; }
+  .fp-pop button.fp-pop-more { flex: 0 0 auto; white-space: nowrap; background: transparent; border-color: transparent; text-decoration: underline; min-height: 36px; padding: 0 10px; font-size: 12px; }
   .fp-pop-confirm { display: flex; gap: 8px; }
   .fp-pop-confirm button { flex: 1; }
   .fp-pop label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
   .fp-pop label span { display: flex; justify-content: space-between; opacity: 0.8; }
-  .fp-pop input[type="range"] { width: 100%; height: 44px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
-  .fp-pop input.fp-pop-hue { background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); border-radius: 8px; height: 20px; margin: 12px 0; -webkit-appearance: none; appearance: none; }
+  .fp-pop input[type="range"] { width: 100%; height: 34px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
+  @media (pointer: coarse) { .fp-pop input[type="range"]:not(.fp-pop-hue) { height: 44px; } }
+  .fp-pop input.fp-pop-hue { background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); border-radius: 8px; height: 20px; margin: 6px 0; -webkit-appearance: none; appearance: none; }
   .fp-pop input.fp-pop-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
   .fp-pop input.fp-pop-hue::-moz-range-thumb { width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
   /* S24.7: the details the row chevron used to open, folded under the buttons. */
@@ -102,21 +106,20 @@ export function popupTemplate(v: PopupView) {
     </label>`;
   };
   const label = v.doorLabel ?? v.op?.label ?? null;
-  const primary = label === null ? nothing
+  const more = s.entities.length && !v.kiosk ? html`<button type="button" class="fp-pop-more" @click=${v.more}>${t("More info")}</button>` : nothing;
+  const actions = label === null ? more
     : v.confirming && v.op?.confirm
-      ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>${t("Cancel")}</button></div>`
-      : html`<button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${label}</button>`;
+      ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>${t("Cancel")}</button></div>${more}`
+      : html`<div class="fp-pop-actions"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${label}</button>${more}</div>`;
   return html`<div class=${v.inSheet ? "fp-pop fp-pop-sheet" : "fp-pop"} role="dialog" aria-label=${s.name} data-pop @keydown=${v.key}>
-    <div class="fp-pop-name">${s.name}</div>
-    <div class="fp-pop-state">${v.text}</div>
+    <div class="fp-pop-head"><div class="fp-pop-name">${s.name}</div><div class="fp-pop-state">${v.text}</div></div>
     ${v.fan ? html`<div class="fp-pop-sliders">${slider("s", 0, 100, v.fan.step)}</div>` : nothing}
     ${v.caps && (v.caps.brightness || v.caps.temp || v.caps.hue) ? html`<div class="fp-pop-sliders">
       ${v.caps.brightness ? slider("b", 1, 100, 1) : nothing}
       ${v.caps.temp ? slider("t", v.caps.temp.min, v.caps.temp.max, 50) : nothing}
       ${v.caps.hue ? slider("h", 0, 360, 1, "fp-pop-hue") : nothing}
     </div>` : nothing}
-    ${primary}
-    ${s.entities.length && !v.kiosk ? html`<button type="button" class="fp-pop-more" @click=${v.more}>${t("More info")}</button>` : nothing}
+    ${actions}
     ${v.info.length && !v.kiosk ? html`<details class="fp-pop-info"><summary>${t("Details")}</summary><dl>${v.info.map((r) => html`<div><dt>${r.label}</dt><dd>${r.value}</dd></div>`)}</dl></details>` : nothing}
   </div>`;
 }
