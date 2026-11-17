@@ -18,7 +18,7 @@ import type { Pick as Pick3D } from "./pick";
 import { coverOf } from "./cover";
 import { DRAG_PX, NoWebGL, createView3D, type View3D } from "./view3d";
 
-export { liveRenderers } from "./view3d";
+export { DRAG_PX, NoWebGL, createView3D, liveRenderers, type Hit3D, type View3D, type View3DOptions } from "./view3d";
 
 /** What the card hands over: everything the glue needs from code the 2D plan also uses. */
 export interface Deps3D {

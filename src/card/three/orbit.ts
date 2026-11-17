@@ -148,6 +148,14 @@ export class Orbit {
     this.frameFloor();
   }
 
+  /** Updates the scene bounds after a live edit without moving the camera; `reset()` later frames the new house. */
+  setBounds(bounds: Bounds): void {
+    if (!boundsOk(bounds)) return;
+    this.lo = [bounds.min[0], bounds.min[2], bounds.min[1]];
+    this.hi = [bounds.max[0], bounds.max[2], bounds.max[1]];
+    this.box = { min: this.lo, max: this.hi };
+  }
+
   /**
    * The canvas is `canvas` px and chrome covers `cover` px of its edges (F1 of the framing spec). A framed camera is
    * fitted again; a moved one keeps its angles and target and its distance follows the unit. Junk, a visible box under

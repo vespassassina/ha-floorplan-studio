@@ -8,6 +8,7 @@ import { closeLink, undo } from "./editor-actions";
 import { cancelDeviceDrag, cancelTraceDrag, drawnDevices, selectDevices } from "./editor-pointer";
 import { closeAddDev, closeCtxMenu, closePlace, closeScene, toggleDevCols, toggleHa, toggleInstallCode } from "./editor-popups";
 import { finishDraw, placeTyped, stopDraw } from "./editor-draw";
+import { rotateSel15 } from "./ops3d";
 import { DRAW_HINT } from "./editor-kit";
 import { type Floor, polys, removePoint, worktopIndex } from "../core";
 import { removeDevices } from "./bulk";
@@ -48,6 +49,7 @@ export const onKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
   if (ev.key === "?" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !takesTyping(t)) { ev.preventDefault(); ed.toggleHelp(); return; }
   // Escape cancels a drag of devices before anything else: Help, Place and the rest must not swallow it while the plan is being dragged.
   if (ev.key === "Escape" && (ed.drag?.type === "devs" || ed.drag?.type === "dev")) { ev.preventDefault(); cancelDeviceDrag(ed); return; }
+  if (ev.key === "Escape" && ed.studio3d.cancelDrag()) { ev.preventDefault(); return; }
   if (ev.key === "Escape" && ed.drag?.type === "trace") { ev.preventDefault(); cancelTraceDrag(ed); return; }
   if (ev.key === "Escape" && ed.ctxMenu) { ev.preventDefault(); closeCtxMenu(ed); return; }
   if (ev.key === "Escape" && ed.devColsPos) { ev.preventDefault(); toggleDevCols(ed); return; }
@@ -80,6 +82,15 @@ export const onKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
     if (ed.drag?.type === "marquee") { ev.preventDefault(); ed.drag = null; ed.requestUpdate(); }
     else if (ed.st.sel) { ev.preventDefault(); ed.st.sel = null; ed.requestUpdate(); }
     return;
+  }
+  if (!ed.aligning && !ed.draw && !ev.ctrlKey && !ev.metaKey && !ev.altKey && ev.key.toLowerCase() === "r" && ed.st.sel) {
+    const r = rotateSel15(ed.st.f, ed.st.sel, 15 * ed.st.turnDir);
+    if (r) {
+      ev.preventDefault();
+      ed.commit(() => r.next);
+      if (!ed.st.planBlocked) ed.status = r.msg;
+      return;
+    }
   }
   if (ev.key !== "Delete" && ev.key !== "Backspace") return;
   if (ed.aligning) return; // Review 29: Align is read-only, so nothing is deleted from under it

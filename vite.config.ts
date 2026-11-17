@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { trimThree } from "./scripts/trim-three.mjs";
 import { stripCssComments } from "./scripts/strip-css-comments.mjs";
 import { minifyOutput } from "./scripts/minify-output.mjs";
@@ -39,16 +40,30 @@ const formFile = (dir: string) => {
   return `./${f}`;
 };
 
+// S58.1: the Studio's 3D preview loads the card's exact 3D chunk, already built in "card" before "panel" and "editor".
+const threeFile = (dir: string) => {
+  const f = readdirSync(dir).find((n) => /^floorplan-studio-3d-[\w-]+\.js$/.test(n));
+  if (!f) throw new Error(`No floorplan-studio-3d-<hash>.js in ${dir}/. Build the card first (scripts/build.mjs builds mode "card" before "panel" and "editor").`);
+  return f;
+};
+
 // One build per output, chosen with --mode: form, card, panel or editor.
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const outDir = process.env.FP_OUT ?? "dist";
+  const devThree = command === "serve" ? `/@fs${resolve("src/card/three/host.ts")}` : "";
+  const panelThree = command === "build" && (mode === "panel" || mode === "editor") ? threeFile(outDir) : "";
   const lib = (entry: string, fileName: string) => ({
     // The comments inside our stylesheets stay in the source and do not ship (scripts/strip-css-comments.mjs); nor do the
     // code's comments and whitespace, which lib mode keeps (scripts/minify-output.mjs).
     plugins: [trimThree(), stripCssComments(), chunkName(), minifyOutput()],
     // `__FP3D_TEST__` is a compile-time flag: only the test build (FP3D_TEST=1, made by scripts/build.mjs for the Playwright specs)
     // keeps the 3D view's test hook; in the shipped build the code is dropped.
-    define: { __FP_VERSION__: JSON.stringify(version), ...(mode === "card" ? { __FP_FORM_FILE__: JSON.stringify(formFile(outDir)) } : {}), __FP3D_TEST__: process.env.FP3D_TEST === "1" ? "true" : "false" },
+    define: {
+      __FP_VERSION__: JSON.stringify(version),
+      ...(mode === "card" ? { __FP_FORM_FILE__: JSON.stringify(formFile(outDir)) } : {}),
+      ...(mode === "panel" ? { __FP3D_PANEL_FILE__: JSON.stringify(panelThree), __FP3D_DEV_MOD__: JSON.stringify(devThree) } : {}),
+      __FP3D_TEST__: process.env.FP3D_TEST === "1" ? "true" : "false",
+    },
     build: {
       outDir,
       target: BUILD_TARGET,
@@ -69,6 +84,13 @@ export default defineConfig(({ mode }) => {
   return {
     root: "src/editor",
     plugins: [stripCssComments(), viteSingleFile()],
+    define: {
+      __FP_VERSION__: JSON.stringify(version),
+      __FP3D_PANEL_FILE__: JSON.stringify(panelThree),
+      __FP3D_DEV_MOD__: JSON.stringify(devThree),
+      __FP3D_TEST__: command === "serve" || process.env.FP3D_TEST === "1" ? "true" : "false",
+    },
+    ...(command === "serve" ? { server: { fs: { allow: [resolve(".")] } }, optimizeDeps: { include: ["three"] } } : {}),
     build: { target: BUILD_TARGET, outDir: "../../dist", emptyOutDir: false, rollupOptions: { input: "src/editor/standalone.html" } },
   };
 });

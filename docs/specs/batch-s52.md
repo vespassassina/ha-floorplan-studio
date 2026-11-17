@@ -318,6 +318,7 @@ these fields from a shape it does not know. `npm run docs:schema` regenerates `d
 | Furniture: 4 symbols, `mirror` | +900 | 3D +600 |
 | Furniture paint and block shapes | +700 | 3D +500; editor +400 |
 | Car glow and pulse | +120 | 3D +150 |
+| 3D Studio (Sprints 58–61, stages 1–3) | 0 | 3D +~350; panel/editor 3D UI |
 | Worktop: draw, schema | +350 | 3D +250; editor +3,000 |
 | Underfloor: wash, pattern, flag | +250 | 3D +150 |
 | Room badges: draw, info, bubble, schema | +1,800 | language chunks +300 each |

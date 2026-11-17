@@ -21,6 +21,8 @@ export type Pick =
   | { type: "room"; index: number }
   | { type: "other" };
 
+export interface PickHit { solid: Solid; pt: V3; t: number }
+
 /** cm. The ball drawn for a device that has no body of its own, and the bigger invisible ball a tap on it hits. */
 export const MARKER_R = 12, PROXY_R = 24;
 
@@ -165,11 +167,7 @@ export class Picker {
     return false;
   }
 
-  /**
-   * What the ray meets first. `zOf` says the z range each prism is drawn over (null: not drawn, so not hit); the view
-   * passes the lowered walls through it. `null` when nothing is hit, and for a ray that is not a finite ray.
-   */
-  pick(ray: Ray, zOf: (s: Solid) => [number, number] | null): Pick | null {
+  private nearest(ray: Ray, zOf: (s: Solid) => [number, number] | null): { item: Item; r: Ray; t: number } | null {
     if (!ray || !vec(ray.o) || !vec(ray.d)) return null;
     const len = Math.hypot(...ray.d);
     if (!(len > 0)) return null;
@@ -193,7 +191,28 @@ export class Picker {
       }
       if (t !== null && t < bestT) { bestT = t; bestItem = it; }
     }
-    if (!bestItem) return null;
+    return bestItem ? { item: bestItem, r, t: bestT } : null;
+  }
+
+  /**
+   * What the ray meets first, with the hit solid and point in plan cm. Used by the 3D Studio so unlinked furniture,
+   * walls, rooms and doors are directly pickable with their 3D coordinates.
+   */
+  hit(ray: Ray, zOf: (s: Solid) => [number, number] | null): PickHit | null {
+    const n = this.nearest(ray, zOf);
+    if (!n) return null;
+    const { item, r, t } = n;
+    return { solid: item.s, pt: [r.o[0] + r.d[0] * t, r.o[1] + r.d[1] * t, r.o[2] + r.d[2] * t], t };
+  }
+
+  /**
+   * What the ray meets first. `zOf` says the z range each prism is drawn over (null: not drawn, so not hit); the view
+   * passes the lowered walls through it. `null` when nothing is hit, and for a ray that is not a finite ray.
+   */
+  pick(ray: Ray, zOf: (s: Solid) => [number, number] | null): Pick | null {
+    const n = this.nearest(ray, zOf);
+    if (!n) return null;
+    const { item: bestItem, r, t: bestT } = n;
     const s = bestItem.s, i = s.ref?.index;
     switch (s.kind) {
       case "device": return fin(i) ? { type: "device", index: i } : { type: "other" };
