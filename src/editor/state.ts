@@ -638,6 +638,16 @@ export class EditorState {
     return true;
   }
 
+  /** One undoable change across the whole layout (used for HA sync fixes). */
+  editLayout(fn: (next: Layout) => void): boolean {
+    const next = structuredClone(this.layout);
+    fn(next);
+    if (JSON.stringify(next) === JSON.stringify(this.layout)) return false;
+    this.snapshot();
+    this.layout = next;
+    return true;
+  }
+
   /** Swap the current floor without touching history (used while dragging). */
   replaceFloor(f: Floor) {
     if (this.planLocked) f = { ...this.f, devices: f.devices, unlinked: f.unlinked }; // the plan holds still; a device or an object may still follow the pointer

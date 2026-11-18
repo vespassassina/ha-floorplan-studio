@@ -30,6 +30,10 @@ export interface HaWriter {
   runScene(entityId: string): Promise<void>;
   /** S17.7: one service call, as a scene item makes it (the scene designer's Try and Restore). */
   callService(call: { domain: string; service: string; data: Record<string, unknown> }): Promise<void>;
+  /** S46: creates a Home Assistant floor in `config/floor_registry/create`. */
+  createFloor(name: string, level?: number): Promise<{ id: string; name: string }>;
+  /** S46: assigns an HA area to an HA floor (`null` clears it). */
+  setAreaFloor(areaId: string, floorId: string | null): Promise<void>;
 }
 
 /** The label everything the tool creates carries, so the person can find it in HA and remove it. */
@@ -87,6 +91,23 @@ export async function createArea(hass: WriteHass, name: string): Promise<{ id: s
   const a = await hass.callWS<AreaEntry>({ type: "config/area_registry/create", name: n, labels: [labelId] });
   rememberArea(a.area_id);
   return { id: a.area_id, name: a.name };
+}
+
+/** S46: creates a Home Assistant floor (`config/floor_registry/create`). */
+export async function createFloor(hass: WriteHass, name: string, level?: number): Promise<{ id: string; name: string }> {
+  const n = name.trim();
+  if (!n) throw new Error("A floor needs a name.");
+  const f = await hass.callWS<{ floor_id: string; name: string }>({
+    type: "config/floor_registry/create",
+    name: n,
+    ...(typeof level === "number" ? { level } : {}),
+  });
+  return { id: f.floor_id, name: f.name };
+}
+
+/** S46: assigns an HA area to an HA floor (`null` clears it). */
+export async function setAreaFloor(hass: WriteHass, areaId: string, floorId: string | null): Promise<void> {
+  await hass.callWS({ type: "config/area_registry/update", area_id: areaId, floor_id: floorId });
 }
 
 const flowError = (r: FlowResult) => {
@@ -217,5 +238,7 @@ export function makeWriter(hass: WriteHass): HaWriter {
     createAutomation: (cfg) => createAutomation(hass, cfg),
     runScene: (id) => runScene(hass, id),
     callService: (c) => callService(hass, c),
+    createFloor: (n, l) => createFloor(hass, n, l),
+    setAreaFloor: (a, f) => setAreaFloor(hass, a, f),
   };
 }

@@ -1,5 +1,9 @@
 import type { Labelled } from "./hass-write";
-import { haRow, loadHaList } from "./editor-ha";
+import {
+  haRow, loadHaList, syncAssignAreaFloor, syncCreateArea, syncCreateFloor, syncLinkArea, syncLinkFloor,
+  syncMoveDeviceArea, syncRemoveOrphan, syncReplaceEntity,
+} from "./editor-ha";
+import { haSyncReport } from "./ha-sync";
 import type { AsideMode } from "./inspector";
 import { closeAlign } from "./editor-align";
 import { counted, placedNote } from "./editor-search";
@@ -65,6 +69,13 @@ export function toggleHa(ed: FloorplanStudioEditor) {
   ed.closeMenus();
   ed.haPos = ed.haPos ? null : panelPos(ed, 440);
   if (ed.haPos) void loadHaList(ed);
+  ed.requestUpdate();
+}
+
+/** S46: Edit, Check HA sync. Opening closes menus and shows entity orphans, area mismatches, and floor links. */
+export function toggleHaSync(ed: FloorplanStudioEditor) {
+  ed.closeMenus();
+  ed.haSyncPos = ed.haSyncPos ? null : panelPos(ed, 480);
   ed.requestUpdate();
 }
 
@@ -301,10 +312,56 @@ export function haView(ed: FloorplanStudioEditor) {
       <span>Home Assistant</span>
     </div>
     <p>These are the helpers, automations and areas Floorplan Studio created in Home Assistant. Click one to open it there, to edit or rename it. Remove deletes it from Home Assistant; the plan is not touched either way.</p>
+    <p><button class="btn keep" id="haOpenSync" @click=${() => { if (!ed.haSyncPos) toggleHaSync(ed); }}>Check HA sync…</button></p>
     ${ed.haListLoading ? html`<span class="grp" id="haLoading">Loading…</span>` : nothing}
     ${ed.haListErr ? html`<span class="grp" id="haErr">${ed.haListErr}</span>` : nothing}
     ${!ed.haListLoading && !ed.haListErr && ed.haList?.length === 0 ? html`<span class="grp" id="haNone">Nothing Floorplan Studio made is labelled in Home Assistant.</span>` : nothing}
     ${HA_KIND_LABELS.map(([k, label]) => { const g = (ed.haList ?? []).filter((x) => x.kind === k); return g.length ? html`<span class="grp">${label}</span>${g.map((it) => haRow(ed, it))}` : nothing; })}
+  </div>`;
+}
+
+/** S46: floating, draggable HA sync panel listing orphaned entities, room/device area mismatches, and plan-vs-HA floor links. */
+export function haSyncView(ed: FloorplanStudioEditor) {
+  const p = ed.haSyncPos!, ha = ed.st.ha;
+  const rep = haSyncReport(ed.st.layout, ha);
+  return html`<div class="fpanel ha-panel" id="haSyncPanel" role="dialog" aria-label="HA sync" style="left:${p.x}px;top:${p.y}px">
+    <div class="fpanel-head" @pointerdown=${ed.haSyncHead.down} @pointermove=${ed.haSyncHead.move} @pointerup=${ed.haSyncHead.up} @pointercancel=${ed.haSyncHead.up}>
+      <button class="btn keep" id="haSyncClose" aria-label="Close" @click=${() => toggleHaSync(ed)}>&times;</button>
+      <span>Check HA sync${rep.total ? ` (${rep.total})` : ""}</span>
+    </div>
+    ${!ha ? html`<p id="haSyncNone">Connect Home Assistant to compare entities, areas and floors.</p>` : rep.total === 0 ? html`<p id="haSyncOk">The plan and Home Assistant agree.</p>` : html`<div class="rows">
+      ${rep.orphans.length ? html`<span class="grp">Missing entities (${rep.orphans.length})</span>${rep.orphans.map((o) => {
+        const key = `${o.floorKey}:${o.kind}:${o.index}:${o.field}:${o.entityId}`;
+        const candidates = ha.entities.filter((e) => e.domain === o.domain);
+        const picked = ed.haSyncPick[key] ?? o.suggested ?? candidates[0]?.id ?? "";
+        return html`<div class="sync-row" data-orphan=${o.entityId}>
+          <div class="sync-info"><strong>${o.label}</strong> <code>${o.entityId}</code></div>
+          <div class="sync-acts">
+            ${o.suggested ? html`<button class="btn keep" data-sync="suggest" @click=${() => syncReplaceEntity(ed, o.entityId, o.suggested!)}>Use ${o.suggested}</button>` : nothing}
+            ${candidates.length ? html`<select aria-label="Replacement entity" .value=${picked} @change=${(e: Event) => { ed.haSyncPick = { ...ed.haSyncPick, [key]: (e.target as HTMLSelectElement).value }; ed.requestUpdate(); }}>
+              ${candidates.map((c) => html`<option value=${c.id}>${c.name ? `${c.name} (${c.id})` : c.id}</option>`)}
+            </select><button class="btn keep" data-sync="replace" @click=${() => syncReplaceEntity(ed, o.entityId, picked)}>Replace</button>` : nothing}
+            <button class="btn keep danger" data-sync="remove" @click=${() => syncRemoveOrphan(ed, o)}>Remove</button>
+          </div>
+        </div>`;
+      })}` : nothing}
+      ${rep.areas.length ? html`<span class="grp">Areas (${rep.areas.length})</span>${rep.areas.map((a) => html`<div class="sync-row" data-area-issue=${a.kind}>
+        <div class="sync-info"><strong>${a.kind === "room-no-area" ? a.roomName : a.deviceName ?? a.entityId}</strong> <span>${a.kind === "room-no-area" ? `${a.floorTitle} · no HA area` : `in ${a.roomName}, HA has another area`}</span></div>
+        <div class="sync-acts">
+          ${a.kind === "room-no-area" && a.matchArea ? html`<button class="btn keep" data-sync="link-area" @click=${() => syncLinkArea(ed, a)}>Link ${a.matchArea.name}</button>` : nothing}
+          ${a.kind === "room-no-area" && !a.matchArea && ed.writer ? html`<button class="btn keep" data-sync="create-area" @click=${() => void syncCreateArea(ed, a)}>Create area in HA</button>` : nothing}
+          ${a.kind === "device-area-diff" && ed.writer ? html`<button class="btn keep" data-sync="move-area" @click=${() => void syncMoveDeviceArea(ed, a)}>Move to ${a.targetArea?.name}</button>` : nothing}
+        </div>
+      </div>`)}` : nothing}
+      ${rep.floors.length ? html`<span class="grp">Floors (${rep.floors.length})</span>${rep.floors.map((fl) => html`<div class="sync-row" data-floor-issue=${fl.kind}>
+        <div class="sync-info"><strong>${fl.kind === "assign-area-floor" ? fl.area?.name : fl.floorTitle}</strong> <span>${fl.kind === "create-floor" ? "not in HA" : fl.kind === "link-floor" ? `matches HA floor ${fl.haFloor?.name}` : `assign to HA floor ${fl.haFloor?.name}`}</span></div>
+        <div class="sync-acts">
+          ${fl.kind === "create-floor" && ed.writer ? html`<button class="btn keep" data-sync="create-floor" @click=${() => void syncCreateFloor(ed, fl)}>Create floor in HA</button>` : nothing}
+          ${fl.kind === "link-floor" ? html`<button class="btn keep" data-sync="link-floor" @click=${() => syncLinkFloor(ed, fl)}>Link ${fl.haFloor?.name}</button>` : nothing}
+          ${fl.kind === "assign-area-floor" && ed.writer ? html`<button class="btn keep" data-sync="assign-floor" @click=${() => void syncAssignAreaFloor(ed, fl)}>Assign floor</button>` : nothing}
+        </div>
+      </div>`)}` : nothing}
+    </div>`}
   </div>`;
 }
 

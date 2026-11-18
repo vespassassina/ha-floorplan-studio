@@ -29,7 +29,7 @@ import { renameFloor, moveFloor, deleteFloor, undo, setColour, openLink, closeLi
 import { closeAlign, openAlign, alignPreview, applyAlign, alignStairInfo, alignStairs, setAlignStep, moveAlign, turnAlign, setAlignOffset, setAlignRotation, resetAlignOffset, ghostOpts } from "./editor-align";
 import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayout, openFile, firstRunDemo, firstRunBlank } from "./editor-file";
 import { planFixed, setPlanLocked, attachEntity, attachToRoom, rotateTexture, rotateItem, scaleTexture } from "./editor-changes";
-import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, installCodeView } from "./editor-popups";
+import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, toggleHaSync, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, haSyncView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, installCodeView } from "./editor-popups";
 import { edgeNear, onDown, onMove, onUp, onDblClick, onWheel, edgeKind } from "./editor-pointer";
 import { toggleTrace, setTrace, traceView } from "./editor-trace";
 import { onKeyUp, onBlur, onKey, onButtonClick, onFocusOut, onWindowPointerDown, onWindowClick, closeSubs } from "./editor-keys";
@@ -125,6 +125,9 @@ export class FloorplanStudioEditor extends LitElement {
   devColsPos: { x: number; y: number } | null = null;
   /** S8.1: Edit, Home Assistant: the popover's screen position; null when closed. Dragged by its head, closed by its X or Escape. */
   haPos: { x: number; y: number } | null = null;
+  /** S46: Edit, Check HA sync: the popover's screen position and selected orphan replacement candidates. */
+  haSyncPos: { x: number; y: number } | null = null;
+  haSyncPick: Record<string, string> = {};
   /** S8.1/S8.4: the room panel's Place popup: the room's id (null when closed), its position, the rows ticked, the type chip pressed. */
   placeRoom: string | null = null;
   /** S26.14: which mode of the aside is on show (Place and Add are modes, not floating panels). */
@@ -511,6 +514,12 @@ export class FloorplanStudioEditor extends LitElement {
     .habox-sub{padding-left:14px}
     .scene{border:1px solid var(--line,#8884);border-radius:6px;padding:4px 6px;margin:4px 0} .scene-item{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .scene-item>span:first-child{flex:1;min-width:80px} .scene-item .btn,.scene-item select,.scene-item input{width:auto} .scene-item input[type=number]{width:90px} .scene-item .tag{opacity:.7}
     .harow2{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0} .harow2>span:first-child{flex:1;min-width:80px} .harow2 .btn{width:auto}
+    .sync-row{display:flex;flex-direction:column;gap:4px;padding:6px 0;border-bottom:1px solid var(--line,#8883)}
+    .sync-info{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-size:.9em}
+    .sync-info code{font-size:.85em;opacity:.8}
+    .sync-acts{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+    .sync-acts select{flex:1;min-width:140px;max-width:260px}
+    .sync-acts .btn{width:auto}
   `,
     inspectorCss,
     css`
@@ -708,9 +717,11 @@ export class FloorplanStudioEditor extends LitElement {
   toggleDevCols = () => toggleDevCols(this); // editor-popups.ts
   devColsHead = dragHead(this, () => this.devColsPos, (p) => { this.devColsPos = p; });
   haHead = dragHead(this, () => this.haPos, (p) => { this.haPos = p; });
+  haSyncHead = dragHead(this, () => this.haSyncPos, (p) => { this.haSyncPos = p; });
   sceneHead = dragHead(this, () => this.scenePos, (p) => { this.scenePos = p; });
 
   toggleHa() { return toggleHa(this); } // editor-popups.ts
+  toggleHaSync() { return toggleHaSync(this); } // editor-popups.ts
 
   // ---- S8.1: the room panel's Place popup ----------------------------------------------------------------------------
 
@@ -957,6 +968,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.ctxMenu ? ctxMenuView(this, this.ctxMenu) : nothing}
           ${this.devColsPos ? devColsView(this, st) : nothing}
           ${this.haPos && this.writer ? haView(this) : nothing}
+          ${this.haSyncPos ? haSyncView(this) : nothing}
           ${(() => { const d = this.sceneDraft, i = d ? st.f.rooms.findIndex((r) => r.id === d.room) : -1; return d && i >= 0 && this.scenePos ? sceneDesigner({ draft: d, pos: this.scenePos, head: this.sceneHead, roomName: st.f.rooms[i].name, targets: roomSceneTargets(st.f, i), refresh: () => this.requestUpdate(), close: () => closeScene(this), save: () => saveSceneDraft(this), preview: this.writer ? { hasBackup: this.sceneBackup.length > 0, busy: this.sceneBusy, run: () => void trySceneDraft(this), restore: () => void restoreSceneDraft(this) } : undefined }) : nothing; })()}
           ${this.installCodeOpen ? installCodeView(this) : nothing}
           ${this.traceOpen ? traceView(this) : nothing}

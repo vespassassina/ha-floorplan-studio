@@ -4,6 +4,10 @@ import { motionLights, openAutomation, schedule, switchControls } from "./automa
 import type { Labelled } from "./hass-write";
 import { html } from "lit";
 import { stopDraw } from "./editor-draw";
+import {
+  removeOrphanFromLayout, replaceEntityInLayout, setFloorHaInLayout, setRoomAreaInLayout,
+  type HaAreaIssue, type HaFloorIssue, type HaOrphan,
+} from "./ha-sync";
 import type { FloorplanStudioEditor } from "./editor-app";
 
 // ---- writes to Home Assistant: areas, groups, automations, scenes, the labelled list ---------------------
@@ -283,3 +287,94 @@ export function haRow(ed: FloorplanStudioEditor, it: Labelled) {
 
 /** A floor operation of the state is one undo step; the host hears about it like any other edit. */
 export function floorDone(ed: FloorplanStudioEditor, status: string) { stopDraw(ed); ed.floor = ed.st.floor; ed.changed(status); }
+
+// ---- S46: HA sync actions (one click per change, admin-confirmed) ------------------------------------------
+
+export function syncReplaceEntity(ed: FloorplanStudioEditor, fromId: string, toId: string) {
+  if (!toId || fromId === toId) return;
+  if (ed.st.editLayout((l) => replaceEntityInLayout(l, fromId, toId))) ed.changed(`Updated ${fromId} → ${toId}.`);
+}
+
+export function syncRemoveOrphan(ed: FloorplanStudioEditor, o: HaOrphan) {
+  if (ed.st.editLayout((l) => removeOrphanFromLayout(l, o))) ed.changed(`Removed ${o.entityId}.`);
+}
+
+export function syncLinkArea(ed: FloorplanStudioEditor, issue: HaAreaIssue) {
+  if (!issue.matchArea) return;
+  if (ed.st.editLayout((l) => setRoomAreaInLayout(l, issue.floorKey, issue.roomIndex, issue.matchArea!.id))) {
+    ed.changed(`Linked ${issue.roomName} to ${issue.matchArea.name}.`);
+  }
+}
+
+export async function syncCreateArea(ed: FloorplanStudioEditor, issue: HaAreaIssue) {
+  const w = ed.writer;
+  if (!w) return;
+  try {
+    const a = await w.createArea(issue.roomName);
+    void loadHaList(ed);
+    const ha = ed.st.ha;
+    if (ha && !ha.areas.some((x) => x.id === a.id)) ed.ha = { ...ha, areas: [...ha.areas, { id: a.id, name: a.name }] };
+    if (ed.st.editLayout((l) => setRoomAreaInLayout(l, issue.floorKey, issue.roomIndex, a.id))) {
+      ed.changed(`Created area ${a.name} in Home Assistant.`);
+    }
+  } catch (err) {
+    ed.status = `Could not create area: ${err instanceof Error ? err.message : String(err)}.`;
+    ed.requestUpdate();
+  }
+}
+
+export async function syncMoveDeviceArea(ed: FloorplanStudioEditor, issue: HaAreaIssue) {
+  const w = ed.writer, ha = ed.st.ha, move = issue.move;
+  if (!w || !ha || !move || !issue.targetArea) return;
+  try {
+    if (move.kind === "device") {
+      await w.setDeviceArea(move.id, move.area);
+      ed.ha = { ...ha, entities: ha.entities.map((e) => (e.dev === move.id ? { ...e, area: move.area } : e)) };
+    } else {
+      await w.setEntityArea(move.id, move.area);
+      ed.ha = { ...ha, entities: ha.entities.map((e) => (e.id === move.id ? { ...e, area: move.area } : e)) };
+    }
+    ed.status = `Moved ${issue.deviceName ?? issue.entityId} to ${issue.targetArea.name} in Home Assistant.`;
+    ed.requestUpdate();
+  } catch (err) {
+    ed.status = `Could not move area: ${err instanceof Error ? err.message : String(err)}.`;
+    ed.requestUpdate();
+  }
+}
+
+export async function syncCreateFloor(ed: FloorplanStudioEditor, issue: HaFloorIssue) {
+  const w = ed.writer;
+  if (!w) return;
+  try {
+    const f = await w.createFloor(issue.floorTitle, issue.floorOrder);
+    const ha = ed.st.ha;
+    if (ha && !ha.floors.some((x) => x.id === f.id)) ed.ha = { ...ha, floors: [...ha.floors, { id: f.id, name: f.name }] };
+    if (ed.st.editLayout((l) => setFloorHaInLayout(l, issue.floorKey, f.id))) {
+      ed.changed(`Created floor ${f.name} in Home Assistant.`);
+    }
+  } catch (err) {
+    ed.status = `Could not create floor: ${err instanceof Error ? err.message : String(err)}.`;
+    ed.requestUpdate();
+  }
+}
+
+export function syncLinkFloor(ed: FloorplanStudioEditor, issue: HaFloorIssue) {
+  if (!issue.haFloor) return;
+  if (ed.st.editLayout((l) => setFloorHaInLayout(l, issue.floorKey, issue.haFloor!.id))) {
+    ed.changed(`Linked ${issue.floorTitle} to HA floor ${issue.haFloor.name}.`);
+  }
+}
+
+export async function syncAssignAreaFloor(ed: FloorplanStudioEditor, issue: HaFloorIssue) {
+  const w = ed.writer, ha = ed.st.ha;
+  if (!w || !ha || !issue.area || !issue.haFloor) return;
+  try {
+    await w.setAreaFloor(issue.area.id, issue.haFloor.id);
+    ed.ha = { ...ha, areas: ha.areas.map((a) => (a.id === issue.area!.id ? { ...a, floor_id: issue.haFloor!.id } : a)) };
+    ed.status = `Assigned ${issue.area.name} to ${issue.haFloor.name} in Home Assistant.`;
+    ed.requestUpdate();
+  } catch (err) {
+    ed.status = `Could not assign floor: ${err instanceof Error ? err.message : String(err)}.`;
+    ed.requestUpdate();
+  }
+}

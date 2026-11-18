@@ -4859,14 +4859,13 @@ split), an Attention sensor in Python (the rules would exist twice, finding 8). 
 first picked feature that does not fit the cap moves the popup, dialogs or overview into lazy chunks first. Each sprint
 gets its spec before it starts.
 
-### Sprint 46 (outline): the plan and Home Assistant agree
+### Sprint 46 (done): the plan and Home Assistant agree
 
-All in the Studio, 0 card bytes. Every registry write is confirmed by the admin, one click per change.
-- Follow renames: when HA renames or removes an entity, the layout follows the new id, or the Studio lists the
-  orphans with a fix for each.
-- Area check: devices whose HA area differs from their plan room, rooms with no area; fix each in one click.
-- Plan floors to HA floors: create or assign HA floors from the plan's floors.
-- Studio at 1024 wide and under 800 high: the toolbar does not wrap, the Align panel fits.
+Implemented (`docs/specs/ha-agree-s46.md`): 0 card bytes, one-click admin-confirmed HA sync in Studio (`#haSyncPanel`, `Edit > Check HA sync…`):
+- [x] 2026-11-18 Follow renames / orphans (`findOrphans`, `replaceEntityInLayout`, `removeOrphanFromLayout` in `src/editor/ha-sync.ts`): lists missing entities across all floors with suggested domain/slug matches, domain-filtered replacement picker, and 1-click removal (each 1 undo step).
+- [x] 2026-11-18 Area check (`findAreaChecks`): lists rooms without an HA area (1-click Link or Create area in HA) and devices whose HA area differs from their room (1-click Move in HA).
+- [x] 2026-11-18 Plan floors to HA floors (`findFloorChecks`, `createFloor` / `setAreaFloor` in `src/editor/hass-write.ts`): 1-click Create floor in HA, Link matching HA floor, and Assign room areas to HA floor.
+- [x] 2026-11-18 Studio at 1024 wide and under 800 high: compact toolbar `@media (max-width:1120px) and (min-width:769px)` keeps the bar on one row at 1024px; `#alignPanel` fits cleanly in 720px height.
 
 ### Sprint 47 (outline): Attention acts
 

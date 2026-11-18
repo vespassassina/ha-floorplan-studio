@@ -6,7 +6,7 @@ import { alignKeyDo, closeAlign } from "./editor-align";
 import { cancelTraceScale, toggleTrace, traceKeyDo } from "./editor-trace";
 import { closeLink, undo } from "./editor-actions";
 import { cancelDeviceDrag, cancelTraceDrag, drawnDevices, selectDevices } from "./editor-pointer";
-import { closeAddDev, closeCtxMenu, closePlace, closeScene, toggleDevCols, toggleHa, toggleInstallCode } from "./editor-popups";
+import { closeAddDev, closeCtxMenu, closePlace, closeScene, toggleDevCols, toggleHa, toggleHaSync, toggleInstallCode } from "./editor-popups";
 import { finishDraw, placeTyped, stopDraw } from "./editor-draw";
 import { rotateSel15 } from "./ops3d";
 import { DRAW_HINT } from "./editor-kit";
@@ -54,6 +54,7 @@ export const onKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
   if (ev.key === "Escape" && ed.ctxMenu) { ev.preventDefault(); closeCtxMenu(ed); return; }
   if (ev.key === "Escape" && ed.devColsPos) { ev.preventDefault(); toggleDevCols(ed); return; }
   if (ev.key === "Escape" && ed.haPos) { ev.preventDefault(); toggleHa(ed); return; }
+  if (ev.key === "Escape" && ed.haSyncPos) { ev.preventDefault(); toggleHaSync(ed); return; }
   if (ev.key === "Escape" && ed.sceneDraft) { ev.preventDefault(); closeScene(ed); return; }
   if (ev.key === "Escape" && ed.st.helpOpen) { /* Help covers the mode, so it goes first */ ev.preventDefault(); ed.toggleHelp(); return; }
   if (ev.key === "Escape" && ed.asideMode === "place") { ev.preventDefault(); closePlace(ed); return; }

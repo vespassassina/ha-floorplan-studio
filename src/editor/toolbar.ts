@@ -80,6 +80,13 @@ export const toolbarCss = css`
     .lockplan.on{background:var(--fp-ink);border-color:var(--fp-ink);color:var(--fp-bg)}
     .lockplan:hover{background:var(--fp-warn);border-color:var(--fp-warn);color:var(--fp-on-light)}
     .lockplan:has(>input:focus-visible){outline:2px solid var(--fp-primary);outline-offset:2px}
+    /* S46: keep the toolbar on one row at 1024px wide by tightening gaps, padding, and search width. */
+    @media (max-width:1120px) and (min-width:769px){
+      .bar,.bar-right{gap:4px}
+      .bar-search{flex:0 1 140px;min-width:100px}
+      .bar .btn,.bar .chip{padding:4px 6px;font-size:.92em}
+      .lockplan{padding:3px 7px;gap:4px;font-size:.86em}
+    }
 `;
 
 
@@ -245,6 +252,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
         </div></details>
         <details class="menu" id="mEdit" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Edit</summary><div class="box">
           ${h.writer ? html`<button class="btn" id="mHA" ?disabled=${!h.haList?.length && !h.haListErr} aria-expanded=${pressed(!!h.haPos)} title=${h.haListErr || (h.haList?.length ? "What Floorplan Studio made in Home Assistant" : "Nothing Floorplan Studio made is labelled in Home Assistant yet")} @click=${() => h.toggleHa()}>Home Assistant</button>` : nothing}
+          ${ha ? html`<button class="btn" id="mHaSync" aria-expanded=${pressed(!!h.haSyncPos)} title="Check orphaned entities, room/device areas, and HA floors" @click=${() => h.toggleHaSync()}>Check HA sync…</button>` : nothing}
           ${ha ? html`<details class="sub" id="mGroup" @toggle=${onSubToggle}><summary class="btn">Group</summary>
             <button class="btn" id="groupAll" aria-pressed=${pressed(!st.activeGroup)} @click=${() => { st.activeGroup = null; h.requestUpdate(); }}>All</button>
             ${groups.length === 0 ? html`<span class="grp" id="groupNone">No Home Assistant group has a member on this floor</span>` : nothing}
