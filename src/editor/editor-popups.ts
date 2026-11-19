@@ -1,9 +1,10 @@
 import type { Labelled } from "./hass-write";
 import {
-  haRow, loadHaList, syncAssignAreaFloor, syncCreateArea, syncCreateFloor, syncLinkArea, syncLinkFloor,
+  haRow, loadHaList, notifyAutomation, syncAssignAreaFloor, syncCreateArea, syncCreateFloor, syncLinkArea, syncLinkFloor,
   syncMoveDeviceArea, syncRemoveOrphan, syncReplaceEntity,
 } from "./editor-ha";
 import { haSyncReport } from "./ha-sync";
+import { attention } from "../core";
 import type { AsideMode } from "./inspector";
 import { closeAlign } from "./editor-align";
 import { counted, placedNote } from "./editor-search";
@@ -76,6 +77,13 @@ export function toggleHa(ed: FloorplanStudioEditor) {
 export function toggleHaSync(ed: FloorplanStudioEditor) {
   ed.closeMenus();
   ed.haSyncPos = ed.haSyncPos ? null : panelPos(ed, 480);
+  ed.requestUpdate();
+}
+
+/** S47: Edit, Attention. Lists current Attention rows with one-click notification automation creation. */
+export function toggleAttention(ed: FloorplanStudioEditor) {
+  ed.closeMenus();
+  ed.attentionPos = ed.attentionPos ? null : panelPos(ed, 460);
   ed.requestUpdate();
 }
 
@@ -361,6 +369,27 @@ export function haSyncView(ed: FloorplanStudioEditor) {
           ${fl.kind === "assign-area-floor" && ed.writer ? html`<button class="btn keep" data-sync="assign-floor" @click=${() => void syncAssignAreaFloor(ed, fl)}>Assign floor</button>` : nothing}
         </div>
       </div>`)}` : nothing}
+    </div>`}
+  </div>`;
+}
+
+/** S47: floating, draggable Attention panel listing current Attention items with Notify automation creation. */
+export function attentionView(ed: FloorplanStudioEditor) {
+  const p = ed.attentionPos!;
+  const reg = ed.st.ha ? Object.fromEntries(ed.st.ha.entities.filter((e) => e.dev).map((e) => [e.id, { device_id: e.dev! }])) : undefined;
+  const a = attention(ed.st.layout, ed.hassState, reg);
+  return html`<div class="fpanel ha-panel" id="attentionPanel" role="dialog" aria-label="Attention" style="left:${p.x}px;top:${p.y}px">
+    <div class="fpanel-head" @pointerdown=${ed.attentionHead.down} @pointermove=${ed.attentionHead.move} @pointerup=${ed.attentionHead.up} @pointercancel=${ed.attentionHead.up}>
+      <button class="btn keep" id="attentionClose" aria-label="Close" @click=${() => toggleAttention(ed)}>&times;</button>
+      <span>Attention${a.items.length ? ` (${a.items.length})` : ""}</span>
+    </div>
+    ${!ed.hassState ? html`<p id="attentionNone">Connect Home Assistant or live states to view Attention items.</p>` : a.items.length === 0 ? html`<p id="attentionOk">Nothing needs attention right now.</p>` : html`<div class="rows">
+      ${a.items.map((it) => html`<div class="sync-row" data-attn-entity=${it.entity}>
+        <div class="sync-info"><strong>${it.name}</strong> <span>${it.kind}${it.room ? ` · ${it.room}` : ""} (${it.state})</span></div>
+        <div class="sync-acts">
+          ${ed.writer ? html`<button class="btn keep" data-attn-notify=${it.entity} @click=${() => void notifyAutomation(ed, it)}>Notify…</button>` : nothing}
+        </div>
+      </div>`)}
     </div>`}
   </div>`;
 }

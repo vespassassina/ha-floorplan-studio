@@ -225,11 +225,11 @@ export function restorePick(c: FloorplanStudioCard, before: PickMemo): void {
 export function attentionOf(c: FloorplanStudioCard): Attention | null {
   const layout = c._layout, states = overviewStates(c), reg = c._hass?.entities; // S39 review S4: other floors stay live while replaying
   if (!layout) return null;
-  const m = c._attnMemo, warn = c._tempWarn;
-  if (m && m.layout === layout && m.states === states && m.reg === reg && m.warn === warn) return m.a;
+  const m = c._attnMemo, warn = c._tempWarn, snooze = c._snooze;
+  if (m && m.layout === layout && m.states === states && m.reg === reg && m.warn === warn && m.snooze === snooze) return m.a;
   // The registry finds a placed device's battery sensor on its own HA device (S24.R1).
-  const a = attention(layout, states, reg, warn);
-  c._attnMemo = { layout, states, reg, warn, a };
+  const a = attention(layout, states, reg, warn, snooze);
+  c._attnMemo = { layout, states, reg, warn, snooze, a };
   return a;
 }
 

@@ -329,5 +329,8 @@ const c: Catalogue = {
   "no data": "无数据",
   "Untracked": "未追踪",
   "Close chart": "关闭图表",
+  "Snooze": "暂缓",
+  "Hide until state changes": "状态改变前隐藏",
+  "Clear snooze ({n})": "清除暂缓 ({n})",
 };
 export default c;

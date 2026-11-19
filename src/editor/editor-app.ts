@@ -29,7 +29,7 @@ import { renameFloor, moveFloor, deleteFloor, undo, setColour, openLink, closeLi
 import { closeAlign, openAlign, alignPreview, applyAlign, alignStairInfo, alignStairs, setAlignStep, moveAlign, turnAlign, setAlignOffset, setAlignRotation, resetAlignOffset, ghostOpts } from "./editor-align";
 import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayout, openFile, firstRunDemo, firstRunBlank } from "./editor-file";
 import { planFixed, setPlanLocked, attachEntity, attachToRoom, rotateTexture, rotateItem, scaleTexture } from "./editor-changes";
-import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, toggleHaSync, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, haSyncView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, installCodeView } from "./editor-popups";
+import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, toggleHaSync, toggleAttention, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, haSyncView, attentionView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, installCodeView } from "./editor-popups";
 import { edgeNear, onDown, onMove, onUp, onDblClick, onWheel, edgeKind } from "./editor-pointer";
 import { toggleTrace, setTrace, traceView } from "./editor-trace";
 import { onKeyUp, onBlur, onKey, onButtonClick, onFocusOut, onWindowPointerDown, onWindowClick, closeSubs } from "./editor-keys";
@@ -128,6 +128,8 @@ export class FloorplanStudioEditor extends LitElement {
   /** S46: Edit, Check HA sync: the popover's screen position and selected orphan replacement candidates. */
   haSyncPos: { x: number; y: number } | null = null;
   haSyncPick: Record<string, string> = {};
+  /** S47: Edit, Attention: the popover's screen position. */
+  attentionPos: { x: number; y: number } | null = null;
   /** S8.1/S8.4: the room panel's Place popup: the room's id (null when closed), its position, the rows ticked, the type chip pressed. */
   placeRoom: string | null = null;
   /** S26.14: which mode of the aside is on show (Place and Add are modes, not floating panels). */
@@ -718,10 +720,12 @@ export class FloorplanStudioEditor extends LitElement {
   devColsHead = dragHead(this, () => this.devColsPos, (p) => { this.devColsPos = p; });
   haHead = dragHead(this, () => this.haPos, (p) => { this.haPos = p; });
   haSyncHead = dragHead(this, () => this.haSyncPos, (p) => { this.haSyncPos = p; });
+  attentionHead = dragHead(this, () => this.attentionPos, (p) => { this.attentionPos = p; });
   sceneHead = dragHead(this, () => this.scenePos, (p) => { this.scenePos = p; });
 
   toggleHa() { return toggleHa(this); } // editor-popups.ts
   toggleHaSync() { return toggleHaSync(this); } // editor-popups.ts
+  toggleAttention() { return toggleAttention(this); } // editor-popups.ts
 
   // ---- S8.1: the room panel's Place popup ----------------------------------------------------------------------------
 
@@ -969,6 +973,7 @@ export class FloorplanStudioEditor extends LitElement {
           ${this.devColsPos ? devColsView(this, st) : nothing}
           ${this.haPos && this.writer ? haView(this) : nothing}
           ${this.haSyncPos ? haSyncView(this) : nothing}
+          ${this.attentionPos ? attentionView(this) : nothing}
           ${(() => { const d = this.sceneDraft, i = d ? st.f.rooms.findIndex((r) => r.id === d.room) : -1; return d && i >= 0 && this.scenePos ? sceneDesigner({ draft: d, pos: this.scenePos, head: this.sceneHead, roomName: st.f.rooms[i].name, targets: roomSceneTargets(st.f, i), refresh: () => this.requestUpdate(), close: () => closeScene(this), save: () => saveSceneDraft(this), preview: this.writer ? { hasBackup: this.sceneBackup.length > 0, busy: this.sceneBusy, run: () => void trySceneDraft(this), restore: () => void restoreSceneDraft(this) } : undefined }) : nothing; })()}
           ${this.installCodeOpen ? installCodeView(this) : nothing}
           ${this.traceOpen ? traceView(this) : nothing}

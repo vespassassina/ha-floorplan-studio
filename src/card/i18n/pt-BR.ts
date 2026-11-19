@@ -329,5 +329,8 @@ const c: Catalogue = {
   "no data": "sem dados",
   "Untracked": "Não monitorado",
   "Close chart": "Fechar gráfico",
+  "Snooze": "Adiar",
+  "Hide until state changes": "Ocultar até mudar o estado",
+  "Clear snooze ({n})": "Limpar adiados ({n})",
 };
 export default c;

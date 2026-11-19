@@ -581,7 +581,26 @@ export class FloorplanStudioCard extends LitElement {
   _focusDev: number | null = null;
   _pulseTimer: ReturnType<typeof setTimeout> | null = null;
   /** `attention()` for the layout and states on show, computed once per pair: the pills and the Overview both read it. */
-  _attnMemo: { layout: Layout; states: unknown; reg: unknown; warn: unknown; a: Attention } | null = null;
+  _attnMemo: { layout: Layout; states: unknown; reg: unknown; warn: unknown; snooze: unknown; a: Attention } | null = null;
+  /** S47: snoozed Attention items (`attentionSnoozeKey -> state`), persisted in localStorage and cleared on state change. */
+  _snooze: Record<string, string> = (() => {
+    try {
+      const raw = typeof localStorage !== "undefined" ? localStorage.getItem("fp-snooze-v1") : null;
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, string>;
+    } catch { /* storage blocked or invalid JSON */ }
+    return {};
+  })();
+  _saveSnooze(next: Record<string, string>) {
+    this._snooze = next;
+    try {
+      if (typeof localStorage !== "undefined") {
+        if (Object.keys(next).length) localStorage.setItem("fp-snooze-v1", JSON.stringify(next));
+        else localStorage.removeItem("fp-snooze-v1");
+      }
+    } catch { /* storage blocked */ }
+    this.requestUpdate();
+  }
   /** S42.4: the onset memory behind `_tempWarn`, on live states. Its timer wakes the card when a room's hold elapses with no new state. */
   private _temps = new TempWatch(() => this.requestUpdate());
   /** S42.3: the rooms out of range by floor, then id, as `tempWarn` decided (`_temps`); the plan tints them and Attention lists them. */

@@ -345,10 +345,14 @@ export function make(d: OverviewDeps) {
   function overviewList(c: FloorplanStudioCard, attn: Attention, items: ActiveDevice[], badge: boolean, empty: string) {
     const now = c._now();
     const unOpen = c._foldedCats.has(UNAVAILABLE_OPEN);
-    const attnRows = attn.items.map((it) => attnRow(c, it, now));
+    const snoozedCount = Object.keys(c._snooze).length;
+    const snoozeItem = (it: AttentionItem) => {
+      const k = `${it.floor}\u0000${it.kind}\u0000${it.entity}`;
+      c._saveSnooze({ ...c._snooze, [k]: it.state });
+    };
     const groups = groupByCategory(items.map((it) => ({ type: it.type, row: activeRow(c, it) })));
-    return html`${attnRows.length || attn.unavailable.length ? html`<section class="fp-ov-section fp-ov-attn"><div class="fp-ov-head">${t("Attention · {n}", { n: attnRows.length })}</div>
-          ${attnRows.map((o) => ovRow(c, o, badge))}
+    return html`${attn.items.length || attn.unavailable.length || snoozedCount ? html`<section class="fp-ov-section fp-ov-attn"><div class="fp-ov-head"><span>${t("Attention · {n}", { n: attn.items.length })}</span>${snoozedCount ? html`<button type="button" class="fp-ov-snooze-clear" @click=${() => c._saveSnooze({})}>${t("Clear snooze ({n})", { n: snoozedCount })}</button>` : nothing}</div>
+          ${attn.items.map((it) => html`<div class="fp-fav-row">${ovRow(c, attnRow(c, it, now), badge)}<button type="button" class="fp-ov-snooze" data-snooze=${it.entity} title=${t("Hide until state changes")} @click=${() => snoozeItem(it)}>${t("Snooze")}</button></div>`)}
           ${attn.unavailable.length ? html`<div class="fp-active-group" data-cat="unavailable">
             <button type="button" class="fp-active-group-label fp-cat" aria-expanded=${unOpen ? "true" : "false"} @click=${() => toggleCat(c, UNAVAILABLE_OPEN)}>
               <span class="fp-cat-chev" aria-hidden="true">${unOpen ? "▾" : "▸"}</span><span class="fp-cat-name">${t("Unavailable")}</span><span class="fp-active-count">${attn.unavailable.length}</span>

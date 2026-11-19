@@ -213,10 +213,22 @@ function roomItem(layout: Layout, key: string, f: Floor, i: number, warn: "hot" 
   return { kind: warn === "hot" ? "too-hot" : "too-cold", floor: key, at: { what: "room", index: i, id: String(r.id) }, entity: "", name: typeof r.name === "string" ? r.name : "", state: heat.text, lastChanged: "", bound: boundIn(c, heat.text) };
 }
 
+/** Key identifying one Attention item for snooze matching across Overview and plan. */
+export function attentionSnoozeKey(it: Pick<AttentionItem, "floor" | "kind" | "entity">): string {
+  return `${it.floor}\u0000${it.kind}\u0000${it.entity}`;
+}
+
 /** Everything that needs attention across every floor of `layout`. `reg` is HA's entity registry (`hass.entities`), for
  *  the battery sensor of a placed device's own HA device; without it a device's battery is only what its state says.
- *  `tempWarn` (S42; floor key, then room id, each floor's entry the shape of `RenderOpts.tempWarn`) names the rooms out of range; omitted, no temperature items. */
-export function attention(layout: Layout, state: StateOverlay | undefined, reg?: AttentionRegistry, tempWarn?: Readonly<Record<string, Readonly<Record<string, "hot" | "cold">>>>): Attention {
+ *  `tempWarn` (S42; floor key, then room id, each floor's entry the shape of `RenderOpts.tempWarn`) names the rooms out of range; omitted, no temperature items.
+ *  `snooze` (S47) maps `attentionSnoozeKey(it)` to the snoozed state string; matching items are omitted until their state changes. */
+export function attention(
+  layout: Layout,
+  state: StateOverlay | undefined,
+  reg?: AttentionRegistry,
+  tempWarn?: Readonly<Record<string, Readonly<Record<string, "hot" | "cold">>>>,
+  snooze?: Readonly<Record<string, string>>,
+): Attention {
   // A floor key is layout data: `__proto__` must be a floor, not the object's prototype (finding 1, S24.R9).
   const items: AttentionItem[] = [], unavailable: AttentionItem[] = [], floors: Record<string, FloorAttention> = Object.create(null);
   const floorList = layout && typeof layout.floors === "object" && layout.floors ? Object.entries(layout.floors) : [];
@@ -226,6 +238,7 @@ export function attention(layout: Layout, state: StateOverlay | undefined, reg?:
   const seen = new Set<string>(); // an entity on two icons is reported once
   const ctx: BatteryCtx = { reg, state, byDevice: batteriesByDevice(reg, state), placed };
   const sources = new Set<string>(); // a device's battery sensor read for two of its entities is reported once
+  const snoozed = (it: AttentionItem) => !!snooze && own<unknown>(snooze, attentionSnoozeKey(it)) === it.state;
   /** The battery-low item's own fields for `entity`, or null when its battery is fine or already reported. */
   const battery = (entity: string, type: DeviceType | undefined, s: StateOverlay[string]) => {
     const hit = batteryOf(entity, type, s, ctx);
@@ -237,7 +250,7 @@ export function attention(layout: Layout, state: StateOverlay | undefined, reg?:
   for (const [key, f] of floorList) {
     floors[key] = { count: 0, unavailable: 0, alarm: false };
     if (!f || typeof f !== "object") continue;
-    const add = (it: AttentionItem) => (it.kind === "unavailable" ? unavailable : items).push(it);
+    const add = (it: AttentionItem) => { if (!snoozed(it)) (it.kind === "unavailable" ? unavailable : items).push(it); };
     const base = (s: StateOverlay[string], entity: string) => ({ floor: key, entity, state: s.state, lastChanged: typeof s.last_changed === "string" ? s.last_changed : "" });
 
     const things: { d: Device; at: AttentionRef; p: Pt | null }[] = [];

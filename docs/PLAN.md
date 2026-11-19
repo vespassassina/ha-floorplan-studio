@@ -4867,12 +4867,11 @@ Implemented (`docs/specs/ha-agree-s46.md`): 0 card bytes, one-click admin-confir
 - [x] 2026-11-18 Plan floors to HA floors (`findFloorChecks`, `createFloor` / `setAreaFloor` in `src/editor/hass-write.ts`): 1-click Create floor in HA, Link matching HA floor, and Assign room areas to HA floor.
 - [x] 2026-11-18 Studio at 1024 wide and under 800 high: compact toolbar `@media (max-width:1120px) and (min-width:769px)` keeps the bar on one row at 1024px; `#alignPanel` fits cleanly in 720px height.
 
-### Sprint 47 (outline): Attention acts
+### Sprint 47 (done): Attention acts
 
-- Attention to notify: from an Attention row, create an automation that sends a notification, built by
-  `src/editor/automations.ts`.
-- Attention snooze: mark an item as meant (a window open on purpose) so Attention stops listing it until it changes.
-  Lives in core so the Overview and the plan agree (finding 8); the spec decides where the snooze is stored.
+Implemented (`docs/specs/attention-acts-s47.md`):
+- [x] 2026-11-18 Attention to notify: `attentionNotify` in `src/editor/automations.ts`, `notifyAutomation` in `src/editor/editor-ha.ts`, and `#attentionPanel` (`Edit > Attention…`, 0 card bytes).
+- [x] 2026-11-18 Attention snooze: `attentionSnoozeKey` and `snooze` parameter in `src/core/attention.ts` (shared across Overview, floor pills, badges, and plan dots), `localStorage` persistence (`fp-snooze-v1`) in the card, and `.fp-ov-snooze` / `.fp-ov-snooze-clear` in the lazy Overview chunk.
 
 ### Sprint 48 (outline): history and readability on the card
 

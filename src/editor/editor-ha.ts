@@ -1,6 +1,6 @@
-import { areaMove, groupKind, inside, type Pt } from "../core";
+import { areaMove, groupKind, inside, type AttentionItem, type Pt } from "../core";
 import { confirm as askHa } from "./confirm";
-import { motionLights, openAutomation, schedule, switchControls } from "./automations";
+import { attentionNotify, motionLights, openAutomation, schedule, switchControls } from "./automations";
 import type { Labelled } from "./hass-write";
 import { html } from "lit";
 import { stopDraw } from "./editor-draw";
@@ -375,6 +375,31 @@ export async function syncAssignAreaFloor(ed: FloorplanStudioEditor, issue: HaFl
     ed.requestUpdate();
   } catch (err) {
     ed.status = `Could not assign floor: ${err instanceof Error ? err.message : String(err)}.`;
+    ed.requestUpdate();
+  }
+}
+
+/** S47: creates a notification automation for an Attention row, opens it in HA, and refreshes the labelled list. */
+export async function notifyAutomation(ed: FloorplanStudioEditor, it: AttentionItem) {
+  const w = ed.writer;
+  if (!w) return;
+  const ok = await askHa(ed.shadowRoot ?? ed, `Notify on ${it.name}`, [
+    `Home Assistant will get a new automation, labelled floorplan-studio.`,
+    `Triggers when ${it.entity} becomes "${it.state}" and sends a notification.`,
+    "It opens in Home Assistant's own editor once created, to adjust the notify service or message.",
+  ]);
+  if (!ok) return;
+  ed.status = `Creating notification automation for ${it.name}...`;
+  ed.requestUpdate();
+  try {
+    const cfg = attentionNotify({ name: it.name, entity: it.entity, toState: it.state });
+    const id = await w.createAutomation(cfg);
+    void loadHaList(ed);
+    ed.status = `Created notification automation for ${it.name}.`;
+    ed.requestUpdate();
+    openAutomation(id);
+  } catch (err) {
+    ed.status = `Could not create the automation: ${err instanceof Error ? err.message : String(err)}. Nothing was created.`;
     ed.requestUpdate();
   }
 }
