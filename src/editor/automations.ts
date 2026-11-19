@@ -55,6 +55,37 @@ export function schedule(entity: string, on: string, off: string): AutomationCon
   };
 }
 
+/** S47: builds a notification automation for an Attention item (`entity` entering `toState`, optionally held for `forMinutes`). */
+export function attentionNotify(opts: {
+  name: string;
+  entity: string;
+  toState: string;
+  target?: string;
+  forMinutes?: number;
+  message?: string;
+}): AutomationConfig {
+  const entity = opts.entity.trim(), toState = opts.toState.trim(), name = opts.name.trim() || entity;
+  if (!entity || !toState) throw new Error("An entity and target state are required.");
+  const target = (opts.target ?? "notify.notify").trim() || "notify.notify";
+  const mins = typeof opts.forMinutes === "number" && opts.forMinutes > 0 ? Math.round(opts.forMinutes) : 0;
+  return {
+    alias: `Notify: ${name} (${toState})`,
+    trigger: [{
+      platform: "state",
+      entity_id: entity,
+      to: toState,
+      ...(mins > 0 ? { for: { minutes: mins } } : {}),
+    }],
+    action: [{
+      service: target,
+      data: {
+        title: name,
+        message: (opts.message ?? "").trim() || `${name} is ${toState}`,
+      },
+    }],
+  };
+}
+
 /**
  * Opens the automation's own editor in HA, the same navigation HA's own links use — no page reload. Lives here, not in
  * `hass-write.ts`, because it touches no `hass`: the editor calls it directly after `createAutomation` resolves, and the

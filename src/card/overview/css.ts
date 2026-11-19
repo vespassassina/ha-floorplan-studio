@@ -94,8 +94,10 @@ export const OVERVIEW_CSS = `
   .fp-fav-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 2px 6px; }
   .fp-fav-row .fp-active-row { flex: 1 1 9em; width: auto; min-width: 0; }
   .fp-fav-gone { opacity: 0.5; }
-  .fp-fav-act, .fp-fav-cancel { flex: 0 0 auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 10px; cursor: pointer; min-height: 24px; margin-top: 3px; }
-  .fp-fav-act:hover, .fp-fav-cancel:hover, .fp-fav-act:focus-visible, .fp-fav-cancel:focus-visible { border-color: var(--fp-primary); }
+  .fp-fav-act, .fp-fav-cancel, .fp-ov-snooze { flex: 0 0 auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 10px; cursor: pointer; min-height: 24px; margin-top: 3px; }
+  .fp-fav-act:hover, .fp-fav-cancel:hover, .fp-ov-snooze:hover, .fp-fav-act:focus-visible, .fp-fav-cancel:focus-visible, .fp-ov-snooze:focus-visible { border-color: var(--fp-primary); }
+  .fp-ov-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .fp-ov-snooze-clear { border: none; background: transparent; color: var(--fp-text); font: 11px/1.3 var(--fp-font, system-ui, sans-serif); cursor: pointer; padding: 2px 4px; text-decoration: underline; }
   .fp-fav-confirm { flex: 1 1 100%; display: flex; gap: 6px; padding-left: 22px; }
   .fp-fav-confirm button { flex: 1 1 0; }
   .fp-fav-confirm .fp-fav-act { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; }

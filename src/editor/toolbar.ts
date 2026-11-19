@@ -253,6 +253,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
         <details class="menu" id="mEdit" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Edit</summary><div class="box">
           ${h.writer ? html`<button class="btn" id="mHA" ?disabled=${!h.haList?.length && !h.haListErr} aria-expanded=${pressed(!!h.haPos)} title=${h.haListErr || (h.haList?.length ? "What Floorplan Studio made in Home Assistant" : "Nothing Floorplan Studio made is labelled in Home Assistant yet")} @click=${() => h.toggleHa()}>Home Assistant</button>` : nothing}
           ${ha ? html`<button class="btn" id="mHaSync" aria-expanded=${pressed(!!h.haSyncPos)} title="Check orphaned entities, room/device areas, and HA floors" @click=${() => h.toggleHaSync()}>Check HA sync…</button>` : nothing}
+          ${h.hassState ? html`<button class="btn" id="mAttention" aria-expanded=${pressed(!!h.attentionPos)} title="View Attention items and create notification automations" @click=${() => h.toggleAttention()}>Attention…</button>` : nothing}
           ${ha ? html`<details class="sub" id="mGroup" @toggle=${onSubToggle}><summary class="btn">Group</summary>
             <button class="btn" id="groupAll" aria-pressed=${pressed(!st.activeGroup)} @click=${() => { st.activeGroup = null; h.requestUpdate(); }}>All</button>
             ${groups.length === 0 ? html`<span class="grp" id="groupNone">No Home Assistant group has a member on this floor</span>` : nothing}

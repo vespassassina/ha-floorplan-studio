@@ -22,7 +22,7 @@ export { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "./
 export { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "./active";
 export type { ActiveDevice, ThingRef } from "./active";
 export { TempWatch } from "./temp-watch";
-export { ATTENTION_KINDS, ATTENTION_RULE, BATTERY_LOW, attention } from "./attention";
+export { ATTENTION_KINDS, ATTENTION_RULE, BATTERY_LOW, attention, attentionSnoozeKey } from "./attention";
 export type { Attention, AttentionItem, AttentionKind, AttentionRef, AttentionRegistry, AttentionRule, FloorAttention } from "./attention";
 export { CATEGORIES, CATEGORY_OF, groupByCategory } from "./categories";
 export { LAYERS, layerWord, layerCounts, layerHides, layerOfType, layersSummary, parseLayers, soloLayer, toggleLayer } from "./layers";
