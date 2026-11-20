@@ -184,6 +184,30 @@ async def test_a_non_admin_asking_for_the_trace_gets_none_and_no_error(hass, ent
     assert _traces(msg["result"]["layout"]) == []
 
 
+async def test_load_keeps_trace_only_for_floors_with_card_and_on_true(hass, entry, hass_ws_client, hass_read_only_access_token):
+    layout = json.loads(json.dumps(DEMO))
+    base_trace = {"src": "data:image/png;base64,AAAA", "x": 0, "y": 0, "w": 100, "rot": 0, "alpha": 0.5}
+    layout["floors"]["ground"]["trace"] = {**base_trace, "on": True, "card": True}
+    layout["floors"]["first"]["trace"] = {**base_trace, "on": True}
+    layout["floors"]["test"]["trace"] = {**base_trace, "on": False, "card": True}
+
+    admin = await hass_ws_client(hass)
+    assert (await _send(admin, 1, type="floorplan_studio/save", layout=layout))["success"] is True
+
+    tablet = await hass_ws_client(hass, hass_read_only_access_token)
+    res_tablet = (await _send(tablet, 2, type="floorplan_studio/load"))["result"]["layout"]
+    assert _traces(res_tablet) == ["ground"]
+    assert res_tablet["floors"]["ground"]["trace"]["card"] is True
+
+    # Non-admin asking with_trace=True gets the exact same card-opted floor only.
+    res_tablet_asked = (await _send(tablet, 3, type="floorplan_studio/load", with_trace=True))["result"]["layout"]
+    assert _traces(res_tablet_asked) == ["ground"]
+
+    # Admin with_trace=True still gets all stored traces untouched.
+    res_admin = (await _send(admin, 4, type="floorplan_studio/load", with_trace=True))["result"]["layout"]
+    assert sorted(_traces(res_admin)) == ["first", "ground", "test"]
+
+
 async def test_a_save_fires_floorplan_studio_updated_and_a_refused_one_does_not(hass, entry, hass_ws_client):
     seen = []
     hass.bus.async_listen("floorplan_studio_updated", seen.append)

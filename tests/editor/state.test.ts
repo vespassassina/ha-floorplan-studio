@@ -821,6 +821,21 @@ describe("EditorState.setTrace (S7.11)", () => {
     expect(st.layout.floors.first.trace).toBeUndefined(); // only the current floor
   });
 
+  it("sets and clears trace.card in one undo step, omitting the key when off", () => {
+    const st = new EditorState(fresh());
+    expect(st.setTrace(T)).toBe(true);
+    expect(st.f.trace?.card).toBeUndefined();
+    expect(st.setTrace({ ...T, card: false })).toBe(false);
+    expect(st.setTrace({ ...T, card: true })).toBe(true);
+    expect(st.f.trace).toEqual({ ...T, card: true });
+    expect(st.setTrace({ ...T, card: undefined })).toBe(true);
+    expect("card" in st.f.trace!).toBe(false);
+    st.undo();
+    expect(st.f.trace).toEqual({ ...T, card: true });
+    st.undo();
+    expect(st.f.trace).toEqual(T);
+  });
+
   it("keeps the image out of each undo step: the history holds it once, not once per step", () => {
     const st = new EditorState(fresh());
     const big = "data:image/jpeg;base64," + "A".repeat(200_000);

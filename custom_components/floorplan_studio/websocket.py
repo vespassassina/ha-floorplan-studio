@@ -29,12 +29,18 @@ def _store(hass: HomeAssistant) -> LayoutStore | None:
     return hass.data.get(DOMAIN)
 
 
+def _trace_for_card(floor: Any) -> bool:
+    """True when this floor's trace image is turned on for dashboard cards too (S49)."""
+    trace = floor.get("trace") if isinstance(floor, dict) else None
+    return isinstance(trace, dict) and trace.get("on") is True and trace.get("card") is True
+
+
 def _without_trace(layout: Any) -> Any:
-    """A copy with every floor's trace image left out. Stored data is untouched; a trace can be megabytes."""
+    """A copy with editor-only trace images left out; floors with trace.on and trace.card true keep theirs. Stored data is untouched."""
     floors = layout.get("floors") if isinstance(layout, dict) else None
     if not isinstance(floors, dict):
         return layout
-    return {**layout, "floors": {k: ({n: v for n, v in f.items() if n != "trace"} if isinstance(f, dict) else f) for k, f in floors.items()}}
+    return {**layout, "floors": {k: (f if _trace_for_card(f) or not isinstance(f, dict) else {n: v for n, v in f.items() if n != "trace"}) for k, f in floors.items()}}
 
 
 @websocket_api.websocket_command({vol.Required("type"): "floorplan_studio/load", vol.Optional("with_trace", default=False): bool})
@@ -45,7 +51,7 @@ async def ws_load(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
         connection.send_error(msg["id"], "not_loaded", "Floorplan Studio is not set up. Add it under Settings, Devices & services.")
         return
     layout, rev = await store.async_load_with_rev()
-    # Traces are scanned plans, often with an address on them, and the card never draws them: only the Studio (admin) asks.
+    # Editor-only traces stay out of card/non-admin loads unless opted onto the card (on and card both true); Studio (admin + with_trace) sees all.
     if not (msg["with_trace"] and connection.user.is_admin):
         layout = _without_trace(layout)
     connection.send_result(msg["id"], {"layout": layout, "rev": rev})

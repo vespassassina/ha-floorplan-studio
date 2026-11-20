@@ -28,9 +28,10 @@ describe("S38.6 a stored error follows the language", () => {
     await settle(el);
     expect(text(el)).toMatch(/The plan could not be used: .*10000000 cm/);
     el.hass = hassOf("de");
-    await settle(el);
-    expect(text(el)).toContain("Der Plan ist nicht nutzbar:");
-    expect(text(el)).not.toContain("The plan could not be used");
+    await vi.waitFor(() => {
+      expect(text(el)).toContain("Der Plan ist nicht nutzbar:");
+      expect(text(el)).not.toContain("The plan could not be used");
+    });
   });
 
   it("a failed websocket load follows the language, and a payload in the reason is letters, not markup (finding 2)", async () => {

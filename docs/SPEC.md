@@ -66,7 +66,7 @@ in `prompts/`, then fixed in the editor.
       "extras":  [{"id", "name", "a", "b"}],
       "devices": [{"id", "type", "entity", "x", "y", "rot"?, "bound"?} | {"id", "type", "entity", "a", "b"}],
       "furniture":[{"id", "symbol", "x", "y", "rot", "w", "h", "name"?, "entity"?}],
-      "trace"?:  {"src", "x", "y", "w", "rot", "alpha", "on"}
+      "trace"?:  {"src", "x", "y", "w", "rot", "alpha", "on", "card"?}
     }
   },
   "catalog": [{"id", "floor", "room", "type", "name", "entity"}]
@@ -417,13 +417,15 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   it. In 3D it is its own mesh in the linked colour, then the on colour. A piece with no
   entity stays part of the floor. In the editor, Add > Device places a `media_player` that HA
   calls a tv or speaker, or a catalog entry typed tv, speaker or computer, as the piece itself.
-- `floor.trace` (optional, S7.11) is a scan to trace over, drawn under the
-  plan in the editor only; the card never draws it. `src` is a
+- `floor.trace` (optional, S7.11 / S49) is a scan to trace over, drawn under the
+  plan in the editor, and on dashboard cards only when both `on` and optional `card`
+  are `true` (off by default, omitted when false). `src` is a
   `data:image/png`, `jpeg` or `webp` base64 URL of at most 4 MB (`validate`
   names the limit when it is over). `x`, `y` is the top-left corner in cm, `w`
   the width in cm (the height follows the image's aspect ratio), `rot` degrees
   in `[0, 360)` about `x`, `y`, `alpha` the opacity in `[0, 1]`, `on` whether
-  it is shown. File, Export leaves it out unless Include trace image is ticked.
+  it is shown, `card` whether dashboard cards and non-admin loads receive and
+  draw it. File, Export leaves it out unless Include trace image is ticked.
   An assistant never writes one.
 - v1 files (no `version` or `version: 1`) are migrated on load. So are v2 files
   written by an earlier build: `outdoor` becomes `garden`, `w` becomes `wk`.
@@ -1071,8 +1073,10 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
   "Move: drag the image, arrows nudge it". Rotation is a field, -180 to 180 in
   0.1 steps, that sets `rot` (stored 0 to 360) about the image's top-left
   corner; the same value is no step. Opacity is a slider, Show a checkbox,
-  Remove drops it. Each is one undo step. While it is shown, room fills are see-through in
-  the editor so traced rooms do not hide the scan. File, Export has an
+  Show on card a second checkbox (S49, off by default, disabled while hidden)
+  that also sends the trace to dashboard cards on every tablet, and Remove
+  drops it. Each is one undo step. While it is shown, room fills are see-through
+  so rooms do not hide the scan. File, Export has an
   Include trace image tick, off by default and not remembered.
 - Add > Device (S8.5, S40.4): one row per HA device (its main entity), plus
   device-less entities and unplaced catalog entries, grouped by type. While the

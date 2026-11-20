@@ -625,9 +625,10 @@ describe("floor trace image (S7.11)", () => {
   const good = () => ({ src: PNG, x: -40, y: 25, w: 1234, rot: 0, alpha: 0.5, on: true });
   const withTrace = (t: unknown) => { const l = clone(); l.floors.ground.trace = t; return l; };
 
-  it("accepts a valid trace, PNG and JPEG, and a floor with none", () => {
+  it("accepts a valid trace, PNG and JPEG, with optional card flag, and a floor with none", () => {
     expect(errorsOf(withTrace(good()))).toEqual([]);
-    expect(errorsOf(withTrace({ ...good(), src: "data:image/jpeg;base64,/9j/4AAQSkZJRg==", alpha: 0, on: false, rot: 359.5 }))).toEqual([]);
+    expect(errorsOf(withTrace({ ...good(), card: true }))).toEqual([]);
+    expect(errorsOf(withTrace({ ...good(), src: "data:image/jpeg;base64,/9j/4AAQSkZJRg==", alpha: 0, on: false, rot: 359.5, card: false }))).toEqual([]);
     expect(errorsOf(clone())).toEqual([]);
   });
 
@@ -653,6 +654,8 @@ describe("floor trace image (S7.11)", () => {
     expect(errorsOf(withTrace({ ...good(), y: "3" })).join()).toMatch(/trace y must be a number/);
     expect(errorsOf(withTrace({ ...good(), rot: 360 })).join()).toMatch(/trace rot must be a number in \[0, 360\)/);
     expect(errorsOf(withTrace({ ...good(), on: "yes" })).join()).toMatch(/trace on must be true or false/);
+    expect(errorsOf(withTrace({ ...good(), card: "yes" })).join()).toMatch(/trace card must be true or false/);
+    expect(errorsOf(withTrace({ ...good(), card: 1 })).join()).toMatch(/trace card must be true or false/);
   });
 
   it("refuses a trace that is not an object, and never throws on one", () => {

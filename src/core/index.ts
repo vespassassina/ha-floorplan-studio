@@ -12,7 +12,7 @@ export { edgePoint, worktopIndex, worktopInsert, worktopMove, worktopPolyPts, wo
 export { DETAIL_LABELS, DETAIL_MODES, DETAIL_MID_FROM, DETAIL_NEAR_FROM, ICONS_MIN_PLAN_PX, ICONS_ON_PLAN_PX, ICONS_OFF_PLAN_PX, iconsHold, detailFor, detailLevel, parseDetailMode } from "./detail";
 export type { DetailLevel, DetailMode } from "./detail";
 export { SPIDER_GAP_PX, SPIDER_MAX, SPIDER_MIN_R_PX, STACK_PX, spiderLayout, stackGroups } from "./spider";
-export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS } from "./icons";
+export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS, VALUE_ICON } from "./icons";
 export * from "./render";
 export { WALL_COLOUR_KEYS, wallColourMap, wallColourVars, wallEdgeKey, wallHex } from "./wall-colour";
 export type { WallColourKey } from "./wall-colour";

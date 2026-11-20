@@ -278,3 +278,36 @@ test("G19: a scan that fits only at a lower quality is encoded to fit, so Save i
   expect(l.floors.ground.trace!.src.length).toBeLessThanOrEqual(400_000);
   expect(validate(l).ok).toBe(true);
 });
+
+test("S49: Show on card toggles trace.card in one undo step, is disabled while hidden, and resets on Replace", async ({ page }) => {
+  await load(page, await png(page, 20, 10));
+  const cardBox = page.locator("#traceCard");
+  await expect(cardBox).not.toBeChecked();
+  await expect(cardBox).toBeEnabled();
+  await expect(page.locator("#traceCardHint")).toHaveCount(0);
+  expect((await layoutOf(page)).floors.ground.trace?.card).toBeUndefined();
+
+  await cardBox.check();
+  await expect(cardBox).toBeChecked();
+  await expect(page.locator("#traceCardHint")).toBeVisible();
+  expect((await layoutOf(page)).floors.ground.trace?.card).toBe(true);
+
+  await page.locator(EDITOR).focus();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(cardBox).not.toBeChecked();
+  await expect(page.locator("#traceCardHint")).toHaveCount(0);
+  expect((await layoutOf(page)).floors.ground.trace?.card).toBeUndefined();
+
+  await cardBox.check();
+  await page.locator("#traceOn").uncheck();
+  await expect(cardBox).toBeDisabled();
+  await expect(page.locator("#traceCardHint")).toHaveCount(0);
+  await page.locator("#traceOn").check();
+  await expect(cardBox).toBeEnabled();
+  await expect(cardBox).toBeChecked();
+  await expect(page.locator("#traceCardHint")).toBeVisible();
+
+  await page.locator("#traceFile").setInputFiles({ name: "scan2.png", mimeType: "image/png", buffer: await png(page, 16, 8) });
+  await expect(cardBox).not.toBeChecked();
+  expect((await layoutOf(page)).floors.ground.trace?.card).toBeUndefined();
+});

@@ -480,8 +480,7 @@ export class FloorplanStudioEditor extends LitElement {
     .zoom .btn svg{width:16px;height:16px;display:block;margin:0 auto}
     .canvas>svg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
     .canvas>svg.drawing,.canvas>svg.drawing *{cursor:crosshair}
-    /* S7.11: the scan is drawn under everything; see-through room fills keep it visible where a room is already traced. Editor only. */
-    .canvas>svg.tracing .room{fill-opacity:.4}
+    /* S7.11 / S49: see-through room fills under svg.tracing live in FLOORPLAN_CSS for both editor and card. */
     /* S58.1: 3D view replaces the canvas; toggle back to 2D via the same top button */
     .canvas.in3d>svg,.canvas.in3d>.zoom{display:none}
     .pane3d{width:100%;height:100%;position:relative;overflow:hidden;background:var(--fp-bg)}

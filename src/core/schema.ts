@@ -162,7 +162,10 @@ export const LAMP_BOUNDS = {
   flood: { angle: [15, 160] as const, reach: [50, 1000] as const },
 } as const;
 
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; underfloor?: true; body?: DeviceBody; lamp?: LampSpec } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export const OTHER_ICONS = ["value"] as const;
+export type OtherIcon = (typeof OTHER_ICONS)[number];
+
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; underfloor?: true; body?: DeviceBody; lamp?: LampSpec; icon?: OtherIcon } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /**
  * S35.1: the car models, in the order the Studio lists them. `model`, `color` (`#rrggbb`) and `attached` (at most
  * `MAX_CAR_ATTACHED` entity ids) exist on a furniture piece with symbol `car` only; `entity` is then the car's main
@@ -203,13 +206,14 @@ export interface Furniture { id: string; symbol: FurnitureSymbol; x: number; y: 
  */
 export interface Unlinked { id: string; type: DeviceType; name?: string; x: number; y: number; rot: number; scale: number; color?: string; attached?: string[]; locked?: boolean; height?: number }
 /**
- * S7.11: a scanned plan drawn under this floor in the editor, to trace walls over. Never drawn by the card, and left
- * out of File, Export unless "Include trace image" is ticked. `src` is a `data:image/png|jpeg|webp;base64,` URL of at
- * most `MAX_TRACE_BYTES`; the editor downscales to 2000 px on the long side before storing it. `x`/`y` is the image's
- * top-left corner in cm, `w` its width in cm (the height follows the image's own aspect ratio), `rot` turns it about
- * `x`/`y` in degrees, `alpha` is its opacity from 0 to 1, `on` false hides it and keeps it. An assistant never writes one.
+ * S7.11 / S49: a scanned plan drawn under this floor in the editor, and on the card only when `card` is true (off by
+ * default; left out of File, Export unless "Include trace image" is ticked). `src` is a `data:image/png|jpeg|webp;base64,`
+ * URL of at most `MAX_TRACE_BYTES`; the editor downscales to 2000 px on the long side before storing it. `x`/`y` is
+ * the image's top-left corner in cm, `w` its width in cm (the height follows the image's own aspect ratio), `rot`
+ * turns it about `x`/`y` in degrees, `alpha` is its opacity from 0 to 1, `on` false hides it and keeps it, `card`
+ * true also serves and draws it on dashboard cards. An assistant never writes one.
  */
-export interface Trace { src: string; x: number; y: number; w: number; rot: number; alpha: number; on: boolean }
+export interface Trace { src: string; x: number; y: number; w: number; rot: number; alpha: number; on: boolean; card?: boolean }
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000
  *  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling
  *  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture
@@ -450,6 +454,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         if (!(fin(t.rot) && t.rot >= 0 && t.rot < 360)) errors.push(`${at} trace rot must be a number in [0, 360)`);
         if (!(fin(t.alpha) && t.alpha >= 0 && t.alpha <= 1)) errors.push(`${at} trace alpha must be a number from 0 to 1`);
         if (typeof t.on !== "boolean") errors.push(`${at} trace on must be true or false`);
+        if (t.card !== undefined && typeof t.card !== "boolean") errors.push(`${at} trace card must be true or false`);
       }
     }
     optHeight(f, "height"); optHeight(f, "slab");
@@ -632,6 +637,12 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
             else if (typeof v !== "number" || !Number.isFinite(v) || v < r[0] || v > r[1]) errors.push(`${at} ${d.id} lamp.${k} must be ${r[0]}..${r[1]}`);
           }
         }
+      }
+      let icon: unknown;
+      try { icon = d.icon; } catch { icon = null; }
+      if (icon !== undefined) {
+        if (d.type !== "other" || typeof icon !== "string" || !(OTHER_ICONS as readonly string[]).includes(icon))
+          errors.push(`${at} ${d.id} icon must be "value" and is only allowed on type "other"`);
       }
       // S14.3: the effect size, a percent of the type's own ring, aura or wave. Optional; absent is 100.
       if (d.fx !== undefined && !(typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX))

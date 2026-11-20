@@ -384,9 +384,9 @@ describe("unlinked appliances (S4.25)", () => {
 });
 
 describe("floor trace image (S7.11)", () => {
-  it("keeps a valid trace through migrate, unchanged, so a saved plan reopens with its scan", () => {
+  it("keeps a valid trace through migrate, unchanged, including card: true", () => {
     const l: any = structuredClone(demo);
-    const trace = { src: "data:image/png;base64,iVBORw0KGgo=", x: 12, y: -3, w: 777, rot: 15, alpha: 0.4, on: false };
+    const trace = { src: "data:image/png;base64,iVBORw0KGgo=", x: 12, y: -3, w: 777, rot: 15, alpha: 0.4, on: false, card: true };
     l.floors.ground.trace = trace;
     const m = migrate(l);
     expect(m.floors.ground.trace).toEqual(trace);

@@ -1444,9 +1444,9 @@ export class EditorState {
     return false;
   }
 
-  /** S7.11: sets (or, with null, removes) the current floor's trace image: one undo step, none when nothing changes. */
+  /** S7.11 / S49: sets (or, with null, removes) the current floor's trace image: one undo step, none when nothing changes. */
   setTrace(t: Trace | null): boolean {
-    return this.edit((f) => { if (t) f.trace = { src: t.src, x: t.x, y: t.y, w: t.w, rot: t.rot, alpha: t.alpha, on: t.on }; else delete f.trace; });
+    return this.edit((f) => { if (t) f.trace = { src: t.src, x: t.x, y: t.y, w: t.w, rot: t.rot, alpha: t.alpha, on: t.on, ...(t.card === true ? { card: true } : {}) }; else delete f.trace; });
   }
 
   // S7.11: undo steps are whole-layout JSON, and a trace image is up to 4 MB. Each distinct image is kept once, here,

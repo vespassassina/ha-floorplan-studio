@@ -1,4 +1,4 @@
-import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE } from "./icons";
+import { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, VALUE_ICON } from "./icons";
 import { dist, edgeKindsNear, stairSteps } from "./geometry";
 import { stairMarks } from "./stair-marks";
 import { playerOf } from "./attachments";
@@ -93,7 +93,7 @@ export interface RenderOpts {
   dark?: boolean;
   /** S4.5: entity ids to draw faded (class `dim`) — every device not in the Group menu's chosen group. */
   dimmed?: ReadonlySet<string>;
-  /** S7.11: draw the floor's trace image under everything. Only the editor passes it; the card never does. */
+  /** S7.11 / S49: draw the floor's trace image under everything. Passed by the editor, and by the card when `f.trace?.card === true`. */
   trace?: boolean;
   /** S7.6: after sunset. Every room gets a `room-night` overlay, `lit` when a light inside it is on; the root carries class `night`. */
   night?: boolean;
@@ -340,6 +340,8 @@ ${THEME_EXTRAS}
 /* S23.6: a room or stair with its own paint is dimmed on a dark theme (--fp-paint-dim), never recoloured. The on ring carries fill="none" and is left alone. */
 .room[fill]:not([fill="none"]){filter:var(--fp-paint-dim)}
 .room.room-fill{--fp-room-fill:var(--fp-fill);fill:url(#fp-hatch)} .room-zone:not([fill]){--fp-room-fill:transparent;fill:none} .room-water:not([fill]){--fp-room-fill:var(--fp-water);fill:var(--fp-room-fill)}
+/* S49: see-through rooms while a trace underlay is active, shared by editor and card; the image itself never catches hits. */
+image.trace{pointer-events:none} svg.tracing .room{fill-opacity:.4}
 /* S2.6: room_glow. Three classes (.room.glow:not([fill])) outrank every rule above (two classes each), so which
    wins is settled by specificity, not source order (CLAUDE.md finding 10: a [fill] attribute beat a class once
    before). A room with its own colour (own[fill] attribute) is the user's choice and keeps it, glowing or not.
@@ -1351,7 +1353,8 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
       ? `<circle class="siren-ring" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
         `<circle class="siren-ring w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
-    const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}${gone}`;
+    const pathD = d.type === "other" && d.icon === "value" ? VALUE_ICON : DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other;
+    const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${pathD}"/>${mark}${gone}`;
   return { cls, base, style, icon, s };
 }
 
@@ -2152,12 +2155,21 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
         out.push(`<circle class="target" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(6 * k)}"/>`);
       }
     }
-    if ((d.type === "temp" || d.type === "humidity") && s) {
+    if ((d.type === "temp" || d.type === "humidity" || (d.type === "other" && d.icon === "value")) && s) {
       // Anything that is not a finite number reads as "–". `unknown` and `unavailable` are only the two HA spells for it;
       // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.
-      const bad = !/^-?\d+(\.\d+)?$/.test(s.state.trim()) || !Number.isFinite(Number(s.state));
+      const raw = s.state.trim();
       const unit = typeof s.attributes.unit_of_measurement === "string" ? `\u202F${s.attributes.unit_of_measurement}` : ""; // S23.1: never wraps
-      const text = bad ? "–" : (d.entity && o.formatState?.(d.entity)) || s.state + unit, vs = 11 * kt, gap = 16 * k + 2 * kt; // 2kt clear of the 16k disc
+      const isNum = /^-?\d+(\.\d+)?$/.test(raw) && Number.isFinite(Number(raw));
+      let text: string;
+      if (d.type === "other") {
+        if (!raw || raw === "unknown" || raw === "unavailable") text = "–";
+        else if (isNum) text = (d.entity && o.formatState?.(d.entity)) || raw + unit;
+        else { const rawFmt = (d.entity && o.formatState?.(d.entity)) || raw; text = rawFmt.length > 14 ? `${rawFmt.slice(0, 13)}…` : rawFmt; }
+      } else {
+        text = !isNum ? "–" : (d.entity && o.formatState?.(d.entity)) || s.state + unit;
+      }
+      const vs = 11 * kt, gap = 16 * k + 2 * kt; // 2kt clear of the 16k disc
       // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
       const [vx, vy] = place([screenOff(c, 0, gap + 0.75 * vs), screenOff(c, 0, -gap - 0.25 * vs), screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs)], vs, text);
       if (showText) out.push(`<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);

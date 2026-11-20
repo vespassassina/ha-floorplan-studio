@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.52.0 - 2026-11-20
+
+Sensor history charts, value gauges, a plan legend, Attention acts, and trace images on the card (Sprints 46–49): inspect trends right from any room or device, snooze or automate alerts, sync areas and floors with Home Assistant, and optionally display Studio trace scans on dashboards.
+
+- **History charts (S48):** Open a 6 h / 24 h / 7 d trend overlay directly from a device popup or room Overview section (`floorplan-studio-history-<hash>.js`), with multi-series numeric polylines and discrete state timelines.
+- **Value gauge on `other` & Plan legend (S48):** Added an opt-in `"value"` gauge icon with live readout for generic `other` entities, plus a zero-import Plan legend overlay opened from the Overview explaining Glow, Rings, and Attention indicators.
+- **Trace on the card (S49):** Added an opt-in **Show on card** toggle per floor in Studio's Trace image panel; when enabled alongside Show, the trace image is served to tablets and drawn under the 2D/2.5D card plan with translucent rooms.
+- **Attention acts & HA sync (S46–47):** Snooze Attention items per browser until state changes, create Home Assistant notification automations in 1 click from Studio, sync floors and areas with HA registries, and toggle full-canvas 3D/2D view in Studio.
+
 ## 0.50.0 - 2026-11-17
 
 Side-by-side 3D Studio in the Editor (Sprints 58–61): preview and directly edit your home in 3D alongside the 2D plan, with zero bytes added to the dashboard card.

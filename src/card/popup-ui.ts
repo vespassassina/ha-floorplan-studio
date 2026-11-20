@@ -48,6 +48,7 @@ export interface PopupView {
   act(): void;
   cancel(): void;
   more(): void;
+  history?(): void;
   key(e: KeyboardEvent): void;
   /** `input` moves the shown value only; `change` (a release) is the one service call. */
   slide(kind: SliderKind, value: number, commit: boolean): void;
@@ -107,10 +108,11 @@ export function popupTemplate(v: PopupView) {
   };
   const label = v.doorLabel ?? v.op?.label ?? null;
   const more = s.entities.length && !v.kiosk ? html`<button type="button" class="fp-pop-more" @click=${v.more}>${t("More info")}</button>` : nothing;
-  const actions = label === null ? more
+  const hist = v.history && !v.kiosk ? html`<button type="button" class="fp-pop-more fp-pop-hist" @click=${v.history}>${t("History")}</button>` : nothing;
+  const actions = label === null ? (hist === nothing ? more : html`<div class="fp-pop-actions">${more}${hist}</div>`)
     : v.confirming && v.op?.confirm
-      ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>${t("Cancel")}</button></div>${more}`
-      : html`<div class="fp-pop-actions"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${label}</button>${more}</div>`;
+      ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>${t("Cancel")}</button></div>${more}${hist}`
+      : html`<div class="fp-pop-actions"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${label}</button>${more}${hist}</div>`;
   return html`<div class=${v.inSheet ? "fp-pop fp-pop-sheet" : "fp-pop"} role="dialog" aria-label=${s.name} data-pop @keydown=${v.key}>
     <div class="fp-pop-head"><div class="fp-pop-name">${s.name}</div><div class="fp-pop-state">${v.text}</div></div>
     ${v.fan ? html`<div class="fp-pop-sliders">${slider("s", 0, 100, v.fan.step)}</div>` : nothing}

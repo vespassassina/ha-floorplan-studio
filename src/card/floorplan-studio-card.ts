@@ -33,6 +33,7 @@ export { DOUBLE_TAP_MS, DOUBLE_TAP_PX } from "./card-zoom"; // the 3D host and i
 import { chooserDialogTemplate, coverDialogTemplate, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
 import { closeReplay, isReplaying, REPLAY_CSS, replayBar, replayEnergyOverlay, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
+import { historyOverlay, legendOverlay, type HistoryState } from "./card-extras";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
 import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, onCardDown, onSheetClick, onSheetDown, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
@@ -591,6 +592,9 @@ export class FloorplanStudioCard extends LitElement {
     } catch { /* storage blocked or invalid JSON */ }
     return {};
   })();
+  /** S48: active history chart overlay and plan legend overlay flags. */
+  _history: HistoryState | null = null;
+  _legendOpen = false;
   _saveSnooze(next: Record<string, string>) {
     this._snooze = next;
     try {
@@ -1877,12 +1881,14 @@ export class FloorplanStudioCard extends LitElement {
     // the page's own vertical scroll fought the pan) even while `_view` was already pinning a panned box.
     // `fp-zoomable` (the touch-action override) is unconditional too: it enables the drag gesture, not zoom.
     // S37.7: with the floor below on, its outline runs past the fit box and under the zoom buttons; the plan then stops short of them.
-    const svgClass = (this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable") + (turn ? " fp-turning" : "") + (showZoomButtons && this._ghost() !== undefined ? " fp-clear-stack" : "");
+    const traceOn = f.trace?.on === true && f.trace?.card === true;
+    const svgClass = (this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable") + (turn ? " fp-turning" : "") + (showZoomButtons && this._ghost() !== undefined ? " fp-clear-stack" : "") + (traceOn ? " tracing" : "");
     // S12.3: 3D takes the plan's place once its module is loaded and WebGL works; until then, and if it cannot, the 2D plan is on show.
     const live3d = this._shows3d();
     if (!live3d) ensureLampLib(this, f);
     const body = live3d ? "" : renderFloor(f, {
       lampLib: lampLib ?? undefined,
+      trace: traceOn,
       scale: this._scale(fit),
       tr: currentLanguage() ? t : undefined, // S38.8: English keeps the type id in a title, as before; another language names the type
 
@@ -1931,7 +1937,7 @@ export class FloorplanStudioCard extends LitElement {
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? optionsMenu(this) : null;
     const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
-    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${replayEnergyOverlay(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${replayEnergyOverlay(this)}${historyOverlay(this)}${legendOverlay(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */

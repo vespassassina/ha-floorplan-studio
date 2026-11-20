@@ -273,3 +273,37 @@ test("the card file does not carry the lamp symbols: lamp-aura-flood and fp-spot
     expect(chunk, `the chunk holds ${word}`).toContain(word);
   }
 });
+
+// S48 (docs/specs/readability-s48.md): history chart & plan legend are lazy zero-import chunks.
+const HISTORY_CHUNK_LIMIT = 6000;
+const LEGEND_CHUNK_LIMIT = 4000;
+const historyChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-history-.+\.js$/.test(f));
+const legendChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-legend-.+\.js$/.test(f));
+
+test(`there is exactly one history chunk, at most ${HISTORY_CHUNK_LIMIT} bytes gzipped, importing nothing, and named in card by import()`, () => {
+  expect(historyChunks()).toHaveLength(1);
+  const [f] = historyChunks();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(HISTORY_CHUNK_LIMIT);
+  const chunk = readFileSync(`dist/${f}`, "utf8");
+  expect(chunk, "the chunk imports nothing").not.toMatch(/\bfrom\s*["'][^"']+["']|\bimport\s*\(/);
+  expect(chunk).toContain("fp-history-v1");
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  expect(card).toMatch(/"\.\/floorplan-studio-history-[\w-]+\.js"/);
+  expect(card).not.toContain("fp-history-v1");
+  expect(card).not.toContain("__FPHISTORY_CHUNK__");
+});
+
+test(`there is exactly one legend chunk, at most ${LEGEND_CHUNK_LIMIT} bytes gzipped, importing nothing, and named in card by import()`, () => {
+  expect(legendChunks()).toHaveLength(1);
+  const [f] = legendChunks();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(LEGEND_CHUNK_LIMIT);
+  const chunk = readFileSync(`dist/${f}`, "utf8");
+  expect(chunk, "the chunk imports nothing").not.toMatch(/\bfrom\s*["'][^"']+["']|\bimport\s*\(/);
+  expect(chunk).toContain("fp-legend-v1");
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  expect(card).toMatch(/"\.\/floorplan-studio-legend-[\w-]+\.js"/);
+  expect(card).not.toContain("fp-legend-v1");
+  expect(card).not.toContain("__FPLEGEND_CHUNK__");
+});

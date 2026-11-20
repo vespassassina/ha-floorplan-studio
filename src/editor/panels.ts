@@ -1050,6 +1050,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${deviceTypeField(c, i)}
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     ${d.type === "light" ? lampFields(c, i) : nothing}
+    ${d.type === "other" ? otherIconField(c, i) : nothing}
     ${heading("Home Assistant")}
     ${deviceEntity(c, i)}
     ${viewField(c, i)}
@@ -1099,12 +1100,19 @@ function attachToRoomField(c: PanelCtx, i: number) {
     ${a.ok ? nothing : html`<p class="hint" id="vattach-why">${a.reason}</p>`}`;
 }
 
+function otherIconField(c: PanelCtx, i: number) {
+  const value = c.st.f.devices[i].icon === "value" ? "value" : "";
+  const set = (v: string) => c.commit((f) => { if (v === "value") f.devices[i].icon = "value"; else delete f.devices[i].icon; });
+  return select("Icon", "vicon", value, ["", "value"], set, { "": "Default (Other)", value: "Value sensor" });
+}
+
 function deviceTypeField(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   const set = (t: string) => c.commit((f) => {
     const dv = f.devices[i];
     dv.type = t as DeviceType;
     if (t !== "light") { delete dv.bound; delete dv.motion; delete dv.lamp; }
+    if (t !== "other") delete dv.icon;
     if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
     if (t !== "climate" && t !== "heater") delete dv.underfloor;
     if (t !== "ac") delete dv.linked;

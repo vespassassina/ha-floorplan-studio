@@ -332,5 +332,18 @@ const c: Catalogue = {
   "Snooze": "Ignora",
   "Hide until state changes": "Nascondi fino al cambio di stato",
   "Clear snooze ({n})": "Ripristina ({n})",
+  "History": "Cronologia",
+  "Legend": "Legenda",
+  "Plan legend": "Legenda della pianta",
+  "Glow": "Bagliore",
+  "Heated floor or heat map": "Pavimento riscaldato o mappa termica",
+  "Rings": "Anelli",
+  "Motion pulse": "Impulso movimento",
+  "Sound or siren waves": "Onde sonore o sirena",
+  "Open door or window": "Porta o finestra aperta",
+  "Needs attention": "Richiede attenzione",
+  "Alarm or hazard": "Allarme o pericolo",
+  "Attention": "Attenzione",
+  "Loading…": "Caricamento…",
 };
 export default c;

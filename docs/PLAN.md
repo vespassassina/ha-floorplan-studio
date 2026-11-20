@@ -4873,16 +4873,17 @@ Implemented (`docs/specs/attention-acts-s47.md`):
 - [x] 2026-11-18 Attention to notify: `attentionNotify` in `src/editor/automations.ts`, `notifyAutomation` in `src/editor/editor-ha.ts`, and `#attentionPanel` (`Edit > Attention…`, 0 card bytes).
 - [x] 2026-11-18 Attention snooze: `attentionSnoozeKey` and `snooze` parameter in `src/core/attention.ts` (shared across Overview, floor pills, badges, and plan dots), `localStorage` persistence (`fp-snooze-v1`) in the card, and `.fp-ov-snooze` / `.fp-ov-snooze-clear` in the lazy Overview chunk.
 
-### Sprint 48 (outline): history and readability on the card
+### Sprint 48 (done): history and readability on the card
 
-- History chart: one popup chart for a room's or a device's sensors, in a lazy chunk that shares replay 2's fetch.
-- Value icon on `other`: the generic value sensor request, as an icon choice on the existing type, not a new type.
-- Plan legend: what rings, glow and Attention colours mean, lazy.
+Implemented (`docs/specs/readability-s48.md`):
+- [x] 2026-11-20 History chart: popup history chart for a room's or device's sensors in a zero-import lazy chunk (`src/card/history/index.ts`, `floorplan-studio-history-<hash>.js`) sharing Replay 2's `fetchHistory` (`fetchHistoryFor` in `src/card/card-replay.ts`), opened from device popups and room Overview sections.
+- [x] 2026-11-20 Value icon on `other`: `Device.icon?: "value"` on `type === "other"` with `VALUE_ICON` (`mdiGauge`), live `<text class="val">` readout, schema validation, and Studio `#vicon` selector (`src/editor/panels.ts`).
+- [x] 2026-11-20 Plan legend: zero-import lazy chunk (`src/card/legend/index.ts`, `floorplan-studio-legend-<hash>.js`) opened from the Overview panel (`Legend`), showing Glow, Rings, and Attention theme swatches.
 
-### Sprint 49 (outline): trace on the card
+### Sprint 49 (done): trace on the card
 
-- Trace on the card: the Studio's trace image under the plan, off unless the layout turns it on (it reaches every
-  tablet). Under the surface freeze, a layout setting, not a card config key.
+Implemented (`docs/specs/trace-on-card-s49.md`):
+- [x] 2026-11-20 Trace on the card: optional `Trace.card?: boolean` in `src/core/schema.ts` (zero card YAML config keys; surface freeze unchanged), card `renderFloor` + `svg.tracing` + shared `FLOORPLAN_CSS` (`image.trace{pointer-events:none}`, `svg.tracing .room{fill-opacity:.4}`) in `src/core/render.ts` & `src/card/floorplan-studio-card.ts`, Studio `#traceCard` toggle (`Show on card`, disabled while hidden, one undo step via `setTrace`) in `src/editor/editor-trace.ts` & `src/editor/state.ts`, and selective serving in `custom_components/floorplan_studio/websocket.py` (`_without_trace` keeps `trace` only when `on` and `card` are both `True`).
 - (Moved to Sprint 50: every scene saved is a Home Assistant scene.)
 
 ### Sprint 50 (outline): the scene editor in the card

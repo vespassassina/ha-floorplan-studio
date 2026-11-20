@@ -127,7 +127,7 @@ export function traceView(ed: FloorplanStudioEditor) {
       <button class="btn keep" id="traceClose" aria-label="Close" @click=${() => toggleTrace(ed)}>&times;</button>
     </div>
     <input type="file" id="traceFile" accept="image/png,image/jpeg,image/webp" hidden @change=${(e: Event) => void loadTrace(ed, e)}>
-    <button class="btn" id="traceLoad" title="A scan or photo of a floor plan, drawn under this floor in the editor only" @click=${() => ed.renderRoot.querySelector<HTMLInputElement>("#traceFile")?.click()}>${t ? "Replace image…" : "Load image…"}</button>
+    <button class="btn" id="traceLoad" title="A scan or photo of a floor plan, drawn under this floor (editor only unless Show on card is ticked)" @click=${() => ed.renderRoot.querySelector<HTMLInputElement>("#traceFile")?.click()}>${t ? "Replace image…" : "Load image…"}</button>
     ${t ? html`
       ${sc && sc.length === 2
         ? html`<label for="traceDist">Real distance (cm)</label>
@@ -141,7 +141,9 @@ export function traceView(ed: FloorplanStudioEditor) {
       <label for="traceAlpha">Opacity</label>
       <div class="rangerow"><input id="traceAlpha" type="range" min="0" max="1" step="0.05" .value=${live(String(t.alpha))} @change=${(e: Event) => { const a = Number((e.target as HTMLInputElement).value); if (Number.isFinite(a)) setTrace(ed, { ...t, alpha: Math.min(1, Math.max(0, a)) }, "Image opacity changed"); }}><span class="rot-val">${Math.round(t.alpha * 100)}%</span></div>
       <label><input id="traceOn" type="checkbox" .checked=${live(t.on)} @change=${(e: Event) => setTrace(ed, { ...t, on: (e.target as HTMLInputElement).checked }, (e.target as HTMLInputElement).checked ? "Image shown" : "Image hidden")}> Show</label>
+      <label title="Also draw this trace image under the plan on dashboards (reaches every tablet)"><input id="traceCard" type="checkbox" ?disabled=${!t.on} .checked=${live(t.card === true)} @change=${(e: Event) => { const on = (e.target as HTMLInputElement).checked; setTrace(ed, { ...t, card: on || undefined }, on ? "Image shown on card" : "Image hidden on card"); }}> Show on card</label>
+      ${t.on && t.card === true ? html`<p class="hint" id="traceCardHint">Sent to every tablet viewing this plan.</p>` : nothing}
       <button class="btn warn" id="traceRemove" @click=${() => { ed.traceScale = null; setTrace(ed, null, "Image removed"); }}>Remove image</button>`
-      : html`<p class="hint">Load a scan, then Scale it with two points a known distance apart, and draw over it. Only the editor shows it.</p>`}
+      : html`<p class="hint">Load a scan, then Scale it with two points a known distance apart, and draw over it. Editor only unless Show on card is ticked.</p>`}
   </div>`;
 }

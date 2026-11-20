@@ -7,6 +7,7 @@ import { holdActionOf, tapActionOf } from "./tap-action";
 import type { Pt, View } from "./viewport";
 import { coverService, dialogOpen, openChooserDialog, openCoverDialog } from "./card-dialogs";
 import { TOGGLE_AT_ONCE } from "./card-overview";
+import { openHistory } from "./card-extras";
 import { popupInSheet, sheetTo } from "./card-sheet";
 import type { FloorplanStudioCard } from "./floorplan-studio-card";
 
@@ -205,6 +206,11 @@ export function popupMarkup(c: FloorplanStudioCard, inSheet = false) {
     const now = levelOf(c, k, st?.attributes);
     return p.draft && p.draft.kind === k && p.draft.from === now ? p.draft.value : now;
   };
+  const histIds = [...new Set([...s.entities, ...(s.powerEntity ? [s.powerEntity] : [])])];
+  const histSpecs = histIds.map((id) => {
+    const fn = c._hass?.states[id]?.attributes?.friendly_name;
+    return { id, label: typeof fn === "string" && fn ? fn : s.name || id };
+  });
   return popupTemplate({
     subject: s, text: [subjectText(c, s), ...(s.meters ? meterLines(meterOf(s.entities, c._stateForRender())) : [])].filter(Boolean).join("\n"), op, confirming: p.confirming, kiosk: c._kiosk(), caps, fan,
     info: c._kiosk() || !(s.entity ?? s.entities[0]) ? [] : deviceInfo((s.entity ?? s.entities[0])!, { ...c._hass, states: c._stateForRender() }, c._format),
@@ -213,6 +219,7 @@ export function popupMarkup(c: FloorplanStudioCard, inSheet = false) {
     act: () => popupAct(c),
     cancel: () => { if (c._popup) { c._popup.confirming = false; c.requestUpdate(); } },
     more: () => popupMore(c),
+    history: histSpecs.length && c._hass?.connection?.sendMessagePromise && !c._kiosk() ? () => openHistory(c, s.name, histSpecs) : undefined,
     key: (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePopup(c); } },
     slide: (kind, value, commit) => popupSlide(c, kind, value, commit),
     inSheet,

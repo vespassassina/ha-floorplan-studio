@@ -332,5 +332,18 @@ const c: Catalogue = {
   "Snooze": "暂缓",
   "Hide until state changes": "状态改变前隐藏",
   "Clear snooze ({n})": "清除暂缓 ({n})",
+  "History": "历史记录",
+  "Legend": "图例",
+  "Plan legend": "平面图图例",
+  "Glow": "光晕",
+  "Heated floor or heat map": "地暖或热力图",
+  "Rings": "圆环",
+  "Motion pulse": "移动脉冲",
+  "Sound or siren waves": "声音或警报波纹",
+  "Open door or window": "开启的门或窗",
+  "Needs attention": "需要注意",
+  "Alarm or hazard": "警报或危险",
+  "Attention": "注意",
+  "Loading…": "正在加载…",
 };
 export default c;

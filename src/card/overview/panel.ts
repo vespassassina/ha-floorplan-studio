@@ -13,6 +13,7 @@ import type { scenesTemplate } from "../room-scenes-ui";
 import type { html, nothing } from "lit";
 import type { TOGGLE_AT_ONCE, attentionOf, floorTitle, keptHere, locate, pickRoom, picked, pickedFloorKey } from "../card-overview";
 import type { floorOffButton, openVacuumDialog } from "../card-dialogs";
+import type { openHistory, openLegend } from "../card-extras";
 import type { overviewStates } from "../card-replay";
 import type { callService, deviceSubject, openPopup, popupMarkup, runOp, subjectOp, subjectText } from "../card-popup";
 import type { back, popupInSheet, toggleActiveCollapsed } from "../card-sheet";
@@ -52,6 +53,8 @@ export interface OverviewDeps {
   layoutEntries: typeof layoutEntries;
   locate: typeof locate;
   nothing: typeof nothing;
+  openHistory: typeof openHistory;
+  openLegend: typeof openLegend;
   openPopup: typeof openPopup;
   openVacuumDialog: typeof openVacuumDialog;
   openView: typeof openView;
@@ -85,7 +88,7 @@ interface Scope { unnamed: string; clear: string; noDevices: string; nothingOn: 
 interface OverviewRow { entity: string; name: string; floor: string; at: ThingRef | { what: "room"; index: number }; room?: string; state: string; age?: string; type?: DeviceType; colorVar: string; attn: boolean }
 
 export function make(d: OverviewDeps) {
-  const { ALL_OFF_TITLE, DEVICE_ICONS, TOGGLE_AT_ONCE, activeDevices, allOffTitle, attentionOf, back, callService, colorVarFor, customCalls, customScene, deviceSubject, favouriteRefs, filterToRoom, fireEvent, floorOffButton, floorSummary, floorTitle, formatAge, formatChanged, groupByCategory, html, keptHere, layerWord, layoutEntries, locate, nothing, openPopup, openVacuumDialog, openView, overviewStates, pickRoom, picked, pickedFloorKey, pieceDevice, plugThreshold, popupInSheet, popupMarkup, presetCalls, roomHeat, roomScenes, roomSummary, runOp, sceneNeedsConfirm, scenesTemplate, stateText, subjectOp, subjectText, t, tn, toggleActiveCollapsed } = d;
+  const { ALL_OFF_TITLE, DEVICE_ICONS, TOGGLE_AT_ONCE, activeDevices, allOffTitle, attentionOf, back, callService, colorVarFor, customCalls, customScene, deviceSubject, favouriteRefs, filterToRoom, fireEvent, floorOffButton, floorSummary, floorTitle, formatAge, formatChanged, groupByCategory, html, keptHere, layerWord, layoutEntries, locate, nothing, openHistory, openLegend, openPopup, openVacuumDialog, openView, overviewStates, pickRoom, picked, pickedFloorKey, pieceDevice, plugThreshold, popupInSheet, popupMarkup, presetCalls, roomHeat, roomScenes, roomSummary, runOp, sceneNeedsConfirm, scenesTemplate, stateText, subjectOp, subjectText, t, tn, toggleActiveCollapsed } = d;
 
 
   const ROOM_SCOPE: Scope = {
@@ -252,13 +255,20 @@ export function make(d: OverviewDeps) {
       [t("Unlocked"), s.hasLocks ? s.unlocked.join(", ") || t("none") : ""],
       [t("Lights on"), s.lightsOn.join(", ") || t("none")],
     ];
+    const sensorSpecs = [
+      ...s.sensors.map((r) => ({ id: r.entity, label: r.name })),
+      ...s.devices.filter((r) => r.type === "temp" || r.type === "humidity" || r.type === "other").map((r) => ({ id: r.entity, label: r.name })),
+    ];
+    const histBtn = sensorSpecs.length && !c._kiosk() && c._hass?.connection?.sendMessagePromise
+      ? html`<button type="button" class="fp-alloff fp-room-hist" @click=${() => openHistory(c, s.name || scope.unnamed, sensorSpecs)}>${t("History")}</button>`
+      : nothing;
     return html`<div class="fp-room">
         <div class="fp-room-head">
           <span class="fp-room-name">${s.name || scope.unnamed}</span>
           ${c._frame === "side" ? nothing : html`<button type="button" class="fp-room-clear" aria-label=${scope.clear} @click=${() => pickRoom(c, null)}>×</button>`}
         </div>
         <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
-        ${s.offEntities.length || scope === FLOOR_SCOPE ? html`<div class="fp-alloff-row">${s.offEntities.length ? html`<button type="button" class="fp-alloff" aria-label=${t("Lights off in {name}", { name: s.name || scope.unnamed })} title=${c._layout ? allOffTitle(c._layout.floors, c._floorKey() ?? "", s) : t(ALL_OFF_TITLE)} @click=${() => allOff(c, s.offEntities)}>${t("Lights off")}</button>` : nothing}${scope === FLOOR_SCOPE ? floorOffButton(c) : nothing}</div>` : nothing}
+        ${s.offEntities.length || scope === FLOOR_SCOPE || histBtn !== nothing ? html`<div class="fp-alloff-row">${s.offEntities.length ? html`<button type="button" class="fp-alloff" aria-label=${t("Lights off in {name}", { name: s.name || scope.unnamed })} title=${c._layout ? allOffTitle(c._layout.floors, c._floorKey() ?? "", s) : t(ALL_OFF_TITLE)} @click=${() => allOff(c, s.offEntities)}>${t("Lights off")}</button>` : nothing}${scope === FLOOR_SCOPE ? floorOffButton(c) : nothing}${histBtn}</div>` : nothing}
         ${scenesBlock(c)}
         ${active}
         <div class="fp-active-group-label">${t("Devices")}</div>
@@ -413,7 +423,7 @@ export function make(d: OverviewDeps) {
       ? roomSection(c, summary, html`<div class="fp-filter"><span>${c._roomFilter ? scope.activeHere : t("Active everywhere")}</span><button type="button" class="fp-show-all" @click=${() => { c._roomFilter = !c._roomFilter; c.requestUpdate(); }}>${c._roomFilter ? t("Show all") : scope.onlyHere}</button></div>
                   <div class="fp-filtered">${list}</div>`, scope)
       : html`<div class="fp-ov-search" data-slot="search"><fp-search .entries=${searchEntries(c)} .first=${c._favSet} label=${t("Search the plan")} placeholder=${t("Search rooms and devices")} @fp-pick=${(e: CustomEvent<SearchEntry>) => onSearchPick(c, e)}></fp-search></div>
-                  <div class="fp-ov-scopes">${floorOffButton(c)}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${c._overviewAll ? "true" : "false"} @click=${() => toggleOverviewAll(c)}>${t("All floors")}</button>` : nothing}</div>
+                  <div class="fp-ov-scopes">${floorOffButton(c)}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${c._overviewAll ? "true" : "false"} @click=${() => toggleOverviewAll(c)}>${t("All floors")}</button>` : nothing}${!c._kiosk() ? html`<button type="button" class="fp-ov-scope fp-ov-legend" @click=${() => openLegend(c)}>${t("Legend")}</button>` : nothing}</div>
                   <div class="fp-ov-layers" data-slot="layers">${layerNote(c)}</div>
                   ${favouriteSection(c)}${list}
                   <p class="fp-ov-hint">${t("Tap a row: the plan goes to it.")}</p>`;
