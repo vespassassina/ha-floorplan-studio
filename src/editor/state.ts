@@ -5,7 +5,7 @@ import { compact, rangeProblem, type HouseRange } from "./temp-range-ops";
 import { camThumbOf } from "../core/camera-thumb";
 import { furniturePaintable } from "../core/furniture-paint";
 import type { CamThumb } from "../core/camera-thumb";
-import type { DetailMode, HeatKind, CatalogEntry, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
+import type { DetailMode, HeatKind, CatalogEntry, DeviceType, Floor, Furniture, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import type { GroupedChoice } from "./sensor-order";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
@@ -1043,6 +1043,87 @@ export class EditorState {
     this.layout = next;
     return true;
   }
+  /** Paints every non-"none" wall edge of room `roomIndex` in one undo step; single edges can still be repainted via `paintEdge`. */
+  paintRoomWalls(roomIndex: number, colour: string | null): boolean {
+    this.planBlocked = false;
+    const hex = colour === null ? null : colour.toLowerCase();
+    if (hex !== null && !/^#[0-9a-f]{6}$/.test(hex)) return false;
+    const next: Layout = structuredClone(this.layout), f0 = next.floors[this.floor], room = f0?.rooms[roomIndex];
+    if (!room || room.kind === "zone") return false;
+    let g = f0;
+    for (let j = 0; j < room.pts.length; j++) {
+      if (room.wk[j] !== "none") g = setEdgeColour(g, `r${roomIndex}`, j, hex);
+    }
+    if (g === f0) return false;
+    next.floors[this.floor] = g;
+    if (hex !== null) this.joinPalette(next, hex);
+    this.snapshot();
+    this.layout = next;
+    return true;
+  }
+  /** In-editor clipboard for Cmd/Ctrl+C, Cmd/Ctrl+X, Cmd/Ctrl+V on furniture (survives floor switches). */
+  furnClip: Furniture | null = null;
+  /** Copies the currently selected furniture piece into `furnClip`. */
+  copyFurniture(): boolean {
+    if (this.sel?.t !== "furn") return false;
+    const m = this.f.furniture[this.sel.i];
+    if (!m) return false;
+    this.furnClip = structuredClone(m);
+    return true;
+  }
+  /** Cuts the currently selected furniture piece into `furnClip` and removes it in one undo step. */
+  cutFurniture(): boolean {
+    this.planBlocked = false;
+    if (this.sel?.t !== "furn") return false;
+    const idx = this.sel.i, m = this.f.furniture[idx];
+    if (!m) return false;
+    if (this.planLocked) { this.planBlocked = true; return false; }
+    this.furnClip = structuredClone(m);
+    if (!this.edit((f) => { f.furniture.splice(idx, 1); })) return false;
+    this.sel = null;
+    return true;
+  }
+  /**
+   * Pastes `furnClip` into the current floor in one undo step. When a room is selected, places it at that room's
+   * interior centre (so `roomAt` assigns it to that room); when a furniture piece is selected, offsets by +20 cm;
+   * otherwise uses `fallbackCenter` (or +20 cm from the copied position).
+   */
+  pasteFurniture(fallbackCenter?: Pt): { index: number; roomName?: string } | null {
+    this.planBlocked = false;
+    if (!this.furnClip) return null;
+    if (this.planLocked) { this.planBlocked = true; return null; }
+    let tx: number, ty: number, roomName: string | undefined;
+    if (this.sel?.t === "room" && this.f.rooms[this.sel.i]) {
+      const r = this.f.rooms[this.sel.i];
+      [tx, ty] = roomInteriorCenter(r.pts);
+      roomName = r.name || undefined;
+    } else if (this.sel?.t === "furn" && this.f.furniture[this.sel.i]) {
+      const cur = this.f.furniture[this.sel.i];
+      tx = Math.round(cur.x + 20);
+      ty = Math.round(cur.y + 20);
+      const ri = roomAt(this.f, [tx, ty]);
+      roomName = ri >= 0 ? this.f.rooms[ri]?.name || undefined : undefined;
+    } else if (fallbackCenter) {
+      tx = Math.round(fallbackCenter[0]);
+      ty = Math.round(fallbackCenter[1]);
+      const ri = roomAt(this.f, [tx, ty]);
+      roomName = ri >= 0 ? this.f.rooms[ri]?.name || undefined : undefined;
+    } else {
+      tx = Math.round(this.furnClip.x + 20);
+      ty = Math.round(this.furnClip.y + 20);
+    }
+    const m = structuredClone(this.furnClip);
+    const dx = tx - m.x, dy = ty - m.y;
+    m.id = newId(this.f, this.floor, "furniture", this.layout);
+    m.x = tx;
+    m.y = ty;
+    if (Array.isArray(m.pts)) m.pts = m.pts.map(([px, py]) => [Math.round(px + dx), Math.round(py + dy)] as Pt);
+    delete m.locked;
+    if (!this.edit((f) => { f.furniture.push(m); })) return null;
+    const index = this.f.furniture.length - 1;
+    this.sel = { t: "furn", i: index };
+    return { index, roomName };
+  }
   /** A colour that is not a built-in swatch joins the palette, once, within its cap. */
   private joinPalette(next: Layout, hex: string) {
     if (!FLOOR_COLOURS.some((k) => k.hex === hex) && !(next.palette ?? []).includes(hex)) next.palette = [...(next.palette ?? []), hex].slice(-MAX_PALETTE);
@@ -1473,6 +1554,27 @@ export class EditorState {
  * are not enough to keep a freshly minted id unique (Opus re-check of S8.9: `newId` handed out a deleted device's
  * still-catalogued id to an unrelated device).
  */
+/** Interior centre of a room polygon: its centroid when inside, else the closest interior sample (for L-shaped rooms). */
+function roomInteriorCenter(pts: Pt[]): Pt {
+  const n = pts.length;
+  if (!n) return [0, 0];
+  const cx = Math.round(pts.reduce((s, p) => s + p[0], 0) / n);
+  const cy = Math.round(pts.reduce((s, p) => s + p[1], 0) / n);
+  if (inside([cx, cy], pts)) return [cx, cy];
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  let best: Pt = [cx, cy], bestD = Infinity;
+  for (let gx = 1; gx <= 7; gx++) {
+    for (let gy = 1; gy <= 7; gy++) {
+      const p: Pt = [Math.round(x0 + ((x1 - x0) * gx) / 8), Math.round(y0 + ((y1 - y0) * gy) / 8)];
+      if (!inside(p, pts)) continue;
+      const d = (p[0] - cx) ** 2 + (p[1] - cy) ** 2;
+      if (d < bestD) { bestD = d; best = p; }
+    }
+  }
+  return best;
+}
+
 export function newId(f: Floor, floor: string, prefix: string, layout?: Layout): string {
   const used = new Set<string>();
   for (const list of [f.rooms, f.walls, f.stairs, f.doors, f.openings, f.extras, f.devices, f.furniture, f.unlinked]) for (const o of list) used.add(o.id);

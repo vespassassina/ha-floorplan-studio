@@ -720,6 +720,26 @@ function openingPanel(c: PanelCtx, i: number) {
     <p>${button("odel", "Delete", () => { c.commit((f) => { f.openings.splice(i, 1); }); c.select(null); }, "warn")}</p>`;
 }
 
+/** Room-wide wall colour picker: paints all non-"none" edges of room `i`; individual edges can still be repainted via `edgePanel`. */
+function roomWallColourRow(c: PanelCtx, i: number) {
+  const r = c.st.f.rooms[i];
+  if (!r || r.kind === "zone") return nothing;
+  const map = wallColourMap(c.st.f);
+  const cols: (string | undefined)[] = [];
+  for (let j = 0; j < r.pts.length; j++) {
+    if (r.wk[j] === "none") continue;
+    cols.push(map.get(wallEdgeKey(r.pts[j], r.pts[(j + 1) % r.pts.length])));
+  }
+  const first = cols.find((x): x is string => Boolean(x));
+  const own = cols.length > 0 && first && cols.every((x) => x === first) ? first.toLowerCase() : "";
+  const custom = c.st.layout.palette ?? [];
+  const pick = (hex: string | null) => edited(c, c.st.paintRoomWalls(i, hex));
+  const swatch = (hex: string, name: string, extra = "") => html`<button class=${`sw${extra}`} type="button" title=${name} aria-label=${name} aria-pressed=${String(own === hex)} style="background:${hex}" @click=${() => pick(hex)}></button>`;
+  return html`<label for="rwcol">wall colour</label><input id="rwcol" type="color" .value=${live(own || first || "#8b8578")} @change=${(e: Event) => pick(val(e))}>
+    <div class="swatches" role="group" aria-label="Room wall colours">${FLOOR_COLOURS.map((k) => swatch(k.hex, k.name))}${custom.map((hex) => swatch(hex, `Custom ${hex}`, " custom"))}</div>
+    <p>${button("rwcolx", "Use the default wall colour", () => pick(null))}</p>`;
+}
+
 function roomPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
   // S22.6: the Place entry comes first, under the title: on a room with HA devices left to place it is the main action, and lower down it sat below the fold.
@@ -748,7 +768,8 @@ function roomPanel(c: PanelCtx, i: number) {
     }))}
     ${heightField(c, "ceiling height (cm)", "rht", r.height, c.st.f.height ?? DEFAULT_FLOOR_HEIGHT, heightSetter(c, "rooms", i, "height"))}
     ${roomTurn(c, i)}
-    ${paintControls(c, "rooms", i, "r", r)}`)}`;
+    ${paintControls(c, "rooms", i, "r", r)}
+    ${roomWallColourRow(c, i)}`)}`;
   // The room's Delete sits right under the name, before the sensors (Diego, 2026-10-06; it was next to Unsnap, see docs/DECISIONS.md).
 }
 

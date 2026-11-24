@@ -4,7 +4,7 @@ import { saveByKey } from "./editor-file";
 import type { FpSearch } from "../card/search-box";
 import { alignKeyDo, closeAlign } from "./editor-align";
 import { cancelTraceScale, toggleTrace, traceKeyDo } from "./editor-trace";
-import { closeLink, undo } from "./editor-actions";
+import { centre, closeLink, undo } from "./editor-actions";
 import { cancelDeviceDrag, cancelTraceDrag, drawnDevices, selectDevices } from "./editor-pointer";
 import { closeAddDev, closeCtxMenu, closePlace, closeScene, toggleAttention, toggleDevCols, toggleHa, toggleHaSync, toggleInstallCode } from "./editor-popups";
 import { finishDraw, placeTyped, stopDraw } from "./editor-draw";
@@ -44,6 +44,28 @@ export const onKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
     const is = drawnDevices(ed);
     if (is.length) { selectDevices(ed, is); ed.requestUpdate(); }
     return;
+  }
+  // Furniture clipboard: Cmd/Ctrl+C copies, Cmd/Ctrl+X cuts, Cmd/Ctrl+V pastes into the selected room's centre.
+  if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey && !ed.draw && !ed.aligning && !takesTyping(t)) {
+    const k = ev.key.toLowerCase();
+    const hasTextSel = Boolean(typeof window !== "undefined" && window.getSelection?.()?.toString());
+    if (k === "c" && !hasTextSel && ed.st.sel?.t === "furn") {
+      if (ed.st.copyFurniture()) { ev.preventDefault(); ed.status = "Copied furniture"; ed.requestUpdate(); }
+      return;
+    }
+    if (k === "x" && !hasTextSel && ed.st.sel?.t === "furn") {
+      ev.preventDefault();
+      if (ed.st.cutFurniture()) ed.changed("Cut furniture");
+      else if (ed.st.planBlocked) ed.planFixed();
+      return;
+    }
+    if (k === "v" && ed.st.furnClip) {
+      ev.preventDefault();
+      const res = ed.st.pasteFurniture(centre(ed));
+      if (res) ed.changed(res.roomName ? `Pasted in ${res.roomName}` : "Pasted furniture");
+      else if (ed.st.planBlocked) ed.planFixed();
+      return;
+    }
   }
   // S26.13: "?" opens Help from the plan, never from a text field (the input check above, and `takesTyping` for the rest).
   if (ev.key === "?" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !takesTyping(t)) { ev.preventDefault(); ed.toggleHelp(); return; }

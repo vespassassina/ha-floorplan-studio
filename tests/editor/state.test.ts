@@ -3,7 +3,7 @@ import demo from "../../demo/layout.json";
 import v1 from "../../demo/layout.v1.json";
 import type { Layout, WallKind } from "../../src/core/schema";
 import { movePointAll, setSecondEnd, stairsAt } from "../../src/editor/ops";
-import { contentPoints, rotateAbout } from "../../src/core";
+import { contentPoints, rotateAbout, validate } from "../../src/core";
 import { EditorState, GRID_KEY, MEASURE_KEY, STORAGE_KEY, THEME_KEY, emptyLayout, isBlank, loadLayout, newId, restoreLayout } from "../../src/editor/state";
 
 const fresh = () => structuredClone(demo) as unknown as Layout;
@@ -1101,5 +1101,98 @@ describe("EditorState.setHouseEnergy (B56.4)", () => {
     expect(st.setHouseEnergy({ show: "nope" as never })).toBe(false);
     expect(st.setHouseEnergy({ spark: 1 as never })).toBe(false);
     expect(st.layout.energy).toBeUndefined();
+  });
+});
+
+describe("EditorState furniture clipboard (copy/cut/paste) and room wall colour", () => {
+  const twoRoomLayout = (): Layout => ({
+    version: 2, unit: "cm", north: 0,
+    floors: {
+      ground: {
+        title: "Ground", outline: [[0, 0], [900, 0], [900, 950], [0, 950]],
+        rooms: [
+          { id: "r1", name: "Living", area: "", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] },
+          { id: "r2", name: "Kitchen", area: "", kind: "room", pts: [[400, 0], [800, 0], [800, 400], [400, 400]], wk: ["wall", "wall", "wall", "none"] },
+          { id: "r3", name: "L-Hall", area: "", kind: "room", pts: [[0, 500], [400, 500], [400, 600], [100, 600], [100, 900], [0, 900]], wk: ["wall", "wall", "wall", "wall", "wall", "wall"] },
+          { id: "z1", name: "Zone", area: "", kind: "zone", pts: [[500, 500], [700, 500], [700, 700], [500, 700]], wk: ["boundary", "boundary", "boundary", "boundary"] },
+        ],
+        walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [],
+        furniture: [{ id: "f1", symbol: "table", x: 150, y: 150, rot: 30, w: 160, h: 90, locked: true }],
+        unlinked: [],
+      },
+      upper: {
+        title: "Upper", outline: [[0, 0], [400, 0], [400, 400], [0, 400]],
+        rooms: [{ id: "u1", name: "Bedroom", area: "", kind: "room", pts: [[0, 0], [300, 0], [300, 300], [0, 300]], wk: ["wall", "wall", "wall", "wall"] }],
+        walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
+      },
+    },
+    catalog: [],
+  });
+
+  it("copy + paste duplicates into the selected room's centre with a fresh id and clears locked", () => {
+    const st = new EditorState(twoRoomLayout(), "ground");
+    st.sel = { t: "furn", i: 0 };
+    expect(st.copyFurniture()).toBe(true);
+    st.sel = { t: "room", i: 1 }; // Kitchen: x 400..800, y 0..400 -> centre (600, 200)
+    const res = st.pasteFurniture();
+    expect(res).toEqual({ index: 1, roomName: "Kitchen" });
+    expect(st.f.furniture).toHaveLength(2);
+    const pasted = st.f.furniture[1];
+    expect(pasted.id).not.toBe("f1");
+    expect(pasted).toMatchObject({ symbol: "table", x: 600, y: 200, rot: 30, w: 160, h: 90 });
+    expect(pasted.locked).toBeUndefined();
+    expect(st.sel).toEqual({ t: "furn", i: 1 });
+    expect(validate(st.layout).ok).toBe(true);
+  });
+
+  it("paste into a concave L-shaped room lands inside the room polygon", () => {
+    const st = new EditorState(twoRoomLayout(), "ground");
+    st.sel = { t: "furn", i: 0 };
+    st.copyFurniture();
+    st.sel = { t: "room", i: 2 }; // L-Hall
+    const res = st.pasteFurniture();
+    expect(res?.roomName).toBe("L-Hall");
+    const m = st.f.furniture[res!.index];
+    expect(m.x).toBeGreaterThanOrEqual(0);
+    expect(m.x).toBeLessThanOrEqual(400);
+    expect(m.y).toBeGreaterThanOrEqual(500);
+    expect(m.y).toBeLessThanOrEqual(900);
+    // Must not land in the cutout (x > 100 && y > 600)
+    expect(m.x > 100 && m.y > 600).toBe(false);
+  });
+
+  it("cut removes in one undo step and pastes cleanly onto another floor's selected room", () => {
+    const st = new EditorState(twoRoomLayout(), "ground");
+    st.sel = { t: "furn", i: 0 };
+    expect(st.cutFurniture()).toBe(true);
+    expect(st.f.furniture).toHaveLength(0);
+    expect(st.sel).toBeNull();
+    st.setFloor("upper");
+    st.sel = { t: "room", i: 0 }; // Bedroom: centre (150, 150)
+    const res = st.pasteFurniture();
+    expect(res).toEqual({ index: 0, roomName: "Bedroom" });
+    expect(st.f.furniture[0]).toMatchObject({ symbol: "table", x: 150, y: 150 });
+    expect(validate(st.layout).ok).toBe(true);
+  });
+
+  it("paintRoomWalls paints all non-none walls in one undo step, allows single-wall override, and resets", () => {
+    const st = new EditorState(twoRoomLayout(), "ground");
+    expect(st.paintRoomWalls(3, "#123456")).toBe(false); // zone refused
+    expect(st.paintRoomWalls(1, "not-a-hex")).toBe(false); // junk refused
+    expect(st.paintRoomWalls(1, "#336699")).toBe(true);
+    // Kitchen has 3 wall edges and 1 "none" edge (index 3)
+    expect(st.f.rooms[1].wc).toEqual(["#336699", "#336699", "#336699", null]);
+    expect(st.layout.palette).toContain("#336699");
+    expect(validate(st.layout).ok).toBe(true);
+
+    // Repaint a single wall piece independently
+    expect(st.paintEdge("r1", 0, "#cc4422")).toBe(true);
+    expect(st.f.rooms[1].wc).toEqual(["#cc4422", "#336699", "#336699", null]);
+
+    // Reset all walls of the room back to default in one undo step
+    expect(st.paintRoomWalls(1, null)).toBe(true);
+    expect(st.f.rooms[1].wc).toBeUndefined();
+    st.undo();
+    expect(st.f.rooms[1].wc).toEqual(["#cc4422", "#336699", "#336699", null]);
   });
 });
