@@ -30,6 +30,7 @@ import { closeAlign, openAlign, alignPreview, applyAlign, alignStairInfo, alignS
 import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayout, openFile, firstRunDemo, firstRunBlank } from "./editor-file";
 import { planFixed, setPlanLocked, attachEntity, attachToRoom, rotateTexture, rotateItem, scaleTexture } from "./editor-changes";
 import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, toggleHaSync, toggleAttention, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, haSyncView, attentionView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, captureSceneDraft, migrateLegacyScenes, loadExistingScene, migrateHueSceneDraft, installCodeView } from "./editor-popups";
+import { getActionRegistry, type CustomAction } from "./custom-actions";
 import { edgeNear, onDown, onMove, onUp, onDblClick, onWheel, edgeKind } from "./editor-pointer";
 import { toggleTrace, setTrace, traceView } from "./editor-trace";
 import { onKeyUp, onBlur, onKey, onButtonClick, onFocusOut, onWindowPointerDown, onWindowClick, closeSubs } from "./editor-keys";
@@ -559,8 +560,20 @@ export class FloorplanStudioEditor extends LitElement {
     if (entity) this.thumbs.fail(entity);
   };
 
+  private unsubActions: (() => void) | null = null;
+  get customActions(): CustomAction[] { return getActionRegistry().list(); }
+  runCustomAction(id: string) {
+    this.dispatchEvent(new CustomEvent("floorplan-studio-action", {
+      detail: { id, floor: this.st.floor, selection: this.st.sel ? { ...this.st.sel } : null },
+      bubbles: true, composed: true,
+    }));
+  }
+
   connectedCallback() {
     super.connectedCallback();
+    const reg = getActionRegistry();
+    this.unsubActions = reg.subscribe(() => this.requestUpdate());
+    this.dispatchEvent(new CustomEvent("floorplan-studio-actions-ready", { detail: { registry: reg }, bubbles: true, composed: true }));
     this.renderRoot.addEventListener("error", this.onThumbError, true);
     // Keys are heard on the element only, so Delete or Ctrl+Z elsewhere in a page does nothing here.
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
@@ -576,6 +589,8 @@ export class FloorplanStudioEditor extends LitElement {
   }
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.unsubActions?.();
+    this.unsubActions = null;
     this.studio3d.dispose();
     this.bubble?.destroy();
     this.bubble = null;

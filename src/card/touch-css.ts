@@ -15,13 +15,9 @@ import { css } from "lit";
 /** Sizes for the card's own shadow root: header, tabs, zoom cluster, rail, sheets, rows, scene and floor buttons, popup, dialogs. */
 export const TOUCH_CSS = css`
   @media (pointer: coarse) {
-    .fp-head-btn, .fp-floors button { min-height: 44px; min-width: 44px; }
+    .fp-head-btn, .fp-floors button, .fp-scene, .fp-scene-ed-btn { min-height: 44px; min-width: 44px; }
     .fp-stack button { width: 44px; height: 44px; }
     svg.fp-zoomable.fp-clear-stack { width: calc(100% - 60px); }
-    .fp-scene, .fp-scene-ed-btn { min-height: 44px; min-width: 44px; }
-    .fp-dialog-actions button { min-height: 44px; min-width: 44px; }
-    .fp-chooser-list button { min-height: 44px; }
-    .fp-off-row { min-height: 44px; }
     .fp-pop button.fp-pop-more, .fp-pop-info summary { min-height: 44px; }
     /* The hue bar was a 20 px input with the gradient on the input itself; a 44 px input would be a 44 px bar. The input is the touch
        target, the gradient moves to its track (20 px, as before), and the thumb stays centred on it. Same gradient as popup-ui.ts. */

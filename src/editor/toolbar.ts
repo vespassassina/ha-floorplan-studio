@@ -8,6 +8,7 @@ import { TYPE_LABELS, WALL_LABELS, typeMenu } from "./panels";
 import { DEFAULT_DETAIL, GRID_VALUES, THEME_VALUES, isBlank, type EditorState } from "./state";
 import type { SearchEntry } from "../core/search";
 import { MENU_KEYS, chordLabel } from "./guide";
+import { actionIconPath, type CustomAction } from "./custom-actions";
 import type { FloorplanStudioEditor } from "./editor-app";
 
 /** The toolbar's own styles: the bar, its menus and submenus, the Lock plan pill, the search box slot. */
@@ -282,6 +283,12 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
           <button class="btn danger" id="reset" title="Erase everything and start from a blank plan" @click=${() => h.reset()}>Reset</button>
           <button class="btn primary keyed" id="save" @click=${() => h.save()}>Save${kbd(MENU_KEYS.save)}</button>
         </div></details>
+        ${h.customActions.length ? html`<details class="menu" id="mActions" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Actions</summary><div class="box">
+          ${h.customActions.map((a: CustomAction) => {
+            const p = actionIconPath(a.icon);
+            return html`<button class="btn" data-custom-action=${a.id} title=${a.title ?? a.label} @click=${() => h.runCustomAction(a.id)}>${p ? html`<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-2px;margin-right:5px;fill:currentColor"><path d=${p}/></svg>` : nothing}${a.label}</button>`;
+          })}
+        </div></details>` : nothing}
         <!-- S8.10 follow-up: Help, then Undo and Redo as the cluster's last items, so Redo's own right edge is
              the one the toolbar-alignment acceptance test pins. -->
         ${st.detail !== DEFAULT_DETAIL ? html`<span class="grp" id="detailMode" title="Set in View, Detail">Detail: ${DETAIL_LABELS[st.detail]}</span>` : nothing}

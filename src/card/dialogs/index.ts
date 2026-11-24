@@ -26,6 +26,7 @@ const DIALOGS_CSS = `
 .fp-off-row{display:flex;align-items:center;gap:8px;min-height:32px;font:13px/1.3 var(--fp-font,system-ui,sans-serif);cursor:pointer}
 .fp-off-row input{width:18px;height:18px;margin:0;flex:0 0 auto;accent-color:var(--fp-primary)}
 .fp-off-via{font-size:11px;color:var(--fp-text)}
+@media (pointer:coarse){.fp-dialog-actions button{min-height:44px;min-width:44px}.fp-chooser-list button,.fp-off-row{min-height:44px}}
 `;
 
 export interface DialogDeps {
@@ -161,6 +162,14 @@ export function renderChooserDialog(d: DialogDeps, card: FloorplanStudioCard): u
       </div>
     </div>
   `;
+}
+
+export function renderDialogs(d: DialogDeps, c: FloorplanStudioCard): unknown {
+  return c._coverDialog ? renderCoverDialog(d, c)
+    : c._vacuumDialog ? renderVacuumDialog(d, c)
+    : c._chooserDialog ? renderChooserDialog(d, c)
+    : c._offDialog ? renderOffDialog(d, c)
+    : null;
 }
 
 export function handleDialogKeydown(d: DialogDeps, c: FloorplanStudioCard, e: KeyboardEvent): void {

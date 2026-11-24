@@ -29,10 +29,10 @@ export function formatWeatherChip(st: { state?: unknown; attributes?: Record<str
 }
 
 export const KIOSK_CSS = css`
-  .fp-head-clock,.fp-kiosk-clock{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font:600 12px/1.2 var(--fp-font,system-ui,sans-serif);font-variant-numeric:tabular-nums;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);white-space:nowrap}
+  .fp-head-clock,.fp-kiosk-clock{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font:600 12px/1.2 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);white-space:nowrap}
   .fp-kiosk-clock{position:absolute;top:8px;left:8px;z-index:4;pointer-events:none}
-  .fp-screensaver{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(8,12,20,.82);color:#f3f6fb;cursor:pointer;font-family:var(--fp-font,system-ui,sans-serif);user-select:none}
-  .fp-ss-time{font-size:clamp(36px,9vw,64px);font-weight:600;font-variant-numeric:tabular-nums}
+  .fp-screensaver{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(8,12,20,.82);color:#f3f6fb;cursor:pointer;font-family:var(--fp-font,system-ui,sans-serif)}
+  .fp-ss-time{font-size:clamp(36px,9vw,64px);font-weight:600}
   .fp-ss-weather{font-size:15px;opacity:.85}
 `;
 
@@ -60,18 +60,20 @@ export function applyIdleReturn(c: FloorplanStudioCard): void {
 }
 
 export function stopKioskTimers(c: FloorplanStudioCard): void {
-  if (c._idleRetTimer !== null) { globalThis.clearTimeout(c._idleRetTimer); c._idleRetTimer = null; }
-  if (c._idleDimTimer !== null) { globalThis.clearTimeout(c._idleDimTimer); c._idleDimTimer = null; }
-  if (c._clockTimer !== null) { globalThis.clearInterval(c._clockTimer); c._clockTimer = null; }
+  const g = globalThis;
+  if (c._idleRetTimer !== null) g.clearTimeout(c._idleRetTimer);
+  if (c._idleDimTimer !== null) g.clearTimeout(c._idleDimTimer);
+  if (c._clockTimer !== null) g.clearInterval(c._clockTimer);
+  c._idleRetTimer = c._idleDimTimer = c._clockTimer = null;
 }
 
 export function syncKioskTimers(c: FloorplanStudioCard): void {
   stopKioskTimers(c);
   if (!c.isConnected) return;
-  const r = parseIdleSec(c._config.idle_return), d = parseIdleSec(c._config.idle_dim);
-  if (r) c._idleRetTimer = globalThis.setTimeout(() => { c._idleRetTimer = null; applyIdleReturn(c); }, r * 1000) as unknown as number;
-  if (d && !c._dimmed) c._idleDimTimer = globalThis.setTimeout(() => { c._idleDimTimer = null; c._dimmed = true; syncKioskTimers(c); c.requestUpdate(); }, d * 1000) as unknown as number;
-  if (c._config.header_clock === true || c._dimmed) c._clockTimer = globalThis.setInterval(() => { if (c.isConnected) c.requestUpdate(); }, 30_000) as unknown as number;
+  const g = globalThis, r = parseIdleSec(c._config.idle_return), d = parseIdleSec(c._config.idle_dim);
+  if (r) c._idleRetTimer = g.setTimeout(() => { c._idleRetTimer = null; applyIdleReturn(c); }, r * 1000) as unknown as number;
+  if (d && !c._dimmed) c._idleDimTimer = g.setTimeout(() => { c._idleDimTimer = null; c._dimmed = true; syncKioskTimers(c); c.requestUpdate(); }, d * 1000) as unknown as number;
+  if (c._config.header_clock === true || c._dimmed) c._clockTimer = g.setInterval(() => { if (c.isConnected) c.requestUpdate(); }, 30_000) as unknown as number;
 }
 
 export function touchKioskIdle(c: FloorplanStudioCard): void {
