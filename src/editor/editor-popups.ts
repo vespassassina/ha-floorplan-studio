@@ -10,7 +10,7 @@ import { closeAlign } from "./editor-align";
 import { counted, placedNote } from "./editor-search";
 import { newDraft } from "./scene-designer";
 import { restoreScene, tryScene } from "./scene-try";
-import { captureRoomItems, sceneTargets } from "../card/scene";
+import { captureRoomItems, sceneTargets, type RoomHaSceneItem } from "../card/scene";
 import { type AddCandidate, DEVICE_COLOURS, FLOOR_COLOURS, WALL_COLOUR_KEYS, type Pt, type SceneItem, viewBoxFor } from "../core";
 import { cleanSceneItem, removeScene, roomSceneTargets, saveScene } from "./room-scenes-ops";
 import { placeDevice } from "./editor-draw";
@@ -128,8 +128,14 @@ export function openScene(ed: FloorplanStudioEditor, i: number, id: string | nul
   if (!r) return;
   const sc = id === null ? undefined : r.scenes?.find((s) => s.id === id);
   if (id !== null && !sc) return;
-  ed.sceneDraft = newDraft(r.id, id, sc?.name ?? "", sc?.items ?? []);
+  const draft = newDraft(r.id, id, sc?.name ?? "", sc?.items ?? []);
+  ed.sceneDraft = draft;
   ed.scenePos = panelPos(ed, 760, Math.min(900, window.innerHeight - 40));
+  if (id === null && r.area && ed.writer?.listRoomScenes) {
+    void ed.writer.listRoomScenes(r.area).then((list) => {
+      if (ed.sceneDraft === draft) { draft.haList = list; ed.requestUpdate(); }
+    });
+  }
   ed.requestUpdate();
 }
 
@@ -201,6 +207,57 @@ export async function migrateLegacyScenes(ed: FloorplanStudioEditor) {
   ed.requestUpdate();
 }
 
+/** S63: loads an existing HA scene or dynamic script into Studio's scene editor for in-place editing. */
+export async function loadExistingScene(ed: FloorplanStudioEditor, item: RoomHaSceneItem) {
+  const d = ed.sceneDraft, w = ed.writer;
+  if (!d || !w || ed.sceneBusy) return;
+  ed.sceneBusy = true; d.error = ""; d.note = `Loading ${item.name}…`; ed.requestUpdate();
+  try {
+    if (item.kind === "dynamic" && w.loadDynamicScene) {
+      const loaded = await w.loadDynamicScene(item.configId);
+      d.mode = "dynamic"; d.haSceneId = item.configId; d.name = loaded.name || item.name; d.loop = loaded.loop;
+      d.steps = loaded.steps.map((s) => ({ items: new Map(s.items.map((it) => [it.entity, it])), duration: s.duration, transition: s.transition }));
+      d.activeStep = 0; d.items = d.steps[0]!.items;
+    } else if (w.loadScene) {
+      const loaded = await w.loadScene(item.configId);
+      d.mode = "static"; d.haSceneId = item.configId; d.name = loaded.name || item.name;
+      d.items = new Map(loaded.items.map((it) => [it.entity, it]));
+    }
+    d.replaceHueEntity = null;
+    d.selected = [...d.items.keys()][0] ?? null;
+    d.note = `Loaded "${d.name}" for editing.`;
+  } catch (err) {
+    d.error = `Could not load "${item.name}": ${err instanceof Error ? err.message : String(err)}`;
+    d.note = "";
+  }
+  ed.sceneBusy = false;
+  ed.requestUpdate();
+}
+
+/** S63: activates a Hue scene, waits briefly for lights to report live states, and captures into Studio's draft. */
+export async function migrateHueSceneDraft(ed: FloorplanStudioEditor, item: RoomHaSceneItem) {
+  const d = ed.sceneDraft, w = ed.writer;
+  const i = d ? ed.st.f.rooms.findIndex((r) => r.id === d.room) : -1;
+  if (!d || i < 0 || !w || ed.sceneBusy) return;
+  ed.sceneBusy = true; d.error = ""; d.note = `Activating Hue scene "${item.name}" and capturing lights…`; ed.requestUpdate();
+  try {
+    await w.runScene(item.entityId);
+    await new Promise((r) => setTimeout(r, 900));
+    const got = captureRoomItems(sceneTargets(ed.st.f, i), ed._hassStates ?? {});
+    d.mode = "static"; d.haSceneId = null; d.name = item.name; d.items = got;
+    d.selected = [...got.keys()][0] ?? null;
+    d.replaceHueEntity = item.entityId; d.disableHueOnSave = true;
+    d.note = got.size
+      ? `Captured ${got.size} device${got.size === 1 ? "" : "s"} from Hue "${item.name}". Review and Save to replace.`
+      : `Activated Hue "${item.name}". Tap "Capture the room now" once lights settle, then Save.`;
+  } catch (err) {
+    d.error = err instanceof Error ? err.message : String(err);
+    d.note = "";
+  }
+  ed.sceneBusy = false;
+  ed.requestUpdate();
+}
+
 /** Save: writes a real HA `scene.*` when connected with HA scene write access on a new scene; otherwise saves to the room in one `commit` (one undo step). */
 export async function saveSceneDraft(ed: FloorplanStudioEditor) {
   const d = ed.sceneDraft;
@@ -212,7 +269,7 @@ export async function saveSceneDraft(ed: FloorplanStudioEditor) {
     const steps = (d.steps ?? [{ items: d.items, duration: 10 }]).map((s) => ({ items: [...s.items.values()].flatMap((it) => { const c = cleanSceneItem(it); return c ? [c] : []; }), duration: s.duration, transition: s.transition }));
     ed.sceneBusy = true; d.error = ""; ed.requestUpdate();
     try {
-      await ed.writer.saveDynamicScene({ name: d.name, areaId: ed.st.f.rooms[i]!.area, steps, loop: d.loop === true });
+      await ed.writer.saveDynamicScene({ id: d.haSceneId, name: d.name, areaId: ed.st.f.rooms[i]!.area, steps, loop: d.loop === true });
       ed.sceneBusy = false;
       closeScene(ed, true);
     } catch (err) {
@@ -228,7 +285,17 @@ export async function saveSceneDraft(ed: FloorplanStudioEditor) {
     if (!clean.length) { d.error = "Pick at least one device."; ed.requestUpdate(); return; }
     ed.sceneBusy = true; d.error = ""; ed.requestUpdate();
     try {
-      await ed.writer.saveScene({ name: d.name, areaId: ed.st.f.rooms[i]!.area, items: clean });
+      await ed.writer.saveScene({ id: d.haSceneId, name: d.name, areaId: ed.st.f.rooms[i]!.area, items: clean });
+      if (d.replaceHueEntity && d.disableHueOnSave !== false && ed.writer.disableEntity) {
+        try { await ed.writer.disableEntity(d.replaceHueEntity); }
+        catch (err) {
+          ed.sceneBusy = false;
+          d.replaceHueEntity = null;
+          d.error = `Saved new HA scene, but could not disable Hue scene: ${err instanceof Error ? err.message : String(err)}`;
+          ed.requestUpdate();
+          return;
+        }
+      }
       ed.sceneBusy = false;
       closeScene(ed, true);
     } catch (err) {

@@ -5017,3 +5017,26 @@ under ~20x20 cm puts badges outside it; at 420 px a top-right `ne` badge can sit
 ### Sprint 62 (done): lamps that look the part
 
 Implemented (`docs/specs/lamps.md`): seven `device.lamp` kinds (`floor`, `desk`, `strip`, `ceiling`, `spot`, `pole`, `flood`) on `light` devices, lazy `floorplan-studio-lamp-<hash>.js` chunk, 2D/2.5D symbols & room-clipped emissions, 3D fixture shapes (`ceiling`/`spot` at `roomHeight`) & shaped/clipped floor pools/cones, and Studio kind selector, fields, and plan drag handles.
+
+
+## After the 2026-11-24 roadmap close: Sprints 63 to 65
+
+Approved by Diego 2026-11-24: F (scene round-trip + Hue migration & HA disconnect), B (card headroom + rich car popover), G (wall-tablet & mobile kiosk polish).
+
+### Sprint 63 (done): scene round-trip editing & Hue migration
+
+Spec: `docs/specs/scene-roundtrip-hue-s63.md`. `0 B` card gzip (inside lazy `floorplan-studio-scene-<hash>.js`).
+- [x] 2026-11-24 S63.1 Discover existing HA scenes (`scene.*`), Hue scenes (`platform === "hue"`), and dynamic scripts (`script.fp_dyn_*`) in the room's area (`listRoomHaScenes`), plus `disableHaEntity` (`disabled_by: "user"`).
+- [x] 2026-11-24 S63.2 Round-trip parsers & loaders (`parseHaSceneConfig`, `loadHaScene`, `parseHaDynamicScript`, `loadHaDynamicScene`) for editing existing HA scenes and dynamic scripts in place.
+- [x] 2026-11-24 S63.3 Hue scene migration flow (activate → settle → capture into WYSIWYG draft → save native HA scene → optionally disable original Hue entity in HA registry) in both Card and Studio.
+
+### Sprint 64: card headroom & rich car popover
+
+- [ ] S64.1 Move card dialogs / popup into lazy zero-import chunk(s) to free ~2.2–3.5 KB from `floorplan-studio-card.js`.
+- [ ] S64.2 Rich car card popover: battery/fuel bar, range, charging power/ETA, zone badge, door/window/lock status chips, direct lock/climate/charger controls, and per-entity `more-info` links.
+
+### Sprint 65: wall-tablet & mobile kiosk polish
+
+- [ ] S65.1 `idle_return` (seconds): auto-close popups/overview, reset zoom/pan, and return to default floor after idle.
+- [ ] S65.2 `idle_dim` (screensaver / auto-dim overlay with clock, wake on first tap without accidental device toggle).
+- [ ] S65.3 Optional header clock and weather summary chip (`weather.*`) for wall-mounted kiosks.
