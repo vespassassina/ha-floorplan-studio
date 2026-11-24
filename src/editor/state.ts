@@ -5,7 +5,7 @@ import { compact, rangeProblem, type HouseRange } from "./temp-range-ops";
 import { camThumbOf } from "../core/camera-thumb";
 import { furniturePaintable } from "../core/furniture-paint";
 import type { CamThumb } from "../core/camera-thumb";
-import type { DetailMode, HeatKind, CatalogEntry, DeviceType, Floor, Furniture, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
+import type { DetailMode, Device, HeatKind, CatalogEntry, DeviceType, Floor, Furniture, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace, Unlinked } from "../core";
 import type { GroupedChoice } from "./sensor-order";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
@@ -1061,68 +1061,111 @@ export class EditorState {
     this.layout = next;
     return true;
   }
-  /** In-editor clipboard for Cmd/Ctrl+C, Cmd/Ctrl+X, Cmd/Ctrl+V on furniture (survives floor switches). */
-  furnClip: Furniture | null = null;
-  /** Copies the currently selected furniture piece into `furnClip`. */
-  copyFurniture(): boolean {
-    if (this.sel?.t !== "furn") return false;
-    const m = this.f.furniture[this.sel.i];
-    if (!m) return false;
-    this.furnClip = structuredClone(m);
-    return true;
+  /** In-editor clipboard for Cmd/Ctrl+C, Cmd/Ctrl+X, Cmd/Ctrl+V on furniture, devices, and unlinked appliances. */
+  clip: { t: "furn"; item: Furniture } | { t: "dev"; items: Device[] } | { t: "unl"; item: Unlinked } | null = null;
+  get furnClip(): Furniture | null { return this.clip?.t === "furn" ? this.clip.item : null; }
+  set furnClip(v: Furniture | null) { this.clip = v ? { t: "furn", item: v } : null; }
+  /** Copies the currently selected furniture, device(s), or unlinked appliance into `clip`. */
+  copySelection(): boolean {
+    const s = this.sel;
+    if (!s) return false;
+    if (s.t === "furn" && this.f.furniture[s.i]) { this.clip = { t: "furn", item: structuredClone(this.f.furniture[s.i]) }; return true; }
+    if (s.t === "dev" && this.f.devices[s.i]) { this.clip = { t: "dev", items: [structuredClone(this.f.devices[s.i])] }; return true; }
+    if (s.t === "devs") {
+      const items = s.is.map((i) => this.f.devices[i]).filter(Boolean).map((d) => structuredClone(d));
+      if (!items.length) return false;
+      this.clip = { t: "dev", items };
+      return true;
+    }
+    if (s.t === "unl" && this.f.unlinked[s.i]) { this.clip = { t: "unl", item: structuredClone(this.f.unlinked[s.i]) }; return true; }
+    return false;
   }
-  /** Cuts the currently selected furniture piece into `furnClip` and removes it in one undo step. */
-  cutFurniture(): boolean {
+  /** Cuts the currently selected furniture, device(s), or unlinked appliance into `clip` in one undo step. */
+  cutSelection(): boolean {
     this.planBlocked = false;
-    if (this.sel?.t !== "furn") return false;
-    const idx = this.sel.i, m = this.f.furniture[idx];
-    if (!m) return false;
+    const s = this.sel;
+    if (!s || (s.t !== "furn" && s.t !== "dev" && s.t !== "devs" && s.t !== "unl")) return false;
     if (this.planLocked) { this.planBlocked = true; return false; }
-    this.furnClip = structuredClone(m);
-    if (!this.edit((f) => { f.furniture.splice(idx, 1); })) return false;
+    if (!this.copySelection()) return false;
+    const ok = this.edit((f) => {
+      if (s.t === "furn") f.furniture.splice(s.i, 1);
+      else if (s.t === "dev") f.devices.splice(s.i, 1);
+      else if (s.t === "unl") f.unlinked.splice(s.i, 1);
+      else if (s.t === "devs") {
+        const drop = new Set(s.is);
+        f.devices = f.devices.filter((_, i) => !drop.has(i));
+      }
+    });
+    if (!ok) return false;
     this.sel = null;
     return true;
   }
-  /**
-   * Pastes `furnClip` into the current floor in one undo step. When a room is selected, places it at that room's
-   * interior centre (so `roomAt` assigns it to that room); when a furniture piece is selected, offsets by +20 cm;
-   * otherwise uses `fallbackCenter` (or +20 cm from the copied position).
-   */
-  pasteFurniture(fallbackCenter?: Pt): { index: number; roomName?: string } | null {
+  /** Pastes `clip` into the current floor (at the selected room's interior centre, or +20 cm offset). */
+  pasteSelection(fallbackCenter?: Pt): { kind: "furn" | "dev" | "unl"; count: number; roomName?: string } | null {
     this.planBlocked = false;
-    if (!this.furnClip) return null;
+    if (!this.clip) return null;
     if (this.planLocked) { this.planBlocked = true; return null; }
-    let tx: number, ty: number, roomName: string | undefined;
-    if (this.sel?.t === "room" && this.f.rooms[this.sel.i]) {
-      const r = this.f.rooms[this.sel.i];
-      [tx, ty] = roomInteriorCenter(r.pts);
-      roomName = r.name || undefined;
-    } else if (this.sel?.t === "furn" && this.f.furniture[this.sel.i]) {
-      const cur = this.f.furniture[this.sel.i];
-      tx = Math.round(cur.x + 20);
-      ty = Math.round(cur.y + 20);
-      const ri = roomAt(this.f, [tx, ty]);
-      roomName = ri >= 0 ? this.f.rooms[ri]?.name || undefined : undefined;
-    } else if (fallbackCenter) {
-      tx = Math.round(fallbackCenter[0]);
-      ty = Math.round(fallbackCenter[1]);
-      const ri = roomAt(this.f, [tx, ty]);
-      roomName = ri >= 0 ? this.f.rooms[ri]?.name || undefined : undefined;
-    } else {
-      tx = Math.round(this.furnClip.x + 20);
-      ty = Math.round(this.furnClip.y + 20);
+    const targetFor = (srcX: number, srcY: number): [number, number, string | undefined] => {
+      if (this.sel?.t === "room" && this.f.rooms[this.sel.i]) {
+        const r = this.f.rooms[this.sel.i], [cx, cy] = roomInteriorCenter(r.pts);
+        return [cx, cy, r.name || undefined];
+      }
+      if (this.sel?.t === "furn" && this.f.furniture[this.sel.i]) {
+        const cur = this.f.furniture[this.sel.i], tx = Math.round(cur.x + 20), ty = Math.round(cur.y + 20);
+        const ri = roomAt(this.f, [tx, ty]);
+        return [tx, ty, ri >= 0 ? this.f.rooms[ri]?.name || undefined : undefined];
+      }
+      if (fallbackCenter) {
+        const tx = Math.round(fallbackCenter[0]), ty = Math.round(fallbackCenter[1]);
+        const ri = roomAt(this.f, [tx, ty]);
+        return [tx, ty, ri >= 0 ? this.f.rooms[ri]?.name || undefined : undefined];
+      }
+      return [Math.round(srcX + 20), Math.round(srcY + 20), undefined];
+    };
+    if (this.clip.t === "furn") {
+      const m = structuredClone(this.clip.item);
+      const [tx, ty, roomName] = targetFor(m.x, m.y), dx = tx - m.x, dy = ty - m.y;
+      m.id = newId(this.f, this.floor, "furniture", this.layout);
+      m.x = tx; m.y = ty;
+      if (Array.isArray(m.pts)) m.pts = m.pts.map(([px, py]) => [Math.round(px + dx), Math.round(py + dy)] as Pt);
+      delete m.locked;
+      if (!this.edit((f) => { f.furniture.push(m); })) return null;
+      this.sel = { t: "furn", i: this.f.furniture.length - 1 };
+      return { kind: "furn", count: 1, roomName };
     }
-    const m = structuredClone(this.furnClip);
-    const dx = tx - m.x, dy = ty - m.y;
-    m.id = newId(this.f, this.floor, "furniture", this.layout);
-    m.x = tx;
-    m.y = ty;
-    if (Array.isArray(m.pts)) m.pts = m.pts.map(([px, py]) => [Math.round(px + dx), Math.round(py + dy)] as Pt);
-    delete m.locked;
-    if (!this.edit((f) => { f.furniture.push(m); })) return null;
-    const index = this.f.furniture.length - 1;
-    this.sel = { t: "furn", i: index };
-    return { index, roomName };
+    if (this.clip.t === "unl") {
+      const u = structuredClone(this.clip.item);
+      const [tx, ty, roomName] = targetFor(u.x, u.y);
+      u.id = newId(this.f, this.floor, "unl", this.layout);
+      u.x = tx; u.y = ty;
+      delete u.locked;
+      if (!this.edit((f) => { f.unlinked.push(u); })) return null;
+      this.sel = { t: "unl", i: this.f.unlinked.length - 1 };
+      return { kind: "unl", count: 1, roomName };
+    }
+    const items = this.clip.items.map((d) => structuredClone(d));
+    const center = (d: Device): Pt => ("a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y]);
+    const c0 = center(items[0]);
+    const [tx, ty, roomName] = targetFor(c0[0], c0[1]), dx = tx - c0[0], dy = ty - c0[1];
+    const startIdx = this.f.devices.length;
+    if (!this.edit((f) => {
+      for (const d of items) {
+        d.id = newId(f, this.floor, "device", this.layout);
+        if ("a" in d) { d.a = [Math.round(d.a[0] + dx), Math.round(d.a[1] + dy)]; d.b = [Math.round(d.b[0] + dx), Math.round(d.b[1] + dy)]; }
+        else { d.x = Math.round(d.x + dx); d.y = Math.round(d.y + dy); }
+        delete d.locked;
+        f.devices.push(d);
+      }
+    })) return null;
+    this.sel = items.length === 1 ? { t: "dev", i: startIdx } : { t: "devs", is: items.map((_, k) => startIdx + k) };
+    return { kind: "dev", count: items.length, roomName };
+  }
+  copyFurniture(): boolean { return this.sel?.t === "furn" && this.copySelection(); }
+  cutFurniture(): boolean { return this.sel?.t === "furn" && this.cutSelection(); }
+  pasteFurniture(fallbackCenter?: Pt): { index: number; roomName?: string } | null {
+    if (this.clip?.t !== "furn") return null;
+    const res = this.pasteSelection(fallbackCenter);
+    return res && this.sel?.t === "furn" ? { index: this.sel.i, roomName: res.roomName } : null;
   }
   /** A colour that is not a built-in swatch joins the palette, once, within its cap. */
   private joinPalette(next: Layout, hex: string) {

@@ -1195,4 +1195,27 @@ describe("EditorState furniture clipboard (copy/cut/paste) and room wall colour"
     st.undo();
     expect(st.f.rooms[1].wc).toEqual(["#cc4422", "#336699", "#336699", null]);
   });
+
+  it("copy/cut/paste also works for devices and unlinked appliances into the selected room", () => {
+    const l = twoRoomLayout();
+    l.floors.ground.devices = [{ id: "d1", type: "light", entity: "light.living", x: 100, y: 100 }];
+    l.floors.ground.unlinked = [{ id: "u1", type: "boiler", x: 120, y: 120, rot: 0, scale: 1 }];
+    const st = new EditorState(l, "ground");
+
+    st.sel = { t: "dev", i: 0 };
+    expect(st.copySelection()).toBe(true);
+    st.sel = { t: "room", i: 1 }; // Kitchen (600, 200)
+    expect(st.pasteSelection()).toEqual({ kind: "dev", count: 1, roomName: "Kitchen" });
+    expect(st.f.devices).toHaveLength(2);
+    expect(st.f.devices[1]).toMatchObject({ type: "light", entity: "light.living", x: 600, y: 200 });
+    expect(st.f.devices[1].id).not.toBe("d1");
+
+    st.sel = { t: "unl", i: 0 };
+    expect(st.cutSelection()).toBe(true);
+    expect(st.f.unlinked).toHaveLength(0);
+    st.sel = { t: "room", i: 1 };
+    expect(st.pasteSelection()).toEqual({ kind: "unl", count: 1, roomName: "Kitchen" });
+    expect(st.f.unlinked[0]).toMatchObject({ type: "boiler", x: 600, y: 200 });
+    expect(validate(st.layout).ok).toBe(true);
+  });
 });

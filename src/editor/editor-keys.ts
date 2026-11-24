@@ -45,24 +45,26 @@ export const onKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
     if (is.length) { selectDevices(ed, is); ed.requestUpdate(); }
     return;
   }
-  // Furniture clipboard: Cmd/Ctrl+C copies, Cmd/Ctrl+X cuts, Cmd/Ctrl+V pastes into the selected room's centre.
+  // Item clipboard: Cmd/Ctrl+C copies, Cmd/Ctrl+X cuts, Cmd/Ctrl+V pastes furniture, devices, or unlinked appliances.
   if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey && !ed.draw && !ed.aligning && !takesTyping(t)) {
     const k = ev.key.toLowerCase();
     const hasTextSel = Boolean(typeof window !== "undefined" && window.getSelection?.()?.toString());
-    if (k === "c" && !hasTextSel && ed.st.sel?.t === "furn") {
-      if (ed.st.copyFurniture()) { ev.preventDefault(); ed.status = "Copied furniture"; ed.requestUpdate(); }
+    if (k === "c" && !hasTextSel && ed.st.copySelection()) {
+      ev.preventDefault();
+      ed.status = "Copied";
+      ed.requestUpdate();
       return;
     }
-    if (k === "x" && !hasTextSel && ed.st.sel?.t === "furn") {
+    if (k === "x" && !hasTextSel && (ed.st.sel?.t === "furn" || ed.st.sel?.t === "dev" || ed.st.sel?.t === "devs" || ed.st.sel?.t === "unl")) {
       ev.preventDefault();
-      if (ed.st.cutFurniture()) ed.changed("Cut furniture");
+      if (ed.st.cutSelection()) ed.changed("Cut");
       else if (ed.st.planBlocked) ed.planFixed();
       return;
     }
-    if (k === "v" && ed.st.furnClip) {
+    if (k === "v" && ed.st.clip) {
       ev.preventDefault();
-      const res = ed.st.pasteFurniture(centre(ed));
-      if (res) ed.changed(res.roomName ? `Pasted in ${res.roomName}` : "Pasted furniture");
+      const res = ed.st.pasteSelection(centre(ed));
+      if (res) ed.changed(res.roomName ? `Pasted in ${res.roomName}` : "Pasted");
       else if (ed.st.planBlocked) ed.planFixed();
       return;
     }

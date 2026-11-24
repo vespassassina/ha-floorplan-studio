@@ -30,7 +30,7 @@ import { gridRound, rotateSegment, segmentAt } from "./ops";
 import { polyPts, ptOf, type PtRef, type Sel } from "./state";
 
 export type V3 = [number, number, number];
-export type HandleKind3D = "corner" | "wall-h" | "room-h" | "sill" | "head" | "floor-h" | "floor-slab" | "dev-z" | "furn-z";
+export type HandleKind3D = "corner" | "wall-h" | "room-h" | "sill" | "head" | "floor-h" | "floor-slab" | "dev-z" | "furn-z" | "rot";
 
 export interface HandleSpec {
   id: string;
@@ -39,6 +39,10 @@ export interface HandleSpec {
   at: V3;
   /** Underlying z value (cm) when the handle visually floats above the object (e.g. dev-z / furn-z gizmo). */
   baseZ?: number;
+  /** Rotation handle pivot centre in plan cm, item kind, and current/base rotation angle in degrees. */
+  center?: Pt;
+  itemKind?: "dev" | "furn" | "unl";
+  baseRot?: number;
   ref?: PtRef;
   index?: number;
   list?: "doors" | "openings";
@@ -179,6 +183,37 @@ export function setItemZ(base: Floor, kind: "dev" | "furn", i: number, z: number
   return g;
 }
 
+/** Sets rotation (degrees, 0..359) of a device, furniture piece, or unlinked appliance. */
+export function setItemRot(base: Floor, kind: "dev" | "furn" | "unl", i: number, rotDeg: number, baseRot = 0): Floor | null {
+  if (!Number.isFinite(rotDeg)) return null;
+  const rot = normRot(rotDeg);
+  if (kind === "furn") {
+    const m = base.furniture[i];
+    if (!m || m.locked) return null;
+    if (worktopPts(m)) return worktopTurn(base, i, rot - baseRot);
+    const g = structuredClone(base);
+    g.furniture[i].rot = rot;
+    return g;
+  }
+  if (kind === "unl") {
+    const u = base.unlinked[i];
+    if (!u || u.locked) return null;
+    const g = structuredClone(base);
+    g.unlinked[i].rot = rot;
+    return g;
+  }
+  const d = base.devices[i];
+  if (!d || d.locked) return null;
+  const g = structuredClone(base), dv = g.devices[i];
+  if ("a" in dv) {
+    Object.assign(dv, rotateSegment(dv.a, dv.b, rot - baseRot));
+    return g;
+  }
+  if (rot === 0) delete dv.rot;
+  else dv.rot = rot;
+  return g;
+}
+
 /** Rotates the selected furniture, unlinked appliance, device, or stair by `stepDeg` (e.g. 15°). */
 export function rotateSel15(f: Floor, sel: Sel, stepDeg = 15): { next: Floor; msg: string } | null {
   if (!sel || !Number.isFinite(stepDeg) || stepDeg === 0) return null;
@@ -268,6 +303,27 @@ const boxWires = (poly: Pt[], z0: number, z1: number, zone = false): WireSpec[] 
 
 const rectCorners = (x: number, y: number, w: number, h: number, rot: number): Pt[] =>
   ([[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]] as Pt[]).map((q) => rotateAbout([x + q[0], y + q[1]], rot, [x, y]));
+
+function rotGizmo(cx: number, cy: number, z: number, radius: number, rotDeg: number, kind: "dev" | "furn" | "unl", index: number): { wire: WireSpec; handle: HandleSpec } {
+  const pts: V3[] = Array.from({ length: 24 }, (_, k) => {
+    const a = (k * Math.PI * 2) / 24;
+    return [cx + radius * Math.cos(a), cy + radius * Math.sin(a), z];
+  });
+  const rad = ((rotDeg - 90) * Math.PI) / 180;
+  return {
+    wire: { pts, closed: true },
+    handle: {
+      id: `rot:${kind}:${index}`,
+      kind: "rot",
+      label: `Rotate ${Math.round(normRot(rotDeg))}° (drag around; Alt free)`,
+      at: [cx + radius * Math.cos(rad), cy + radius * Math.sin(rad), z],
+      center: [cx, cy],
+      itemKind: kind,
+      baseRot: normRot(rotDeg),
+      index,
+    },
+  };
+}
 
 const floorAnchorPt = (f: Floor): Pt | null => {
   if (f.outline.length > 0) {
@@ -386,6 +442,9 @@ export function handlesForSel(f: Floor, s: Sel): { wires: WireSpec[]; handles: H
         const gz = z1 + 35;
         wires.push({ pts: [[m.x, m.y, z1], [m.x, m.y, gz]], closed: false });
         handles.push({ id: `furn-z:${wi}`, kind: "furn-z", label: `Height z ${Math.round(z0)} cm (drag up/down)`, at: [m.x, m.y, gz], baseZ: z0, index: wi });
+        const rg = rotGizmo(m.x, m.y, z1 + 2, Math.max(30, Math.hypot(m.w, m.h) / 2 + 12), m.rot ?? 0, "furn", wi);
+        wires.push(rg.wire);
+        handles.push(rg.handle);
       }
       if (wt) {
         wt.forEach((p, j) => handles.push({ id: `corner:w${wi}:${j}`, kind: "corner", label: `Worktop corner ${j + 1}`, at: [p[0], p[1], z1], ref: { poly: `w${wi}`, j } }));
@@ -413,6 +472,10 @@ export function handlesForSel(f: Floor, s: Sel): { wires: WireSpec[]; handles: H
         const gz = z + r + 35;
         wires.push({ pts: [[c[0], c[1], z + r], [c[0], c[1], gz]], closed: false });
         handles.push({ id: `dev-z:${s.i}`, kind: "dev-z", label: `Height z ${Math.round(z)} cm (drag up/down)`, at: [c[0], c[1], gz], baseZ: z, index: s.i });
+        const curRot = "a" in dv ? Math.round((Math.atan2(dv.b[1] - dv.a[1], dv.b[0] - dv.a[0]) * 180) / Math.PI) : (dv.rot ?? 0);
+        const rg = rotGizmo(c[0], c[1], z, 32, curRot, "dev", s.i);
+        wires.push(rg.wire);
+        handles.push(rg.handle);
       }
     }
     return { wires, handles };
@@ -421,8 +484,13 @@ export function handlesForSel(f: Floor, s: Sel): { wires: WireSpec[]; handles: H
   if (s.t === "unl") {
     const u = f.unlinked[s.i];
     if (u) {
-      const r = 20 * (u.scale || 1);
-      wires.push(...boxWires(rectCorners(u.x, u.y, r * 2, r * 2, u.rot), 0, unlinkedHeight(u)));
+      const r = 20 * (u.scale || 1), uh = unlinkedHeight(u);
+      wires.push(...boxWires(rectCorners(u.x, u.y, r * 2, r * 2, u.rot), 0, uh));
+      if (!u.locked) {
+        const rg = rotGizmo(u.x, u.y, uh + 2, Math.max(30, r * 1.6), u.rot ?? 0, "unl", s.i);
+        wires.push(rg.wire);
+        handles.push(rg.handle);
+      }
     }
     return { wires, handles };
   }

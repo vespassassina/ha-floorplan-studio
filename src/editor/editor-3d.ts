@@ -26,6 +26,7 @@ import {
   rayOnZ,
   rayZAt,
   selFromHit,
+  setItemRot,
   setItemZ,
   type HandleSpec,
   type V3,
@@ -360,14 +361,19 @@ export class Studio3D {
     for (const h of handles) {
       const p = this.view.project(h.at[0], h.at[1], h.at[2]);
       if (!p || !p.front) continue;
-      const isGizmo = h.kind === "dev-z" || h.kind === "furn-z";
-      const cls = h.kind === "corner" ? "h3d corner" : "h3d vert";
+      const isZ = h.kind === "dev-z" || h.kind === "furn-z", isRot = h.kind === "rot";
+      const cls = h.kind === "corner" || isRot ? "h3d corner" : "h3d vert";
       const x = num(p.x), y = num(p.y);
-      parts.push(`<circle class="${cls}" data-h3d="${h.kind}" data-hid="${h.id}" cx="${x}" cy="${y}" r="${isGizmo ? 8 : 6}"><title>${h.label}</title></circle>`);
-      if (isGizmo) {
+      parts.push(`<circle class="${cls}" data-h3d="${h.kind}" data-hid="${h.id}" cx="${x}" cy="${y}" r="${isZ || isRot ? 8 : 6}"><title>${h.label}</title></circle>`);
+      if (isZ) {
         parts.push(`<path pointer-events="none" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" d="M${x} ${num(p.y - 4.5)}V${num(p.y + 4.5)} M${num(p.x - 3)} ${num(p.y - 2)}L${x} ${num(p.y - 5)}L${num(p.x + 3)} ${num(p.y - 2)} M${num(p.x - 3)} ${num(p.y + 2)}L${x} ${num(p.y + 5)}L${num(p.x + 3)} ${num(p.y + 2)}"/>`);
         if (this.drag?.mode === "handle" && this.drag.handle.id === h.id && h.baseZ !== undefined) {
           parts.push(`<text pointer-events="none" x="${num(p.x + 12)}" y="${num(p.y + 4)}" fill="var(--fp-ink,#fff)" font-size="11" font-weight="600">z ${Math.round(h.baseZ)} cm</text>`);
+        }
+      } else if (isRot) {
+        parts.push(`<path pointer-events="none" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" d="M${num(p.x - 3.5)} ${num(p.y - 1)}A3.8 3.8 0 1 1 ${num(p.x + 1)} ${num(p.y + 3.8)}"/>`);
+        if (this.drag?.mode === "handle" && this.drag.handle.id === h.id && h.baseRot !== undefined) {
+          parts.push(`<text pointer-events="none" x="${num(p.x + 12)}" y="${num(p.y + 4)}" fill="var(--fp-ink,#fff)" font-size="11" font-weight="600">${Math.round(h.baseRot)}°</text>`);
         }
       }
     }
@@ -550,6 +556,12 @@ export class Studio3D {
       next = movePointAll(d.base, d.from, to, ev.shiftKey, h.ref);
       if (next === d.base) return;
       d.to = to;
+    } else if (h.kind === "rot" && h.center && h.itemKind && typeof h.index === "number") {
+      const pt = rayOnZ(ray, h.at[2]);
+      if (!pt) return;
+      const raw = (Math.atan2(pt[1] - h.center[1], pt[0] - h.center[0]) * 180) / Math.PI + 90;
+      const deg = ev.altKey ? Math.round(raw) : Math.round(raw / 15) * 15;
+      next = setItemRot(d.base, h.itemKind, h.index, deg, h.baseRot ?? 0);
     } else {
       const zNow = rayZAt(ray, h.at[0], h.at[1]);
       if (zNow === null || d.zStartRay === null) return;

@@ -8,6 +8,7 @@ import {
   handlesForSel,
   moveItem3D,
   rayOnZ,
+  setItemRot,
   rayZAt,
   rotateSel15,
   selFromHit,
@@ -164,10 +165,25 @@ describe("3D Studio pure maths and ops", () => {
     expect(raisedFurn.furniture[0].z).toBe(120);
     expect(validate({ ...demo, floors: { ground: raisedFurn } }).ok).toBe(true);
 
-    // Locked items omit the vertical Z gizmo handle.
+    // Locked items omit the vertical Z gizmo handle and rotation handle.
     f.devices[0].locked = true;
     f.furniture[0].locked = true;
     expect(handlesForSel(f, { t: "dev", i: 0 }).handles.find((h) => h.kind === "dev-z")).toBeUndefined();
     expect(handlesForSel(f, { t: "furn", i: 0 }).handles.find((h) => h.kind === "furn-z")).toBeUndefined();
+    expect(handlesForSel(f, { t: "furn", i: 0 }).handles.find((h) => h.kind === "rot")).toBeUndefined();
+  });
+
+  it("exposes a 3D rotation handle on unlocked furniture/devices and setItemRot updates rotation validly", () => {
+    const f = ground();
+    const rotH = handlesForSel(f, { t: "furn", i: 0 }).handles.find((h) => h.kind === "rot");
+    expect(rotH).toBeTruthy();
+    const turned = setItemRot(f, "furn", 0, 135, rotH!.baseRot)!;
+    expect(turned.furniture[0].rot).toBe(135);
+    expect(validate({ ...demo, floors: { ground: turned } }).ok).toBe(true);
+
+    const devRotH = handlesForSel(f, { t: "dev", i: 0 }).handles.find((h) => h.kind === "rot");
+    expect(devRotH).toBeTruthy();
+    const turnedDev = setItemRot(f, "dev", 0, 45, devRotH!.baseRot)!;
+    expect(validate({ ...demo, floors: { ground: turnedDev } }).ok).toBe(true);
   });
 });
