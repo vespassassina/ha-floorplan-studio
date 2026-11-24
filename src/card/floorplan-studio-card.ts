@@ -30,7 +30,7 @@ import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
 import { belowModeOf, type BelowMode, ROTATION_STEP, easeInOut, normaliseRotation, viewAround, type FloorView } from "./view-state";
 export { THEME_LABELS } from "./card-menu"; // the catalogue test reads it from here
 export { DOUBLE_TAP_MS, DOUBLE_TAP_PX } from "./card-zoom"; // the 3D host and its test read them from here
-import { chooserDialogTemplate, coverDialogTemplate, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
+import { dialogsTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
 import { closeReplay, isReplaying, REPLAY_CSS, replayBar, replayEnergyOverlay, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
 import { extrasOverlay, type HistoryState, type SceneEditorDraft } from "./card-extras";
@@ -875,8 +875,7 @@ export class FloorplanStudioCard extends LitElement {
     this.addEventListener("focusin", this._onFocusIn);
     this.addEventListener("focusout", this._onFocusOut);
     this.addEventListener("pointerdown", this._onCardDown, true); // before the sheet's own, which clears it (onSheetClick)
-    this.addEventListener("pointerdown", this._onKioskActivity, true);
-    this.addEventListener("keydown", this._onKioskActivity, true);
+    for (const ev of ["pointerdown", "keydown"] as const) this.addEventListener(ev, this._onKioskActivity, true);
     this.addEventListener("wheel", this._onKioskActivity, { passive: true });
     syncKioskTimers(this);
     this._watchUpdates();
@@ -1071,8 +1070,7 @@ export class FloorplanStudioCard extends LitElement {
     this.removeEventListener("focusin", this._onFocusIn);
     this.removeEventListener("focusout", this._onFocusOut);
     this.removeEventListener("pointerdown", this._onCardDown, true);
-    this.removeEventListener("pointerdown", this._onKioskActivity, true);
-    this.removeEventListener("keydown", this._onKioskActivity, true);
+    for (const ev of ["pointerdown", "keydown"] as const) this.removeEventListener(ev, this._onKioskActivity, true);
     this.removeEventListener("wheel", this._onKioskActivity);
     stopKioskTimers(this);
     if (focusedCard === this) focusedCard = null;
@@ -1926,7 +1924,7 @@ export class FloorplanStudioCard extends LitElement {
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? optionsMenu(this) : null;
     const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
-    return html`${header(this)}${this._kiosk() ? clockChipTemplate(this, true) : nothing}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${replayEnergyOverlay(this)}${extrasOverlay(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}${screensaverTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    return html`${header(this)}${this._kiosk() ? clockChipTemplate(this, true) : nothing}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${replayEnergyOverlay(this)}${extrasOverlay(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${dialogsTemplate(this)}${screensaverTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
