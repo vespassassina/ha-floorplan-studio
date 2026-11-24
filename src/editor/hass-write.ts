@@ -6,7 +6,7 @@
 
 import type { AutomationConfig } from "./automations";
 import { customCalls, type SceneItem } from "../core";
-import { saveHaDynamicScene, saveHaScene, type DynamicStepData } from "../card/scene";
+import { disableHaEntity, listRoomHaScenes, loadHaDynamicScene, loadHaScene, saveHaDynamicScene, saveHaScene, type DynamicStepData, type RoomHaSceneItem } from "../card/scene";
 export type { AutomationConfig } from "./automations";
 
 /** The part of `hass` a write needs. */
@@ -40,6 +40,14 @@ export interface HaWriter {
   saveScene?(opts: { id?: string | null; name: string; areaId?: string; items: readonly SceneItem[] }): Promise<{ id: string; entityId: string | null }>;
   /** S51: saves a dynamic multi-step scene as a Home Assistant `script.fp_dyn_*` in the room's area. */
   saveDynamicScene?(opts: { id?: string | null; name: string; areaId?: string; steps: readonly DynamicStepData[]; loop: boolean }): Promise<{ id: string; entityId: string | null }>;
+  /** S63: discovers enabled HA scenes, Hue scenes, and dynamic scripts in an area. */
+  listRoomScenes?(areaId: string): Promise<RoomHaSceneItem[]>;
+  /** S63: loads an existing HA YAML scene for in-place editing. */
+  loadScene?(configId: string): Promise<{ name: string; items: SceneItem[] }>;
+  /** S63: loads an existing HA dynamic script (`script.fp_dyn_*`) for in-place editing. */
+  loadDynamicScene?(configId: string): Promise<{ name: string; steps: DynamicStepData[]; loop: boolean }>;
+  /** S63: disables an entity (e.g. a replaced Hue scene) in HA's entity registry. */
+  disableEntity?(entityId: string): Promise<void>;
 }
 
 /** The label everything the tool creates carries, so the person can find it in HA and remove it. */
@@ -248,5 +256,9 @@ export function makeWriter(hass: WriteHass): HaWriter {
     setAreaFloor: (a, f) => setAreaFloor(hass, a, f),
     saveScene: (opts) => saveHaScene(hass, opts),
     saveDynamicScene: (opts) => saveHaDynamicScene(hass, { ...opts, customCalls }),
+    listRoomScenes: (areaId) => listRoomHaScenes(hass, areaId),
+    loadScene: (id) => loadHaScene(hass, id),
+    loadDynamicScene: (id) => loadHaDynamicScene(hass, id),
+    disableEntity: (entityId) => disableHaEntity(hass, entityId),
   };
 }

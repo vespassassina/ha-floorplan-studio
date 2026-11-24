@@ -3,7 +3,7 @@ import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { customCalls, renderFloor, type Floor, type Layout, type RoomScene, type SceneItem, type StateOverlay, type Theme } from "../core";
 import { live } from "./live-keep";
 import { readImageColours } from "./image-colours";
-import { DEFAULT_SCENE_PALETTE, sceneEditorView, sceneTargets, type DynamicStep, type SceneEditorDraft } from "../card/scene";
+import { DEFAULT_SCENE_PALETTE, sceneEditorView, sceneTargets, type DynamicStep, type RoomHaSceneItem, type SceneEditorDraft } from "../card/scene";
 
 // S17.3 / S50: Studio host wrapper around the shared WYSIWYG scene editor (`src/card/scene/index.ts`).
 // One editor, two hosts: card and Studio share the exact same preview, controls, palette and HA scene writer.
@@ -11,6 +11,7 @@ import { DEFAULT_SCENE_PALETTE, sceneEditorView, sceneTargets, type DynamicStep,
 export interface SceneDraft {
   room: string;            // room id
   id: string | null;       // the custom scene being edited, null for a new one
+  haSceneId?: string | null; // S63: existing HA scene/script config id being edited in place
   name: string;
   items: Map<string, SceneItem>; // the devices ticked in, by entity
   selected: string | null;
@@ -23,6 +24,9 @@ export interface SceneDraft {
   steps?: DynamicStep[];
   activeStep?: number;
   loop?: boolean;
+  haList?: RoomHaSceneItem[];
+  replaceHueEntity?: string | null;
+  disableHueOnSave?: boolean;
 }
 export const DEFAULT_PALETTE = [...DEFAULT_SCENE_PALETTE];
 export const newDraft = (room: string, id: string | null, name: string, items: SceneItem[]): SceneDraft => ({
@@ -56,6 +60,8 @@ export interface DesignerDeps {
   save: () => void;
   capture: () => void;
   migrateLegacy?: () => void;
+  loadExisting?: (item: RoomHaSceneItem) => void;
+  migrateHue?: (item: RoomHaSceneItem) => void;
   /** S17.7: present only with a writer. `hasBackup` is true after a Try that Restore has not yet undone. */
   preview?: { hasBackup: boolean; busy: boolean; run: () => void; restore: () => void };
 }
@@ -68,7 +74,8 @@ export function sceneDesigner(d: DesignerDeps) {
     roomId: d.draft.room,
     roomIndex: d.roomIndex,
     id: d.draft.id,
-    haSceneId: null,
+    get haSceneId() { return d.draft.haSceneId ?? null; },
+    set haSceneId(v: string | null) { d.draft.haSceneId = v; },
     get name() { return d.draft.name; },
     set name(v: string) { d.draft.name = v; },
     get items() { return d.draft.items; },
@@ -95,6 +102,12 @@ export function sceneDesigner(d: DesignerDeps) {
     set activeStep(v: number | undefined) { d.draft.activeStep = v; },
     get loop() { return d.draft.loop; },
     set loop(v: boolean | undefined) { d.draft.loop = v; },
+    get haList() { return d.draft.haList; },
+    set haList(v: RoomHaSceneItem[] | undefined) { d.draft.haList = v; },
+    get replaceHueEntity() { return d.draft.replaceHueEntity ?? null; },
+    set replaceHueEntity(v: string | null | undefined) { d.draft.replaceHueEntity = v ?? null; },
+    get disableHueOnSave() { return d.draft.disableHueOnSave; },
+    set disableHueOnSave(v: boolean | undefined) { d.draft.disableHueOnSave = v; },
   };
   return sceneEditorView(
     { html, nothing, svgBody: unsafeSVG, renderFloor, customCalls, live, readImageColours },
@@ -123,6 +136,8 @@ export function sceneDesigner(d: DesignerDeps) {
       tryRestore: () => d.preview?.restore(),
       capture: d.capture,
       migrateLegacy: d.migrateLegacy,
+      loadExisting: d.loadExisting,
+      migrateHue: d.migrateHue,
     },
   );
 }

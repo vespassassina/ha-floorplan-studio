@@ -37,6 +37,15 @@ export interface DynamicStepData {
   transition?: number;
 }
 
+/** S63: existing Home Assistant scene, dynamic script, or Hue scene discovered in a room's area. */
+export interface RoomHaSceneItem {
+  entityId: string;
+  configId: string;
+  name: string;
+  kind: "scene" | "dynamic" | "hue";
+  platform?: string;
+}
+
 export interface SceneEditorDraft {
   roomId: string;
   roomIndex: number;
@@ -58,6 +67,11 @@ export interface SceneEditorDraft {
   steps?: DynamicStep[];
   activeStep?: number;
   loop?: boolean;
+  /** S63: existing HA/Hue scenes discovered for this room + active Hue migration target. */
+  haList?: RoomHaSceneItem[];
+  haLoaded?: boolean;
+  replaceHueEntity?: string | null;
+  disableHueOnSave?: boolean;
 }
 
 export interface SceneEditorHass {
@@ -95,6 +109,9 @@ export interface SceneEditorModel {
   tryRestore: () => void;
   capture: () => void;
   migrateLegacy?: () => void;
+  /** S63: load an existing HA scene/script into the editor, or migrate a Hue scene. */
+  loadExisting?: (item: RoomHaSceneItem) => void;
+  migrateHue?: (item: RoomHaSceneItem) => void;
 }
 
 export const MIN_LOOP_SEC_PER_LIGHT = 2;
@@ -543,6 +560,191 @@ export async function saveHaDynamicScene(
   return { id, entityId };
 }
 
+function rgbToHs(r: number, g: number, b: number): [number, number] {
+  const rn = Math.max(0, Math.min(255, r)) / 255, gn = Math.max(0, Math.min(255, g)) / 255, bn = Math.max(0, Math.min(255, b)) / 255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn), d = max - min;
+  let h = 0;
+  if (d > 0) {
+    if (max === rn) h = 60 * (((gn - bn) / d) % 6);
+    else if (max === gn) h = 60 * ((bn - rn) / d + 2);
+    else h = 60 * ((rn - gn) / d + 4);
+    if (h < 0) h += 360;
+  }
+  return [Math.round(h), Math.round(max === 0 ? 0 : (d / max) * 100)];
+}
+
+/** S63: parses an HA `GET config/scene/config/<id>` response back into `{ name, items }` without throwing on bad data. */
+export function parseHaSceneConfig(cfg: unknown): { name: string; items: SceneItem[] } {
+  const c = cfg && typeof cfg === "object" ? (cfg as Record<string, unknown>) : {};
+  const name = typeof c.name === "string" ? c.name : "";
+  const ents = c.entities && typeof c.entities === "object" ? (c.entities as Record<string, unknown>) : {};
+  const items: SceneItem[] = [];
+  for (const [entity, raw] of Object.entries(ents)) {
+    const domain = entity.split(".")[0] ?? "";
+    if (!DOMAINS.has(domain)) continue;
+    const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : (typeof raw === "string" ? { state: raw } : null);
+    if (!obj) continue;
+    const st = typeof obj.state === "string" ? obj.state : "on";
+    const off = domain === "cover" ? (st === "closed" || st === "closing") : st === "off";
+    const it: SceneItem = { entity, on: !off };
+    if (domain === "light") {
+      if (fin(obj.transition) && obj.transition >= 0 && obj.transition <= 300) it.transition = obj.transition;
+      if (!off) {
+        if (fin(obj.brightness)) it.brightness = Math.min(100, Math.max(1, Math.round((obj.brightness / 255) * 100)));
+        if (Array.isArray(obj.hs_color) && fin(obj.hs_color[0]) && fin(obj.hs_color[1])) it.hs = [Math.round(obj.hs_color[0]), Math.round(obj.hs_color[1])];
+        else if (Array.isArray(obj.rgb_color) && fin(obj.rgb_color[0]) && fin(obj.rgb_color[1]) && fin(obj.rgb_color[2])) it.hs = rgbToHs(obj.rgb_color[0], obj.rgb_color[1], obj.rgb_color[2]);
+        else if (fin(obj.color_temp_kelvin)) it.kelvin = Math.round(obj.color_temp_kelvin);
+        if (typeof obj.effect === "string" && obj.effect.trim()) it.effect = obj.effect.trim().slice(0, 80);
+      }
+    } else if (!off && domain === "fan") {
+      if (fin(obj.percentage)) it.percentage = Math.min(100, Math.max(0, Math.round(obj.percentage)));
+    } else if (!off && domain === "cover") {
+      const pos = fin(obj.position) ? obj.position : fin(obj.current_position) ? obj.current_position : undefined;
+      const tilt = fin(obj.tilt) ? obj.tilt : fin(obj.current_tilt_position) ? obj.current_tilt_position : undefined;
+      if (pos !== undefined) it.position = Math.min(100, Math.max(0, Math.round(pos)));
+      if (tilt !== undefined) it.tilt = Math.min(100, Math.max(0, Math.round(tilt)));
+    } else if (!off && domain === "climate") {
+      if (st && st !== "on") it.hvac = st;
+      if (fin(obj.temperature)) it.temperature = obj.temperature;
+      if (typeof obj.fan_mode === "string" && obj.fan_mode.trim()) it.fan_mode = obj.fan_mode.trim().slice(0, 80);
+    } else if (!off && domain === "media_player") {
+      if (fin(obj.volume_level)) it.volume = Math.min(100, Math.max(0, Math.round(obj.volume_level * 100)));
+      if (typeof obj.source === "string" && obj.source.trim()) it.source = obj.source.trim().slice(0, 80);
+    }
+    items.push(it);
+  }
+  return { name, items };
+}
+
+/** S63: parses an HA `GET config/script/config/<id>` dynamic script back into `{ name, steps, loop }`. */
+export function parseHaDynamicScript(cfg: unknown): { name: string; steps: DynamicStepData[]; loop: boolean } {
+  const c = cfg && typeof cfg === "object" ? (cfg as Record<string, unknown>) : {};
+  const name = typeof c.alias === "string" ? c.alias : typeof c.name === "string" ? c.name : "";
+  let seq = Array.isArray(c.sequence) ? c.sequence : [];
+  let loop = false;
+  if (seq.length === 1 && seq[0] && typeof seq[0] === "object" && "repeat" in seq[0]) {
+    const rep = (seq[0] as { repeat?: { sequence?: unknown } }).repeat;
+    if (rep && Array.isArray(rep.sequence)) { loop = true; seq = rep.sequence; }
+  }
+  const steps: DynamicStepData[] = [];
+  let cur = new Map<string, SceneItem>();
+  let curTrans: number | undefined;
+  const flush = (duration: number) => {
+    if (!cur.size && duration <= 0) return;
+    steps.push({ items: [...cur.values()], duration, ...(curTrans !== undefined ? { transition: curTrans } : {}) });
+    cur = new Map(); curTrans = undefined;
+  };
+  for (const act of seq) {
+    if (!act || typeof act !== "object") continue;
+    const a = act as Record<string, unknown>;
+    if ("delay" in a) {
+      const d = a.delay;
+      const sec = fin(d) ? d : (d && typeof d === "object" && fin((d as Record<string, unknown>).seconds) ? ((d as Record<string, unknown>).seconds as number) : 0);
+      flush(Math.max(0, sec));
+      continue;
+    }
+    const call = typeof a.action === "string" ? a.action : typeof a.service === "string" ? a.service : "";
+    const [domain, service] = call.split(".");
+    if (!domain || !service || !DOMAINS.has(domain)) continue;
+    const data = a.data && typeof a.data === "object" ? (a.data as Record<string, unknown>) : {};
+    const tgt = a.target && typeof a.target === "object" ? (a.target as Record<string, unknown>) : {};
+    const rawEnt = tgt.entity_id ?? data.entity_id;
+    const ents = Array.isArray(rawEnt) ? rawEnt.filter((x): x is string => typeof x === "string") : (typeof rawEnt === "string" ? [rawEnt] : []);
+    if (fin(data.transition) && curTrans === undefined) curTrans = Math.max(0, Math.min(300, data.transition));
+    for (const entity of ents) {
+      const prev = cur.get(entity) ?? { entity, on: true };
+      const off = service === "turn_off" || service === "close_cover";
+      prev.on = !off;
+      if (domain === "light") {
+        if (fin(data.transition)) prev.transition = data.transition;
+        if (!off) {
+          if (fin(data.brightness_pct)) prev.brightness = Math.min(100, Math.max(1, Math.round(data.brightness_pct)));
+          else if (fin(data.brightness)) prev.brightness = Math.min(100, Math.max(1, Math.round((data.brightness / 255) * 100)));
+          if (Array.isArray(data.hs_color) && fin(data.hs_color[0]) && fin(data.hs_color[1])) prev.hs = [Math.round(data.hs_color[0]), Math.round(data.hs_color[1])];
+          else if (Array.isArray(data.rgb_color) && fin(data.rgb_color[0]) && fin(data.rgb_color[1]) && fin(data.rgb_color[2])) prev.hs = rgbToHs(data.rgb_color[0], data.rgb_color[1], data.rgb_color[2]);
+          else if (fin(data.color_temp_kelvin)) prev.kelvin = Math.round(data.color_temp_kelvin);
+          if (typeof data.effect === "string" && data.effect.trim()) prev.effect = data.effect.trim().slice(0, 80);
+        }
+      } else if (!off && domain === "fan" && fin(data.percentage)) prev.percentage = Math.min(100, Math.max(0, Math.round(data.percentage)));
+      else if (!off && domain === "cover") {
+        if (fin(data.position)) prev.position = Math.min(100, Math.max(0, Math.round(data.position)));
+        if (fin(data.tilt_position)) prev.tilt = Math.min(100, Math.max(0, Math.round(data.tilt_position)));
+      } else if (!off && domain === "climate") {
+        if (typeof data.hvac_mode === "string" && data.hvac_mode) prev.hvac = data.hvac_mode;
+        if (fin(data.temperature)) prev.temperature = data.temperature;
+        if (typeof data.fan_mode === "string" && data.fan_mode) prev.fan_mode = data.fan_mode;
+      } else if (!off && domain === "media_player") {
+        if (fin(data.volume_level)) prev.volume = Math.min(100, Math.max(0, Math.round(data.volume_level * 100)));
+        if (typeof data.source === "string" && data.source) prev.source = data.source;
+      }
+      cur.set(entity, prev);
+    }
+  }
+  if (cur.size) flush(0);
+  if (!steps.length) steps.push({ items: [], duration: 10 });
+  return { name, steps, loop };
+}
+
+/** S63: lists enabled HA scenes, Hue scenes (`platform === "hue"`), and `script.fp_dyn_*` dynamic scripts in `areaId`. */
+export async function listRoomHaScenes(hass: SceneEditorHass, areaId: string): Promise<RoomHaSceneItem[]> {
+  if (!areaId || !hass.callWS) return [];
+  try {
+    const all = await hass.callWS<{ entity_id: string; area_id?: string | null; platform?: string; unique_id?: string; name?: string | null; original_name?: string | null; disabled_by?: string | null }[]>({
+      type: "config/entity_registry/list",
+    });
+    if (!Array.isArray(all)) return [];
+    const out: RoomHaSceneItem[] = [];
+    for (const e of all) {
+      if (!e || e.disabled_by || e.area_id !== areaId || typeof e.entity_id !== "string") continue;
+      const stName = hass.states?.[e.entity_id]?.attributes?.friendly_name;
+      const name = (typeof e.name === "string" && e.name) || (typeof e.original_name === "string" && e.original_name) || (typeof stName === "string" && stName) || e.entity_id;
+      if (e.entity_id.startsWith("scene.")) {
+        const isHue = e.platform === "hue";
+        out.push({ entityId: e.entity_id, configId: e.unique_id || e.entity_id.slice(6), name, kind: isHue ? "hue" : "scene", platform: e.platform });
+      } else if (e.entity_id.startsWith("script.fp_dyn_")) {
+        out.push({ entityId: e.entity_id, configId: e.unique_id || e.entity_id.slice(7), name, kind: "dynamic", platform: e.platform });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** S63: loads an existing HA YAML scene (`GET config/scene/config/<id>`). */
+export async function loadHaScene(hass: SceneEditorHass, configId: string): Promise<{ name: string; items: SceneItem[] }> {
+  if (!hass.callApi) throw new Error("Loading scenes requires a Home Assistant connection.");
+  const cfg = await hass.callApi("GET", `config/scene/config/${configId}`);
+  return parseHaSceneConfig(cfg);
+}
+
+/** S63: loads an existing HA dynamic script (`GET config/script/config/<id>`). */
+export async function loadHaDynamicScene(hass: SceneEditorHass, configId: string): Promise<{ name: string; steps: DynamicStepData[]; loop: boolean }> {
+  if (!hass.callApi) throw new Error("Loading dynamic scenes requires a Home Assistant connection.");
+  const cfg = await hass.callApi("GET", `config/script/config/${configId}`);
+  return parseHaDynamicScript(cfg);
+}
+
+/** S63: disconnects (disables) a Hue scene entity in HA's entity registry without touching the Hue bridge. */
+export async function disableHaEntity(hass: SceneEditorHass, entityId: string): Promise<void> {
+  if (hass.user?.is_admin === false) throw new Error("Only a Home Assistant administrator can disable entities.");
+  if (!hass.callWS) throw new Error("Disabling entities requires a Home Assistant connection.");
+  await hass.callWS({ type: "config/entity_registry/update", entity_id: entityId, disabled_by: "user" });
+}
+
+/** S63: activates a Hue scene, waits briefly for lights to report live states, and captures the room into `Map<string, SceneItem>`. */
+export async function migrateHueScene(
+  hass: SceneEditorHass,
+  hueEntityId: string,
+  targets: readonly SceneTarget[],
+  settleMs = 900,
+): Promise<Map<string, SceneItem>> {
+  if (!hass.callService) throw new Error("Migrating a Hue scene requires a Home Assistant connection.");
+  await hass.callService("scene", "turn_on", { entity_id: hueEntityId });
+  if (settleMs > 0) await new Promise((r) => setTimeout(r, settleMs));
+  return captureRoomItems(targets, hass.states ?? {});
+}
+
 /** Card-side action handlers bundled inside the lazy scene chunk so the main card pays zero orchestration bytes. */
 export function makeCardSceneHandlers(
   tools: SceneEditorTools,
@@ -601,6 +803,16 @@ export function makeCardSceneHandlers(
           await saveHaDynamicScene(hass ?? {}, { id: draft.haSceneId, name: draft.name, areaId: room.area, steps, loop: draft.loop === true, customCalls: tools.customCalls });
         } else {
           await saveHaScene(hass ?? {}, { id: draft.haSceneId, name: draft.name, areaId: room.area, items: [...draft.items.values()] });
+          if (draft.replaceHueEntity && draft.disableHueOnSave) {
+            try { await disableHaEntity(hass ?? {}, draft.replaceHueEntity); }
+            catch (err) {
+              draft.busy = false;
+              draft.replaceHueEntity = null;
+              draft.error = `Saved new HA scene, but could not disable Hue scene: ${err instanceof Error ? err.message : String(err)}`;
+              refresh();
+              return;
+            }
+          }
         }
         draft.backup = []; draft.origin = []; draft.busy = false;
         close();
@@ -609,6 +821,58 @@ export function makeCardSceneHandlers(
         draft.error = err instanceof Error ? err.message : String(err);
         refresh();
       }
+    },
+    async loadExisting(item: RoomHaSceneItem) {
+      if (draft.busy) return;
+      draft.busy = true; draft.error = ""; draft.note = `Loading ${item.name}…`; refresh();
+      try {
+        if (item.kind === "dynamic") {
+          const loaded = await loadHaDynamicScene(hass ?? {}, item.configId);
+          draft.mode = "dynamic";
+          draft.haSceneId = item.configId;
+          draft.name = loaded.name || item.name;
+          draft.loop = loaded.loop;
+          draft.steps = loaded.steps.map((s) => ({ items: new Map(s.items.map((it) => [it.entity, it])), duration: s.duration, transition: s.transition }));
+          draft.activeStep = 0;
+          draft.items = draft.steps[0]!.items;
+        } else {
+          const loaded = await loadHaScene(hass ?? {}, item.configId);
+          draft.mode = "static";
+          draft.haSceneId = item.configId;
+          draft.name = loaded.name || item.name;
+          draft.items = new Map(loaded.items.map((it) => [it.entity, it]));
+        }
+        draft.replaceHueEntity = null;
+        draft.selected = [...draft.items.keys()][0] ?? null;
+        draft.note = `Loaded "${draft.name}" for editing.`;
+      } catch (err) {
+        draft.error = `Could not load "${item.name}": ${err instanceof Error ? err.message : String(err)}`;
+        draft.note = "";
+      }
+      draft.busy = false;
+      refresh();
+    },
+    async migrateHue(item: RoomHaSceneItem) {
+      if (draft.busy) return;
+      draft.busy = true; draft.error = ""; draft.note = `Activating Hue scene "${item.name}" and capturing lights…`; refresh();
+      try {
+        const captured = await migrateHueScene(hass ?? {}, item.entityId, targets);
+        draft.mode = "static";
+        draft.haSceneId = null;
+        draft.name = item.name;
+        draft.items = captured;
+        draft.selected = [...captured.keys()][0] ?? null;
+        draft.replaceHueEntity = item.entityId;
+        draft.disableHueOnSave = true;
+        draft.note = captured.size
+          ? `Captured ${captured.size} device${captured.size === 1 ? "" : "s"} from Hue "${item.name}". Review and Save to replace.`
+          : `Activated Hue "${item.name}". Tap "Capture the room now" once lights settle, then Save.`;
+      } catch (err) {
+        draft.error = err instanceof Error ? err.message : String(err);
+        draft.note = "";
+      }
+      draft.busy = false;
+      refresh();
     },
     async migrateLegacy() {
       const legacy = room.scenes ?? [];
@@ -647,7 +911,14 @@ export interface CardSceneHost {
 export function openCardScene(c: CardSceneHost, i: number): void {
   const r = c._floor()?.rooms[i];
   if (!r) return;
-  c._sceneEd = createSceneDraft(r.id, i, null, "", []);
+  const d = createSceneDraft(r.id, i, null, "", []);
+  c._sceneEd = d;
+  if (r.area && c._hass?.callWS) {
+    d.haLoaded = true;
+    void listRoomHaScenes(c._hass, r.area).then((list) => {
+      if (c._sceneEd === d) { d.haList = list; c.requestUpdate(); }
+    });
+  }
   c.requestUpdate();
 }
 
@@ -689,6 +960,8 @@ export function renderCardScene(tools: SceneEditorTools, c: CardSceneHost): unkn
     tryRestore: () => void h.tryRestore(),
     capture: () => h.capture(),
     migrateLegacy: () => void h.migrateLegacy(),
+    loadExisting: (item) => void h.loadExisting(item),
+    migrateHue: (item) => void h.migrateHue(item),
   });
 }
 
@@ -943,6 +1216,17 @@ export function sceneEditorView(tools: SceneEditorTools, m: SceneEditorModel): u
       ${m.legacyScenes.length && m.canWriteHa && m.migrateLegacy ? html`<div class="fp-se-mig" id="sceneMigrateBar">
         <span>${m.legacyScenes.length} legacy custom scene${m.legacyScenes.length === 1 ? "" : "s"} on this room.</span>
         <button type="button" class="btn fp-se-btn keep" id="sceneMigrate" ?disabled=${draft.migrating} @click=${() => m.migrateLegacy?.()}>${draft.migrating ? "Moving…" : "Move custom scenes to HA"}</button>
+      </div>` : nothing}
+      ${draft.haList?.length && (m.loadExisting || m.migrateHue) ? html`<div class="fp-se-steps" id="sceneHaBar">
+        <span>Existing / Hue:</span>
+        ${draft.haList.map((item, k) => item.kind === "hue"
+          ? (m.canWriteHa && m.migrateHue ? html`<button type="button" class="fp-se-chip" id=${`sdHue-${k}`} ?disabled=${draft.busy} title=${`Activate & capture ${item.entityId}`} @click=${() => m.migrateHue?.(item)}>Migrate Hue: ${item.name}</button>` : nothing)
+          : (m.loadExisting ? html`<button type="button" class=${`fp-se-chip${draft.haSceneId === item.configId ? " on" : ""}`} id=${`sdLoad-${k}`} ?disabled=${draft.busy} title=${`Edit ${item.entityId}`} @click=${() => m.loadExisting?.(item)}>${item.kind === "dynamic" ? "▶ " : "✎ "}${item.name}</button>` : nothing))}
+      </div>` : nothing}
+      ${draft.replaceHueEntity ? html`<div class="fp-se-mig" id="sceneHueBanner">
+        <span>Replacing Hue scene <code>${draft.replaceHueEntity}</code></span>
+        <label><input type="checkbox" id="sceneDisableHue" .checked=${lv(draft.disableHueOnSave !== false)} @change=${(e: Event) => { draft.disableHueOnSave = (e.target as HTMLInputElement).checked; m.refresh(); }}> Disable Hue scene in HA after saving</label>
+        <button type="button" class="btn fp-se-btn keep" id="sceneHueClear" @click=${() => { draft.replaceHueEntity = null; m.refresh(); }}>Cancel replace</button>
       </div>` : nothing}
       <div class="fp-se-grid">
         <div class="fp-se-map" id="scenePreview" @click=${onMapClick}>
