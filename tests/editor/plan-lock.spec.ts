@@ -116,3 +116,28 @@ test("Lock plan on: the furniture panel's Lock box and the context menu's Lock w
   await expect(page.locator(".banner.error")).toHaveCount(0);
   await expect(page.locator("#status")).not.toContainText("plan is locked");
 });
+
+test("Lock plan on: dragging an unsnapped garden pans the canvas instead of refusing", async ({ page }) => {
+  await page.locator("#fixPlan").check();
+  await expect(page.locator("#fixPlan")).toBeChecked();
+  const gardenIdx = await page.evaluate((tag) => {
+    const ed = document.querySelector(tag) as any;
+    const f = ed.st.f;
+    const pts = [[1400, 100], [1700, 100], [1700, 400], [1400, 400]];
+    f.rooms.push({ id: "g_free", name: "Garden", area: "", kind: "garden", free: true, pts, wk: ["fence", "fence", "fence", "fence"] });
+    ed.st.fit();
+    ed.requestUpdate();
+    return f.rooms.length - 1;
+  }, EDITOR);
+
+  const svg = page.locator(`${EDITOR} svg`).first();
+  const beforeBox = await svg.getAttribute("viewBox");
+  const pt = await centre(page, `${EDITOR} svg polygon[data-r="${gardenIdx}"]`);
+  await page.mouse.move(pt.x, pt.y);
+  await page.mouse.down();
+  await page.mouse.move(pt.x + 80, pt.y + 50, { steps: 6 });
+  await page.mouse.up();
+
+  expect(await svg.getAttribute("viewBox")).not.toBe(beforeBox);
+  await expect(page.locator(".banner.error")).toHaveCount(0);
+});

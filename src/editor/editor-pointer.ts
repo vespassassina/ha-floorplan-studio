@@ -278,8 +278,8 @@ export const onDown = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
       st.sel = { t: "room", i: hit.i };
       const r = f.rooms[hit.i];
       if (r) {
-        // A room snapped to a neighbour can't be dragged loose by accident: it must be unsnapped first. Dragging it pans instead.
-        if (r.free !== true && snapped(f, `r${hit.i}`)) ed.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
+        // A locked plan or a room snapped to a neighbour can't be dragged loose by accident: dragging it (including an unsnapped garden) pans instead.
+        if (st.planLocked || (r.free !== true && snapped(f, `r${hit.i}`))) ed.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
         else ed.drag = { type: "room", base, list: "rooms", i: hit.i, start: p, moved: false };
       }
       break;
