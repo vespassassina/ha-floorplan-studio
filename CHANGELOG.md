@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.56.0 - 2026-11-24
+
+3D Studio vertical placement gizmo, basement and garage furniture with connectable Vaillant boiler and cylindrical water tank, furniture copy/cut/paste, room wall painting, and GitHub issue fixes (#1, #3).
+
+- **3D Studio vertical Z gizmo (S66):** Selecting any unlocked device or furniture piece in 3D Studio now shows a vertical Z-axis drag handle above it to pull items straight up and down (`z` in cm) with a live readout and single-step undo, while horizontal drag continues to move over the floor plane.
+- **Basement and garage furniture + connectable Boiler & Water Tank (S66):** Added **Metal shelves**, **Worktable**, **Wash basin**, **Boiler**, and cylindrical **Water tank** (16-sided vertical cylinder in 2.5D and 3D) under **Add > Furniture > Basement and garage**. Both **Boiler** and **Water tank** link to Vaillant (`water_heater.*`, `climate.*` heating action, burner/flame `binary_sensor.*`, `burning`/`dhw` sensors), power meters, or generic `switch.*` / `input_boolean.*` on/off entities, highlight in amber across 2D/2.5D/3D while working, and open the detail popup on tap.
+- **Furniture copy, cut, and paste (S67):** Added `Cmd/Ctrl+C`, `Cmd/Ctrl+X`, and `Cmd/Ctrl+V` in Studio for furniture pieces. Pasting duplicates (or moves after cut, including across floors) into the selected room's interior centre so it is assigned to that room.
+- **Room-wide wall colour (S67):** Added a **wall colour** picker in the Room **Appearance** panel alongside floor colour to paint all wall edges of a room in one undo step; individual wall pieces can still be clicked and repainted independently.
+- **Bug fixes:** Fixed `access_point` active colour rule and `"home"`/`"connected"` online states (#3), added declarative `window.floorplanStudioActions` registry for Studio custom actions (#1), and fixed canvas panning when dragging an unsnapped garden under **Plan locked**.
+
 ## 0.55.0 - 2026-11-24
 
 Scene round-trip editing, Philips Hue scene migration, a rich car popover, and wall-tablet kiosk polish (Sprints 63–65): edit existing Home Assistant scenes and dynamic scripts in place, migrate Hue scenes and disconnect duplicates from HA, inspect vehicle telemetry and controls in the car popup, and keep wall tablets tidy with idle auto-return, screensaver dim, and a clock/weather header chip.
