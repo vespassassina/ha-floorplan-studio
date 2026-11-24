@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.55.0 - 2026-11-24
+
+Scene round-trip editing, Philips Hue scene migration, a rich car popover, and wall-tablet kiosk polish (Sprints 63–65): edit existing Home Assistant scenes and dynamic scripts in place, migrate Hue scenes and disconnect duplicates from HA, inspect vehicle telemetry and controls in the car popup, and keep wall tablets tidy with idle auto-return, screensaver dim, and a clock/weather header chip.
+
+- **Scene round-trip editing & Hue migration (S63):** Load existing Home Assistant `scene.*` and `script.fp_dyn_*` entities back into the shared WYSIWYG scene editor to edit in place. Migrate Philips Hue scenes (`platform === "hue"`) by activating and capturing live room lights into a native HA scene, with an option (enabled by default) to disable the original Hue scene entity in Home Assistant's entity registry without touching the Hue bridge.
+- **Rich car card popover & lazy dialogs (S64):** Tapping a car now loads a lazy zero-import car popover (`floorplan-studio-car-<hash>.js`) inside `.fp-pop` showing battery/fuel progress bar, range, charging power & ETA, open door/window/lock alert chips, inline-confirmed unlock, and quick climate/switch toggles. Modal dialogs (`cover`, `floor-off`, `vacuum`, `chooser`) also moved into a lazy zero-import chunk (`floorplan-studio-dialogs-<hash>.js`) to keep the main card under its 138 KB gzip budget.
+- **Wall-tablet & mobile kiosk polish (S65):** Added `idle_return` (seconds before closing popups/dialogs/selection, resetting zoom, and returning to the default floor), `idle_dim` (wake-safe dim screensaver overlay with 24 h clock and weather), and `header_clock: true` (compact 24 h clock + weather readout in the header or top-left pill in `kiosk: true` mode).
+- **Room badge & touch polish:** Improved rotated short-name clearance (`WC` at 225°), fixed `44 × 44 px` coarse-pointer sizing on the scene edit button, and separated `.fp-ov-legend` from `.fp-ov-scope`.
+
 ## 0.54.0 - 2026-11-24
 
 Dynamic room scenes, native light effects, and Zigbee traffic budgeting (Sprint 51): design multi-step timed or looping lighting scenes in the shared scene editor, use built-in light effects with zero loop traffic, and start or stop playing dynamic scenes straight from the dashboard card.
