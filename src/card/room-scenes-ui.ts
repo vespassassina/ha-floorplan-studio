@@ -6,9 +6,9 @@ import { t } from "../core/i18n";
 
 export const SCENES_CSS = css`
   .fp-scenes { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
-  .fp-scene { min-height: 32px; max-width: 100%; padding: 0 10px; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
-  .fp-scene:hover, .fp-scene:focus-visible { border-color: var(--fp-primary); }
-  .fp-scene.fp-scene-ha { border-style: dashed; }
+  .fp-scene, .fp-scene-ed-btn { min-height: 32px; max-width: 100%; padding: 0 10px; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
+  .fp-scene:hover, .fp-scene:focus-visible, .fp-scene-ed-btn:hover, .fp-scene-ed-btn:focus-visible { border-color: var(--fp-primary); }
+  .fp-scene.fp-scene-ha, .fp-scene-ed-btn { border-style: dashed; }
   .fp-scene.fp-scene-ask { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; }
 `;
 
@@ -22,6 +22,8 @@ export interface ScenesView {
   /** Whether the section is open. It starts folded (Diego, 2026-10-07). */
   open: boolean;
   toggle: () => void;
+  /** S50: opens the lazy WYSIWYG scene editor for this room. */
+  onEdit?: () => void;
 }
 
 /** Nothing for a room with no scene and no light, so the section never prints an empty label. */
@@ -40,6 +42,7 @@ export function scenesTemplate(v: ScenesView) {
       ${ha.map((s) => btn(`ha:${s.entity}`, s.name, "fp-scene-ha"))}
       ${custom.map((s) => btn(`custom:${s.id}`, s.name))}
       ${/* S24.8 (C2): no preset All off: the room's Lights off button does it, relays too. */ lights.length ? btn("preset:on", t("All on")) : nothing}
+      ${v.onEdit ? html`<button type="button" class="fp-scene-ed-btn" aria-label=${t("Scenes")} @click=${v.onEdit}>✎</button>` : nothing}
     </div>` : nothing}
   </div>`;
 }

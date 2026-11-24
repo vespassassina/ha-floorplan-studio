@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.53.0 - 2026-11-24
+
+WYSIWYG scene editor in the card and Studio (Sprint 50): design room scenes visually on a magnified room plan and save them as native Home Assistant `scene.*` entities in the room's area.
+
+- **One lazy WYSIWYG editor, two hosts:** Shared zero-import `floorplan-studio-scene-<hash>.js` chunk opened from any room's **Scenes** section on the dashboard card (`.fp-scene-ed-btn`) and in Studio, keeping the main card bundle under its 138 KB gzip budget.
+- **Magnified room preview & in-place controls:** Draws the room with `renderFloor` using synthesized draft states without touching live devices; tap any device on the preview to edit lights (brightness, kelvin, colour, transition), covers (position and tilt), switches/plugs, speakers (volume and source), climate (mode, temperature, fan mode), and fans.
+- **Capture, Try & Restore:** Added **Capture the room now** to snapshot live device states, alongside **Try it** / **Restore** and the colour palette picker.
+- **Native Home Assistant scenes & migration:** Saves scenes directly as HA `scene.*` entities via `config/scene/config/<id>` assigned to the room's area (admin-only; non-admins get read-only + Try it; clear guidance when `scene: !include scenes.yaml` is missing), with an explicit one-time **Move custom scenes to HA** action for legacy room scenes.
+
 ## 0.52.0 - 2026-11-20
 
 Sensor history charts, value gauges, a plan legend, Attention acts, and trace images on the card (Sprints 46–49): inspect trends right from any room or device, snooze or automate alerts, sync areas and floors with Home Assistant, and optionally display Studio trace scans on dashboards.

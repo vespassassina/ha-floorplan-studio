@@ -58,14 +58,19 @@ export function customCalls(scene: RoomScene | null | undefined): SceneCall[] {
     if (!(SCENE_DOMAINS as readonly string[]).includes(domain)) continue;
     const id = { entity_id: it.entity };
     const add = (service: string, extra: Record<string, unknown> = {}) => calls.push({ domain, service, data: { ...id, ...extra } });
-    if (it.on !== true) { add(domain === "cover" ? "close_cover" : "turn_off"); continue; }
+    if (it.on !== true) { add(domain === "cover" ? "close_cover" : "turn_off", domain === "light" && fin(it.transition) ? { transition: it.transition } : {}); continue; }
     switch (domain) {
-      case "cover": if (fin(it.position)) add("set_cover_position", { position: it.position }); else add("open_cover"); break;
+      case "cover":
+        if (fin(it.position)) add("set_cover_position", { position: it.position });
+        else if (!fin(it.tilt)) add("open_cover");
+        if (fin(it.tilt)) add("set_cover_tilt_position", { tilt_position: it.tilt });
+        break;
       case "climate": {
-        const hvac = typeof it.hvac === "string" && it.hvac, t = fin(it.temperature);
+        const hvac = typeof it.hvac === "string" && it.hvac, t = fin(it.temperature), fm = typeof it.fan_mode === "string" && it.fan_mode;
         if (hvac) add("set_hvac_mode", { hvac_mode: it.hvac });
         if (t) add("set_temperature", { temperature: it.temperature });
-        if (!hvac && !t) add("turn_on");
+        if (fm) add("set_fan_mode", { fan_mode: it.fan_mode });
+        if (!hvac && !t && !fm) add("turn_on");
         break;
       }
       case "media_player":
@@ -79,6 +84,7 @@ export function customCalls(scene: RoomScene | null | undefined): SceneCall[] {
           if (fin(it.brightness)) extra.brightness_pct = it.brightness;
           if (fin(it.kelvin)) extra.color_temp_kelvin = it.kelvin;
           if (Array.isArray(it.hs) && fin(it.hs[0]) && fin(it.hs[1])) extra.hs_color = [it.hs[0], it.hs[1]];
+          if (fin(it.transition)) extra.transition = it.transition;
         } else if (domain === "fan" && fin(it.percentage)) extra.percentage = it.percentage;
         add("turn_on", extra);
       }

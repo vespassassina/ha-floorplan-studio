@@ -9,7 +9,7 @@ import { html } from "lit";
 import { dialogOpen } from "./card-dialogs";
 import { openSearch, pickRoom, restorePick, tapRoom } from "./card-overview";
 import { closePopup, foldSpider } from "./card-popup";
-import { closeHistory, closeLegend } from "./card-extras";
+import { closeExtras } from "./card-extras";
 import { back } from "./card-sheet";
 import { saveViewNow, scheduleSave } from "./card-view-state";
 import type { FloorplanStudioCard, PickMemo } from "./floorplan-studio-card";
@@ -307,8 +307,7 @@ export function onViewKey(c: FloorplanStudioCard, ev: KeyboardEvent): void {
   if (dialogOpen(c)) return; // a dialog has its own keys
   // S24.8: ⌘K, Ctrl+K or / opens the search, under the same gate as the view keys: the card focused, else hovered.
   if (isSearchChord(ev)) { if (openSearch(c)) ev.preventDefault(); return; }
-  if (ev.key === "Escape" && c._history) { closeHistory(c); ev.preventDefault(); return; }
-  if (ev.key === "Escape" && c._legendOpen) { closeLegend(c); ev.preventDefault(); return; }
+  if (ev.key === "Escape" && closeExtras(c)) { ev.preventDefault(); return; }
   if (ev.key === "Escape" && c._popup) { closePopup(c); ev.preventDefault(); return; }
   if (ev.key === "Escape" && c._spider) { foldSpider(c); ev.preventDefault(); return; }
   // S31.10: a device key counts only while the plan itself has the focus; in the popup or a text field the keys are theirs.

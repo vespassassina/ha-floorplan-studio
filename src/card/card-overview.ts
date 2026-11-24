@@ -7,7 +7,7 @@ import { scenesTemplate } from "./room-scenes-ui";
 import type { Pt } from "./viewport";
 import { html, nothing, unsafeCSS, type CSSResult } from "lit";
 import { floorOffButton, openVacuumDialog } from "./card-dialogs";
-import { openHistory, openLegend } from "./card-extras";
+import { openHistory, openLegend, openSceneEditor } from "./card-extras";
 import { overviewStates } from "./card-replay";
 import { callService, closePopup, deviceSubject, openPopup, openSubject, popupMarkup, runOp, subjectOf, subjectOp, subjectText, thingSel } from "./card-popup";
 import { back, popupInSheet, sheetTo, toggleActiveCollapsed } from "./card-sheet";
@@ -78,7 +78,7 @@ export function activePanel(c: FloorplanStudioCard) {
     return html`<p class="fp-3d-note" role="status">${t(UNAVAILABLE)}</p>${pop}`;
   }
   if (c.shadowRoot) adoptSheet(c.shadowRoot, p.OVERVIEW_CSS);
-  made ??= p.make({ ALL_OFF_TITLE, DEVICE_ICONS, TOGGLE_AT_ONCE, activeDevices, allOffTitle, attentionOf, back, callService, colorVarFor, customCalls, customScene, deviceSubject, favouriteRefs, filterToRoom, fireEvent, floorOffButton, floorSummary, floorTitle, formatAge, formatChanged, groupByCategory, html, keptHere, layerWord, layoutEntries, locate, nothing, openHistory, openLegend, openPopup, openVacuumDialog, openView, overviewStates, pickRoom, picked, pickedFloorKey, pieceDevice, plugThreshold, popupInSheet, popupMarkup, presetCalls, roomHeat, roomScenes, roomSummary, runOp, sceneNeedsConfirm, scenesTemplate, stateText, subjectOp, subjectText, t, tn, toggleActiveCollapsed });
+  made ??= p.make({ ALL_OFF_TITLE, DEVICE_ICONS, TOGGLE_AT_ONCE, activeDevices, allOffTitle, attentionOf, back, callService, colorVarFor, customCalls, customScene, deviceSubject, favouriteRefs, filterToRoom, fireEvent, floorOffButton, floorSummary, floorTitle, formatAge, formatChanged, groupByCategory, html, keptHere, layerWord, layoutEntries, locate, nothing, openHistory, openLegend, openPopup, openSceneEditor, openVacuumDialog, openView, overviewStates, pickRoom, picked, pickedFloorKey, pieceDevice, plugThreshold, popupInSheet, popupMarkup, presetCalls, roomHeat, roomScenes, roomSummary, runOp, sceneNeedsConfirm, scenesTemplate, stateText, subjectOp, subjectText, t, tn, toggleActiveCollapsed });
   return made.activePanel(c);
 }
 

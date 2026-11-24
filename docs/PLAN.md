@@ -4886,26 +4886,13 @@ Implemented (`docs/specs/trace-on-card-s49.md`):
 - [x] 2026-11-20 Trace on the card: optional `Trace.card?: boolean` in `src/core/schema.ts` (zero card YAML config keys; surface freeze unchanged), card `renderFloor` + `svg.tracing` + shared `FLOORPLAN_CSS` (`image.trace{pointer-events:none}`, `svg.tracing .room{fill-opacity:.4}`) in `src/core/render.ts` & `src/card/floorplan-studio-card.ts`, Studio `#traceCard` toggle (`Show on card`, disabled while hidden, one undo step via `setTrace`) in `src/editor/editor-trace.ts` & `src/editor/state.ts`, and selective serving in `custom_components/floorplan_studio/websocket.py` (`_without_trace` keeps `trace` only when `on` and `card` are both `True`).
 - (Moved to Sprint 50: every scene saved is a Home Assistant scene.)
 
-### Sprint 50 (outline): the scene editor in the card
+### Sprint 50 (done): the scene editor in the card
 
-Diego, 2026-10-30: "a scene editor popup. lazy. that has a nice wysiwyg editor for light/cover/switches/music scenes in
-a room. then scenes are saved for the rooms." The spec answers the open points before the sprint starts.
-- One editor, two hosts: a lazy chunk the card opens from a room's Scenes section, and the Studio opens in place of the
-  S17 popup, so the two cannot drift (one draw path, finding 8; parity with the Studio).
-- The popup shows the room magnified, drawn by `renderFloor` cropped to the room. A tap on a device opens its control
-  in place: on/off, brightness, kelvin and colour for a light; position (and tilt) for a cover; on/off for a switch or
-  plug; volume and source for a speaker; mode and target for climate; speed for a fan.
-- WYSIWYG without touching the house: the plan draws the scene's states the way a replay draws past states. "Try it"
-  sends it to the real devices and "Restore" puts the room back (S17.7).
-- New per-item fields: `transition` (seconds, lights), cover `tilt`, climate fan mode; "Capture the room now" fills a
-  scene from the current states.
-- Saving makes a Home Assistant scene (Diego, 2026-10-30: "scenes need to be HA scenes. so i can run them from my
-  room screens"). Save writes a `scene.*` through HA's scene config, in the room's area, so a room screen, Assist or an
-  automation runs it; the room lists it as it lists HA scenes today. Sprint 49's "scenes into HA" moves here. The spec
-  decides what happens to the custom scenes already stored on rooms (a one-time move, offered, never silent). Writing
-  HA config is admin only; non-admins see the editor read-only with Try it. HA's scene config writes to `scenes.yaml`
-  and works only where `configuration.yaml` has `scene: !include scenes.yaml` (a default install has it); the spec says
-  what the editor shows when it is missing. Card bytes: the button and the loader only.
+Implemented (`docs/specs/scene-editor-s50.md`):
+- [x] 2026-11-24 One lazy WYSIWYG scene editor chunk (`src/card/scene/index.ts`, `floorplan-studio-scene-<hash>.js`, zero runtime imports) shared by both the card (`.fp-scene-ed-btn` in the room Scenes section, minimal loader in `src/card/card-extras.ts`) and Studio (`src/editor/scene-designer.ts`).
+- [x] 2026-11-24 Magnified `renderFloor` room preview cropped to the room with synthesized WYSIWYG states (without touching the house), tap-to-select device controls, "Capture the room now", palette, and Try it / Restore.
+- [x] 2026-11-24 New per-item fields `transition` (lights, 0..300 s), `tilt` (covers, 0..100 %), and `fan_mode` (climate, 1..80 chars) across `schema.ts`, `room-scenes.ts`, `room-scenes-ops.ts`, and `scene-try.ts`.
+- [x] 2026-11-24 Save as real Home Assistant `scene.*` (`POST config/scene/config/<id>` + entity registry area & `floorplan-studio` label, admin-only with read-only + Try it for non-admins, clear missing `scene: !include scenes.yaml` error, and explicit one-time migration of legacy custom room scenes).
 
 ### Sprint 51 (outline): dynamic scenes
 

@@ -428,11 +428,11 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
 
 /** S48: fetches history for a popup or room sensor list, sharing Replay 2's lazy `fetchHistory` chunk. */
 export async function fetchHistoryFor(c: FloorplanStudioCard, ids: readonly string[], startMs: number, endMs: number): Promise<HistoryIndex> {
-  const conn = c._hass?.connection;
-  if (!conn?.sendMessagePromise) throw new Error(t(NO_ANSWER));
+  const send = c._hass?.connection?.sendMessagePromise;
+  if (!send) throw new Error(t(NO_ANSWER));
   const h = await loadLib().catch(() => { throw new Error(t(STALE_PAGE)); });
-  return h.fetchHistory((m) => withTimeout(conn.sendMessagePromise<unknown>(m), FETCH_TIMEOUT_MS), ids, startMs, endMs)
-    .catch((e: { code?: unknown; message?: unknown }) => { throw new Error(e?.code === "timeout" ? t(TIMED_OUT) : typeof e?.message === "string" && e.message ? e.message : t(NO_ANSWER)); });
+  return h.fetchHistory((m) => withTimeout(send.call(c._hass!.connection, m), FETCH_TIMEOUT_MS), ids, startMs, endMs)
+    .catch((e: { code?: unknown; message?: unknown }) => { throw new Error(e?.code === "timeout" ? t(TIMED_OUT) : (e?.message as string) || t(NO_ANSWER)); });
 }
 
 /** What a state looks like to the frontend's own formatters: they read `entity_id`. */

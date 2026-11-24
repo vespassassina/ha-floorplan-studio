@@ -307,3 +307,21 @@ test(`there is exactly one legend chunk, at most ${LEGEND_CHUNK_LIMIT} bytes gzi
   expect(card).not.toContain("fp-legend-v1");
   expect(card).not.toContain("__FPLEGEND_CHUNK__");
 });
+
+// S50 (docs/specs/scene-editor-s50.md): shared WYSIWYG scene editor is a lazy zero-import chunk.
+const SCENE_CHUNK_LIMIT = 14000;
+const sceneChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-scene-.+\.js$/.test(f));
+
+test(`there is exactly one scene editor chunk, at most ${SCENE_CHUNK_LIMIT} bytes gzipped, importing nothing, and named in card by import()`, () => {
+  expect(sceneChunks()).toHaveLength(1);
+  const [f] = sceneChunks();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(SCENE_CHUNK_LIMIT);
+  const chunk = readFileSync(`dist/${f}`, "utf8");
+  expect(chunk, "the chunk imports nothing").not.toMatch(/\bfrom\s*["'][^"']+["']|\bimport\s*\(/);
+  expect(chunk).toContain("fp-scene-v1");
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  expect(card).toMatch(/"\.\/floorplan-studio-scene-[\w-]+\.js"/);
+  expect(card).not.toContain("fp-scene-v1");
+  expect(card).not.toContain("__FPSCENE_CHUNK__");
+});

@@ -13,7 +13,7 @@ import type { scenesTemplate } from "../room-scenes-ui";
 import type { html, nothing } from "lit";
 import type { TOGGLE_AT_ONCE, attentionOf, floorTitle, keptHere, locate, pickRoom, picked, pickedFloorKey } from "../card-overview";
 import type { floorOffButton, openVacuumDialog } from "../card-dialogs";
-import type { openHistory, openLegend } from "../card-extras";
+import type { openHistory, openLegend, openSceneEditor } from "../card-extras";
 import type { overviewStates } from "../card-replay";
 import type { callService, deviceSubject, openPopup, popupMarkup, runOp, subjectOp, subjectText } from "../card-popup";
 import type { back, popupInSheet, toggleActiveCollapsed } from "../card-sheet";
@@ -56,6 +56,7 @@ export interface OverviewDeps {
   openHistory: typeof openHistory;
   openLegend: typeof openLegend;
   openPopup: typeof openPopup;
+  openSceneEditor: typeof openSceneEditor;
   openVacuumDialog: typeof openVacuumDialog;
   openView: typeof openView;
   overviewStates: typeof overviewStates;
@@ -88,7 +89,7 @@ interface Scope { unnamed: string; clear: string; noDevices: string; nothingOn: 
 interface OverviewRow { entity: string; name: string; floor: string; at: ThingRef | { what: "room"; index: number }; room?: string; state: string; age?: string; type?: DeviceType; colorVar: string; attn: boolean }
 
 export function make(d: OverviewDeps) {
-  const { ALL_OFF_TITLE, DEVICE_ICONS, TOGGLE_AT_ONCE, activeDevices, allOffTitle, attentionOf, back, callService, colorVarFor, customCalls, customScene, deviceSubject, favouriteRefs, filterToRoom, fireEvent, floorOffButton, floorSummary, floorTitle, formatAge, formatChanged, groupByCategory, html, keptHere, layerWord, layoutEntries, locate, nothing, openHistory, openLegend, openPopup, openVacuumDialog, openView, overviewStates, pickRoom, picked, pickedFloorKey, pieceDevice, plugThreshold, popupInSheet, popupMarkup, presetCalls, roomHeat, roomScenes, roomSummary, runOp, sceneNeedsConfirm, scenesTemplate, stateText, subjectOp, subjectText, t, tn, toggleActiveCollapsed } = d;
+  const { ALL_OFF_TITLE, DEVICE_ICONS, TOGGLE_AT_ONCE, activeDevices, allOffTitle, attentionOf, back, callService, colorVarFor, customCalls, customScene, deviceSubject, favouriteRefs, filterToRoom, fireEvent, floorOffButton, floorSummary, floorTitle, formatAge, formatChanged, groupByCategory, html, keptHere, layerWord, layoutEntries, locate, nothing, openHistory, openLegend, openPopup, openSceneEditor, openVacuumDialog, openView, overviewStates, pickRoom, picked, pickedFloorKey, pieceDevice, plugThreshold, popupInSheet, popupMarkup, presetCalls, roomHeat, roomScenes, roomSummary, runOp, sceneNeedsConfirm, scenesTemplate, stateText, subjectOp, subjectText, t, tn, toggleActiveCollapsed } = d;
 
 
   const ROOM_SCOPE: Scope = {
@@ -209,7 +210,7 @@ export function make(d: OverviewDeps) {
     const f = c._floor(), at = picked(c);
     if (!f || at === null) return nothing;
     const menu = roomScenes(f, at, c._hass);
-    return scenesTemplate({ menu, asking: c._sceneAsk, run: (key) => runScene(c, key), cancel: () => { c._sceneAsk = null; c.requestUpdate(); }, open: c._foldedCats.has(SCENES_OPEN), toggle: () => toggleCat(c, SCENES_OPEN) });
+    return scenesTemplate({ menu, asking: c._sceneAsk, run: (key) => runScene(c, key), cancel: () => { c._sceneAsk = null; c.requestUpdate(); }, open: c._foldedCats.has(SCENES_OPEN), toggle: () => toggleCat(c, SCENES_OPEN), onEdit: !c._kiosk() ? () => openSceneEditor(c, at) : undefined });
   }
 
   /** One tap on a scene button. A Home Assistant scene is `scene.turn_on`; a custom scene and the presets go through the light and switch services (`customCalls`, `presetCalls`). A custom scene that turns a switch off asks first. */

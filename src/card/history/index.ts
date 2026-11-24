@@ -173,3 +173,45 @@ export function historyOverlayView({ html, nothing, t }: HistoryTools, m: Histor
     </div>
   </div>`;
 }
+
+export interface HistoryHost {
+  _history: { title: string; specs: HistorySeriesSpec[]; hours: number; status: "loading" | "ready" | "error"; index?: HistoryIndex; startMs: number; endMs: number; error?: string } | null;
+  requestUpdate(): void;
+}
+
+/** Runs the fetch + state transition inside the lazy history chunk to keep main card bundle tiny. */
+export function runCardHistory(
+  c: HistoryHost,
+  title: string,
+  specs: readonly HistorySeriesSpec[],
+  hours: number,
+  fetchFn: (ids: string[], startMs: number, endMs: number) => Promise<HistoryIndex>,
+): void {
+  const seen = new Set<string>(), uniq = specs.filter((s) => s?.id && !seen.has(s.id) && seen.add(s.id)).slice(0, MAX_SERIES).map((s) => ({ id: s.id, label: s.label || s.id }));
+  if (!uniq.length) return;
+  const endMs = Date.now(), startMs = endMs - hours * 3600_000;
+  const st = { title, specs: uniq, hours, status: "loading" as const, startMs, endMs };
+  c._history = st;
+  c.requestUpdate();
+  void fetchFn(uniq.map((s) => s.id), startMs, endMs).then(
+    (index) => { if (c._history === st) { c._history = { ...st, status: "ready", index }; c.requestUpdate(); } },
+    (err) => { if (c._history === st) { c._history = { ...st, status: "error", error: String((err as { message?: unknown })?.message ?? err) }; c.requestUpdate(); } },
+  );
+}
+
+export function renderCardHistory(
+  tools: HistoryTools,
+  c: HistoryHost,
+  closeIcon: string,
+  onWindow: (title: string, specs: readonly HistorySeriesSpec[], hours: number) => void,
+): unknown {
+  const h = c._history;
+  if (!h) return tools.nothing;
+  return historyOverlayView(tools, {
+    ...h,
+    series: h.status === "ready" ? extractSeries(h.index, h.specs, h.startMs, h.endMs) : [],
+    closeIcon,
+    onWindow: (hrs) => onWindow(h.title, h.specs, hrs),
+    onClose: () => { c._history = null; c.requestUpdate(); },
+  });
+}

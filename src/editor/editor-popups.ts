@@ -10,8 +10,9 @@ import { closeAlign } from "./editor-align";
 import { counted, placedNote } from "./editor-search";
 import { newDraft } from "./scene-designer";
 import { restoreScene, tryScene } from "./scene-try";
+import { captureRoomItems, sceneTargets } from "../card/scene";
 import { type AddCandidate, DEVICE_COLOURS, FLOOR_COLOURS, WALL_COLOUR_KEYS, type Pt, type SceneItem, viewBoxFor } from "../core";
-import { cleanSceneItem, roomSceneTargets, saveScene } from "./room-scenes-ops";
+import { cleanSceneItem, removeScene, roomSceneTargets, saveScene } from "./room-scenes-ops";
 import { placeDevice } from "./editor-draw";
 import { MAX_ZOOM } from "../card/viewport";
 import { EditorState } from "./state";
@@ -163,13 +164,66 @@ export async function restoreSceneDraft(ed: FloorplanStudioEditor) {
   ed.requestUpdate();
 }
 
-/** Save: one `commit`, so one undo step; a refused draft stays open and says why. */
-export function saveSceneDraft(ed: FloorplanStudioEditor) {
+/** S50: fills the draft from the room's current live HA states. */
+export function captureSceneDraft(ed: FloorplanStudioEditor) {
+  const d = ed.sceneDraft;
+  const i = d ? ed.st.f.rooms.findIndex((r) => r.id === d.room) : -1;
+  if (!d || i < 0) return;
+  const targets = sceneTargets(ed.st.f, i);
+  const got = captureRoomItems(targets, ed._hassStates ?? {});
+  if (!got.size) { d.note = "No live device states available to capture."; ed.requestUpdate(); return; }
+  d.items = got;
+  d.note = `Captured ${got.size} device${got.size === 1 ? "" : "s"} from the room.`;
+  ed.requestUpdate();
+}
+
+/** S50: one-time explicit migration of a room's legacy custom scenes into real HA `scene.*` entities. */
+export async function migrateLegacyScenes(ed: FloorplanStudioEditor) {
+  const d = ed.sceneDraft, w = ed.writer;
+  const i = d ? ed.st.f.rooms.findIndex((r) => r.id === d.room) : -1;
+  if (!d || i < 0 || !w?.saveScene || d.migrating) return;
+  const r = ed.st.f.rooms[i]!;
+  const legacy = [...(r.scenes ?? [])];
+  if (!legacy.length) return;
+  d.migrating = true; d.error = ""; ed.requestUpdate();
+  const moved: string[] = [];
+  try {
+    for (const sc of legacy) {
+      await w.saveScene({ name: sc.name, areaId: r.area, items: sc.items });
+      moved.push(sc.id);
+    }
+  } catch (err) {
+    d.error = err instanceof Error ? err.message : String(err);
+  }
+  if (moved.length) ed.commit((f) => { for (const id of moved) removeScene(f.rooms[i]!, id); });
+  d.migrating = false;
+  if (moved.length) d.note = `Moved ${moved.length} scene${moved.length === 1 ? "" : "s"} to Home Assistant.`;
+  ed.requestUpdate();
+}
+
+/** Save: writes a real HA `scene.*` when connected with HA scene write access on a new scene; otherwise saves to the room in one `commit` (one undo step). */
+export async function saveSceneDraft(ed: FloorplanStudioEditor) {
   const d = ed.sceneDraft;
   const i = d ? ed.st.f.rooms.findIndex((r) => r.id === d.room) : -1;
   if (!d || i < 0) { closeScene(ed); return; }
   const order = roomSceneTargets(ed.st.f, i).map((t) => t.entity);
   const items = [...d.items.values()].sort((a, b) => (order.indexOf(a.entity) + 1 || 999) - (order.indexOf(b.entity) + 1 || 999));
+  if (ed.writer?.saveScene && d.id === null) {
+    const clean = items.flatMap((it) => { const c = cleanSceneItem(it); return c ? [c] : []; });
+    if (!d.name.trim()) { d.error = "Give the scene a name."; ed.requestUpdate(); return; }
+    if (!clean.length) { d.error = "Pick at least one device."; ed.requestUpdate(); return; }
+    ed.sceneBusy = true; d.error = ""; ed.requestUpdate();
+    try {
+      await ed.writer.saveScene({ name: d.name, areaId: ed.st.f.rooms[i]!.area, items: clean });
+      ed.sceneBusy = false;
+      closeScene(ed, true);
+    } catch (err) {
+      ed.sceneBusy = false;
+      d.error = err instanceof Error ? err.message : String(err);
+      ed.requestUpdate();
+    }
+    return;
+  }
   let reason = "";
   const probe = structuredClone(ed.st.f.rooms[i]);
   const check = saveScene(probe, d.id, d.name, items);

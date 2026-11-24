@@ -30,8 +30,14 @@ export function itemFromState(entity: string, s: State): SceneItem | null {
     if (a.color_mode === "color_temp") { if (num(a.color_temp_kelvin)) it.kelvin = a.color_temp_kelvin; }
     else if (Array.isArray(a.hs_color) && num(a.hs_color[0]) && num(a.hs_color[1])) it.hs = [a.hs_color[0], a.hs_color[1]];
   } else if (domain === "fan") { if (num(a.percentage)) it.percentage = a.percentage; }
-  else if (domain === "cover") { if (num(a.current_position)) it.position = a.current_position; }
-  else if (domain === "climate") { it.hvac = state; if (num(a.temperature)) it.temperature = a.temperature; }
+  else if (domain === "cover") {
+    if (num(a.current_position)) it.position = a.current_position;
+    if (num(a.current_tilt_position)) it.tilt = a.current_tilt_position;
+  } else if (domain === "climate") {
+    it.hvac = state;
+    if (num(a.temperature)) it.temperature = a.temperature;
+    if (typeof a.fan_mode === "string" && a.fan_mode) it.fan_mode = a.fan_mode;
+  }
   else if (domain === "media_player") {
     if (num(a.volume_level)) it.volume = Math.round(a.volume_level * 100);
     if (typeof a.source === "string" && a.source) it.source = a.source;

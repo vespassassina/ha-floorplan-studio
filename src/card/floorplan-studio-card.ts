@@ -33,7 +33,7 @@ export { DOUBLE_TAP_MS, DOUBLE_TAP_PX } from "./card-zoom"; // the 3D host and i
 import { chooserDialogTemplate, coverDialogTemplate, offDialogTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, openVacuumDialog, vacuumDialogTemplate } from "./card-dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
 import { closeReplay, isReplaying, REPLAY_CSS, replayBar, replayEnergyOverlay, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
-import { historyOverlay, legendOverlay, type HistoryState } from "./card-extras";
+import { extrasOverlay, type HistoryState, type SceneEditorDraft } from "./card-extras";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
 import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, onCardDown, onSheetClick, onSheetDown, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
@@ -67,6 +67,8 @@ export interface Hass {
   /** Home's location and currency. Shape from the frontend's `HassConfig` (`hass.config.latitude`, `longitude`, `currency`). */
   config?: { latitude?: number; longitude?: number; currency?: string };
   callService?(domain: string, service: string, data?: Record<string, unknown>): Promise<unknown>;
+  callApi?<T = unknown>(method: "GET" | "POST" | "DELETE", path: string, params?: Record<string, unknown>): Promise<T>;
+  callWS?<T = unknown>(msg: { type: string; [k: string]: unknown }): Promise<T>;
   /** HA's own display text for a state ("21.5 °C", "Heat/Cool"). Absent on an old frontend; the card then prints the raw state. */
   formatEntityState?(stateObj: HassEntity): string;
 }
@@ -592,9 +594,10 @@ export class FloorplanStudioCard extends LitElement {
     } catch { /* storage blocked or invalid JSON */ }
     return {};
   })();
-  /** S48: active history chart overlay and plan legend overlay flags. */
+  /** S48 / S50: active history chart, plan legend, and WYSIWYG scene editor overlays. */
   _history: HistoryState | null = null;
   _legendOpen = false;
+  _sceneEd: SceneEditorDraft | null = null;
   _saveSnooze(next: Record<string, string>) {
     this._snooze = next;
     try {
@@ -1937,7 +1940,7 @@ export class FloorplanStudioCard extends LitElement {
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? optionsMenu(this) : null;
     const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
-    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${replayEnergyOverlay(this)}${historyOverlay(this)}${legendOverlay(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${replayEnergyOverlay(this)}${extrasOverlay(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */

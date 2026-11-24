@@ -43,19 +43,23 @@ export function setRoomHaScenes(r: Room, next: string[]): void {
   if (list.length) r.haScenes = list; else delete r.haScenes;
 }
 
-const FIELD_RANGE: Record<string, [number, number]> = { brightness: [1, 100], kelvin: [1000, 10000], percentage: [0, 100], position: [0, 100], temperature: [5, 35], volume: [0, 100] };
+const FIELD_RANGE: Record<string, [number, number]> = { brightness: [1, 100], kelvin: [1000, 10000], transition: [0, 300], percentage: [0, 100], position: [0, 100], tilt: [0, 100], temperature: [5, 35], volume: [0, 100] };
 
 /** One draft item cleaned for storage: a known type only, only the fields that type may set, only when on, numbers clamped, text trimmed. */
 export function cleanSceneItem(it: SceneItem): SceneItem | null {
   const domain = typeof it?.entity === "string" ? it.entity.split(".")[0] : "";
   if (!(SCENE_DOMAINS as readonly string[]).includes(domain)) return null;
   const out: SceneItem = { entity: it.entity, on: it.on === true };
-  if (!out.on) return out;
+  if (!out.on) {
+    if (domain === "light" && typeof it.transition === "number" && Number.isFinite(it.transition))
+      out.transition = Math.min(300, Math.max(0, Math.round(it.transition * 10) / 10));
+    return out;
+  }
   const src = it as unknown as Record<string, unknown>, dst = out as unknown as Record<string, unknown>;
   for (const f of SCENE_FIELDS[domain as (typeof SCENE_DOMAINS)[number]]) {
     const v = src[f];
     if (f === "hs") { if (Array.isArray(v) && v.length === 2 && v.every((n) => Number.isFinite(n))) dst.hs = [Math.min(360, Math.max(0, v[0])), Math.min(100, Math.max(0, v[1]))]; }
-    else if (f === "hvac" || f === "source") { if (typeof v === "string" && v.trim()) dst[f] = v.trim().slice(0, 80); }
+    else if (f === "hvac" || f === "source" || f === "fan_mode") { if (typeof v === "string" && v.trim()) dst[f] = v.trim().slice(0, 80); }
     else if (typeof v === "number" && Number.isFinite(v)) { const [lo, hi] = FIELD_RANGE[f]; dst[f] = Math.min(hi, Math.max(lo, Math.round(v * 10) / 10)); }
   }
   return out;
