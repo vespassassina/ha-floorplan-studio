@@ -5030,10 +5030,11 @@ Spec: `docs/specs/scene-roundtrip-hue-s63.md`. `0 B` card gzip (inside lazy `flo
 - [x] 2026-11-24 S63.2 Round-trip parsers & loaders (`parseHaSceneConfig`, `loadHaScene`, `parseHaDynamicScript`, `loadHaDynamicScene`) for editing existing HA scenes and dynamic scripts in place.
 - [x] 2026-11-24 S63.3 Hue scene migration flow (activate → settle → capture into WYSIWYG draft → save native HA scene → optionally disable original Hue entity in HA registry) in both Card and Studio.
 
-### Sprint 64: card headroom & rich car popover
+### Sprint 64 (done): card headroom & rich car popover
 
-- [ ] S64.1 Move card dialogs / popup into lazy zero-import chunk(s) to free ~2.2–3.5 KB from `floorplan-studio-card.js`.
-- [ ] S64.2 Rich car card popover: battery/fuel bar, range, charging power/ETA, zone badge, door/window/lock status chips, direct lock/climate/charger controls, and per-entity `more-info` links.
+Spec: `docs/specs/car-popover-s64.md`. Card gzip dropped to `137,159` B (841 B under cap).
+- [x] 2026-11-24 S64.1 Move card modal dialogs (`cover`, `floor-off`, `vacuum`, `chooser`) into lazy zero-import `src/card/dialogs/index.ts` (`floorplan-studio-dialogs-<hash>.js`, `1,686` B gzip).
+- [x] 2026-11-24 S64.2 Rich car card popover (`src/card/car/index.ts`, `floorplan-studio-car-<hash>.js`, `2,320` B gzip): battery/fuel progress bar, range, charging power & ETA, door/window/lock status chips, inline-confirmed unlock, and climate/switch quick controls inside `.fp-pop`.
 
 ### Sprint 65: wall-tablet & mobile kiosk polish
 

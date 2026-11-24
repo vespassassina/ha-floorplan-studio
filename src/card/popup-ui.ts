@@ -42,6 +42,8 @@ export interface PopupView {
   fan: FanCaps | null;
   /** brightness percent, kelvin, hue degrees, fan speed percent; null when the entity does not say. */
   level: Record<SliderKind, number | null>;
+  /** S64.2: optional rich content injected by a lazy chunk (e.g. car telemetry & controls). */
+  extra?: unknown;
   /** S24.7 (A3): what Home Assistant's registries know (`deviceInfo`), folded under "Details". It replaces the ▸ chevron every
    *  row used to carry. Empty in kiosk, as More info is. */
   info: InfoRow[];
@@ -115,6 +117,7 @@ export function popupTemplate(v: PopupView) {
       : html`<div class="fp-pop-actions"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${label}</button>${more}${hist}</div>`;
   return html`<div class=${v.inSheet ? "fp-pop fp-pop-sheet" : "fp-pop"} role="dialog" aria-label=${s.name} data-pop @keydown=${v.key}>
     <div class="fp-pop-head"><div class="fp-pop-name">${s.name}</div><div class="fp-pop-state">${v.text}</div></div>
+    ${v.extra ?? nothing}
     ${v.fan ? html`<div class="fp-pop-sliders">${slider("s", 0, 100, v.fan.step)}</div>` : nothing}
     ${v.caps && (v.caps.brightness || v.caps.temp || v.caps.hue) ? html`<div class="fp-pop-sliders">
       ${v.caps.brightness ? slider("b", 1, 100, 1) : nothing}

@@ -7,7 +7,7 @@ import { holdActionOf, tapActionOf } from "./tap-action";
 import type { Pt, View } from "./viewport";
 import { coverService, dialogOpen, openChooserDialog, openCoverDialog } from "./card-dialogs";
 import { TOGGLE_AT_ONCE } from "./card-overview";
-import { openHistory } from "./card-extras";
+import { carExtra, openHistory } from "./card-extras";
 import { popupInSheet, sheetTo } from "./card-sheet";
 import type { FloorplanStudioCard } from "./floorplan-studio-card";
 
@@ -113,6 +113,7 @@ export function closePopup(c: FloorplanStudioCard): void {
   if (!c._popup) return;
   c._popupReturn = c._popup.opener;
   c._popup = null;
+  c._carConfirm = null;
   c.requestUpdate();
 }
 
@@ -215,6 +216,7 @@ export function popupMarkup(c: FloorplanStudioCard, inSheet = false) {
     act: () => popupAct(c),
     cancel: () => { if (c._popup) { c._popup.confirming = false; c.requestUpdate(); } },
     more: () => popupMore(c),
+    extra: s.type === "car" ? carExtra(c, s.entities) : undefined,
     history: histIds.length && c._hass?.connection?.sendMessagePromise && !c._kiosk() ? () => openHistory(c, s.name, histIds) : undefined,
     key: (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePopup(c); } },
     slide: (kind, value, commit) => popupSlide(c, kind, value, commit),

@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 /** `dir`/floorplan-studio-card.js, each `import("./floorplan-studio-overview-<hash>.js")` pointing at the chunk's own text. */
 export function cardSource(dir = "dist") {
   return readFileSync(`${dir}/floorplan-studio-card.js`, "utf8").replace(
-    /"\.\/(floorplan-studio-overview-[\w-]+\.js)"/g,
+    /"\.\/(floorplan-studio-(?:overview|dialogs|car)-[\w-]+\.js)"/g,
     (_all, file) => JSON.stringify(`data:text/javascript;base64,${readFileSync(`${dir}/${file}`).toString("base64")}`),
   );
 }
