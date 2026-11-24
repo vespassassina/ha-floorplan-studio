@@ -129,6 +129,7 @@ for (const view of ["2d", "2.5d"] as const) {
       await press(page, await piecePoint(page, indexOf(layout, "car-1")));
       await expect(card(page).locator("css=.fp-pop")).toBeVisible();
       await card(page).locator("css=.fp-pop-more").click();
+      await expect(chooser(page)).toBeVisible();
       expect((await rows(page))[0]).toBe("Charging statestopped");
     });
 
@@ -269,5 +270,43 @@ test.describe("the Active list", () => {
     expect(await infos(page)).toEqual([]);
     await setStates(page, STATES());
     await expect(card(page).locator("css=.fp-active-body .fp-active-row", { hasText: "Family car" })).toHaveCount(0);
+  });
+});
+
+test.describe("Sprint 64: rich car popover", () => {
+  test("shows battery bar, range, charging power/ETA, door alert chips, unlock confirm, and climate toggle", async ({ page }) => {
+    const piece = carPiece({
+      attached: [
+        "sensor.car_charging", "sensor.car_battery", "sensor.car_range", "sensor.car_power",
+        "sensor.car_eta", "binary_sensor.car_trunk", "lock.car", "climate.car_hvac",
+      ],
+    });
+    const layout = layoutOf(piece);
+    await boot(page, layout, {}, STATES({
+      "sensor.car_charging": st("charging"),
+      "sensor.car_range": st("312", { device_class: "distance", unit_of_measurement: "km" }),
+      "sensor.car_power": st("11", { device_class: "power", unit_of_measurement: "kW" }),
+      "sensor.car_eta": st("35", { device_class: "duration", unit_of_measurement: "min" }),
+      "binary_sensor.car_trunk": st("on", { device_class: "opening", friendly_name: "Trunk" }),
+      "climate.car_hvac": st("off", { friendly_name: "Climate" }),
+    }));
+    await press(page, await piecePoint(page, indexOf(layout, "car-1")));
+    const carPop = card(page).locator("css=.fp-car-pop");
+    await expect(carPop).toBeVisible();
+    await expect(carPop).toContainText("Battery 78%");
+    await expect(carPop).toContainText("312 km");
+    await expect(carPop).toContainText("Charging · 11 kW · 35 min");
+    await expect(carPop.locator('css=[data-car-open="binary_sensor.car_trunk"]')).toHaveClass(/\balert\b/);
+
+    // Unlock requires 1-click inline confirmation
+    await carPop.locator('css=[data-car-ctrl="lock.car"]').click();
+    expect(await calls(page)).toEqual([]);
+    await expect(carPop.locator('css=[data-car-confirm="lock.car"]')).toBeVisible();
+    await carPop.locator('css=[data-car-confirm="lock.car"]').click();
+    expect(await calls(page)).toContain("lock.unlock lock.car");
+
+    // Climate toggle fires immediately
+    await carPop.locator('css=[data-car-ctrl="climate.car_hvac"]').click();
+    expect(await calls(page)).toContain("climate.turn_on climate.car_hvac");
   });
 });

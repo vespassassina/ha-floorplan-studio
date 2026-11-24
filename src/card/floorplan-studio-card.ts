@@ -595,6 +595,7 @@ export class FloorplanStudioCard extends LitElement {
   _history: HistoryState | null = null;
   _legendOpen = false;
   _sceneEd: SceneEditorDraft | null = null;
+  _carConfirm: string | null = null;
   _saveSnooze(next: Record<string, string>) {
     this._snooze = next;
     try { if (Object.keys(next).length) localStorage.setItem(SNOOZE_KEY, JSON.stringify(next)); else localStorage.removeItem(SNOOZE_KEY); } catch { /* blocked */ }

@@ -5,7 +5,7 @@ import { t } from "../core/i18n";
 import { customCalls, renderFloor } from "../core";
 import { lazy } from "./lazy";
 import { planPatch } from "./plan-patch";
-import { closePopup } from "./card-popup";
+import { callService, closePopup } from "./card-popup";
 import { fetchHistoryFor } from "./card-replay";
 import type { FloorplanStudioCard } from "./floorplan-studio-card";
 import type { HistoryHost, HistorySeriesSpec } from "./history";
@@ -14,10 +14,12 @@ import type { SceneEditorDraft } from "./scene";
 type HistoryLib = typeof import("./history");
 type LegendLib = typeof import("./legend");
 type SceneLib = typeof import("./scene");
+type CarLib = typeof import("./car");
 
 const historyMod = lazy<HistoryLib>(() => import("./history"), "__FPHISTORY_CHUNK__", "history");
 const legendMod = lazy<LegendLib>(() => import("./legend"), "__FPLEGEND_CHUNK__", "legend");
 const sceneMod = lazy<SceneLib>(() => import("./scene"), "__FPSCENE_CHUNK__", "scene");
+const carMod = lazy<CarLib>(() => import("./car"), "__FPCAR_CHUNK__", "car");
 
 export type HistoryState = NonNullable<HistoryHost["_history"]>;
 export type { SceneEditorDraft };
@@ -42,6 +44,25 @@ export const openLegend = (c: FloorplanStudioCard) =>
   withMod(c, legendMod, () => { c._legendOpen = true; c.requestUpdate(); });
 
 export const openSceneEditor = (c: FloorplanStudioCard, i: number) => withMod(c, sceneMod, (lib) => lib.openCardScene(c, i));
+
+/** S64.2: renders the rich car popover section inside `.fp-pop` once the lazy car chunk is loaded. */
+export function carExtra(c: FloorplanStudioCard, entities: readonly string[]): unknown {
+  const lib = carMod.get();
+  if (!lib) {
+    void carMod.load().then(() => { if (c.isConnected && c._popup?.s.type === "car") c.requestUpdate(); }, () => {});
+    return nothing;
+  }
+  return lib.renderCarPopover(
+    {
+      html, nothing, kiosk: c._kiosk(),
+      confirmEntity: c._carConfirm,
+      setConfirm: (entity) => { c._carConfirm = entity; c.requestUpdate(); },
+      callService: (d, s, data) => callService(c, d, s, data),
+    },
+    entities,
+    c._stateForRender(),
+  );
+}
 
 export function extrasOverlay(c: FloorplanStudioCard) {
   return c._sceneEd ? sceneMod.get()?.renderCardScene({ html, nothing, svgAttr: planPatch, renderFloor, customCalls }, c) ?? nothing

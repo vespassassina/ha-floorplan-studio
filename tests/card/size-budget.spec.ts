@@ -325,3 +325,39 @@ test(`there is exactly one scene editor chunk, at most ${SCENE_CHUNK_LIMIT} byte
   expect(card).not.toContain("fp-scene-v1");
   expect(card).not.toContain("__FPSCENE_CHUNK__");
 });
+
+// S64.1 (docs/specs/car-popover-s64.md): modal dialogs are a lazy zero-import chunk.
+const DIALOGS_CHUNK_LIMIT = 4000;
+const dialogsChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-dialogs-.+\.js$/.test(f));
+
+test(`there is exactly one dialogs chunk, at most ${DIALOGS_CHUNK_LIMIT} bytes gzipped, importing nothing, and named in card by import()`, () => {
+  expect(dialogsChunks()).toHaveLength(1);
+  const [f] = dialogsChunks();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(DIALOGS_CHUNK_LIMIT);
+  const chunk = readFileSync(`dist/${f}`, "utf8");
+  expect(chunk, "the chunk imports nothing").not.toMatch(/\bfrom\s*["'][^"']+["']|\bimport\s*\(/);
+  expect(chunk).toContain("fp-dialogs-v1");
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  expect(card).toMatch(/"\.\/floorplan-studio-dialogs-[\w-]+\.js"/);
+  expect(card).not.toContain("fp-dialogs-v1");
+  expect(card).not.toContain("__FPDIALOGS_CHUNK__");
+});
+
+// S64.2 (docs/specs/car-popover-s64.md): rich car popover is a lazy zero-import chunk.
+const CAR_CHUNK_LIMIT = 5000;
+const carChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-car-.+\.js$/.test(f));
+
+test(`there is exactly one car chunk, at most ${CAR_CHUNK_LIMIT} bytes gzipped, importing nothing, and named in card by import()`, () => {
+  expect(carChunks()).toHaveLength(1);
+  const [f] = carChunks();
+  const size = gz(`dist/${f}`);
+  expect(size, `${f} is ${size} gzip`).toBeLessThanOrEqual(CAR_CHUNK_LIMIT);
+  const chunk = readFileSync(`dist/${f}`, "utf8");
+  expect(chunk, "the chunk imports nothing").not.toMatch(/\bfrom\s*["'][^"']+["']|\bimport\s*\(/);
+  expect(chunk).toContain("fp-car-v1");
+  const card = readFileSync("dist/floorplan-studio-card.js", "utf8");
+  expect(card).toMatch(/"\.\/floorplan-studio-car-[\w-]+\.js"/);
+  expect(card).not.toContain("fp-car-v1");
+  expect(card).not.toContain("__FPCAR_CHUNK__");
+});

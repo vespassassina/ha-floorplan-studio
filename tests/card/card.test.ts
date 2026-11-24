@@ -65,6 +65,8 @@ describe("FloorplanStudioCard", () => {
     el.setConfig({ layout: structuredClone(demo) as unknown as Layout });
     el.hass = stubHass({ "light.demo_living": st("on") }) as never;
     await vi.waitFor(() => expect(el.shadowRoot!.querySelector(".fp-active")).toBeTruthy());
+    el._openChooserDialog("warm", []);
+    await vi.waitFor(() => expect(el.shadowRoot!.querySelector(".fp-dialog")).toBeTruthy());
     el.remove();
   });
 
