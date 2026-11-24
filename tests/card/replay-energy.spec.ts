@@ -110,7 +110,7 @@ interface Opts {
 }
 
 async function boot(page: Page, o: Opts = {}) {
-  await page.clock.install({ time: NOW });
+  await page.clock.install({ time: NOW - 1000 });
   await page.clock.pauseAt(NOW);
   await serve(page);
   await page.setViewportSize(o.size ?? { width: 1100, height: 800 });

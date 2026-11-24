@@ -427,7 +427,7 @@ export function make(d: OverviewDeps) {
       ? roomSection(c, summary, html`<div class="fp-filter"><span>${c._roomFilter ? scope.activeHere : t("Active everywhere")}</span><button type="button" class="fp-show-all" @click=${() => { c._roomFilter = !c._roomFilter; c.requestUpdate(); }}>${c._roomFilter ? t("Show all") : scope.onlyHere}</button></div>
                   <div class="fp-filtered">${list}</div>`, scope)
       : html`<div class="fp-ov-search" data-slot="search"><fp-search .entries=${searchEntries(c)} .first=${c._favSet} label=${t("Search the plan")} placeholder=${t("Search rooms and devices")} @fp-pick=${(e: CustomEvent<SearchEntry>) => onSearchPick(c, e)}></fp-search></div>
-                  <div class="fp-ov-scopes">${floorOffButton(c)}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${c._overviewAll ? "true" : "false"} @click=${() => toggleOverviewAll(c)}>${t("All floors")}</button>` : nothing}${!c._kiosk() ? html`<button type="button" class="fp-ov-scope fp-ov-legend" @click=${() => openLegend(c)}>${t("Legend")}</button>` : nothing}</div>
+                  <div class="fp-ov-scopes">${floorOffButton(c)}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${c._overviewAll ? "true" : "false"} @click=${() => toggleOverviewAll(c)}>${t("All floors")}</button>` : nothing}${!c._kiosk() ? html`<button type="button" class="fp-ov-legend" @click=${() => openLegend(c)}>${t("Legend")}</button>` : nothing}</div>
                   <div class="fp-ov-layers" data-slot="layers">${layerNote(c)}</div>
                   ${favouriteSection(c)}${list}
                   <p class="fp-ov-hint">${t("Tap a row: the plan goes to it.")}</p>`;

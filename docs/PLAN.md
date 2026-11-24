@@ -4978,9 +4978,9 @@ Closed 2026-11-07, not yet released. Tests at close: vitest 7,207+, Playwright 2
 (cap 138,000). Opus reopened it twice: badges sat on the room name and walls in L-rooms, then on the name again in a turned plan.
 Fixed (clear of every wall by radius plus half a wall, clear of the name box, tested in the name's upright frame) and re-checked.
 Lessons: a slide aimed at the label point always ends on the label; clearance tests must cover turned plans and wall thickness,
-not only "centre inside". Open: the name box estimate is up to 4 px smaller than the real text (WC at 225 degrees, widen it);
-a room under about 20x20 cm puts badges outside it (older); at 420 px the ne badge can sit under the zoom buttons (Diego's call);
-no end-to-end test of the Studio live-view hover.
+not only "centre inside". Follow-up 2026-11-24: widened short-name box floor (`Math.max(name.len * 0.6, 2.8)`) with `"WC"` at 225°
+DOM clearance test, and added `tests/editor/room-badges-live.spec.ts` for Studio live-view hover. Still open (by design): a room
+under ~20x20 cm puts badges outside it; at 420 px a top-right `ne` badge can sit under the floating zoom buttons (user can pick another corner).
 
 ### Sprint 56: replay always visible, energy counters
 

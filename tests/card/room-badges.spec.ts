@@ -170,9 +170,9 @@ test.describe("badges: a finger", () => {
 
 // Opus re-check of S55: in a turned plan the name is drawn upright on screen but lies at an angle in plan axes, and the badges sat on it.
 // Measured on the real DOM: the name's and each disc's own screen rectangles (the screen is the name's upright frame), no plan formula.
-for (const rotate of [90, 270]) for (const corner of CORNERS) {
-  test(`badges: ${corner} corner of an L room "Bathroom", plan turned ${rotate}, no disc on the name`, async ({ page }) => {
-    await boot(page, floorOf([15], corner, L, "Bathroom", rotate), 1);
+for (const [label, rots] of [["Bathroom", [90, 270]], ["WC", [225]]] as const) for (const rotate of rots) for (const corner of CORNERS) {
+  test(`badges: ${corner} corner of an L room "${label}", plan turned ${rotate}, no disc on the name`, async ({ page }) => {
+    await boot(page, floorOf([15], corner, L, label, rotate), 1);
     const gaps = await page.locator("floorplan-studio-card").evaluate((el) => {
       const svg = el.shadowRoot!.querySelector("svg")!, t = svg.querySelector<SVGTextElement>('text[data-rl="0"]')!.getBoundingClientRect();
       return Array.from(svg.querySelectorAll<SVGGElement>("g[data-cb] circle")).map((c) => {

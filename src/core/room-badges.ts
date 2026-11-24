@@ -154,7 +154,7 @@ const segDist = (p: Pt, a: Pt, b: Pt): number => {
  */
 function placed(pts: Pt[], row: Pt[], kt: number, name?: NameBox, turn = 0): Pt[] {
   const r = R_PX * kt, reach = r + Math.min(WALL_WIDTH_EXTERNAL / 2, INSET_PX * kt) - 1e-6;
-  const half = name ? (name.len * 0.6 * name.size) / 2 : 0;
+  const half = name ? (Math.max(name.len * 0.6, 2.8) * name.size) / 2 : 0;
   const nb = name && Number.isFinite(name.at[0] + name.at[1] + half) ? [name.at[0] - half, name.at[1] - 0.75 * name.size, name.at[0] + half, name.at[1] + 0.25 * name.size] : null;
   const inNameFrame = (c: Pt): Pt => (turn % 360 ? rotateAbout(c, turn, name!.at) : c);
   const clear = (c: Pt) => inside(c, pts)

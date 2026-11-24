@@ -18,7 +18,7 @@ export const TOUCH_CSS = css`
     .fp-head-btn, .fp-floors button { min-height: 44px; min-width: 44px; }
     .fp-stack button { width: 44px; height: 44px; }
     svg.fp-zoomable.fp-clear-stack { width: calc(100% - 60px); }
-    .fp-scene { min-height: 44px; min-width: 44px; }
+    .fp-scene, .fp-scene-ed-btn { min-height: 44px; min-width: 44px; }
     .fp-dialog-actions button { min-height: 44px; min-width: 44px; }
     .fp-chooser-list button { min-height: 44px; }
     .fp-off-row { min-height: 44px; }
