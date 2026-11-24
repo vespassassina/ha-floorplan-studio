@@ -11,6 +11,7 @@ const CONFIG_KEYS = [
   "theme", "zoom", "night", "sun", "weather", "kiosk", "tap_action", "hold_action", "open_color", "icon_size", "active_list", "center",
   "zoom_level", "view", "view_switch", "rotate_switch", "labels", "names", "tilt", "walls", "rotation", "detail",
   "ghost_floor", "floors_below", "heat_map", "camera_thumb", "camera_thumb_size", "camera_thumb_pos",
+  "idle_return", "idle_dim", "header_clock",
 ];
 const FROZEN_THEMES = [
   "blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha", "coffee", "a-team", "space", "cyberpunk",
