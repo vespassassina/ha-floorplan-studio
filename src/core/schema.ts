@@ -51,7 +51,7 @@ export const MAX_SCENE_ITEMS = 40;
  */
 export interface SceneItem {
   entity: string; on: boolean; brightness?: number; kelvin?: number; hs?: [number, number];
-  /** S50: light transition duration in seconds, 0-300 */ transition?: number;
+  /** S50 / S51: light transition duration in seconds (0-300) and native light effect name */ transition?: number; effect?: string;
   /** fan speed, 0-100 % */ percentage?: number;
   /** cover position, 0 closed to 100 open, and S50 tilt position 0-100 */ position?: number; tilt?: number;
   /** climate: mode (`heat`, `cool`, ...), target temperature in degrees C, and S50 fan_mode */ hvac?: string; temperature?: number; fan_mode?: string;
@@ -61,7 +61,7 @@ export interface SceneItem {
 export const SCENE_DOMAINS = ["light", "switch", "fan", "cover", "climate", "media_player"] as const;
 /** What each type may set besides `on` (see `SceneItem`). The editor and `validate` read this one list. */
 export const SCENE_FIELDS: Record<(typeof SCENE_DOMAINS)[number], readonly string[]> = {
-  light: ["brightness", "kelvin", "hs", "transition"], switch: [], fan: ["percentage"], cover: ["position", "tilt"], climate: ["hvac", "temperature", "fan_mode"], media_player: ["volume", "source"],
+  light: ["brightness", "kelvin", "hs", "transition", "effect"], switch: [], fan: ["percentage"], cover: ["position", "tilt"], climate: ["hvac", "temperature", "fan_mode"], media_player: ["volume", "source"],
 };
 /**
  * S14.7: a custom scene, stored on the room (optional, no schema bump: an older card ignores the field). The card applies it
@@ -526,7 +526,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
               if (it.hs !== undefined && !(Array.isArray(it.hs) && it.hs.length === 2 && fin(it.hs[0]) && fin(it.hs[1]) && it.hs[0] >= 0 && it.hs[0] <= 360 && it.hs[1] >= 0 && it.hs[1] <= 100)) errors.push(`${x} hs must be [hue 0-360, saturation 0-100]`);
               for (const [f, lo, hi] of [["percentage", 0, 100], ["position", 0, 100], ["tilt", 0, 100], ["transition", 0, 300], ["temperature", 5, 35], ["volume", 0, 100]] as const)
                 if (it[f] !== undefined && !(fin(it[f]) && (it[f] as number) >= lo && (it[f] as number) <= hi)) errors.push(`${x} ${f} must be a number from ${lo} to ${hi}`);
-              for (const f of ["hvac", "source", "fan_mode"]) if (it[f] !== undefined && !(typeof it[f] === "string" && it[f] && (it[f] as string).length <= 80)) errors.push(`${x} ${f} must be text of 1 to 80 characters`);
+              for (const f of ["hvac", "source", "fan_mode", "effect"]) if (it[f] !== undefined && !(typeof it[f] === "string" && it[f] && (it[f] as string).length <= 80)) errors.push(`${x} ${f} must be text of 1 to 80 characters`);
             });
           });
         }

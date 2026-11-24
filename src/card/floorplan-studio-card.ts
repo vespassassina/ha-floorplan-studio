@@ -45,6 +45,7 @@ const NO_LAYOUT: StoredError = { key: INSTALL_HINT };
 declare const __FP_FORM_FILE__: string | undefined;
 /** S38.0: the built form's file beside the card, `./floorplan-studio-form-<hash>.js`, compiled in by vite.config.ts. Empty in the dev server and in
  * vitest, where the form is imported from source. */
+const SNOOZE_KEY = "fp-snooze-v1";
 const FORM_FILE: string = typeof __FP_FORM_FILE__ === "string" ? __FP_FORM_FILE__ : "";
 let formFails = 0;
 
@@ -587,11 +588,7 @@ export class FloorplanStudioCard extends LitElement {
   _attnMemo: { layout: Layout; states: unknown; reg: unknown; warn: unknown; snooze: unknown; a: Attention } | null = null;
   /** S47: snoozed Attention items (`attentionSnoozeKey -> state`), persisted in localStorage and cleared on state change. */
   _snooze: Record<string, string> = (() => {
-    try {
-      const raw = typeof localStorage !== "undefined" ? localStorage.getItem("fp-snooze-v1") : null;
-      const parsed = raw ? JSON.parse(raw) : null;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, string>;
-    } catch { /* storage blocked or invalid JSON */ }
+    try { const p = JSON.parse(localStorage.getItem(SNOOZE_KEY) ?? ""); if (p && typeof p === "object" && !Array.isArray(p)) return p as Record<string, string>; } catch { /* blocked */ }
     return {};
   })();
   /** S48 / S50: active history chart, plan legend, and WYSIWYG scene editor overlays. */
@@ -600,12 +597,7 @@ export class FloorplanStudioCard extends LitElement {
   _sceneEd: SceneEditorDraft | null = null;
   _saveSnooze(next: Record<string, string>) {
     this._snooze = next;
-    try {
-      if (typeof localStorage !== "undefined") {
-        if (Object.keys(next).length) localStorage.setItem("fp-snooze-v1", JSON.stringify(next));
-        else localStorage.removeItem("fp-snooze-v1");
-      }
-    } catch { /* storage blocked */ }
+    try { if (Object.keys(next).length) localStorage.setItem(SNOOZE_KEY, JSON.stringify(next)); else localStorage.removeItem(SNOOZE_KEY); } catch { /* blocked */ }
     this.requestUpdate();
   }
   /** S42.4: the onset memory behind `_tempWarn`, on live states. Its timer wakes the card when a room's hold elapses with no new state. */

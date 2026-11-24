@@ -5,8 +5,8 @@
  */
 
 import type { AutomationConfig } from "./automations";
-import type { SceneItem } from "../core";
-import { saveHaScene } from "../card/scene";
+import { customCalls, type SceneItem } from "../core";
+import { saveHaDynamicScene, saveHaScene, type DynamicStepData } from "../card/scene";
 export type { AutomationConfig } from "./automations";
 
 /** The part of `hass` a write needs. */
@@ -38,6 +38,8 @@ export interface HaWriter {
   setAreaFloor(areaId: string, floorId: string | null): Promise<void>;
   /** S50: saves a scene as a real Home Assistant `scene.*` in `scenes.yaml` and assigns its area. */
   saveScene?(opts: { id?: string | null; name: string; areaId?: string; items: readonly SceneItem[] }): Promise<{ id: string; entityId: string | null }>;
+  /** S51: saves a dynamic multi-step scene as a Home Assistant `script.fp_dyn_*` in the room's area. */
+  saveDynamicScene?(opts: { id?: string | null; name: string; areaId?: string; steps: readonly DynamicStepData[]; loop: boolean }): Promise<{ id: string; entityId: string | null }>;
 }
 
 /** The label everything the tool creates carries, so the person can find it in HA and remove it. */
@@ -245,5 +247,6 @@ export function makeWriter(hass: WriteHass): HaWriter {
     createFloor: (n, l) => createFloor(hass, n, l),
     setAreaFloor: (a, f) => setAreaFloor(hass, a, f),
     saveScene: (opts) => saveHaScene(hass, opts),
+    saveDynamicScene: (opts) => saveHaDynamicScene(hass, { ...opts, customCalls }),
   };
 }

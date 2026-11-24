@@ -25,6 +25,18 @@ export interface SceneTarget {
   doorIndex?: number;
 }
 
+export interface DynamicStep {
+  items: Map<string, SceneItem>;
+  duration: number;
+  transition?: number;
+}
+
+export interface DynamicStepData {
+  items: SceneItem[];
+  duration: number;
+  transition?: number;
+}
+
 export interface SceneEditorDraft {
   roomId: string;
   roomIndex: number;
@@ -41,6 +53,11 @@ export interface SceneEditorDraft {
   migrating: boolean;
   backup: SceneItem[];
   origin: SceneItem[];
+  /** S51: dynamic multi-step scene fields (`script.*`). */
+  mode?: "static" | "dynamic";
+  steps?: DynamicStep[];
+  activeStep?: number;
+  loop?: boolean;
 }
 
 export interface SceneEditorHass {
@@ -80,9 +97,13 @@ export interface SceneEditorModel {
   migrateLegacy?: () => void;
 }
 
+export const MIN_LOOP_SEC_PER_LIGHT = 2;
+export const MAX_CALLS_PER_MIN = 30;
+export const MAX_DYNAMIC_STEPS = 20;
+
 const DOMAINS = new Set(["light", "switch", "fan", "cover", "climate", "media_player"]);
 const FIELDS: Record<string, readonly string[]> = {
-  light: ["brightness", "kelvin", "hs", "transition"],
+  light: ["brightness", "kelvin", "hs", "transition", "effect"],
   switch: [],
   fan: ["percentage"],
   cover: ["position", "tilt"],
@@ -90,7 +111,7 @@ const FIELDS: Record<string, readonly string[]> = {
   media_player: ["volume", "source"],
 };
 const LABEL: Record<string, string> = {
-  brightness: "brightness %", kelvin: "kelvin", transition: "transition s",
+  brightness: "brightness %", kelvin: "kelvin", transition: "transition s", effect: "effect",
   percentage: "speed %", position: "position %", tilt: "tilt %",
   temperature: "temp °C", volume: "volume %", hvac: "mode", source: "source", fan_mode: "fan mode",
 };
@@ -318,6 +339,7 @@ export function haScenePayload(id: string, name: string, items: readonly SceneIt
       if (Array.isArray(it.hs)) e.hs_color = [it.hs[0], it.hs[1]];
       else if (fin(it.kelvin)) e.color_temp_kelvin = it.kelvin;
       if (fin(it.transition)) e.transition = it.transition;
+      if (it.effect) e.effect = it.effect;
     } else if (domain === "cover") {
       if (fin(it.position)) e.current_position = it.position;
       if (fin(it.tilt)) e.current_tilt_position = it.tilt;
@@ -389,6 +411,138 @@ export async function saveHaScene(
   return { id, entityId };
 }
 
+/** S51: collects native `effect_list` effects offered by lights in the room (zero Zigbee loop traffic). */
+export function lightEffectsFor(
+  targets: readonly SceneTarget[],
+  liveStates: Record<string, { attributes?: Record<string, unknown> } | undefined>,
+): { effect: string; entities: string[] }[] {
+  const map = new Map<string, string[]>();
+  for (const t of targets) {
+    if (t.domain !== "light") continue;
+    const list = liveStates[t.entity]?.attributes?.effect_list;
+    if (!Array.isArray(list)) continue;
+    for (const raw of list) {
+      if (typeof raw !== "string") continue;
+      const eff = raw.trim();
+      if (!eff || eff.toLowerCase() === "none" || eff.toLowerCase() === "off") continue;
+      const arr = map.get(eff) ?? [];
+      if (!arr.includes(t.entity)) arr.push(t.entity);
+      map.set(eff, arr);
+    }
+  }
+  return [...map.entries()].map(([effect, entities]) => ({ effect, entities })).sort((a, b) => a.effect.localeCompare(b.effect));
+}
+
+/** S51: enforces the Zigbee traffic budget before saving a dynamic scene (`script.*`). */
+export function checkDynamicBudget(
+  steps: readonly DynamicStepData[],
+  loop: boolean,
+  customCalls: (scene: RoomScene) => SceneCall[],
+): { ok: true; callsPerMin: number; totalCalls: number } | { ok: false; reason: string } {
+  if (!steps.length) return { ok: false, reason: "Add at least one step." };
+  if (steps.length > MAX_DYNAMIC_STEPS) return { ok: false, reason: `At most ${MAX_DYNAMIC_STEPS} steps are allowed.` };
+  let totalCalls = 0, totalSec = 0;
+  for (let i = 0; i < steps.length; i++) {
+    const st = steps[i]!;
+    if (!st.items.length) return { ok: false, reason: `Step ${i + 1} needs at least one device.` };
+    if (!fin(st.duration) || st.duration < 0) return { ok: false, reason: `Step ${i + 1} duration must be 0 seconds or more.` };
+    const lights = st.items.filter((it) => it.entity.startsWith("light.")).length;
+    if (loop && lights > 0 && st.duration < MIN_LOOP_SEC_PER_LIGHT * lights) {
+      return { ok: false, reason: `Step ${i + 1} is too fast for a loop: ${lights} light${lights === 1 ? "" : "s"} need at least ${MIN_LOOP_SEC_PER_LIGHT * lights} s (${MIN_LOOP_SEC_PER_LIGHT} s per light) to protect Zigbee.` };
+    }
+    totalCalls += customCalls({ id: `s${i}`, name: `s${i}`, items: st.items }).length;
+    totalSec += st.duration;
+  }
+  if (loop && totalSec <= 0) return { ok: false, reason: "A looping scene needs a positive step duration." };
+  const callsPerMin = totalSec > 0 ? Math.round((totalCalls / totalSec) * 600) / 10 : totalCalls;
+  if (loop && callsPerMin > MAX_CALLS_PER_MIN) {
+    return { ok: false, reason: `Too many calls per minute (${callsPerMin}/min; limit is ${MAX_CALLS_PER_MIN}/min) to avoid flooding Zigbee.` };
+  }
+  if (!loop && totalSec > 0 && totalCalls > MAX_CALLS_PER_MIN && callsPerMin > MAX_CALLS_PER_MIN) {
+    return { ok: false, reason: `Too many calls per minute (${callsPerMin}/min; limit is ${MAX_CALLS_PER_MIN}/min) to avoid flooding Zigbee.` };
+  }
+  return { ok: true, callsPerMin, totalCalls };
+}
+
+/** S51: builds Home Assistant's `POST /api/config/script/config/<id>` payload for a dynamic scene. */
+export function haDynamicScriptPayload(
+  name: string,
+  steps: readonly DynamicStepData[],
+  loop: boolean,
+  customCalls: (scene: RoomScene) => SceneCall[],
+): { alias: string; mode: "restart"; sequence: Record<string, unknown>[] } {
+  const body: Record<string, unknown>[] = [];
+  for (let i = 0; i < steps.length; i++) {
+    const st = steps[i]!;
+    const tr = fin(st.transition) && st.transition >= 0 ? st.transition : undefined;
+    const items = tr !== undefined ? st.items.map((it) => (it.entity.startsWith("light.") && it.transition === undefined ? { ...it, transition: tr } : it)) : st.items;
+    for (const c of customCalls({ id: `s${i}`, name: `s${i}`, items })) {
+      const { entity_id, ...rest } = c.data;
+      body.push({ action: `${c.domain}.${c.service}`, target: { entity_id }, ...(Object.keys(rest).length ? { data: rest } : {}) });
+    }
+    if (fin(st.duration) && st.duration > 0) body.push({ delay: { seconds: st.duration } });
+  }
+  const sequence: Record<string, unknown>[] = loop
+    ? [{ repeat: { while: [{ condition: "template", value_template: "{{ true }}" }], sequence: body } }]
+    : body;
+  return { alias: name.trim(), mode: "restart", sequence };
+}
+
+/** S51: saves a dynamic scene as a Home Assistant `script.fp_dyn_*` in the room's area. */
+export async function saveHaDynamicScene(
+  hass: SceneEditorHass,
+  opts: { id?: string | null; name: string; areaId?: string; steps: readonly DynamicStepData[]; loop: boolean; customCalls: (s: RoomScene) => SceneCall[]; tries?: number; retryMs?: number },
+): Promise<{ id: string; entityId: string | null }> {
+  const name = opts.name.trim();
+  if (!name) throw new Error("Give the scene a name.");
+  const check = checkDynamicBudget(opts.steps, opts.loop, opts.customCalls);
+  if (!check.ok) throw new Error(check.reason);
+  if (hass.user?.is_admin === false) throw new Error("Only a Home Assistant administrator can save dynamic scenes.");
+  if (!hass.callApi) throw new Error("Saving dynamic scenes requires a Home Assistant connection.");
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 20) || "scene";
+  const id = opts.id || `fp_dyn_${slug}_${Math.random().toString(36).slice(2, 6)}`;
+  const payload = haDynamicScriptPayload(name, opts.steps, opts.loop, opts.customCalls);
+  try {
+    await hass.callApi("POST", `config/script/config/${id}`, payload as unknown as Record<string, unknown>);
+  } catch (err) {
+    const status = (err as { status_code?: number; status?: number })?.status_code ?? (err as { status?: number })?.status;
+    const msg = err instanceof Error ? err.message : String((err as { message?: unknown })?.message ?? err);
+    if (status === 404 || status === 405 || status === 501 || /not found|scripts\.yaml|unsupported/i.test(msg)) {
+      throw new Error("Home Assistant could not save to scripts.yaml. Add `script: !include scripts.yaml` to configuration.yaml and reload scripts.");
+    }
+    throw new Error(`Could not save dynamic scene: ${msg}`);
+  }
+  let entityId: string | null = null;
+  if (hass.callWS) {
+    let labelId: string | null = null;
+    try {
+      const labels = await hass.callWS<{ label_id: string; name: string }[]>({ type: "config/label_registry/list" });
+      labelId = labels.find((l) => l.name === "floorplan-studio")?.label_id ?? null;
+      if (!labelId) {
+        const created = await hass.callWS<{ label_id: string }>({ type: "config/label_registry/create", name: "floorplan-studio" });
+        labelId = created.label_id;
+      }
+    } catch { /* label optional */ }
+    const tries = opts.tries ?? 8, ms = opts.retryMs ?? 300;
+    for (let n = 0; n < tries; n++) {
+      try {
+        const all = await hass.callWS<{ entity_id: string; unique_id?: string; labels?: string[] }[]>({ type: "config/entity_registry/list" });
+        const hit = all.find((e) => (e.unique_id === id || e.entity_id === `script.${id}`) && e.entity_id.startsWith("script."));
+        if (hit) {
+          entityId = hit.entity_id;
+          const upd: Record<string, unknown> = { type: "config/entity_registry/update", entity_id: hit.entity_id };
+          if (opts.areaId) upd.area_id = opts.areaId;
+          if (labelId) upd.labels = [...new Set([...(hit.labels ?? []), labelId])];
+          if (opts.areaId || labelId) await hass.callWS(upd as { type: string; [k: string]: unknown });
+          break;
+        }
+      } catch { break; }
+      if (n < tries - 1) await new Promise((r) => setTimeout(r, ms));
+    }
+  }
+  return { id, entityId };
+}
+
 /** Card-side action handlers bundled inside the lazy scene chunk so the main card pays zero orchestration bytes. */
 export function makeCardSceneHandlers(
   tools: SceneEditorTools,
@@ -442,7 +596,12 @@ export function makeCardSceneHandlers(
     async save() {
       draft.error = ""; draft.busy = true; refresh();
       try {
-        await saveHaScene(hass ?? {}, { id: draft.haSceneId, name: draft.name, areaId: room.area, items: [...draft.items.values()] });
+        if (draft.mode === "dynamic") {
+          const steps = (draft.steps ?? [{ items: draft.items, duration: 10 }]).map((s) => ({ items: [...s.items.values()], duration: s.duration, transition: s.transition }));
+          await saveHaDynamicScene(hass ?? {}, { id: draft.haSceneId, name: draft.name, areaId: room.area, steps, loop: draft.loop === true, customCalls: tools.customCalls });
+        } else {
+          await saveHaScene(hass ?? {}, { id: draft.haSceneId, name: draft.name, areaId: room.area, items: [...draft.items.values()] });
+        }
         draft.backup = []; draft.origin = []; draft.busy = false;
         close();
       } catch (err) {
@@ -560,6 +719,12 @@ export const SCENE_EDITOR_CSS = `
 .fp-se-btn:disabled{opacity:.45;cursor:not-allowed}
 .fp-se-err{color:var(--fp-danger,#e05252);margin:0;font-weight:500}
 .fp-se-ro{font-size:11px;opacity:.8;margin:0}
+.fp-se-modes,.fp-se-steps,.fp-se-effs{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+.fp-se-dyn{display:flex;flex-direction:column;gap:6px;padding:6px 8px;border:1px solid color-mix(in srgb,var(--fp-idle) 55%,transparent);border-radius:6px;background:var(--fp-bg)}
+.fp-se-dyn input[type=number]{width:62px;padding:2px 5px;border:1px solid var(--fp-idle);border-radius:4px;background:var(--fp-room);color:var(--fp-ink);font:inherit}
+.fp-se-chip{padding:2px 8px;border:1px solid var(--fp-idle);border-radius:12px;background:var(--fp-room);color:var(--fp-ink);cursor:pointer;font-size:11px}
+.fp-se-chip.on{border-color:var(--fp-primary);background:var(--fp-primary);color:var(--fp-on-dark,#fff)}
+.fp-se-bud{font-size:11px;opacity:.85}
 `;
 
 export function sceneEditorView(tools: SceneEditorTools, m: SceneEditorModel): unknown {
@@ -697,7 +862,44 @@ export function sceneEditorView(tools: SceneEditorTools, m: SceneEditorModel): u
     ${draft.note ? html`<span id="paletteNote" role="status">${draft.note}</span>` : nothing}
   </div>`;
 
-  const saveLabel = m.canWriteHa ? "Save to Home Assistant" : "Save";
+  const isDyn = draft.mode === "dynamic";
+  const ensureSteps = (): DynamicStep[] => {
+    if (!draft.steps || !draft.steps.length) draft.steps = [{ items: draft.items, duration: 10, transition: 2 }];
+    const idx = Math.max(0, Math.min(draft.steps.length - 1, draft.activeStep ?? 0));
+    draft.activeStep = idx;
+    draft.steps[idx]!.items = draft.items;
+    return draft.steps;
+  };
+  const selectStep = (idx: number) => {
+    const steps = ensureSteps();
+    const clamped = Math.max(0, Math.min(steps.length - 1, idx));
+    draft.activeStep = clamped;
+    draft.items = steps[clamped]!.items;
+    m.refresh();
+  };
+  const setMode = (mode: "static" | "dynamic") => {
+    if ((draft.mode ?? "static") === mode) return;
+    draft.mode = mode;
+    if (mode === "dynamic") ensureSteps();
+    draft.error = "";
+    m.refresh();
+  };
+  const effects = isDyn ? lightEffectsFor(rows, m.liveStates) : [];
+  const dynSteps = isDyn ? ensureSteps() : [];
+  const curStep = isDyn ? dynSteps[draft.activeStep ?? 0]! : null;
+  const dynBudget = isDyn
+    ? checkDynamicBudget(dynSteps.map((s) => ({ items: [...s.items.values()], duration: s.duration, transition: s.transition })), draft.loop === true, tools.customCalls)
+    : null;
+  const applyNativeEffect = (eff: string, entities: string[]) => {
+    for (const ent of entities) {
+      const prev = draft.items.get(ent);
+      draft.items.set(ent, { ...(prev ?? { entity: ent, on: true }), entity: ent, on: true, effect: eff });
+    }
+    draft.note = `Applied native "${eff}" effect to ${entities.length} light${entities.length === 1 ? "" : "s"} (no Zigbee loop traffic).`;
+    m.refresh();
+  };
+
+  const saveLabel = isDyn ? "Save dynamic script" : m.canWriteHa ? "Save to Home Assistant" : "Save";
   const panelStyle = m.host === "studio" && m.pos ? `left:${m.pos.x}px;top:${m.pos.y}px` : "";
   const panelClass = m.host === "studio" ? "fpanel scene-panel" : "fp-se-ov";
   const headClass = m.host === "studio" ? "fpanel-head" : "fp-se-hd";
@@ -714,6 +916,29 @@ export function sceneEditorView(tools: SceneEditorTools, m: SceneEditorModel): u
         <input id="sceneName" type="text" maxlength="60" ?disabled=${ro} .value=${lv(draft.name)} @input=${(e: Event) => { draft.name = (e.target as HTMLInputElement).value; }}>
         ${!ro ? html`<button type="button" class="btn fp-se-btn keep" id="sceneCapture" @click=${() => m.capture()}>Capture the room now</button>` : nothing}
       </div>
+      ${m.canWriteHa || m.host === "card" ? html`<div class="fp-se-modes">
+        <button type="button" class=${`fp-se-chip${!isDyn ? " on" : ""}`} id="sceneModeStatic" @click=${() => setMode("static")}>Static (scene)</button>
+        <button type="button" class=${`fp-se-chip${isDyn ? " on" : ""}`} id="sceneModeDynamic" @click=${() => setMode("dynamic")}>Dynamic (steps / script)</button>
+      </div>` : nothing}
+      ${isDyn && curStep ? html`<div class="fp-se-dyn" id="sceneDynamic">
+        ${effects.length ? html`<div class="fp-se-effs" id="sceneEffects">
+          <span>Native effects (no Zigbee traffic):</span>
+          ${effects.map((ef) => html`<button type="button" class="fp-se-chip" ?disabled=${ro} @click=${() => applyNativeEffect(ef.effect, ef.entities)}>${ef.effect}</button>`)}
+        </div>` : nothing}
+        <div class="fp-se-steps" id="sceneSteps">
+          ${dynSteps.map((_, k) => html`<button type="button" class=${`fp-se-chip${k === (draft.activeStep ?? 0) ? " on" : ""}`} id=${`sdStep-${k}`} @click=${() => selectStep(k)}>Step ${k + 1}</button>`)}
+          ${!ro && dynSteps.length < MAX_DYNAMIC_STEPS ? html`<button type="button" class="btn fp-se-btn keep" id="sdStepAdd" @click=${() => { const steps = ensureSteps(); steps.push({ items: new Map(), duration: 10, transition: 2 }); selectStep(steps.length - 1); }}>+ Step</button>` : nothing}
+          ${!ro && dynSteps.length > 1 ? html`<button type="button" class="btn fp-se-btn keep" id="sdStepRm" @click=${() => { const steps = ensureSteps(); steps.splice(draft.activeStep ?? 0, 1); selectStep(Math.max(0, (draft.activeStep ?? 0) - 1)); }}>Remove step</button>` : nothing}
+        </div>
+        <div class="fp-se-steps">
+          <label for="sdStepDur">Duration (s)</label>
+          <input id="sdStepDur" type="number" min="0" max="3600" step="1" ?disabled=${ro} .value=${lv(String(curStep.duration))} @change=${(e: Event) => { const n = Number((e.target as HTMLInputElement).value); if (Number.isFinite(n) && n >= 0) { curStep.duration = n; m.refresh(); } }}>
+          <label for="sdStepTrans">Transition (s)</label>
+          <input id="sdStepTrans" type="number" min="0" max="300" step="0.5" ?disabled=${ro} .value=${lv(curStep.transition !== undefined ? String(curStep.transition) : "")} @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(), n = Number(raw); curStep.transition = raw === "" || !Number.isFinite(n) ? undefined : Math.max(0, Math.min(300, n)); m.refresh(); }}>
+          <label><input id="sdLoop" type="checkbox" ?disabled=${ro} .checked=${lv(draft.loop === true)} @change=${(e: Event) => { draft.loop = (e.target as HTMLInputElement).checked; m.refresh(); }}> Loop</label>
+        </div>
+        ${dynBudget ? html`<div class=${dynBudget.ok ? "fp-se-bud" : "fp-se-err"} id="sdBudget">${dynBudget.ok ? `Zigbee budget OK · ${dynBudget.callsPerMin} calls/min (${dynBudget.totalCalls} calls)` : dynBudget.reason}</div>` : nothing}
+      </div>` : nothing}
       ${ro ? html`<p class="fp-se-ro" id="sceneReadOnly">Read-only (admin required to save Home Assistant scenes). You can still preview and Try it.</p>` : nothing}
       ${m.legacyScenes.length && m.canWriteHa && m.migrateLegacy ? html`<div class="fp-se-mig" id="sceneMigrateBar">
         <span>${m.legacyScenes.length} legacy custom scene${m.legacyScenes.length === 1 ? "" : "s"} on this room.</span>

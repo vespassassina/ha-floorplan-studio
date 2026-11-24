@@ -176,6 +176,7 @@ export function historyOverlayView({ html, nothing, t }: HistoryTools, m: Histor
 
 export interface HistoryHost {
   _history: { title: string; specs: HistorySeriesSpec[]; hours: number; status: "loading" | "ready" | "error"; index?: HistoryIndex; startMs: number; endMs: number; error?: string } | null;
+  _hass?: { states?: Record<string, { attributes?: Record<string, unknown> } | undefined> };
   requestUpdate(): void;
 }
 
@@ -183,11 +184,14 @@ export interface HistoryHost {
 export function runCardHistory(
   c: HistoryHost,
   title: string,
-  specs: readonly HistorySeriesSpec[],
+  specs: readonly (string | HistorySeriesSpec)[],
   hours: number,
   fetchFn: (ids: string[], startMs: number, endMs: number) => Promise<HistoryIndex>,
 ): void {
-  const seen = new Set<string>(), uniq = specs.filter((s) => s?.id && !seen.has(s.id) && seen.add(s.id)).slice(0, MAX_SERIES).map((s) => ({ id: s.id, label: s.label || s.id }));
+  const seen = new Set<string>();
+  const uniq = specs.map((s) => (typeof s === "string" ? { id: s, label: (c._hass?.states?.[s]?.attributes?.friendly_name as string) || title || s } : { id: s.id, label: s.label || s.id }))
+    .filter((s) => s.id && !seen.has(s.id) && seen.add(s.id))
+    .slice(0, MAX_SERIES);
   if (!uniq.length) return;
   const endMs = Date.now(), startMs = endMs - hours * 3600_000;
   const st = { title, specs: uniq, hours, status: "loading" as const, startMs, endMs };

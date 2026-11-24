@@ -35,7 +35,7 @@ function withMod<T>(c: FloorplanStudioCard, mod: { get(): T | null; load(): Prom
   if (lib) fn(lib); else void mod.load().then(fn, () => {});
 }
 
-export const openHistory = (c: FloorplanStudioCard, title: string, specs: readonly HistorySeriesSpec[], hours = 24) =>
+export const openHistory = (c: FloorplanStudioCard, title: string, specs: readonly (string | HistorySeriesSpec)[], hours = 24) =>
   withMod(c, historyMod, (lib) => lib.runCardHistory(c, title, specs, hours, (ids, a, b) => fetchHistoryFor(c, ids, a, b)));
 
 export const openLegend = (c: FloorplanStudioCard) =>

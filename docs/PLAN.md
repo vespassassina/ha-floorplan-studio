@@ -4894,17 +4894,12 @@ Implemented (`docs/specs/scene-editor-s50.md`):
 - [x] 2026-11-24 New per-item fields `transition` (lights, 0..300 s), `tilt` (covers, 0..100 %), and `fan_mode` (climate, 1..80 chars) across `schema.ts`, `room-scenes.ts`, `room-scenes-ops.ts`, and `scene-try.ts`.
 - [x] 2026-11-24 Save as real Home Assistant `scene.*` (`POST config/scene/config/<id>` + entity registry area & `floorplan-studio` label, admin-only with read-only + Try it for non-admins, clear missing `scene: !include scenes.yaml` error, and explicit one-time migration of legacy custom room scenes).
 
-### Sprint 51 (outline): dynamic scenes
+### Sprint 51 (done): dynamic scenes
 
-- Steps: a scene is a list of steps, each a set of items, a duration and a transition (a wake-up ramp, an evening
-  dimming, a party cycle), with play once or loop.
-- Runs in Home Assistant, not in the card: an HA scene holds one state, so a dynamic scene is saved as a `script.*`
-  (delays and transitions) in the room's area. It runs with the dashboard closed, and room screens, Assist and
-  automations start it.
-- Effects the lights already have (`effect_list`: candle, fire, colour loop) are offered first: no Zigbee traffic.
-- A traffic budget: a loop step under 2 s per light, or more than a set number of calls a minute, is refused with the
-  reason, so a scene cannot flood the Zigbee network.
-- The card shows a playing scene and stops it.
+Implemented (`docs/specs/dynamic-scenes-s51.md`):
+- [x] 2026-11-24 Multi-step dynamic scenes (`DynamicStep`: items, duration, transition, play once or loop) inside the shared lazy scene editor chunk (`src/card/scene/index.ts`), with native light `effect_list` chips offered first (zero Zigbee loop traffic) and optional `SceneItem.effect`.
+- [x] 2026-11-24 Zigbee traffic budget (`checkDynamicBudget`: refuses loop steps under `2 s` per light and scenes over `30` calls/min with clear reasons) and native Home Assistant `script.fp_dyn_*` saving (`haDynamicScriptPayload`, `saveHaDynamicScene`, `POST config/script/config/<id>` + entity registry area & `floorplan-studio` label).
+- [x] 2026-11-24 Playing dynamic scenes shown on the card (`haScenesFor` includes `script.fp_dyn_*` in the room's area with `playing: true` when `"on"`, highlighted `.fp-scene-play` with `■`, tap calls `script.turn_off` to stop or `script.turn_on` to start).
 
 
 ## After the 2026-11-01 interview: Sprints 52 to 61

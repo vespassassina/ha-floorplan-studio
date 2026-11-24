@@ -7,9 +7,10 @@ import { t } from "../core/i18n";
 export const SCENES_CSS = css`
   .fp-scenes { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
   .fp-scene, .fp-scene-ed-btn { min-height: 32px; max-width: 100%; padding: 0 10px; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
-  .fp-scene:hover, .fp-scene:focus-visible, .fp-scene-ed-btn:hover, .fp-scene-ed-btn:focus-visible { border-color: var(--fp-primary); }
+  .fp-scene:hover, .fp-scene:focus-visible, .fp-scene-ed-btn:hover, .fp-scene-ed-btn:focus-visible, .fp-scene-play { border-color: var(--fp-primary); }
   .fp-scene.fp-scene-ha, .fp-scene-ed-btn { border-style: dashed; }
-  .fp-scene.fp-scene-ask { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; }
+  .fp-scene.fp-scene-ask { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); }
+  .fp-scene.fp-scene-ask, .fp-scene-play { font-weight: 600; }
 `;
 
 export interface ScenesView {
@@ -35,11 +36,11 @@ export function scenesTemplate(v: ScenesView) {
     : html`<button type="button" class="fp-scene ${cls}" data-scene=${key} @click=${() => v.run(key)}>${label}</button>`;
   const count = ha.length + custom.length + (lights.length ? 1 : 0);
   return html`<div class="fp-active-group">
-    <button type="button" class="fp-active-group-label fp-cat fp-scenes-head" aria-expanded=${v.open ? "true" : "false"} @click=${v.toggle}>
+    <button type="button" class="fp-active-group-label fp-cat fp-scenes-head" aria-expanded=${String(v.open)} @click=${v.toggle}>
       <span class="fp-cat-chev" aria-hidden="true">${v.open ? "▾" : "▸"}</span><span class="fp-cat-name">${t("Scenes")}</span><span class="fp-active-count">${count}</span>
     </button>
     ${v.open ? html`<div class="fp-scenes">
-      ${ha.map((s) => btn(`ha:${s.entity}`, s.name, "fp-scene-ha"))}
+      ${ha.map((s) => btn(`ha:${s.entity}`, `${s.name}${s.playing ? " ■" : ""}`, `fp-scene-ha${s.playing ? " fp-scene-play" : ""}`))}
       ${custom.map((s) => btn(`custom:${s.id}`, s.name))}
       ${/* S24.8 (C2): no preset All off: the room's Lights off button does it, relays too. */ lights.length ? btn("preset:on", t("All on")) : nothing}
       ${v.onEdit ? html`<button type="button" class="fp-scene-ed-btn" aria-label=${t("Scenes")} @click=${v.onEdit}>✎</button>` : nothing}

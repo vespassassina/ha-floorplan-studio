@@ -3,7 +3,7 @@ import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { customCalls, renderFloor, type Floor, type Layout, type RoomScene, type SceneItem, type StateOverlay, type Theme } from "../core";
 import { live } from "./live-keep";
 import { readImageColours } from "./image-colours";
-import { DEFAULT_SCENE_PALETTE, sceneEditorView, sceneTargets, type SceneEditorDraft } from "../card/scene";
+import { DEFAULT_SCENE_PALETTE, sceneEditorView, sceneTargets, type DynamicStep, type SceneEditorDraft } from "../card/scene";
 
 // S17.3 / S50: Studio host wrapper around the shared WYSIWYG scene editor (`src/card/scene/index.ts`).
 // One editor, two hosts: card and Studio share the exact same preview, controls, palette and HA scene writer.
@@ -19,6 +19,10 @@ export interface SceneDraft {
   note: string;            // what the last Apply / Capture did
   trying: string;          // what the last Try or Restore did
   migrating: boolean;
+  mode?: "static" | "dynamic";
+  steps?: DynamicStep[];
+  activeStep?: number;
+  loop?: boolean;
 }
 export const DEFAULT_PALETTE = [...DEFAULT_SCENE_PALETTE];
 export const newDraft = (room: string, id: string | null, name: string, items: SceneItem[]): SceneDraft => ({
@@ -83,6 +87,14 @@ export function sceneDesigner(d: DesignerDeps) {
     set migrating(v: boolean) { d.draft.migrating = v; },
     backup: d.preview?.hasBackup ? [{ entity: "light._", on: true }] : [],
     origin: [],
+    get mode() { return d.draft.mode; },
+    set mode(v: "static" | "dynamic" | undefined) { d.draft.mode = v; },
+    get steps() { return d.draft.steps; },
+    set steps(v: DynamicStep[] | undefined) { d.draft.steps = v; },
+    get activeStep() { return d.draft.activeStep; },
+    set activeStep(v: number | undefined) { d.draft.activeStep = v; },
+    get loop() { return d.draft.loop; },
+    set loop(v: boolean | undefined) { d.draft.loop = v; },
   };
   return sceneEditorView(
     { html, nothing, svgBody: unsafeSVG, renderFloor, customCalls, live, readImageColours },

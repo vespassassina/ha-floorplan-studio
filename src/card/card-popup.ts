@@ -199,18 +199,14 @@ export function popupMarkup(c: FloorplanStudioCard, inSheet = false) {
   const p = c._popup;
   if (!p || inSheet !== popupInSheet(c)) return null;
   const s = p.s, st = c._hass?.states[s.entity ?? ""], op = subjectOp(c, s);
-  const light = op !== null && s.entity?.startsWith("light.") && st?.state !== "off" ? true : op !== null && s.entity?.startsWith("light.");
+  const light = op !== null && !!s.entity?.startsWith("light.");
   const caps = light ? lightCaps(st?.attributes) : null;
   const fan = op !== null && s.entity?.startsWith("fan.") ? fanCaps(st?.attributes) : null;
   const level = (k: SliderKind) => {
     const now = levelOf(c, k, st?.attributes);
     return p.draft && p.draft.kind === k && p.draft.from === now ? p.draft.value : now;
   };
-  const histIds = [...new Set([...s.entities, ...(s.powerEntity ? [s.powerEntity] : [])])];
-  const histSpecs = histIds.map((id) => {
-    const fn = c._hass?.states[id]?.attributes?.friendly_name;
-    return { id, label: typeof fn === "string" && fn ? fn : s.name || id };
-  });
+  const histIds = s.powerEntity ? [...s.entities, s.powerEntity] : s.entities;
   return popupTemplate({
     subject: s, text: [subjectText(c, s), ...(s.meters ? meterLines(meterOf(s.entities, c._stateForRender())) : [])].filter(Boolean).join("\n"), op, confirming: p.confirming, kiosk: c._kiosk(), caps, fan,
     info: c._kiosk() || !(s.entity ?? s.entities[0]) ? [] : deviceInfo((s.entity ?? s.entities[0])!, { ...c._hass, states: c._stateForRender() }, c._format),
@@ -219,7 +215,7 @@ export function popupMarkup(c: FloorplanStudioCard, inSheet = false) {
     act: () => popupAct(c),
     cancel: () => { if (c._popup) { c._popup.confirming = false; c.requestUpdate(); } },
     more: () => popupMore(c),
-    history: histSpecs.length && c._hass?.connection?.sendMessagePromise && !c._kiosk() ? () => openHistory(c, s.name, histSpecs) : undefined,
+    history: histIds.length && c._hass?.connection?.sendMessagePromise && !c._kiosk() ? () => openHistory(c, s.name, histIds) : undefined,
     key: (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePopup(c); } },
     slide: (kind, value, commit) => popupSlide(c, kind, value, commit),
     inSheet,

@@ -177,3 +177,35 @@ for (const theme of ["light", "blueprint"] as const) {
     expect(ratio).toBeGreaterThanOrEqual(4.5);
   });
 }
+
+test("S51: a playing dynamic scene script shows stop indicator and tapping it calls script.turn_off; idle calls script.turn_on", async ({ page }) => {
+  await boot(page, 1280);
+  await page.evaluate(() => {
+    const el = document.getElementById("card") as any;
+    const prev = el.hass;
+    el.hass = {
+      ...prev,
+      states: {
+        ...prev.states,
+        "script.fp_dyn_party": { state: "on", attributes: { friendly_name: "Party" }, last_changed: "2026-11-24T10:00:00Z" },
+        "script.fp_dyn_wake": { state: "off", attributes: { friendly_name: "Wake" }, last_changed: "2026-11-24T10:00:00Z" },
+      },
+      entities: {
+        ...prev.entities,
+        "script.fp_dyn_party": { entity_id: "script.fp_dyn_party", area_id: "living" },
+        "script.fp_dyn_wake": { entity_id: "script.fp_dyn_wake", area_id: "living" },
+      },
+    };
+    return el.updateComplete;
+  });
+  await pickRoom(page, 0);
+  const playingBtn = card(page).locator("css=.fp-scene.fp-scene-play");
+  await expect(playingBtn).toHaveCount(1);
+  await expect(playingBtn).toHaveText("Party ■");
+  await playingBtn.click();
+  await press(page, "Wake");
+  expect(await calls(page)).toEqual([
+    'script.turn_off {"entity_id":"script.fp_dyn_party"}',
+    'script.turn_on {"entity_id":"script.fp_dyn_wake"}',
+  ]);
+});

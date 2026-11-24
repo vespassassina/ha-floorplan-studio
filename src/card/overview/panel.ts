@@ -220,8 +220,11 @@ export function make(d: OverviewDeps) {
     const [kind, id = ""] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
     const send = (c: { domain: string; service: string; data: Record<string, unknown> }) => callService(card, c.domain, c.service, c.data);
     if (kind === "ha") {
-      if (!roomScenes(f, at, card._hass).ha.some((s) => s.entity === id)) return;
-      send({ domain: "scene", service: "turn_on", data: { entity_id: id } });
+      const hit = roomScenes(f, at, card._hass).ha.find((s) => s.entity === id);
+      if (!hit) return;
+      send(id.startsWith("script.")
+        ? { domain: "script", service: hit.playing ? "turn_off" : "turn_on", data: { entity_id: id } }
+        : { domain: "scene", service: "turn_on", data: { entity_id: id } });
     } else if (kind === "preset") {
       if (id !== "on") return; // S24.8: the only preset left; the room's Lights off button is the off
       for (const c of presetCalls("on", roomScenes(f, at, card._hass).lights)) send(c);

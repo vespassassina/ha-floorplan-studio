@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.54.0 - 2026-11-24
+
+Dynamic room scenes, native light effects, and Zigbee traffic budgeting (Sprint 51): design multi-step timed or looping lighting scenes in the shared scene editor, use built-in light effects with zero loop traffic, and start or stop playing dynamic scenes straight from the dashboard card.
+
+- **Multi-step dynamic scenes:** Switch the scene editor between **Static** and **Dynamic** mode to build up to 20 ordered steps with per-step device targets, duration (`s`), transition (`s`), and a **Loop** toggle.
+- **Native light effects first:** Lights that advertise `effect_list` (such as candle, fire, or colorloop) offer native effect pills right in the editor and optional `effect` on scene items, running directly on the bulb with zero Zigbee loop traffic.
+- **Zigbee traffic budget:** Built-in rate guard (`checkDynamicBudget`) checks loop scenes before saving, refusing loop steps under `2 s` per light or rates above `30` service calls/min with clear guidance.
+- **Native HA scripts & card stop control:** Dynamic scenes save as Home Assistant `script.fp_dyn_*` entities in the room's area (`config/script/config/<id>`, admin-only, with clear `script: !include scripts.yaml` error reporting). Active dynamic scenes highlight with `■` in the room's **Scenes** section and stop (`script.turn_off`) on tap.
+
 ## 0.53.0 - 2026-11-24
 
 WYSIWYG scene editor in the card and Studio (Sprint 50): design room scenes visually on a magnified room plan and save them as native Home Assistant `scene.*` entities in the room's area.

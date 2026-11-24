@@ -108,7 +108,7 @@ export function popupTemplate(v: PopupView) {
   };
   const label = v.doorLabel ?? v.op?.label ?? null;
   const more = s.entities.length && !v.kiosk ? html`<button type="button" class="fp-pop-more" @click=${v.more}>${t("More info")}</button>` : nothing;
-  const hist = v.history && !v.kiosk ? html`<button type="button" class="fp-pop-more fp-pop-hist" @click=${v.history}>${t("History")}</button>` : nothing;
+  const hist = v.history ? html`<button type="button" class="fp-pop-more fp-pop-hist" @click=${v.history}>${t("History")}</button>` : nothing;
   const actions = label === null ? (hist === nothing ? more : html`<div class="fp-pop-actions">${more}${hist}</div>`)
     : v.confirming && v.op?.confirm
       ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>${t("Cancel")}</button></div>${more}${hist}`

@@ -413,9 +413,7 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
     fh.status = "ready";
   } catch (e) {
     fh.status = "error";
-    const m = (e as { message?: unknown; code?: unknown } | null)?.message;
-    // Our own timeout carries the English key; the reasons Home Assistant gives are its own words.
-    fh.why = (e as { code?: unknown } | null)?.code === "timeout" ? t(TIMED_OUT) : typeof m === "string" && m ? m : t(NO_ANSWER);
+    fh.why = fetchErr(e);
   }
   if (c._replay !== r) return;
   if (fh.status === "ready" && !r.idle) {
@@ -426,13 +424,17 @@ async function fetchFloor(c: FloorplanStudioCard, r: ReplayState, fh: FloorHisto
   c.requestUpdate();
 }
 
+function fetchErr(e: unknown): string {
+  const o = e as { message?: unknown; code?: unknown } | null;
+  return o?.code === "timeout" ? t(TIMED_OUT) : typeof o?.message === "string" && o.message ? o.message : t(NO_ANSWER);
+}
+
 /** S48: fetches history for a popup or room sensor list, sharing Replay 2's lazy `fetchHistory` chunk. */
 export async function fetchHistoryFor(c: FloorplanStudioCard, ids: readonly string[], startMs: number, endMs: number): Promise<HistoryIndex> {
-  const send = c._hass?.connection?.sendMessagePromise;
-  if (!send) throw new Error(t(NO_ANSWER));
+  const conn = c._hass?.connection;
+  if (!conn) throw new Error(t(NO_ANSWER));
   const h = await loadLib().catch(() => { throw new Error(t(STALE_PAGE)); });
-  return h.fetchHistory((m) => withTimeout(send.call(c._hass!.connection, m), FETCH_TIMEOUT_MS), ids, startMs, endMs)
-    .catch((e: { code?: unknown; message?: unknown }) => { throw new Error(e?.code === "timeout" ? t(TIMED_OUT) : (e?.message as string) || t(NO_ANSWER)); });
+  return h.fetchHistory((m) => withTimeout(conn.sendMessagePromise<unknown>(m), FETCH_TIMEOUT_MS), ids, startMs, endMs).catch((e) => { throw new Error(fetchErr(e)); });
 }
 
 /** What a state looks like to the frontend's own formatters: they read `entity_id`. */

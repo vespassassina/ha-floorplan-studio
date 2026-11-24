@@ -208,6 +208,20 @@ export async function saveSceneDraft(ed: FloorplanStudioEditor) {
   if (!d || i < 0) { closeScene(ed); return; }
   const order = roomSceneTargets(ed.st.f, i).map((t) => t.entity);
   const items = [...d.items.values()].sort((a, b) => (order.indexOf(a.entity) + 1 || 999) - (order.indexOf(b.entity) + 1 || 999));
+  if (d.mode === "dynamic" && ed.writer?.saveDynamicScene) {
+    const steps = (d.steps ?? [{ items: d.items, duration: 10 }]).map((s) => ({ items: [...s.items.values()].flatMap((it) => { const c = cleanSceneItem(it); return c ? [c] : []; }), duration: s.duration, transition: s.transition }));
+    ed.sceneBusy = true; d.error = ""; ed.requestUpdate();
+    try {
+      await ed.writer.saveDynamicScene({ name: d.name, areaId: ed.st.f.rooms[i]!.area, steps, loop: d.loop === true });
+      ed.sceneBusy = false;
+      closeScene(ed, true);
+    } catch (err) {
+      ed.sceneBusy = false;
+      d.error = err instanceof Error ? err.message : String(err);
+      ed.requestUpdate();
+    }
+    return;
+  }
   if (ed.writer?.saveScene && d.id === null) {
     const clean = items.flatMap((it) => { const c = cleanSceneItem(it); return c ? [c] : []; });
     if (!d.name.trim()) { d.error = "Give the scene a name."; ed.requestUpdate(); return; }

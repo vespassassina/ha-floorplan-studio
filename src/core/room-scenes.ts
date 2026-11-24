@@ -13,22 +13,24 @@ export interface SceneHass {
   entities?: Record<string, { area_id?: string | null; device_id?: string | null } | undefined>;
   devices?: Record<string, { area_id?: string | null } | undefined>;
 }
-export interface HaSceneRow { entity: string; name: string }
+export interface HaSceneRow { entity: string; name: string; playing?: boolean }
 export interface SceneCall { domain: string; service: string; data: Record<string, unknown> }
 export interface RoomSceneMenu { ha: HaSceneRow[]; custom: { id: string; name: string; confirm: boolean }[]; lights: string[] }
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
 const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
-const isScene = (e: unknown): e is string => typeof e === "string" && e.startsWith("scene.");
+const str = (v: unknown): v is string => typeof v === "string" && !!v;
+const isScene = (e: unknown): e is string => str(e) && e.startsWith("scene.");
+const isDyn = (e: string) => e.startsWith("script.fp_dyn_");
 const MAX_HA_SCENES = 30;
 
 /** The area a scene entity sits in: its own, else its device's. Hue scenes take the second way. */
 function areaOf(hass: SceneHass, entity: string): string | null {
   const reg = isObj(hass.entities) ? hass.entities[entity] : undefined;
   if (!isObj(reg)) return null;
-  if (typeof reg.area_id === "string" && reg.area_id) return reg.area_id;
-  const dev = typeof reg.device_id === "string" && isObj(hass.devices) ? hass.devices[reg.device_id] : undefined;
-  return isObj(dev) && typeof dev.area_id === "string" && dev.area_id ? dev.area_id : null;
+  if (str(reg.area_id)) return reg.area_id;
+  const dev = str(reg.device_id) && isObj(hass.devices) ? hass.devices[reg.device_id] : undefined;
+  return isObj(dev) && str(dev.area_id) ? dev.area_id : null;
 }
 
 /** The `scene.*` entities of a room: those in its Home Assistant area (by the entity, else its device) and those named in its `haScenes`, once each, by name. */
@@ -37,13 +39,13 @@ export function haScenesFor(room: Room | null | undefined, hass: SceneHass | nul
   const states = hass.states;
   const area = typeof room.area === "string" ? room.area : "";
   const picked = new Set<string>(Array.isArray(room.haScenes) ? room.haScenes.filter(isScene) : []);
-  if (area) for (const e of Object.keys(states)) if (isScene(e) && areaOf(hass, e) === area) picked.add(e);
+  if (area) for (const e of Object.keys(states)) if ((isScene(e) || isDyn(e)) && areaOf(hass, e) === area) picked.add(e);
   const rows: HaSceneRow[] = [];
   for (const e of picked) {
     const s = states[e];
     if (!isObj(s)) continue; // Home Assistant no longer has it
     const friendly = isObj(s.attributes) ? s.attributes.friendly_name : undefined;
-    rows.push({ entity: e, name: typeof friendly === "string" && friendly ? friendly : e });
+    rows.push({ entity: e, name: str(friendly) ? friendly : e, ...(isDyn(e) && s.state === "on" ? { playing: true } : {}) });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name) || a.entity.localeCompare(b.entity)).slice(0, MAX_HA_SCENES);
 }
@@ -66,7 +68,7 @@ export function customCalls(scene: RoomScene | null | undefined): SceneCall[] {
         if (fin(it.tilt)) add("set_cover_tilt_position", { tilt_position: it.tilt });
         break;
       case "climate": {
-        const hvac = typeof it.hvac === "string" && it.hvac, t = fin(it.temperature), fm = typeof it.fan_mode === "string" && it.fan_mode;
+        const hvac = str(it.hvac), t = fin(it.temperature), fm = str(it.fan_mode);
         if (hvac) add("set_hvac_mode", { hvac_mode: it.hvac });
         if (t) add("set_temperature", { temperature: it.temperature });
         if (fm) add("set_fan_mode", { fan_mode: it.fan_mode });
@@ -76,7 +78,7 @@ export function customCalls(scene: RoomScene | null | undefined): SceneCall[] {
       case "media_player":
         add("turn_on");
         if (fin(it.volume)) add("volume_set", { volume_level: it.volume / 100 });
-        if (typeof it.source === "string" && it.source) add("select_source", { source: it.source });
+        if (str(it.source)) add("select_source", { source: it.source });
         break;
       default: {
         const extra: Record<string, unknown> = {};
@@ -85,6 +87,7 @@ export function customCalls(scene: RoomScene | null | undefined): SceneCall[] {
           if (fin(it.kelvin)) extra.color_temp_kelvin = it.kelvin;
           if (Array.isArray(it.hs) && fin(it.hs[0]) && fin(it.hs[1])) extra.hs_color = [it.hs[0], it.hs[1]];
           if (fin(it.transition)) extra.transition = it.transition;
+          if (str(it.effect)) extra.effect = it.effect;
         } else if (domain === "fan" && fin(it.percentage)) extra.percentage = it.percentage;
         add("turn_on", extra);
       }
@@ -120,7 +123,7 @@ export function roomScenes(f: Floor, index: number, hass: SceneHass | null | und
   const room = Number.isInteger(index) ? f.rooms[index] : undefined;
   if (!isObj(room)) return { ha: [], custom: [], lights: [] };
   const custom = (Array.isArray(room.scenes) ? room.scenes : []).flatMap((s: unknown) =>
-    isObj(s) && typeof s.id === "string" && s.id && typeof s.name === "string" && s.name.trim() ? [{ id: s.id, name: s.name, confirm: sceneNeedsConfirm(s as unknown as RoomScene) }] : []);
+    isObj(s) && str(s.id) && str(s.name) && s.name.trim() ? [{ id: s.id, name: s.name, confirm: sceneNeedsConfirm(s as unknown as RoomScene) }] : []);
   const lights = [...new Set((roomSummary(f, index, undefined, {})?.devices ?? []).filter((d) => d.type === "light").map((d) => d.entity))];
   return { ha: haScenesFor(room, hass), custom, lights };
 }

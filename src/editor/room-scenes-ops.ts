@@ -59,7 +59,7 @@ export function cleanSceneItem(it: SceneItem): SceneItem | null {
   for (const f of SCENE_FIELDS[domain as (typeof SCENE_DOMAINS)[number]]) {
     const v = src[f];
     if (f === "hs") { if (Array.isArray(v) && v.length === 2 && v.every((n) => Number.isFinite(n))) dst.hs = [Math.min(360, Math.max(0, v[0])), Math.min(100, Math.max(0, v[1]))]; }
-    else if (f === "hvac" || f === "source" || f === "fan_mode") { if (typeof v === "string" && v.trim()) dst[f] = v.trim().slice(0, 80); }
+    else if (f === "hvac" || f === "source" || f === "fan_mode" || f === "effect") { if (typeof v === "string" && v.trim()) dst[f] = v.trim().slice(0, 80); }
     else if (typeof v === "number" && Number.isFinite(v)) { const [lo, hi] = FIELD_RANGE[f]; dst[f] = Math.min(hi, Math.max(lo, Math.round(v * 10) / 10)); }
   }
   return out;
