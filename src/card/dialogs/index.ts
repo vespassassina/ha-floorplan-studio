@@ -6,6 +6,28 @@ import type { FloorplanStudioCard } from "../floorplan-studio-card";
 
 export const DIALOGS_CHUNK = "fp-dialogs-v1";
 
+const DIALOGS_CSS = `
+.fp-dialog-backdrop{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35)}
+.fp-dialog{background:var(--fp-room);color:var(--fp-ink);border-radius:8px;padding:16px 20px;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.fp-dialog p{margin:0 0 14px;font:14px/1.3 var(--fp-font,system-ui,sans-serif)}
+.fp-dialog-actions{display:flex;justify-content:flex-end;gap:8px}
+.fp-dialog-actions button{font:13px/1.2 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;padding:6px 14px;cursor:pointer}
+.fp-dialog-actions button.confirm{color:var(--fp-on-dark,#fff);background:var(--fp-primary);border-color:var(--fp-primary)}
+.fp-vacuum-dialog .fp-dialog-actions{flex-wrap:wrap}
+.fp-dialog-actions button:disabled{opacity:.45;cursor:default}
+.fp-chooser-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.fp-chooser-list button{display:flex;justify-content:space-between;gap:12px;text-align:left;font:13px/1.2 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;padding:8px 12px;cursor:pointer}
+.fp-chooser-list button .state{opacity:.7;white-space:nowrap}
+.fp-chooser-dialog .fp-dialog-actions{justify-content:flex-end}
+.fp-off-dialog{display:flex;flex-direction:column;max-width:min(360px,calc(100% - 32px));max-height:calc(100% - 32px);box-sizing:border-box}
+.fp-off-list{overflow-y:auto;margin:0 0 14px;min-height:0}
+.fp-off-group{border:none;margin:0 0 8px;padding:0}
+.fp-off-group legend{padding:0;font:600 12px/1.6 var(--fp-font,system-ui,sans-serif)}
+.fp-off-row{display:flex;align-items:center;gap:8px;min-height:32px;font:13px/1.3 var(--fp-font,system-ui,sans-serif);cursor:pointer}
+.fp-off-row input{width:18px;height:18px;margin:0;flex:0 0 auto;accent-color:var(--fp-primary)}
+.fp-off-via{font-size:11px;color:var(--fp-text)}
+`;
+
 export interface DialogDeps {
   html: typeof Html;
   nothing: unknown;
@@ -48,7 +70,7 @@ export function renderCoverDialog(d: DialogDeps, c: FloorplanStudioCard): unknow
   if (!door?.cover) return null;
   const { html, t } = d;
   const closing = d.coverService(c, door) === "close_cover";
-  return html`
+  return html`<style>${DIALOGS_CSS}</style>
     <div class="fp-dialog-backdrop" @keydown=${c._onDialogKeydown}>
       <div class="fp-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-dialog-title">
         <p id="fp-dialog-title">${closing ? t("Close {name}?", { name: door.name }) : t("Open {name}?", { name: door.name })}</p>
@@ -74,7 +96,7 @@ export function renderOffDialog(d: DialogDeps, c: FloorplanStudioCard): unknown 
     dlg.ticked = dlg.ticked.map((v, j) => (j === i ? on : v));
     c.requestUpdate();
   };
-  return html`
+  return html`<style>${DIALOGS_CSS}</style>
     <div class="fp-dialog-backdrop" @keydown=${c._onDialogKeydown}>
       <div class="fp-dialog fp-off-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-off-title">
         <p id="fp-off-title">${t("Turn off on {name}", { name: dlg.title })}</p>
@@ -107,7 +129,7 @@ export function renderVacuumDialog(d: DialogDeps, c: FloorplanStudioCard): unkno
     d.callService(c, "vacuum", service, { entity_id: dev.entity });
     d.closeVacuum(c);
   };
-  return html`
+  return html`<style>${DIALOGS_CSS}</style>
     <div class="fp-dialog-backdrop" @keydown=${c._onDialogKeydown}>
       <div class="fp-dialog fp-vacuum-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-vacuum-dialog-title">
         <p id="fp-vacuum-dialog-title">${dev.name ?? dev.id}</p>
@@ -126,7 +148,7 @@ export function renderChooserDialog(d: DialogDeps, card: FloorplanStudioCard): u
   const dlg = card._chooserDialog;
   if (!dlg) return null;
   const { html, t } = d;
-  return html`
+  return html`<style>${DIALOGS_CSS}</style>
     <div class="fp-dialog-backdrop" @keydown=${card._onDialogKeydown} @click=${(e: Event) => { if (e.target === e.currentTarget) d.closeChooser(card); }}>
       <div class="fp-dialog fp-chooser-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-chooser-dialog-title">
         <p id="fp-chooser-dialog-title">${[dlg.title, dlg.line?.()].filter(Boolean).join(" · ")}</p>

@@ -9,6 +9,7 @@ import { popupInSheet } from "./card-sheet";
 import { canReplay, openReplay, replayAlways } from "./card-replay";
 import { saveViewNow } from "./card-view-state";
 import { resetView } from "./card-zoom";
+import { clockChipTemplate } from "./card-kiosk";
 import type { FloorplanStudioCard, CardView } from "./floorplan-studio-card";
 
 /** The View dropdown's options, one list for the markup and for reading the choice back (a value that is not here
@@ -41,10 +42,11 @@ export const isTheme = (v: unknown): v is Theme => typeof v === "string" && (THE
 export function header(c: FloorplanStudioCard) {
   if (c._kiosk()) return null;
   const tabs = floorChips(c);
+  const clock = c._config.header_clock === true ? clockChipTemplate(c, false) : null;
   const search = c._activeListVisible() && c._layout ? html`<button type="button" class="fp-head-btn" aria-label=${t("Search")} title=${t("Search")} @click=${() => { openSearch(c); }}>${t("Search")}</button>` : null;
   const options = optionsMenu(c);
-  if (!tabs && !search && !options) return null;
-  return html`<div class="fp-head">${tabs}<span class="fp-head-gap"></span>${search}${options}</div>`;
+  if (!tabs && !clock && !search && !options) return null;
+  return html`<div class="fp-head">${tabs}<span class="fp-head-gap"></span>${clock}${search}${options}</div>`;
 }
 
 /** S31.6: the ⋯ menu, or `null` when it would hold nothing (`view_switch: false` with no rotate, no layers, no detail). */

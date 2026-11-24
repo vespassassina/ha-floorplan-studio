@@ -34,6 +34,7 @@ import { chooserDialogTemplate, coverDialogTemplate, offDialogTemplate, onDialog
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
 import { closeReplay, isReplaying, REPLAY_CSS, replayBar, replayEnergyOverlay, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
 import { extrasOverlay, type HistoryState, type SceneEditorDraft } from "./card-extras";
+import { clockChipTemplate, KIOSK_CSS, screensaverTemplate, stopKioskTimers, syncKioskTimers, touchKioskIdle } from "./card-kiosk";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
 import { applyWidthDefault, fitHeight, measureFrame, onHandleCancel, onHandleClick, onHandleDown, onHandleKey, onHandleMove, onHandleUp, onCardDown, onSheetClick, onSheetDown, panBoxIn, panIntoVisible, stopsNow, visibleBox } from "./card-sheet";
@@ -172,6 +173,12 @@ export interface FloorplanStudioCardConfig {
   camera_thumb_size?: unknown;
   /** Where the picture sits next to the icon: `above`, `below` (default), `left` or `right`; anything else is `below`. */
   camera_thumb_pos?: unknown;
+  /** S65: seconds of inactivity (`5..86400`) before closing popups/dialogs, resetting zoom, and returning to the default floor. */
+  idle_return?: number;
+  /** S65: seconds of inactivity (`5..86400`) before showing the dim clock/weather screensaver overlay (wake on first tap without toggling devices). */
+  idle_dim?: number;
+  /** S65: `true` shows a compact 24 h clock and optional weather chip (from `weather`) in the header or top-left in kiosk mode. */
+  header_clock?: boolean;
 }
 
 /** What the View dropdown offers: the two flat plans `renderFloor` draws and the 3D model, which is a renderer of its own. */
@@ -340,13 +347,6 @@ export class FloorplanStudioCard extends LitElement {
        sits on a warn badge in --fp-on-light, readable on the pressed pill's ink and on the plain one alike. */
     .fp-floors button.fp-floor-alarm { border-color: var(--fp-warn); }
     .fp-floor-alarm .fp-floor-count { background: var(--fp-warn); color: var(--fp-on-light); border-radius: 999px; padding: 0 5px; font-weight: 600; }
-    /* S2.7: the cover confirm dialog is card chrome too (same reasoning as .fp-floors above) — it acts on the
-       real home, so it sits over the whole card, not only the plan. */
-    .fp-dialog-backdrop { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); }
-    .fp-dialog { background: var(--fp-room); color: var(--fp-ink); border-radius: 8px; padding: 16px 20px; min-width: 200px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
-    .fp-dialog p { margin: 0 0 14px; font: 14px/1.3 var(--fp-font, system-ui, sans-serif); }
-    .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
-    .fp-dialog-actions button { font: 13px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
     /* S7.4: the zoom buttons are card chrome, the same colours as the floor chips, in the corner of the stage. S31.6: only +, - and
        Fit (Reset camera in 3D) are left here; the look controls are the ⋯ menu's (more-menu.ts). */
     .fp-stack { display: flex; flex-direction: column; gap: 4px; }
@@ -364,20 +364,6 @@ export class FloorplanStudioCard extends LitElement {
     svg.fp-zoomable.fp-zoomed { touch-action: none; }
     /* S37.7: room for the zoom buttons (28 px + the cluster's 8 px margin) beside the plan, so the floor below does not run under them. */
     svg.fp-zoomable.fp-clear-stack { width: calc(100% - 40px); justify-self: start; }
-    .fp-dialog-actions button.confirm { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); }
-    /* S7.10: the vacuum dialog has four buttons where the cover dialog has two; wrap rather than overflow the
-       card on a narrow width, and a disabled action reads as inert (dimmed, no pointer) without a separate class. */
-    .fp-vacuum-dialog .fp-dialog-actions { flex-wrap: wrap; }
-    .fp-dialog-actions button:disabled { opacity: 0.45; cursor: default; }
-    /* S10.4: the chooser lists one button per entity, column layout (unlike the cover/vacuum row of verbs), each
-       row left-aligned since it carries a name, not a short verb; Cancel stays a separate, right-aligned row like
-       every other dialog's own Cancel. */
-    .fp-chooser-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    /* Review fix: a row wears the same button look as Cancel (it had the browser's default white box), the name
-       on the left and the live state on the right, muted, so the list reads as "which one, and what is it doing". */
-    .fp-chooser-list button { display: flex; justify-content: space-between; gap: 12px; text-align: left; font: 13px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 8px 12px; cursor: pointer; }
-    .fp-chooser-list button .state { opacity: 0.7; white-space: nowrap; }
-    .fp-chooser-dialog .fp-dialog-actions { justify-content: flex-end; }
     .fp-pop.fp-pop-sheet { position: static; width: auto; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 4px 4px 12px; }
     /* S24.7: the ring a row tap puts on its thing. Card chrome over the plan, never a hit target. Reduced motion: a steady ring. */
     .fp-pulse { position: absolute; z-index: 1; pointer-events: none; box-sizing: border-box; border: 3px solid var(--fp-primary); border-radius: 50%; transform: translate(-50%, -50%); animation: fp-pulse-ring 0.8s ease-out 3; }
@@ -392,15 +378,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-focus-status { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     svg.fp-zoomable:focus { outline: none; }
     svg.fp-zoomable:focus-visible { outline: 2px solid var(--fp-primary); outline-offset: -2px; }
-    /* S24.8: the floor-off checklist. A long list scrolls inside the dialog; the buttons stay. */
-    .fp-off-dialog { display: flex; flex-direction: column; max-width: min(360px, calc(100% - 32px)); max-height: calc(100% - 32px); box-sizing: border-box; }
-    .fp-off-list { overflow-y: auto; margin: 0 0 14px; min-height: 0; }
-    .fp-off-group { border: none; margin: 0 0 8px; padding: 0; }
-    .fp-off-group legend { padding: 0; font: 600 12px/1.6 var(--fp-font, system-ui, sans-serif); }
-    .fp-off-row { display: flex; align-items: center; gap: 8px; min-height: 32px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); cursor: pointer; }
-    .fp-off-row input { width: 18px; height: 18px; margin: 0; flex: 0 0 auto; accent-color: var(--fp-primary); }
-    .fp-off-via { font-size: 11px; color: var(--fp-text); }
-  `, POPUP_CSS, SCENES_CSS, TOUCH_CSS, unsafeCSS(REPLAY_CSS)];
+  `, POPUP_CSS, SCENES_CSS, TOUCH_CSS, KIOSK_CSS, unsafeCSS(REPLAY_CSS)];
 
   _config: FloorplanStudioCardConfig = {};
   _hass?: Hass;
@@ -596,6 +574,11 @@ export class FloorplanStudioCard extends LitElement {
   _legendOpen = false;
   _sceneEd: SceneEditorDraft | null = null;
   _carConfirm: string | null = null;
+  _dimmed = false;
+  _idleRetTimer: number | null = null;
+  _idleDimTimer: number | null = null;
+  _clockTimer: number | null = null;
+  private _onKioskActivity = (): void => touchKioskIdle(this);
   _saveSnooze(next: Record<string, string>) {
     this._snooze = next;
     try { if (Object.keys(next).length) localStorage.setItem(SNOOZE_KEY, JSON.stringify(next)); else localStorage.removeItem(SNOOZE_KEY); } catch { /* blocked */ }
@@ -892,6 +875,10 @@ export class FloorplanStudioCard extends LitElement {
     this.addEventListener("focusin", this._onFocusIn);
     this.addEventListener("focusout", this._onFocusOut);
     this.addEventListener("pointerdown", this._onCardDown, true); // before the sheet's own, which clears it (onSheetClick)
+    this.addEventListener("pointerdown", this._onKioskActivity, true);
+    this.addEventListener("keydown", this._onKioskActivity, true);
+    this.addEventListener("wheel", this._onKioskActivity, { passive: true });
+    syncKioskTimers(this);
     this._watchUpdates();
     this.requestUpdate(); // a turn settled while detached left the last frame on screen
   }
@@ -947,6 +934,8 @@ export class FloorplanStudioCard extends LitElement {
     loadActiveState(this);
     this._loadFoldedCats();
     this._loadLayout();
+    this._dimmed = false;
+    syncKioskTimers(this);
     this.requestUpdate();
   }
 
@@ -1082,6 +1071,10 @@ export class FloorplanStudioCard extends LitElement {
     this.removeEventListener("focusin", this._onFocusIn);
     this.removeEventListener("focusout", this._onFocusOut);
     this.removeEventListener("pointerdown", this._onCardDown, true);
+    this.removeEventListener("pointerdown", this._onKioskActivity, true);
+    this.removeEventListener("keydown", this._onKioskActivity, true);
+    this.removeEventListener("wheel", this._onKioskActivity);
+    stopKioskTimers(this);
     if (focusedCard === this) focusedCard = null;
     this._hovered = false;
     this._settleTurn(false); // cancels the frame loop; the state lands where the turn was going
@@ -1933,7 +1926,7 @@ export class FloorplanStudioCard extends LitElement {
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? optionsMenu(this) : null;
     const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
-    return html`${header(this)}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${replayEnergyOverlay(this)}${extrasOverlay(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    return html`${header(this)}${this._kiosk() ? clockChipTemplate(this, true) : nothing}${stage}${note}${activePanel(this)}${cluster}${this._heatLegend()}${replayBar(this)}${replayEnergyOverlay(this)}${extrasOverlay(this)}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${popupMarkup(this)}${coverDialogTemplate(this)}${vacuumDialogTemplate(this)}${chooserDialogTemplate(this)}${offDialogTemplate(this)}${screensaverTemplate(this)}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */

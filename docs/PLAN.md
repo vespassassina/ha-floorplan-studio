@@ -5036,8 +5036,9 @@ Spec: `docs/specs/car-popover-s64.md`. Card gzip dropped to `137,159` B (841 B u
 - [x] 2026-11-24 S64.1 Move card modal dialogs (`cover`, `floor-off`, `vacuum`, `chooser`) into lazy zero-import `src/card/dialogs/index.ts` (`floorplan-studio-dialogs-<hash>.js`, `1,686` B gzip).
 - [x] 2026-11-24 S64.2 Rich car card popover (`src/card/car/index.ts`, `floorplan-studio-car-<hash>.js`, `2,320` B gzip): battery/fuel progress bar, range, charging power & ETA, door/window/lock status chips, inline-confirmed unlock, and climate/switch quick controls inside `.fp-pop`.
 
-### Sprint 65: wall-tablet & mobile kiosk polish
+### Sprint 65 (done): wall-tablet & mobile kiosk polish
 
-- [ ] S65.1 `idle_return` (seconds): auto-close popups/overview, reset zoom/pan, and return to default floor after idle.
-- [ ] S65.2 `idle_dim` (screensaver / auto-dim overlay with clock, wake on first tap without accidental device toggle).
-- [ ] S65.3 Optional header clock and weather summary chip (`weather.*`) for wall-mounted kiosks.
+Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
+- [x] 2026-11-24 S65.1 `idle_return` (seconds): auto-close popups/dialogs/extras/overview pick, reset zoom/pan, and return to default floor after idle.
+- [x] 2026-11-24 S65.2 `idle_dim` (screensaver / auto-dim overlay with 24 h clock & optional weather, wake on first tap without accidental device toggle).
+- [x] 2026-11-24 S65.3 Optional `header_clock` chip (24 h clock + weather from `weather` entity) in normal header and floating top-left pill in `kiosk: true` mode.
