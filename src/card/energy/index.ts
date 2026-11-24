@@ -485,6 +485,34 @@ function renderNode(tools: EnergyTools, node: DeviceNode, lang: string | undefin
   </li>`;
 }
 
+/** Drag the energy overlay chart within its host card bounds. */
+export function dragEnergyOverlay(hostEl: HTMLElement, ev: PointerEvent, onPos: (p: { x: number; y: number }) => void, onTouch?: () => void): void {
+  if (ev.button !== 0) return;
+  const header = ev.currentTarget as HTMLElement | null;
+  const ov = header?.closest(".fp-en-overlay") as HTMLElement | null;
+  if (!header || !ov) return;
+  ev.preventDefault();
+  onTouch?.();
+  const host = hostEl.getBoundingClientRect(), box = ov.getBoundingClientRect();
+  const baseX = box.left - host.left, baseY = box.top - host.top, sx = ev.clientX, sy = ev.clientY;
+  const maxX = Math.max(8, host.width - box.width - 8), maxY = Math.max(8, host.height - box.height - 8);
+  try { header.setPointerCapture(ev.pointerId); } catch { /* synthetic */ }
+  const onMove = (m: PointerEvent) => {
+    const p = { x: Math.round(Math.max(8, Math.min(maxX, baseX + m.clientX - sx))), y: Math.round(Math.max(8, Math.min(maxY, baseY + m.clientY - sy))) };
+    onPos(p);
+    ov.style.left = `${p.x}px`;
+    ov.style.top = `${p.y}px`;
+  };
+  const onEnd = () => {
+    header.removeEventListener("pointermove", onMove);
+    header.removeEventListener("pointerup", onEnd);
+    header.removeEventListener("pointercancel", onEnd);
+  };
+  header.addEventListener("pointermove", onMove);
+  header.addEventListener("pointerup", onEnd);
+  header.addEventListener("pointercancel", onEnd);
+}
+
 /** Draw the see-through draggable 5-minute bar overlay chart and electricity device tree (B57.1, B57.2). */
 export function energyOverlayView(tools: EnergyTools, m: EnergyOverlayModel): unknown {
   const { html, nothing, t } = tools;

@@ -10,6 +10,7 @@ import { UI_ICONS } from "../core/icons";
 import { roomAt } from "../core/render";
 import type { Floor } from "../core/schema";
 import { NO_ANSWER, STALE_PAGE } from "./load";
+import { lazy } from "./lazy";
 import { closePopup } from "./card-popup";
 import { attentionOf } from "./card-overview";
 import type { FloorplanStudioCard, Hass, HassEntity } from "./floorplan-studio-card";
@@ -77,38 +78,13 @@ export interface ReplayState {
 
 type Lib = typeof import("./replay/history");
 let lib: Lib | null = null;
-let libPromise: Promise<Lib> | null = null;
-/** The build puts the chunk's hashed file name here (vite.config.ts); unbuilt (vitest, dev) it stays a placeholder and the plain import is used. */
-const CHUNK_FILE = "__FPREPLAY_CHUNK__";
-let libTries = 0;
-/** As the 3D chunk: a browser remembers a failed `import()` of one URL and never asks the network again, so each try after the first asks
- * for the same file under a new query. A failed load is not cached here, so closing the bar and opening it again is the retry. */
-async function loadLib(): Promise<Lib> {
-  if (lib) return lib;
-  if (libPromise) return libPromise;
-  const n = libTries++;
-  libPromise = (n > 0 && /^floorplan-studio-replay-.+\.js$/.test(CHUNK_FILE)
-    ? import(/* @vite-ignore */ `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${CHUNK_FILE}?r=${n}`)
-    : import("./replay/history"))
-    .then((m) => { lib = m; libPromise = null; return m; }, (e) => { libPromise = null; throw e; });
-  return libPromise;
-}
+const replayMod = lazy<Lib>(() => import("./replay/history"), "__FPREPLAY_CHUNK__", "replay");
+const loadLib = () => replayMod.load().then((m) => (lib = m));
 
 type EnergyLib = typeof import("./energy");
 let energyLib: EnergyLib | null = null;
-let energyPromise: Promise<EnergyLib> | null = null;
-const ENERGY_CHUNK_FILE = "__FPENERGY_CHUNK__";
-let energyTries = 0;
-async function loadEnergy(): Promise<EnergyLib> {
-  if (energyLib) return energyLib;
-  if (energyPromise) return energyPromise;
-  const n = energyTries++;
-  energyPromise = (n > 0 && /^floorplan-studio-energy-.+\.js$/.test(ENERGY_CHUNK_FILE)
-    ? import(/* @vite-ignore */ `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${ENERGY_CHUNK_FILE}?e=${n}`)
-    : import("./energy"))
-    .then((m) => { energyLib = m; energyPromise = null; return m; }, (e) => { energyPromise = null; throw e; });
-  return energyPromise;
-}
+const energyMod = lazy<EnergyLib>(() => import("./energy"), "__FPENERGY_CHUNK__", "energy");
+const loadEnergy = () => energyMod.load().then((m) => (energyLib = m));
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && s !== "") : []);
 const text = (v: unknown): string[] => (typeof v === "string" && v ? [v] : []);
@@ -669,38 +645,6 @@ function barView(c: FloorplanStudioCard, r: ReplayState) {
     { key, close, play: () => togglePlay(c, r), seek: (m) => { if (r.always && r.idle) wakeFromIdle(c, r); armIdle(c, r); seek(c, r, startOf(r) + m * 60000); }, jump: (ms) => { armIdle(c, r); seek(c, r, ms); }, jumpBy: (d) => jumpBy(c, r, d, true), length: (h) => setHours(c, r, h), info: () => { r.info = !r.info; r.said = undefined; armIdle(c, r); paintBar(c); } });
 }
 
-function dragEnergyOverlay(c: FloorplanStudioCard, r: ReplayState, ev: PointerEvent): void {
-  if (ev.button !== 0) return;
-  const header = ev.currentTarget as HTMLElement | null;
-  const ov = header?.closest(".fp-en-overlay") as HTMLElement | null;
-  if (!header || !ov) return;
-  ev.preventDefault();
-  armIdle(c, r);
-  const host = c.getBoundingClientRect(), box = ov.getBoundingClientRect();
-  const baseX = box.left - host.left, baseY = box.top - host.top;
-  const sx = ev.clientX, sy = ev.clientY;
-  const maxX = Math.max(8, host.width - box.width - 8), maxY = Math.max(8, host.height - box.height - 8);
-  const clampPos = (cx: number, cy: number) => ({
-    x: Math.round(Math.max(8, Math.min(maxX, baseX + cx - sx))),
-    y: Math.round(Math.max(8, Math.min(maxY, baseY + cy - sy))),
-  });
-  try { header.setPointerCapture(ev.pointerId); } catch { /* synthetic */ }
-  const onMove = (m: PointerEvent) => {
-    const p = clampPos(m.clientX, m.clientY);
-    r.energy.chartPos = p;
-    ov.style.left = `${p.x}px`;
-    ov.style.top = `${p.y}px`;
-  };
-  const onEnd = () => {
-    header.removeEventListener("pointermove", onMove);
-    header.removeEventListener("pointerup", onEnd);
-    header.removeEventListener("pointercancel", onEnd);
-  };
-  header.addEventListener("pointermove", onMove);
-  header.addEventListener("pointerup", onEnd);
-  header.addEventListener("pointercancel", onEnd);
-}
-
 /** B57.1/B57.2: render the see-through draggable 5-minute energy overlay chart when a chip is open. */
 export function replayEnergyOverlay(c: FloorplanStudioCard) {
   const r = c._replay;
@@ -718,22 +662,9 @@ export function replayEnergyOverlay(c: FloorplanStudioCard) {
     closeIcon: UI_ICONS.close,
     pos: r.energy.chartPos,
     onClose: () => { armIdle(c, r); r.energy.chart = null; c.requestUpdate(); },
-    onDragStart: (e) => dragEnergyOverlay(c, r, e),
+    onDragStart: (e) => energyLib?.dragEnergyOverlay(c, e, (p) => { r.energy.chartPos = p; }, () => armIdle(c, r)),
   });
 }
 
 /** The stylesheet of the bar. Colours only through `--fp-*`. Under 640 px of card the time sits above the slider. */
-export const REPLAY_CSS = `
-    .fp-rp-wrap { grid-area: bar; container-type: inline-size; min-width: 0; z-index: 3; }
-    .fp-replay { box-sizing: border-box; display: grid; grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto; grid-template-areas: "en en en en en en en" "time prev play next range info close" "msg msg msg msg msg msg msg"; align-items: center; column-gap: 8px; padding: 6px 8px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border-top: 1px solid var(--fp-idle); }
-    .fp-rp-time { grid-area: time; min-width: 4.5em; font-variant-numeric: tabular-nums; font-weight: 600; }
-    .fp-rp-play { grid-area: play; } .fp-rp-range { min-width: 0; width: 100%; } .fp-rp-info { grid-area: info; } .fp-rp-close { grid-area: close; }
-    .fp-rp-msg { grid-area: msg; min-height: 0; color: var(--fp-text); }
-    .fp-rp-msg:empty { display: none; }
-    .fp-replay button, .fp-rp-open { font: inherit; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; min-width: 32px; min-height: 32px; padding: 0 10px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-    .fp-replay button:disabled { opacity: 0.5; cursor: default; }
-    .fp-replay button svg, .fp-rp-open svg { width: 18px; height: 18px; display: block; }
-    .fp-rp-idle { padding: 0 8px; } .fp-rp-open { gap: 6px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); }
-    .fp-replay input[type=range] { accent-color: var(--fp-ink); }
-    @container (max-width: 640px) { .fp-rp-word { display: none; } .fp-replay { grid-template-columns: auto auto auto minmax(0, 1fr) auto auto; grid-template-areas: "en en en en en en" "time time time time time time" "prev play next range info close" "msg msg msg msg msg msg"; } }
-`;
+export const REPLAY_CSS = `.fp-rp-wrap{grid-area:bar;container-type:inline-size;min-width:0;z-index:3}.fp-replay{box-sizing:border-box;display:grid;grid-template-columns:auto auto auto auto minmax(0,1fr) auto auto;grid-template-areas:"en en en en en en en" "time prev play next range info close" "msg msg msg msg msg msg msg";align-items:center;column-gap:8px;padding:6px 8px;font:13px/1.3 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-room);border-top:1px solid var(--fp-idle)}.fp-rp-time{grid-area:time;min-width:4.5em;font-variant-numeric:tabular-nums;font-weight:600}.fp-rp-play{grid-area:play}.fp-rp-range{min-width:0;width:100%}.fp-rp-info{grid-area:info}.fp-rp-close{grid-area:close}.fp-rp-msg{grid-area:msg;min-height:0;color:var(--fp-text)}.fp-rp-msg:empty{display:none}.fp-replay button,.fp-rp-open{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:999px;min-width:32px;min-height:32px;padding:0 10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}.fp-replay button:disabled{opacity:.5;cursor:default}.fp-replay button svg,.fp-rp-open svg{width:18px;height:18px;display:block}.fp-rp-idle{padding:0 8px}.fp-rp-open{gap:6px;font:13px/1.3 var(--fp-font,system-ui,sans-serif)}.fp-replay input[type=range]{accent-color:var(--fp-ink)}@container (max-width:640px){.fp-rp-word{display:none}.fp-replay{grid-template-columns:auto auto auto minmax(0,1fr) auto auto;grid-template-areas:"en en en en en en" "time time time time time time" "prev play next range info close" "msg msg msg msg msg msg"}}`;

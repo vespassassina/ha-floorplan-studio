@@ -48,11 +48,14 @@ export function furnitureBlocks(m: Furniture): Block[] {
   const room = (span: number, want: number, share = 0.25) => Math.min(want, span * share);
   /** A height of `want` cm, at most `share` of H: the levels of a piece keep their order on a low one. */
   const lift = (want: number, share: number) => Math.min(want, H * share);
+  const legs = (s: number, i: number, z1: number) => {
+    for (const [x, y] of [[i, i], [w - i - s, i], [i, h - i - s], [w - i - s, h - i - s]]) box(x, x + s, y, y + s, 0, z1, "dark");
+  };
 
   switch (m.symbol) {
     case "table": case "coffee-table": case "desk": {
-      const t = lift(4, 0.2), s = room(Math.min(w, h), 5), i = room(Math.min(w, h), 5);
-      for (const [x, y] of [[i, i], [w - i - s, i], [i, h - i - s], [w - i - s, h - i - s]]) box(x, x + s, y, y + s, 0, H - t, "dark");
+      const t = lift(4, 0.2), s = room(Math.min(w, h), 5);
+      legs(s, s, H - t);
       box(0, w, 0, h, H - t, H);
       break;
     }
@@ -75,7 +78,7 @@ export function furnitureBlocks(m: Furniture): Block[] {
     }
     case "chair": {
       const seat = lift(45, 0.75), t = lift(5, 0.1), s = room(Math.min(w, h), 4), back = h * 0.08;
-      for (const [x, y] of [[0, 0], [w - s, 0], [0, h - s], [w - s, h - s]]) box(x, x + s, y, y + s, 0, seat - t, "dark");
+      legs(s, 0, seat - t);
       box(0, w, 0, h, seat - t, seat);
       box(0, w, 0, back, seat, H);
       break;
@@ -128,7 +131,7 @@ export function furnitureBlocks(m: Furniture): Block[] {
     // Four uprights (8 cm, at most 12 % of a side) and a rail round the top; the middle stays open.
     case "barbell-rack": {
       const s = room(Math.min(w, h), 8, 0.12), top = lift(6, 0.05);
-      for (const [x, y] of [[0, 0], [w - s, 0], [0, h - s], [w - s, h - s]]) box(x, x + s, y, y + s, 0, H, "dark");
+      legs(s, 0, H);
       box(0, w, 0, s, H - top, H, "dark");
       box(0, w, h - s, h, H - top, H, "dark");
       box(0, s, s, h - s, H - top, H, "dark");
@@ -160,9 +163,35 @@ export function furnitureBlocks(m: Furniture): Block[] {
       box(0, w, h - t, h, foot, H, "mirror");
       break;
     }
+    case "metal-shelf": {
+      const s = room(Math.min(w, h), 4, 0.12), t = lift(3, 0.05);
+      legs(s, 0, H);
+      for (const f of [0.15, 0.43, 0.71, 1]) box(0, w, 0, h, H * f - t, H * f);
+      break;
+    }
+    case "worktable": {
+      const t = lift(6, 0.2), st = lift(3, 0.1), s = room(Math.min(w, h), 6), i = room(Math.min(w, h), 4);
+      legs(s, i, H - t);
+      box(i, w - i, i, h - i, H * 0.25 - st, H * 0.25, "dark");
+      box(0, w, 0, h, H - t, H);
+      break;
+    }
+    case "wash-basin": {
+      const s = room(Math.min(w, h), 5), i = room(Math.min(w, h), 4), tub = H * 0.62;
+      legs(s, i, tub);
+      box(0, w, 0, h, tub, H);
+      break;
+    }
+    case "boiler": {
+      const plinth = lift(6, 0.15), flue = lift(12, 0.15), ix = room(w, 4), iy = room(h, 4), fr = room(Math.min(w, h), 8, 0.2);
+      box(ix, w - ix, iy, h - iy, 0, plinth, "dark");
+      box(0, w, 0, h, plinth, H - flue);
+      box(w / 2 - fr, w / 2 + fr, h / 2 - fr, h / 2 + fr, H - flue, H, "dark");
+      break;
+    }
     // Every other symbol is one box, as before. Decided one by one (finding 17): a tree and a car are drawn by their own code
     // (a trunk and a crown; the car's table) and a patio is flat, so for them this box is the footprint and nothing more.
-    case "toilet": case "bookcase": case "cube-shelf": case "robot-vacuum": case "robot-dock": case "fridge": case "washer": case "dryer": case "rug": case "tv": case "computer": case "speaker": case "tree": case "patio-wood": case "patio-concrete": case "car":
+    case "toilet": case "bookcase": case "cube-shelf": case "robot-vacuum": case "robot-dock": case "fridge": case "washer": case "dryer": case "rug": case "tv": case "computer": case "speaker": case "tree": case "patio-wood": case "patio-concrete": case "car": case "water-tank":
       box(0, w, 0, h, 0, H);
       break;
     default: break;

@@ -416,6 +416,7 @@ function prism(base: Pt[], h: number, px: Proj, z0 = 0): string | null {
 export const FURNITURE_SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
   table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", wardrobe: "box", dresser: "box", nightstand: "box", desk: "box", armchair: "box", counter: "box", stove: "box", fridge: "box", dishwasher: "box", washer: "box", dryer: "box", rug: "flat", plant: "box", treadmill: "box", "barbell-rack": "box", "weight-rack": "box", "chaise-longue": "box", "cube-shelf": "box", mirror: "box", "mirror-stand": "box", "robot-vacuum": "box", "robot-dock": "box", tv: "box", computer: "box", speaker: "box",
   car: "box", worktop: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
+  "metal-shelf": "box", worktable: "box", "wash-basin": "box", boiler: "box", "water-tank": "box",
 };
 /** How a piece of furniture draws in 2.5D. A piece that is not finite or not known is flat: the 2D path deals with it as ever. */
 export function furnitureMode(m: Furniture): "box" | "pole" | "flat" {
@@ -483,12 +484,13 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
   const z0 = furnitureBottom(m), h = furnitureTop(m), c: Pt = [m.x, m.y];
   // B54.2: a worktop with good points is a prism of exactly those (the caller framed it: rot 0, box of the points); no blocks.
   const wpts = mode === "box" ? worktopPts(m) : null;
-  const base = wpts ?? ([[-m.w / 2, -m.h / 2], [m.w / 2, -m.h / 2], [m.w / 2, m.h / 2], [-m.w / 2, m.h / 2]] as Pt[]).map((q) => turnAbout([m.x + q[0], m.y + q[1]], m.rot, c));
+  const cyl = mode === "box" && m.symbol === "water-tank" ? Array.from({ length: 16 }, (_, k) => { const a = (k * Math.PI * 2) / 16; return turnAbout([m.x + (m.w / 2) * Math.cos(a), m.y + (m.h / 2) * Math.sin(a)], m.rot, c); }) : null;
+  const base = wpts ?? cyl ?? ([[-m.w / 2, -m.h / 2], [m.w / 2, -m.h / 2], [m.w / 2, m.h / 2], [-m.w / 2, m.h / 2]] as Pt[]).map((q) => turnAbout([m.x + q[0], m.y + q[1]], m.rot, c));
   // S28.4: a tree stands. Its shade patch lies at the foot, a 12 cm trunk rises to `trunkTop` and the crown (no trunk dot: the
   // trunk is the line) is drawn at the crown's middle. Anything else keeps the symbol at the full height.
   const tree = mode === "pole" && m.symbol === "tree" ? treeShape(m) : null;
   // B53.5: a box piece is its blocks (`furnitureBlocks`, the list 3D builds from too); its symbol lies on the block that carries it.
-  const blocks = mode === "box" && !car ? furnitureBlocks(m) : [], lid0 = blocks.length ? lidOf(m, blocks) : h - z0, lidTop = z0 + lid0;
+  const blocks = mode === "box" && !car && !cyl ? furnitureBlocks(m) : [], lid0 = blocks.length ? lidOf(m, blocks) : h - z0, lidTop = z0 + lid0;
   const top = px.lift(c, tree ? tree.crownMiddle : lidTop);
   let body: string;
   // S35.4: a car is two blocks, the body up to its belt with the top view on that lid, and the cabin (glass sides, the roof as its lid) on it.
@@ -499,7 +501,7 @@ export function furnitureSolid(m: Furniture, i: number, mode: "box" | "pole", on
     const lower = prism(at(parts.outline), belt, px, z0), upper = prism(at(parts.roof), h, px, belt);
     if (!lower || !upper) return null;
     body = lower; cabin = `<g class="car-cabin">${upper}</g>`;
-  } else if (wpts) { const p = prism(wpts, h, px, z0); if (!p) return null; body = p; }
+  } else if (wpts || cyl) { const p = prism(wpts ?? cyl!, h, px, z0); if (!p) return null; body = p; }
   else if (mode === "box") { const p = blocksSvg(m, blocks, z0, lid0, c, px); if (!p) return null; [body, above] = p; }
   else {
     const end = tree ? px.lift(c, tree.trunkTop) : top;

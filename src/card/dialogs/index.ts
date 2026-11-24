@@ -1,10 +1,25 @@
 // S64.1: Lazy zero-import modal dialogs chunk (`floorplan-studio-dialogs-<hash>.js`).
 // Holds cover, floor-off, vacuum, and chooser dialog templates + handlers so the main card pays only the opener state.
 import type { html as Html } from "lit";
-import type { Device, Door, floorOffCalls as FloorOffCalls, OFF_GROUPS as OffGroups, OFF_GROUP_LABEL as OffGroupLabel } from "../../core";
+import type { Device, Door } from "../../core";
 import type { FloorplanStudioCard } from "../floorplan-studio-card";
 
 export const DIALOGS_CHUNK = "fp-dialogs-v1";
+
+const OFF_GROUPS = ["lights", "switches", "plugs", "fans", "media"] as const;
+const OFF_GROUP_LABEL: Record<(typeof OFF_GROUPS)[number], string> = { lights: "Lights", switches: "Switches", plugs: "Plugs", fans: "Fans", media: "Media" };
+const OFF_DOMAINS = ["light", "switch", "media_player"];
+function floorOffCalls(rows: readonly { entities: readonly string[] }[]) {
+  const by = new Map<string, string[]>([...OFF_DOMAINS, "homeassistant"].map((d) => [d, []]));
+  const seen = new Set<string>();
+  for (const r of rows) for (const e of r.entities) {
+    if (seen.has(e)) continue;
+    seen.add(e);
+    const d = e.split(".")[0] ?? "";
+    by.get(OFF_DOMAINS.includes(d) ? d : "homeassistant")!.push(e);
+  }
+  return [...by].filter(([, ids]) => ids.length).map(([domain, ids]) => ({ domain, service: "turn_off", data: { entity_id: ids } }));
+}
 
 const DIALOGS_CSS = `
 .fp-dialog-backdrop{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35)}
@@ -33,9 +48,6 @@ export interface DialogDeps {
   html: typeof Html;
   nothing: unknown;
   t: (key: string, vars?: Record<string, string | number>) => string;
-  OFF_GROUPS: typeof OffGroups;
-  OFF_GROUP_LABEL: typeof OffGroupLabel;
-  floorOffCalls: typeof FloorOffCalls;
   fireEvent: (el: HTMLElement, type: string, detail?: unknown) => void;
   callService: (c: FloorplanStudioCard, domain: string, service: string, data?: Record<string, unknown>) => void;
   coverService: (c: FloorplanStudioCard, door: Door) => "open_cover" | "close_cover";
@@ -90,7 +102,7 @@ export function renderCoverDialog(d: DialogDeps, c: FloorplanStudioCard): unknow
 export function renderOffDialog(d: DialogDeps, c: FloorplanStudioCard): unknown {
   const dlg = c._offDialog;
   if (!dlg) return null;
-  const { html, nothing, t, OFF_GROUP_LABEL } = d;
+  const { html, nothing, t } = d;
   const n = dlg.ticked.filter(Boolean).length;
   const tick = (i: number, on: boolean) => {
     if (i < 0 || i >= dlg.ticked.length) return;
@@ -102,7 +114,7 @@ export function renderOffDialog(d: DialogDeps, c: FloorplanStudioCard): unknown 
       <div class="fp-dialog fp-off-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-off-title">
         <p id="fp-off-title">${t("Turn off on {name}", { name: dlg.title })}</p>
         <div class="fp-off-list">
-          ${d.OFF_GROUPS.map((g) => {
+          ${OFF_GROUPS.map((g) => {
             const idx = dlg.rows.flatMap((r, i) => (r.group === g ? [i] : []));
             return idx.length ? html`<fieldset class="fp-off-group"><legend>${t("{group} · {n}", { group: t(OFF_GROUP_LABEL[g]), n: idx.length })}</legend>
               ${idx.map((i) => { const r = dlg.rows[i]!; return html`<label class="fp-off-row" data-entity=${r.entity}><input type="checkbox" .checked=${dlg.ticked[i] ?? false} @change=${(e: Event) => tick(i, (e.target as HTMLInputElement).checked)} /><span>${r.name}${r.via ? html` <span class="fp-off-via">${t("with {name}", { name: r.via })}</span>` : nothing}</span></label>`; })}
@@ -112,7 +124,7 @@ export function renderOffDialog(d: DialogDeps, c: FloorplanStudioCard): unknown 
         <div class="fp-dialog-actions">
           <button type="button" class="cancel" @click=${() => d.closeOff(c)}>${t("Cancel")}</button>
           <button type="button" class="confirm" ?disabled=${n === 0} @click=${() => {
-            for (const call of d.floorOffCalls(dlg.rows.filter((_, i) => dlg.ticked[i]))) d.callService(c, call.domain, call.service, call.data);
+            for (const call of floorOffCalls(dlg.rows.filter((_, i) => dlg.ticked[i]))) d.callService(c, call.domain, call.service, call.data);
             d.closeOff(c);
           }}>${t("Turn off {n}", { n })}</button>
         </div>

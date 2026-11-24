@@ -19,8 +19,8 @@ const washer = { entity: "sensor.washer_operation_state", attached: ["sensor.was
 describe("the pieces that link", () => {
   it("the appliances, the plant and the car, and nothing else", () => {
     // B53.13 added the rest of the electric pieces: tests/core/link-electric.test.ts lists every symbol.
-    expect([...LINKABLE].filter((s) => !["tv", "speaker", "computer", "treadmill", "robot-vacuum", "robot-dock"].includes(s)).sort()).toEqual(["car", "dishwasher", "dryer", "fridge", "plant", "stove", "washer"]);
-    expect([...APPLIANCES].sort()).toEqual(["dishwasher", "dryer", "fridge", "stove", "washer"]);
+    expect([...LINKABLE].filter((s) => !["tv", "speaker", "computer", "treadmill", "robot-vacuum", "robot-dock"].includes(s)).sort()).toEqual(["boiler", "car", "dishwasher", "dryer", "fridge", "plant", "stove", "washer", "water-tank"]);
+    expect([...APPLIANCES].sort()).toEqual(["boiler", "dishwasher", "dryer", "fridge", "stove", "washer", "water-tank"]);
   });
   it("every symbol is decided: linked or not, never by default", () => {
     for (const s of FURNITURE_SYMBOLS) expect(typeof LINKABLE.includes(s), s).toBe("boolean");
@@ -159,5 +159,43 @@ describe("hostile input (finding 1)", () => {
   it("a state of the Object prototype's own names is just a word", () => {
     expect(linkStatus("washer", { entity: "sensor.a" }, { "sensor.a": st("__proto__") }, NOW).running).toBe(false);
     expect(linkStatus("washer", { entity: "sensor.a" }, { "sensor.a": st("constructor") }, NOW).running).toBe(false);
+  });
+});
+
+describe("boiler and water tank (Vaillant and generic on/off)", () => {
+  it("Vaillant water_heater: active when hvac_action is heating or state is non-idle", () => {
+    const wh = { entity: "water_heater.vaillant_dhw" };
+    expect(linkStatus("water-tank", wh, { "water_heater.vaillant_dhw": st("eco", { hvac_action: "heating" }) }, NOW).running).toBe(true);
+    expect(linkStatus("water-tank", wh, { "water_heater.vaillant_dhw": st("eco", { hvac_action: "idle" }) }, NOW).running).toBe(false);
+    expect(linkStatus("boiler", wh, { "water_heater.vaillant_dhw": st("performance") }, NOW).running).toBe(true);
+    expect(linkStatus("boiler", wh, { "water_heater.vaillant_dhw": st("off") }, NOW).running).toBe(false);
+  });
+
+  it("Vaillant climate: active only while hvac_action or state is heating", () => {
+    const cl = { entity: "climate.vaillant_zone_1" };
+    expect(linkStatus("boiler", cl, { "climate.vaillant_zone_1": st("heat", { hvac_action: "heating" }) }, NOW).running).toBe(true);
+    expect(linkStatus("boiler", cl, { "climate.vaillant_zone_1": st("heat", { hvac_action: "idle" }) }, NOW).running).toBe(false);
+    expect(linkStatus("boiler", cl, { "climate.vaillant_zone_1": st("off") }, NOW).running).toBe(false);
+  });
+
+  it("Vaillant burner/flame binary_sensor and burning/dhw status sensor", () => {
+    const b = { entity: "binary_sensor.vaillant_burner" };
+    expect(linkStatus("boiler", b, { "binary_sensor.vaillant_burner": st("on") }, NOW).running).toBe(true);
+    expect(linkStatus("boiler", b, { "binary_sensor.vaillant_burner": st("off") }, NOW).running).toBe(false);
+    expect(linkStatus("water-tank", { entity: "sensor.vaillant_status" }, { "sensor.vaillant_status": st("dhw") }, NOW).running).toBe(true);
+    expect(linkStatus("boiler", { entity: "sensor.vaillant_status" }, { "sensor.vaillant_status": st("burning") }, NOW).running).toBe(true);
+  });
+
+  it("generic switch or input_boolean on/off highlights boiler and water tank", () => {
+    for (const sym of ["boiler", "water-tank"] as const) {
+      for (const ent of ["switch.boiler_relay", "input_boolean.dhw_boost"]) {
+        const on = linkStatus(sym, { entity: ent }, { [ent]: st("on") }, NOW);
+        const off = linkStatus(sym, { entity: ent }, { [ent]: st("off") }, NOW);
+        expect(on.running, `${sym} ${ent} on`).toBe(true);
+        expect(linkOn(sym, on)).toBe(true);
+        expect(off.running, `${sym} ${ent} off`).toBe(false);
+        expect(linkOn(sym, off)).toBe(false);
+      }
+    }
   });
 });

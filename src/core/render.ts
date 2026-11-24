@@ -419,7 +419,7 @@ image.trace{pointer-events:none} svg.tracing .room{fill-opacity:.4}
 /* S18.12: a tv, speaker or computer piece with an entity is tracking that device, so idle it wears the tv's own colour and not the
    plain furniture grey. Before .furn.on, same specificity, so on still wins. */
 .furn[data-linked=""]{color:var(--fp-dev-tv)}
-.furn.on{color:var(--fp-active)}
+.furn.on{color:var(--fp-active);--fp-box-top:color-mix(in srgb,var(--fp-active) 55%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-active) 70%,black);--fp-box-side-w:color-mix(in srgb,var(--fp-active) 82%,black)}
 /* S18.8: furniture is filled, not an outline. The body takes the piece's own colour (currentColor: --fp-furniture, or --fp-active
    when on) thinned into --fp-room-empty (the plain room, what most furniture stands on; --fp-room is dark in the dark themes and made dark blobs), so every theme and dark mode keep their hue and the stroke stays the edge.
    .ff is on bodies only; lines in a symbol (a bed's pillow line) keep fill:none. */
@@ -430,6 +430,7 @@ image.trace{pointer-events:none} svg.tracing .room{fill-opacity:.4}
 /* B53.4: a painted piece. The group carries --fp-furn-fill (a colour, or a pattern made for this piece) and the class; this rule is as
    specific as .furn .ff and comes after it, so the paint wins by order. The outline and the symbol's lines keep their stroke. Dark themes dim paint as on a room. */
 .furn.fpaint .ff{fill:var(--fp-furn-fill)}
+.furn.on.fpaint .ff{fill:color-mix(in srgb,var(--fp-active) 45%,var(--fp-furn-fill))}
 .furn.fpaint :is(.ff,.bt,.bs){filter:var(--fp-paint-dim)}
 /* S28.3: a tree is a crown (--fp-tree at .35, a 1 px --fp-tree-edge line), a trunk dot and a soft shade patch under it (--fp-shade at
    --fp-shade-alpha). Classes carry every colour; the patch takes no click. */

@@ -28,7 +28,7 @@ export function linkLook(sym: unknown, s: LinkStatus): LinkLook {
 /** A power sensor above this many watts means the appliance is working. One number, here. */
 export const RUN_WATTS = 5;
 /** What an appliance's own state sensor says while it works: Home Connect `run`, Miele `in_use`, SmartThings `running`. Add a word here, in one place. */
-const RUNNING_WORDS = new Set(["run", "running", "wash", "washing", "rinse", "rinsing", "spin", "spinning", "dry", "drying", "cooking", "heating", "in_use", "active"]);
+const RUNNING_WORDS = new Set(["run", "running", "wash", "washing", "rinse", "rinsing", "spin", "spinning", "dry", "drying", "cooking", "heating", "burning", "dhw", "in_use", "active"]);
 /** What an appliance's own state sensor says while it does nothing. Only these read as "not running"; any other word ("cotton", a selected program) says nothing and the plug's power decides. */
 const IDLE_WORDS = new Set(["ready", "inactive", "off", "idle", "standby", "stop", "stopped", "finished", "end", "none", "pause", "paused", "delayed_start"]);
 const ERROR_WORDS = new Set(["error", "fault"]);
@@ -142,12 +142,19 @@ export function linkStatus(sym: unknown, m: LinkLike | null | undefined, states:
       if (cls === "battery" && sensorBattery === null) sensorBattery = percent(r);
       remaining ??= minutesLeft(r, cls, now);
     }
-    if (domain === "binary_sensor" && (word === "on" || word === "off") && (cls === "running" || cls === "power")) program = word === "on" ? true : (program ?? false);
+    const thermal = sym === "boiler" || sym === "water-tank";
+    if (thermal && (domain === "water_heater" || domain === "climate")) {
+      const act = typeof r.attrs.hvac_action === "string" ? r.attrs.hvac_action.trim().toLowerCase() : "";
+      if (act) program = act === "heating" ? true : (program ?? false);
+      else if (domain === "climate") { if (word === "heating") program = true; else if (IDLE_WORDS.has(word)) program ??= false; }
+      else if (word && word !== "unavailable" && word !== "unknown") program = !IDLE_WORDS.has(word) ? true : (program ?? false);
+    }
+    if (domain === "binary_sensor" && (word === "on" || word === "off") && (cls === "running" || cls === "power" || cls === "heat" || thermal)) program = word === "on" ? true : (program ?? false);
     // Only a fridge is wrong with its door open. A washer or dishwasher is often left ajar to dry, so its door is no alert.
     if (sym === "fridge" && domain === "binary_sensor" && word === "on" && typeof cls === "string" && DOORS.has(cls) && alert === null) alert = "door";
     // A feature switch (child lock, supercool) is normally off and is no plug: only the main entity, or a switch plugMeters found, counts.
     if (domain === "switch" && word === "off" && (e === ids[0] || plugs.has(e))) plugOff = true;
-    if (sym === "stove" && word === "on" && (domain === "switch" || domain === "input_boolean")) stoveOn = true;
+    if ((sym === "stove" || thermal) && word === "on" && (domain === "switch" || domain === "input_boolean")) stoveOn = true;
   }
   const { watts: w, kwh } = meterOf(ids, states);
   if (vac === "error") alert = "error";

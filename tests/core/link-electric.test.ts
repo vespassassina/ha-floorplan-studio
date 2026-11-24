@@ -15,18 +15,19 @@ const PLUGGED = { entity: "switch.fridge_plug", attached: ["sensor.fridge_plug_p
 
 describe("which symbols link: each one decided", () => {
   const WHY: Record<string, boolean> = {
-    tv: true, speaker: true, computer: true, washer: true, dryer: true, dishwasher: true, fridge: true, stove: true, treadmill: true, "robot-vacuum": true, "robot-dock": true,
+    tv: true, speaker: true, computer: true, washer: true, dryer: true, dishwasher: true, fridge: true, stove: true, boiler: true, "water-tank": true, treadmill: true, "robot-vacuum": true, "robot-dock": true,
     plant: true, car: true,
     desk: false, counter: false, table: false, sofa: false, bed: false, cabinet: false, chair: false, sink: false, toilet: false, shower: false, bathtub: false, "sofa-l": false,
     "coffee-table": false, bookcase: false, buffet: false, wardrobe: false, dresser: false, nightstand: false, armchair: false, rug: false, "barbell-rack": false,
     "weight-rack": false, "chaise-longue": false, "cube-shelf": false, mirror: false, "mirror-stand": false, tree: false, "patio-wood": false, "patio-concrete": false, worktop: false,
+    "metal-shelf": false, worktable: false, "wash-basin": false,
   };
   it("the table covers every symbol, so a new one fails here until someone decides", () => {
     expect(Object.keys(WHY).sort()).toEqual([...FURNITURE_SYMBOLS].sort());
   });
   for (const s of FURNITURE_SYMBOLS) it(`${s}: ${WHY[s] ? "links" : "does not"}`, () => expect(LINKABLE.includes(s), s).toBe(WHY[s]));
-  it("ELECTRIC is the eleven; LINKABLE is ELECTRIC, the car and the plant", () => {
-    expect([...ELECTRIC].sort()).toEqual(["computer", "dishwasher", "dryer", "fridge", "robot-dock", "robot-vacuum", "speaker", "stove", "treadmill", "tv", "washer"]);
+  it("ELECTRIC is the thirteen; LINKABLE is ELECTRIC, the car and the plant", () => {
+    expect([...ELECTRIC].sort()).toEqual(["boiler", "computer", "dishwasher", "dryer", "fridge", "robot-dock", "robot-vacuum", "speaker", "stove", "treadmill", "tv", "washer", "water-tank"]);
     expect([...LINKABLE].sort()).toEqual([...ELECTRIC, "car", "plant"].sort());
     for (const s of ["tv", "speaker", "computer"]) expect(LINKED, s).not.toContain(s); // they keep their own device rules
     for (const s of ["treadmill", "robot-vacuum", "robot-dock"]) expect(LINKED, s).toContain(s);

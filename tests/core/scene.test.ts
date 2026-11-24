@@ -328,6 +328,7 @@ describe("scene: furniture, unlinked, stairs", () => {
   const SYMBOL_DECISION: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
     table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", wardrobe: "box", dresser: "box", nightstand: "box", desk: "box", armchair: "box", counter: "box", stove: "box", fridge: "box", dishwasher: "box", washer: "box", dryer: "box", rug: "flat", plant: "box", tv: "box", computer: "box", speaker: "box", treadmill: "box", "barbell-rack": "box", "weight-rack": "box", "chaise-longue": "box", "cube-shelf": "box", mirror: "box", "mirror-stand": "box", "robot-vacuum": "box", "robot-dock": "box",
     car: "box", worktop: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
+    "metal-shelf": "box", worktable: "box", "wash-basin": "box", boiler: "box", "water-tank": "box",
   };
   it("decides every FurnitureSymbol", () => {
     expect(Object.keys(SYMBOL_DECISION).sort()).toEqual([...FURNITURE_SYMBOLS].sort());
@@ -343,7 +344,7 @@ describe("scene: furniture, unlinked, stairs", () => {
       expect(Math.min(...sol.map((x) => prism(x).z0))).toBe(furnitureBottom(m as never));
       expect(Math.max(...sol.map((x) => prism(x).z1))).toBe(furnitureBottom(m as never) + (SYMBOL_DECISION[s] === "pole" ? treeShape(m as never)!.trunkTop : furnitureHeight(m as never))); // a tree's trunk stops under its crown (S28.7)
       if (SYMBOL_DECISION[s] === "pole") { expect(area(sol[0])).toBeLessThan(m.w * m.h / 10); expect(sol[0].ref.size).toEqual([120, 70]); }
-      else { expect(span(sol.flatMap(xs)).map(round)).toEqual([240, 360]); expect(span(sol.flatMap(ys)).map(round)).toEqual([165, 235]); if (sol.length === 1) expect(round(area(sol[0]))).toBe(120 * 70); }
+      else { expect(span(sol.flatMap(xs)).map(round)).toEqual([240, 360]); expect(span(sol.flatMap(ys)).map(round)).toEqual([165, 235]); if (s === "water-tank") expect(prism(sol[0]).base).toHaveLength(16); else if (sol.length === 1) expect(round(area(sol[0]))).toBe(120 * 70); }
     }
   });
 

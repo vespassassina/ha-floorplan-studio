@@ -25,6 +25,7 @@ const CORNERS: [number, number][] = [[260, 220], [340, 220], [340, 280], [260, 2
 const SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
   table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", wardrobe: "box", dresser: "box", nightstand: "box", desk: "box", armchair: "box", counter: "box", stove: "box", fridge: "box", dishwasher: "box", washer: "box", dryer: "box", rug: "flat", plant: "box", tv: "box", computer: "box", speaker: "box", treadmill: "box", "barbell-rack": "box", "weight-rack": "box", "chaise-longue": "box", "cube-shelf": "box", mirror: "box", "mirror-stand": "box", "robot-vacuum": "box", "robot-dock": "box",
   car: "box", worktop: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
+  "metal-shelf": "box", worktable: "box", "wash-basin": "box", boiler: "box", "water-tank": "box",
 };
 /** Whether a device of each type, mounted at its default height, gets a stem up from its icon. */
 const STEM: Record<DeviceType, boolean> = {
@@ -47,7 +48,8 @@ describe("2.5D furniture", () => {
         // B53.5: a box piece is its blocks, one lid each; the symbol lies on the block that carries it (lidOf), at the full height for a one-box piece.
         const blocks = furnitureBlocks(piece(symbol) as never), lid = (FURNITURE_Z[symbol] ?? 0) + lidOf(piece(symbol) as never, blocks);
         expect(tops(html), symbol).toHaveLength(blocks.length);
-        if (blocks.length === 1) expect(tops(html), symbol).toEqual([ring(CORNERS, h)]);
+        if (symbol === "water-tank") expect(tops(html)[0].split(" "), symbol).toHaveLength(16);
+        else if (blocks.length === 1) expect(tops(html), symbol).toEqual([ring(CORNERS, h)]);
         expect(html, symbol).toContain(`translate(${n(300 + lid * K * R)} ${n(250 - lid * R)}) rotate(0)`);
       } else if (SOLID[symbol] === "pole") {
         expect(tops(html), symbol).toEqual([]);

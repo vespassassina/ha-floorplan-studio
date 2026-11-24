@@ -335,8 +335,7 @@ export class FloorplanStudioCard extends LitElement {
        would otherwise win ties) can be dragged to sit right under this row; the floor chips must still take the
        click, not the panel behind — or in front of, without this — them. */
     .fp-floors { flex: 0 1 auto; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 3px 4px; }
-    .fp-floors button { flex: 0 0 auto; white-space: nowrap; }
-    .fp-floors button { font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+    .fp-floors button { flex: 0 0 auto; white-space: nowrap; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
     /* Same combination the editor's floor chips already proved at 4.5:1 (S1.40); the current floor is carried by
        aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
        one attribute serves both the visual state and the accessible one, no added "(current)" text). */

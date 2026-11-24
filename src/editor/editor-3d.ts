@@ -360,8 +360,16 @@ export class Studio3D {
     for (const h of handles) {
       const p = this.view.project(h.at[0], h.at[1], h.at[2]);
       if (!p || !p.front) continue;
+      const isGizmo = h.kind === "dev-z" || h.kind === "furn-z";
       const cls = h.kind === "corner" ? "h3d corner" : "h3d vert";
-      parts.push(`<circle class="${cls}" data-h3d="${h.kind}" data-hid="${h.id}" cx="${num(p.x)}" cy="${num(p.y)}" r="6"><title>${h.label}</title></circle>`);
+      const x = num(p.x), y = num(p.y);
+      parts.push(`<circle class="${cls}" data-h3d="${h.kind}" data-hid="${h.id}" cx="${x}" cy="${y}" r="${isGizmo ? 8 : 6}"><title>${h.label}</title></circle>`);
+      if (isGizmo) {
+        parts.push(`<path pointer-events="none" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" d="M${x} ${num(p.y - 4.5)}V${num(p.y + 4.5)} M${num(p.x - 3)} ${num(p.y - 2)}L${x} ${num(p.y - 5)}L${num(p.x + 3)} ${num(p.y - 2)} M${num(p.x - 3)} ${num(p.y + 2)}L${x} ${num(p.y + 5)}L${num(p.x + 3)} ${num(p.y + 2)}"/>`);
+        if (this.drag?.mode === "handle" && this.drag.handle.id === h.id && h.baseZ !== undefined) {
+          parts.push(`<text pointer-events="none" x="${num(p.x + 12)}" y="${num(p.y + 4)}" fill="var(--fp-ink,#fff)" font-size="11" font-weight="600">z ${Math.round(h.baseZ)} cm</text>`);
+        }
+      }
     }
 
     const nextHtml = parts.join("");
@@ -488,7 +496,7 @@ export class Studio3D {
     const h = this.drawnHandles.find((x) => x.id === hid);
     if (!h) return;
     const st = this.ed.st;
-    if (st.planLocked) {
+    if (st.planLocked && h.kind !== "dev-z") {
       this.ed.planFixed();
       return;
     }
@@ -545,7 +553,7 @@ export class Studio3D {
     } else {
       const zNow = rayZAt(ray, h.at[0], h.at[1]);
       if (zNow === null || d.zStartRay === null) return;
-      next = applyHeightHandle(d.base, h, h.at[2] + (zNow - d.zStartRay), d.span);
+      next = applyHeightHandle(d.base, h, (h.baseZ ?? h.at[2]) + (zNow - d.zStartRay), d.span);
     }
 
     if (!next) return;

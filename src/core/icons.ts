@@ -144,4 +144,9 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   "patio-wood": { w: 300, h: 300, svg: r(2, 2, 96, 96, 0) + [20, 40, 60, 80].map((y) => `<path d="M2 ${y} H98" ${S} stroke-opacity=".5"/>`).join("") },
   "patio-concrete": { w: 300, h: 300, svg: r(2, 2, 96, 96, 0) + `<path d="M34 2 V98 M66 2 V98 M2 34 H98 M2 66 H98" ${S} stroke-opacity=".5"/>` },
   car: { w: 470, h: 182, svg: r(2, 12, 96, 76, 18) + r(58, 20, 24, 60, 6) + r(18, 20, 24, 60, 6) },
+  "metal-shelf": { w: 120, h: 45, svg: r(2, 4, 96, 92, 2) + [[2, 4], [90, 4], [2, 84], [90, 84]].map(([x, y]) => r(x, y, 8, 12, 1)).join("") + `<path d="M10 35 H90 M10 65 H90" ${S} stroke-opacity=".5"/>` },
+  worktable: { w: 160, h: 70, svg: r(2, 4, 96, 92, 2) + `<path d="M2 18 H98" ${S}/>` + r(8, 78, 18, 14, 1) },
+  "wash-basin": { w: 60, h: 50, svg: r(4, 4, 92, 92, 6) + r(12, 22, 76, 66, 12) + c(50, 56, 5) + `<path d="M50 8 V24" ${S}/>` },
+  boiler: { w: 50, h: 45, svg: r(6, 6, 88, 88, 6) + c(50, 42, 16) + `<path d="M18 76 H82" ${S}/>` + c(74, 84, 4) },
+  "water-tank": { w: 65, h: 65, svg: c(50, 50, 46) + c(50, 50, 26) + c(36, 36, 5) + c(64, 64, 5) },
 };

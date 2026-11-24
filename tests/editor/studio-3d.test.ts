@@ -149,4 +149,25 @@ describe("3D Studio pure maths and ops", () => {
       expect(validate({ ...demo, floors: { ground: raisedHead } }).ok).toBe(true);
     }
   });
+
+  it("exposes vertical Z gizmo handles for unlocked devices and furniture and applies z validly", () => {
+    const f = ground();
+    const devH = handlesForSel(f, { t: "dev", i: 0 }).handles.find((h) => h.kind === "dev-z");
+    expect(devH).toBeTruthy();
+    const raisedDev = applyHeightHandle(f, devH!, 185)!;
+    expect(raisedDev.devices[0].z).toBe(185);
+    expect(validate({ ...demo, floors: { ground: raisedDev } }).ok).toBe(true);
+
+    const furnH = handlesForSel(f, { t: "furn", i: 0 }).handles.find((h) => h.kind === "furn-z");
+    expect(furnH).toBeTruthy();
+    const raisedFurn = applyHeightHandle(f, furnH!, 120)!;
+    expect(raisedFurn.furniture[0].z).toBe(120);
+    expect(validate({ ...demo, floors: { ground: raisedFurn } }).ok).toBe(true);
+
+    // Locked items omit the vertical Z gizmo handle.
+    f.devices[0].locked = true;
+    f.furniture[0].locked = true;
+    expect(handlesForSel(f, { t: "dev", i: 0 }).handles.find((h) => h.kind === "dev-z")).toBeUndefined();
+    expect(handlesForSel(f, { t: "furn", i: 0 }).handles.find((h) => h.kind === "furn-z")).toBeUndefined();
+  });
 });

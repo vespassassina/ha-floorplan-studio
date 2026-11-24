@@ -394,7 +394,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       // A tree is a trunk to treeShape's trunk top, and a crown (the viewer's) above it; any other piece stands to its height.
       const tree = pole ? treeShape(m as never) : null, h = z0 + (tree ? tree.trunkTop : furnitureHeight(m as never));
       const half = pole ? [TRUNK_SIDE / 2, TRUNK_SIDE / 2] : [m.w / 2, m.h / 2];
-      const base = worktopPts(m) ?? ([[-half[0], -half[1]], [half[0], -half[1]], [half[0], half[1]], [-half[0], half[1]]] as Pt[]).map((q) => turnAbout([c[0] + q[0], c[1] + q[1]], pole ? 0 : m.rot, c));
+      const cyl = m.symbol === "water-tank" ? Array.from({ length: 16 }, (_, k) => { const a = (k * Math.PI * 2) / 16; return turnAbout([c[0] + (m.w / 2) * Math.cos(a), c[1] + (m.h / 2) * Math.sin(a)], m.rot, c); }) : null;
+      const base = worktopPts(m) ?? cyl ?? ([[-half[0], -half[1]], [half[0], -half[1]], [half[0], half[1]], [-half[0], half[1]]] as Pt[]).map((q) => turnAbout([c[0] + q[0], c[1] + q[1]], pole ? 0 : m.rot, c));
       // A linked tv, speaker or computer (`pieceDevice`) carries its entity and its own colour: the viewer recolours it by state and hands a tap on it to the gesture code.
       const linked = pieceDevice(m as never);
       if (m.symbol === "car") { carSolids(m, i, z0, linked?.entity, add); return; }
@@ -410,7 +411,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       };
       // B53.5: the blocks 2.5D draws (`furnitureBlocks`), in the piece's frame, turned about its middle. A dark one (leg, plinth) takes the `-dark` role.
       // B54.2: a worktop with good points stands on exactly those.
-      const blocks = pole || worktopPts(m) ? [] : furnitureBlocks(m as never);
+      const blocks = pole || cyl || worktopPts(m) ? [] : furnitureBlocks(m as never);
       if (!blocks.length) { add("furniture", `furniture:${i}`, m.symbol, { type: "prism", base, z0, z1: h }, ref, look("body")); return; }
       blocks.forEach((b, k) => add("furniture", k ? `furniture:${i}:b${k}` : `furniture:${i}`, m.symbol, { type: "prism", base: ([[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]] as Pt[]).map((q) => turnAbout([c[0] - m.w / 2 + q[0], c[1] - m.h / 2 + q[1]], m.rot, c)), z0: z0 + b.z0, z1: z0 + b.z1 }, ref, look(b.tone)));
     }));

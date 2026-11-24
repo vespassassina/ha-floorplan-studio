@@ -30,13 +30,15 @@ import { gridRound, rotateSegment, segmentAt } from "./ops";
 import { polyPts, ptOf, type PtRef, type Sel } from "./state";
 
 export type V3 = [number, number, number];
-export type HandleKind3D = "corner" | "wall-h" | "room-h" | "sill" | "head" | "floor-h" | "floor-slab";
+export type HandleKind3D = "corner" | "wall-h" | "room-h" | "sill" | "head" | "floor-h" | "floor-slab" | "dev-z" | "furn-z";
 
 export interface HandleSpec {
   id: string;
   kind: HandleKind3D;
   label: string;
   at: V3;
+  /** Underlying z value (cm) when the handle visually floats above the object (e.g. dev-z / furn-z gizmo). */
+  baseZ?: number;
   ref?: PtRef;
   index?: number;
   list?: "doors" | "openings";
@@ -216,8 +218,10 @@ export function rotateSel15(f: Floor, sel: Sel, stepDeg = 15): { next: Floor; ms
   return null;
 }
 
-/** Updates a Stage 3 vertical height/slab/sill/head handle on a copy of `base`. */
+/** Updates a Stage 3 vertical height/slab/sill/head or item Z gizmo handle on a copy of `base`. */
 export function applyHeightHandle(base: Floor, h: HandleSpec, nextZ: number, span?: { sill: number; head: number }): Floor | null {
+  if (h.kind === "dev-z" && typeof h.index === "number") return setItemZ(base, "dev", h.index, nextZ);
+  if (h.kind === "furn-z" && typeof h.index === "number") return setItemZ(base, "furn", h.index, nextZ);
   const g = structuredClone(base);
   if (h.kind === "wall-h" && typeof h.index === "number" && g.walls[h.index]) {
     g.walls[h.index].height = clampH(nextZ);
@@ -378,6 +382,11 @@ export function handlesForSel(f: Floor, s: Sel): { wires: WireSpec[]; handles: H
       const wt = worktopPts(m);
       const base = wt ?? rectCorners(m.x, m.y, m.w, m.h, m.rot);
       wires.push(...boxWires(base, z0, z1));
+      if (!m.locked) {
+        const gz = z1 + 35;
+        wires.push({ pts: [[m.x, m.y, z1], [m.x, m.y, gz]], closed: false });
+        handles.push({ id: `furn-z:${wi}`, kind: "furn-z", label: `Height z ${Math.round(z0)} cm (drag up/down)`, at: [m.x, m.y, gz], baseZ: z0, index: wi });
+      }
       if (wt) {
         wt.forEach((p, j) => handles.push({ id: `corner:w${wi}:${j}`, kind: "corner", label: `Worktop corner ${j + 1}`, at: [p[0], p[1], z1], ref: { poly: `w${wi}`, j } }));
       }
@@ -400,6 +409,11 @@ export function handlesForSel(f: Floor, s: Sel): { wires: WireSpec[]; handles: H
       const c: Pt = "a" in dv ? [(dv.a[0] + dv.b[0]) / 2, (dv.a[1] + dv.b[1]) / 2] : [dv.x, dv.y];
       const z = deviceZ(dv), r = 16;
       wires.push(...boxWires([[c[0] - r, c[1] - r], [c[0] + r, c[1] - r], [c[0] + r, c[1] + r], [c[0] - r, c[1] + r]], Math.max(0, z - r), z + r));
+      if (!dv.locked) {
+        const gz = z + r + 35;
+        wires.push({ pts: [[c[0], c[1], z + r], [c[0], c[1], gz]], closed: false });
+        handles.push({ id: `dev-z:${s.i}`, kind: "dev-z", label: `Height z ${Math.round(z)} cm (drag up/down)`, at: [c[0], c[1], gz], baseZ: z, index: s.i });
+      }
     }
     return { wires, handles };
   }

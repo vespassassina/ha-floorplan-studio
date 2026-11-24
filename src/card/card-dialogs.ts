@@ -1,4 +1,4 @@
-import { type Device, type Door, floorOffCalls, floorOffRows, OFF_GROUP_LABEL, OFF_GROUPS } from "../core";
+import { type Device, type Door, floorOffRows } from "../core";
 import { t } from "../core/i18n";
 import { fireEvent } from "./actions";
 import { html, nothing } from "lit";
@@ -60,7 +60,7 @@ export function openOffDialog(c: FloorplanStudioCard): void {
 export function closeOffDialog(c: FloorplanStudioCard): void { c._offDialog = null; c.requestUpdate(); }
 
 const deps: DialogDeps = {
-  html, nothing, t, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, fireEvent, callService, coverService,
+  html, nothing, t, fireEvent, callService, coverService,
   closeCover: closeCoverDialog, closeOff: closeOffDialog, closeVacuum: closeVacuumDialog, closeChooser: closeChooserDialog,
 };
 
