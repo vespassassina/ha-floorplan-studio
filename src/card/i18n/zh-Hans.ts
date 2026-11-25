@@ -93,7 +93,6 @@ const c: Catalogue = {
   "Show all": "显示全部",
   "Search the plan": "搜索平面图",
   "Search rooms and devices": "搜索房间和设备",
-  "Tap a row: the plan goes to it.": "点按一行：平面图会跳转过去。",
   "Open overview": "打开概览",
   "Open overview, {alerts}": "打开概览，{alerts}",
   "Back": "返回",

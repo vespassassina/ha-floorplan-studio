@@ -200,7 +200,7 @@ test("no shipped file carries optional chaining printed out as `==null?void 0`",
 // B52.2 (docs/specs/batch-s52.md items 13 and 14, criterion 1; docs/DECISIONS.md, 2026-11-02): the Overview (the side sheet, the phone's
 // bottom sheet, their rows, scenes, favourites and search, with the stylesheet that draws them) is a lazy chunk. The card file fell from
 // 124,096 to 118,059 gzip, 6,037 freed. The chunk was 8,443 when written; the limit leaves about 550 for the rows that follow.
-const OVERVIEW_CHUNK_LIMIT = 9000;
+const OVERVIEW_CHUNK_LIMIT = 11000; // S74: raised from 9000 for the Home Glance KPI strip (lazy chunk, 0 B in card)
 const overviewChunks = () => readdirSync("dist").filter((f) => /^floorplan-studio-overview-.+\.js$/.test(f));
 
 test(`there is exactly one overview chunk, at most ${OVERVIEW_CHUNK_LIMIT} bytes gzipped, importing nothing from the card, and the card names it by import()`, () => {

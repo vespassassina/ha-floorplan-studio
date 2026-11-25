@@ -392,6 +392,63 @@ export function make(d: OverviewDeps) {
    *
    *  S11.3, S20.2: with a room or floor picked, its section comes first and the list below is cut to its entities
    *  (`filterToRoom`) until "Show all", which lists every floor. The panel stays open while a room is picked. */
+  /** S74: compact Home Glance KPI strip at the top of the Overview: lights, open openings, climate, power, water, gas, and monetary cost. */
+  function glanceSection(c: FloorplanStudioCard, state: Record<string, { state: string; attributes: Record<string, unknown> }> | undefined, items: ActiveDevice[], attn: Attention, all: boolean) {
+    if (!c._layout || !state) return nothing;
+    const shown = c._floorKey();
+    const fls = all ? Object.values(c._layout.floors) : shown && c._layout.floors[shown] ? [c._layout.floors[shown]] : [];
+    let totalLights = 0, powerW = 0, hasPower = false, water = 0, hasWater = false, waterUnit = "", gas = 0, hasGas = false, gasUnit = "", cost = 0, hasCost = false, costUnit = "";
+    const temps: number[] = [];
+    let tempUnit = "°C";
+    const seen = new Set<string>();
+    const readNum = (id: string | undefined) => {
+      if (!id || seen.has(id)) return null;
+      const s = state[id];
+      if (!s) return null;
+      const n = Number(s.state);
+      if (!Number.isFinite(n)) return null;
+      seen.add(id);
+      return { n, u: String(s.attributes.unit_of_measurement ?? ""), dc: String(s.attributes.device_class ?? "") };
+    };
+    for (const fl of fls) {
+      for (const dev of fl.devices ?? []) {
+        if (dev.type === "light") totalLights++;
+        if (dev.type === "power_meter" || dev.type === "plug") {
+          const r = readNum(dev.type === "plug" ? dev.power : dev.entity);
+          if (r && (r.dc === "power" || r.u === "W" || r.u === "kW")) { powerW += r.u === "kW" ? r.n * 1000 : r.n; hasPower = true; }
+        }
+      }
+      for (const rm of fl.rooms ?? []) {
+        for (const id of rm.temps ?? []) { const r = readNum(id); if (r) { temps.push(r.n); if (r.u) tempUnit = r.u; } }
+        for (const id of rm.power ?? []) { const r = readNum(id); if (r) { powerW += r.u === "kW" ? r.n * 1000 : r.n; hasPower = true; } }
+        for (const id of rm.water ?? []) { const r = readNum(id); if (r) { water += r.n; hasWater = true; if (r.u) waterUnit = r.u; } }
+      }
+    }
+    for (const [id, s] of Object.entries(state)) {
+      if (seen.has(id)) continue;
+      const dc = s.attributes?.device_class, n = Number(s.state);
+      if (!Number.isFinite(n)) continue;
+      if (dc === "gas" && !hasGas) { gas = n; hasGas = true; gasUnit = String(s.attributes.unit_of_measurement ?? "m³"); }
+      else if (dc === "monetary" && /(energy|electric|gas|water|cost)/i.test(id)) { cost += n; hasCost = true; costUnit = String(s.attributes.unit_of_measurement ?? ""); }
+    }
+    const litLights = items.filter((it) => it.type === "light").length;
+    const openN = attn.items.filter((it) => it.kind === "open" || it.kind === "unlocked").length;
+    const tile = (icon: string, label: string, val: string, colorVar: string, pct?: number, sub?: string) => html`<div class="fp-gl-tile" style="--fp-gl-c:var(${colorVar})">
+      <div class="fp-gl-top"><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${icon}></path></svg><span class="fp-gl-lbl">${label}</span></div>
+      <div class="fp-gl-val">${val}${sub ? html`<span class="fp-gl-sub">${sub}</span>` : nothing}</div>
+      ${pct !== undefined ? html`<div class="fp-gl-bar"><span style="width:${Math.max(0, Math.min(100, Math.round(pct)))}%"></span></div>` : nothing}
+    </div>`;
+    const tiles = [
+      totalLights > 0 ? tile(DEVICE_ICONS.light, t("Lights"), `${litLights}/${totalLights}`, litLights ? "--fp-dev-light" : "--fp-idle", (litLights / totalLights) * 100) : nothing,
+      tile(DEVICE_ICONS.contact, t("Open|openings"), String(openN), openN ? "--fp-open-door" : "--fp-idle"),
+      hasPower ? tile(DEVICE_ICONS.power_meter, t("Power"), powerW >= 1000 ? `${(powerW / 1000).toFixed(1)} kW` : `${Math.round(powerW)} W`, powerW > 0 ? "--fp-on" : "--fp-idle", Math.min(100, powerW / 30), hasCost ? ` · ${costUnit}${cost.toFixed(2)}` : undefined) : nothing,
+      temps.length ? tile(DEVICE_ICONS.temp, t("Temperature"), temps.length > 1 && Math.min(...temps) !== Math.max(...temps) ? `${Math.min(...temps).toFixed(1)}–${Math.max(...temps).toFixed(1)}${tempUnit}` : `${temps[0].toFixed(1)}${tempUnit}`, "--fp-dev-climate") : nothing,
+      hasWater ? tile(DEVICE_ICONS.humidity, t("Water"), `${Math.round(water * 100) / 100}${waterUnit ? ` ${waterUnit}` : ""}`, "--fp-plant-thirsty") : nothing,
+      hasGas ? tile(DEVICE_ICONS.boiler, t("Gas"), `${Math.round(gas * 100) / 100}${gasUnit ? ` ${gasUnit}` : ""}`, "--fp-dev-heater") : nothing,
+    ];
+    return html`<div class="fp-glance" role="group" aria-label=${t("Overview")}>${tiles}</div>`;
+  }
+
   function activePanel(c: FloorplanStudioCard) {
     if (!c._activeListVisible() || !c._layout) return null;
     const state = overviewStates(c);
@@ -426,11 +483,11 @@ export function make(d: OverviewDeps) {
     const content = () => summary
       ? roomSection(c, summary, html`<div class="fp-filter"><span>${c._roomFilter ? scope.activeHere : t("Active everywhere")}</span><button type="button" class="fp-show-all" @click=${() => { c._roomFilter = !c._roomFilter; c.requestUpdate(); }}>${c._roomFilter ? t("Show all") : scope.onlyHere}</button></div>
                   <div class="fp-filtered">${list}</div>`, scope)
-      : html`<div class="fp-ov-search" data-slot="search"><fp-search .entries=${searchEntries(c)} .first=${c._favSet} label=${t("Search the plan")} placeholder=${t("Search rooms and devices")} @fp-pick=${(e: CustomEvent<SearchEntry>) => onSearchPick(c, e)}></fp-search></div>
+      : html`${glanceSection(c, state, items, attn, all)}
+                  <div class="fp-ov-search" data-slot="search"><fp-search .entries=${searchEntries(c)} .first=${c._favSet} label=${t("Search the plan")} placeholder=${t("Search rooms and devices")} @fp-pick=${(e: CustomEvent<SearchEntry>) => onSearchPick(c, e)}></fp-search></div>
                   <div class="fp-ov-scopes">${floorOffButton(c)}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${c._overviewAll ? "true" : "false"} @click=${() => toggleOverviewAll(c)}>${t("All floors")}</button>` : nothing}${!c._kiosk() ? html`<button type="button" class="fp-ov-legend" @click=${() => openLegend(c)}>${t("Legend")}</button>` : nothing}</div>
                   <div class="fp-ov-layers" data-slot="layers">${layerNote(c)}</div>
-                  ${favouriteSection(c)}${list}
-                  <p class="fp-ov-hint">${t("Tap a row: the plan goes to it.")}</p>`;
+                  ${favouriteSection(c)}${list}`;
     if (!side) return bottomSheet(c, name, crumb, summary !== null, chips(c, items, attn.items.length), content);
     const folded = c._activeCollapsed && !summary;
     const cls = ["fp-active", "fp-side", summary ? "fp-room-open" : folded ? "fp-rail" : ""].filter(Boolean).join(" ");

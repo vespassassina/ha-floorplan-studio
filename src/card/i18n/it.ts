@@ -93,7 +93,6 @@ const c: Catalogue = {
   "Show all": "Mostra tutto",
   "Search the plan": "Cerca nella pianta",
   "Search rooms and devices": "Cerca stanze e dispositivi",
-  "Tap a row: the plan goes to it.": "Tocca una riga: la pianta ci porta.",
   "Open overview": "Apri panoramica",
   "Open overview, {alerts}": "Apri panoramica, {alerts}",
   "Back": "Indietro",

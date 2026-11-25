@@ -93,7 +93,6 @@ const c: Catalogue = {
   "Show all": "Alles tonen",
   "Search the plan": "Zoeken in het plan",
   "Search rooms and devices": "Zoek kamers en apparaten",
-  "Tap a row: the plan goes to it.": "Tik op een rij: het plan gaat ernaartoe.",
   "Open overview": "Overzicht openen",
   "Open overview, {alerts}": "Overzicht openen, {alerts}",
   "Back": "Terug",
