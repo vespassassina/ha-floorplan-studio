@@ -59,39 +59,36 @@ export interface PopupView {
 }
 
 export const POPUP_CSS = css`
-  /* S14.2: the tap popup and the hover tooltip are card chrome like the dialogs, outside the plan. The popup's buttons are 44 px tall, a touch target. */
-  .fp-pop { position: absolute; z-index: 3; box-sizing: border-box; width: min(248px, calc(100% - 8px)); max-height: calc(100% - 16px); display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); font: 13px/1.3 var(--fp-font, system-ui, sans-serif); }
-  /* The sliders scroll inside the card-high cap; the name, the state and the buttons stay put. */
-  .fp-pop-sliders { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; flex: 0 1 auto; }
-  .fp-pop > * { flex-shrink: 0; }
-  .fp-pop > .fp-pop-sliders { flex-shrink: 1; }
-  .fp-pop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-  .fp-pop-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; min-width: 0; }
-  .fp-pop-state { font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--fp-ink) 10%, transparent); opacity: 0.9; overflow-wrap: anywhere; white-space: pre-line; flex-shrink: 0; max-width: 55%; text-align: right; }
-  .fp-pop-state:empty { display: none; }
-  .fp-pop-actions { display: flex; align-items: center; gap: 6px; }
-  .fp-pop button { min-height: 44px; font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; padding: 0 12px; cursor: pointer; }
-  .fp-pop button.fp-pop-primary { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; flex: 1; }
-  .fp-pop button.fp-pop-more { flex: 0 0 auto; white-space: nowrap; background: transparent; border-color: transparent; text-decoration: underline; min-height: 36px; padding: 0 10px; font-size: 12px; }
-  .fp-pop-confirm { display: flex; gap: 8px; }
-  .fp-pop-confirm button { flex: 1; }
-  .fp-pop label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
-  .fp-pop label span { display: flex; justify-content: space-between; opacity: 0.8; }
-  .fp-pop input[type="range"] { width: 100%; height: 34px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
-  @media (pointer: coarse) { .fp-pop input[type="range"]:not(.fp-pop-hue) { height: 44px; } }
-  .fp-pop input.fp-pop-hue { background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); border-radius: 8px; height: 20px; margin: 6px 0; -webkit-appearance: none; appearance: none; }
-  .fp-pop input.fp-pop-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
-  .fp-pop input.fp-pop-hue::-moz-range-thumb { width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
-  /* S24.7: the details the row chevron used to open, folded under the buttons. */
-  .fp-pop-info summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; font-size: 12px; opacity: 0.8; }
-  .fp-pop-info dl { margin: 4px 0 0; font-size: 11px; line-height: 1.4; }
-  .fp-pop-info dl > div { display: flex; gap: 6px; }
-  .fp-pop-info dt { flex: 0 0 84px; opacity: 0.8; }
-  .fp-pop-info dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-  .fp-tip { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; max-width: min(260px, 90%); padding: 4px 8px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); font: 12px/1.3 var(--fp-font, system-ui, sans-serif); display: flex; flex-direction: column; }
-  .fp-tip[hidden] { display: none; }
-  .fp-tip b { font-weight: 600; overflow-wrap: anywhere; }
-  .fp-tip span { opacity: 0.8; }
+  .fp-pop{position:absolute;z-index:3;box-sizing:border-box;width:min(248px,calc(100% - 8px));max-height:calc(100% - 16px);display:flex;flex-direction:column;gap:6px;padding:10px 12px;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.35);font:13px/1.3 var(--fp-font,system-ui,sans-serif)}
+  .fp-pop-sliders{display:flex;flex-direction:column;gap:4px;min-height:0;overflow-y:auto;flex:0 1 auto}
+  .fp-pop>*{flex-shrink:0}
+  .fp-pop>.fp-pop-sliders{flex-shrink:1}
+  .fp-pop-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .fp-pop-name{font-weight:600;font-size:14px;overflow-wrap:anywhere;min-width:0}
+  .fp-pop-state{font-size:12px;font-weight:600;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--fp-ink) 10%,transparent);opacity:.9;overflow-wrap:anywhere;white-space:pre-line;flex-shrink:0;max-width:55%;text-align:right}
+  .fp-pop-state:empty{display:none}
+  .fp-pop-actions{display:flex;align-items:center;gap:6px}
+  .fp-pop button{min-height:44px;font:14px/1.2 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:8px;padding:0 12px;cursor:pointer}
+  .fp-pop button.fp-pop-primary{color:var(--fp-on-dark,#fff);background:var(--fp-primary);border-color:var(--fp-primary);font-weight:600;flex:1}
+  .fp-pop button.fp-pop-more{flex:0 0 auto;white-space:nowrap;background:transparent;border-color:transparent;text-decoration:underline;min-height:36px;padding:0 10px;font-size:12px}
+  .fp-pop-confirm{display:flex;gap:8px}
+  .fp-pop-confirm button{flex:1}
+  .fp-pop label{display:flex;flex-direction:column;gap:2px;font-size:12px}
+  .fp-pop label span{display:flex;justify-content:space-between;opacity:.8}
+  .fp-pop input[type="range"]{width:100%;height:34px;margin:0;accent-color:var(--fp-primary);cursor:pointer}
+  @media (pointer:coarse){.fp-pop input[type="range"]:not(.fp-pop-hue){height:44px}}
+  .fp-pop input.fp-pop-hue{background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);border-radius:8px;height:20px;margin:6px 0;-webkit-appearance:none;appearance:none}
+  .fp-pop input.fp-pop-hue::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:28px;border-radius:6px;background:var(--fp-ink);border:2px solid var(--fp-room)}
+  .fp-pop input.fp-pop-hue::-moz-range-thumb{width:22px;height:28px;border-radius:6px;background:var(--fp-ink);border:2px solid var(--fp-room)}
+  .fp-pop-info summary{cursor:pointer;min-height:32px;display:flex;align-items:center;font-size:12px;opacity:.8}
+  .fp-pop-info dl{margin:4px 0 0;font-size:11px;line-height:1.4}
+  .fp-pop-info dl>div{display:flex;gap:6px}
+  .fp-pop-info dt{flex:0 0 84px;opacity:.8}
+  .fp-pop-info dd{margin:0;min-width:0;overflow-wrap:anywhere}
+  .fp-tip{position:absolute;left:0;top:0;z-index:3;pointer-events:none;max-width:min(260px,90%);padding:4px 8px;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.3);font:12px/1.3 var(--fp-font,system-ui,sans-serif);display:flex;flex-direction:column}
+  .fp-tip[hidden]{display:none}
+  .fp-tip b{font-weight:600;overflow-wrap:anywhere}
+  .fp-tip span{opacity:.8}
 `;
 
 const RANGE: Record<SliderKind, { label: string; unit: string }> = { b: { label: mark("Brightness"), unit: " %" }, t: { label: mark("Colour temperature"), unit: " K" }, h: { label: mark("Colour"), unit: "°" }, s: { label: mark("Speed"), unit: " %" } };

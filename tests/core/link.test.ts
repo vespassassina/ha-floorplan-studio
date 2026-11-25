@@ -163,9 +163,14 @@ describe("hostile input (finding 1)", () => {
 });
 
 describe("boiler and water tank (Vaillant and generic on/off)", () => {
-  it("Vaillant water_heater: active when hvac_action is heating or state is non-idle", () => {
-    const wh = { entity: "water_heater.vaillant_dhw" };
-    expect(linkStatus("water-tank", wh, { "water_heater.vaillant_dhw": st("eco", { hvac_action: "heating" }) }, NOW).running).toBe(true);
+  it("Vaillant water_heater: active when hvac_action is heating or state is non-idle, and formats temp/pressure", () => {
+    const wh = { entity: "water_heater.vaillant_dhw", attached: ["sensor.vaillant_pressure"] };
+    const heating = linkStatus("water-tank", wh, {
+      "water_heater.vaillant_dhw": st("eco", { hvac_action: "heating", current_temperature: 48.2, temperature: 55 }),
+      "sensor.vaillant_pressure": st("1.6", { device_class: "pressure", unit_of_measurement: "bar" }),
+    }, NOW);
+    expect(heating.running).toBe(true);
+    expect(linkText("water-tank", heating)).toBe("Running · 48.2 → 55 °C · 1.6 bar");
     expect(linkStatus("water-tank", wh, { "water_heater.vaillant_dhw": st("eco", { hvac_action: "idle" }) }, NOW).running).toBe(false);
     expect(linkStatus("boiler", wh, { "water_heater.vaillant_dhw": st("performance") }, NOW).running).toBe(true);
     expect(linkStatus("boiler", wh, { "water_heater.vaillant_dhw": st("off") }, NOW).running).toBe(false);

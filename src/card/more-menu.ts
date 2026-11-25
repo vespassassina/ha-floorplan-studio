@@ -256,36 +256,7 @@ export class FpMenu extends LitElement {
     `;
   }
 
-  static styles = css`
-    :host{display:inline-block;position:relative;box-sizing:border-box;font:13px/1.3 var(--fp-font, system-ui, sans-serif)}
-    .btn{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px;
-      min-width:32px;min-height:32px;padding:0 8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
-    [role=menu]{position:absolute;z-index:50;top:calc(100% + 4px);left:0;box-sizing:border-box;min-width:200px;width:max-content;
-      overflow:auto;max-height:min(70vh,520px);padding:2px;color:var(--fp-ink);background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;
-      box-shadow:0 4px 16px color-mix(in srgb, var(--fp-ink) 25%, transparent)}
-    [role=menu]:focus{outline:none}
-    .group + .group{border-top:1px solid color-mix(in srgb, var(--fp-ink) 20%, transparent);margin-top:2px;padding-top:2px}
-    .gl{padding:4px 8px 2px;font-size:.75em;opacity:.7}
-    .item{display:flex;align-items:center;gap:8px;box-sizing:border-box;min-height:32px;padding:0 8px;cursor:pointer;
-      border-radius:4px;color:var(--fp-ink);background:transparent}
-    .item:hover{background:color-mix(in srgb, var(--fp-ink) 14%, transparent)}
-    .item:focus{outline:none;background:var(--fp-ink);color:var(--fp-bg)}
-    .item[aria-disabled=true]{opacity:.5;cursor:default}
-    .item.select{cursor:default;justify-content:space-between}
-    .item.select:focus-within{background:transparent;color:var(--fp-ink)}
-    .sel{font:inherit;box-sizing:border-box;min-height:32px;flex:none;color:var(--fp-ink);background:var(--fp-room);
-      border:1px solid var(--fp-idle);border-radius:4px;padding:0 4px;cursor:pointer}
-    .sel:focus{outline:2px solid var(--fp-ink);outline-offset:1px}
-    .mark{flex:none;width:1.2em;text-align:center}
-    .mark.on::before{content:"✓"}
-    .radio .mark.on::before{content:"●"}
-    .text{min-width:0;overflow-wrap:anywhere}
-    @media (pointer:coarse){
-      .btn{min-width:44px;min-height:44px}
-      .item{min-height:44px}
-      .sel{min-height:44px}
-    }
-  `;
+  static styles = css`:host{display:inline-block;position:relative;box-sizing:border-box;font:13px/1.3 var(--fp-font,system-ui,sans-serif)}.btn{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px;min-width:32px;min-height:32px;padding:0 8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}[role=menu]{position:absolute;z-index:50;top:calc(100% + 4px);left:0;box-sizing:border-box;min-width:200px;width:max-content;overflow:auto;max-height:min(70vh,520px);padding:2px;color:var(--fp-ink);background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px color-mix(in srgb,var(--fp-ink) 25%,transparent)}[role=menu]:focus{outline:none}.group+.group{border-top:1px solid color-mix(in srgb,var(--fp-ink) 20%,transparent);margin-top:2px;padding-top:2px}.gl{padding:4px 8px 2px;font-size:.75em;opacity:.7}.item{display:flex;align-items:center;gap:8px;box-sizing:border-box;min-height:32px;padding:0 8px;cursor:pointer;border-radius:4px;color:var(--fp-ink);background:transparent}.item:hover{background:color-mix(in srgb,var(--fp-ink) 14%,transparent)}.item:focus{outline:none;background:var(--fp-ink);color:var(--fp-bg)}.item[aria-disabled=true]{opacity:.5;cursor:default}.item.select{cursor:default;justify-content:space-between}.item.select:focus-within{background:transparent;color:var(--fp-ink)}.sel{font:inherit;box-sizing:border-box;min-height:32px;flex:none;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:4px;padding:0 4px;cursor:pointer}.sel:focus{outline:2px solid var(--fp-ink);outline-offset:1px}.mark{flex:none;width:1.2em;text-align:center}.mark.on::before{content:"✓"}.radio .mark.on::before{content:"●"}.text{min-width:0;overflow-wrap:anywhere}@media (pointer:coarse){.btn{min-width:44px}.btn,.item,.sel{min-height:44px}}`;
 }
 
 if (!customElements.get("fp-menu")) customElements.define("fp-menu", FpMenu);

@@ -298,85 +298,44 @@ let focusedCard: FloorplanStudioCard | null = null;
 // S36.4: the underscore members that are not `private` are the ones the 3D glue in `three/host.ts` (the lazy chunk) reads.
 export class FloorplanStudioCard extends LitElement {
   static styles = [unsafeCSS(FLOORPLAN_CSS), css`
-    /* S8.2: height 100% on both, matching Home Assistant's own cards (thermostat, map). In an "auto" grid row
-       (no numeric height set by getGridOptions/computeCardGridSize) the containing block's height is indefinite,
-       so height:100% computes to auto and the svg sizes by width and its viewBox aspect exactly as before; in a
-       fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
-       the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
-       than cropped or stretched. */
-    :host { display: grid; grid-template-columns: var(--fp-sheet-w, 0px) minmax(0, 1fr); grid-template-rows: auto 1fr var(--fp-peek-row, 0px) auto; grid-template-areas: "head head" "sheet stage" "peek peek" "bar bar"; position: relative; height: 100%; }
-    /* S8.3: hui-panel-view gives the card no definite height either, so the plan grew by width past the bottom of
-       the screen and "fit" looked zoomed in. In panel layout the card takes the screen below HA's header. */
-    :host([panel]) { height: calc(100vh - var(--header-height, 56px)); }
-    svg { width: 100%; height: 100%; display: block; }
-    /* S31.5: the plan is the stage, the cell of the grid that is left when the header and the side sheet have theirs.
-       Its box is the box the zoom maths read, so a pan, a pinch and a double tap land where they did. */
-    svg.fp-zoomable, .fp-3d { grid-area: stage; min-width: 0; min-height: 0; }
-    /* S12.3: the 3D view takes the place of the plan's svg, in the same box (aspect-ratio is the plan's own: with an
-       indefinite height it sizes like the svg, in a fixed row it fills it). */
-    .fp-3d { position: relative; width: 100%; height: 100%; display: block; }
-    .fp-head { grid-area: head; box-sizing: border-box; height: 52px; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--fp-idle); }
-    .fp-head-gap { flex: 1 1 0; min-width: 0; }
-    .fp-head-btn { flex: 0 0 auto; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; min-width: 32px; cursor: pointer; }
-    /* The cluster: +, - and Fit (Reset camera in 3D), top right of the stage. Over the plan on purpose; the one thing that is.
-       In kiosk it also holds the ⋯ menu when \`rotate_switch: true\` brings one. */
-    .fp-cluster { grid-area: stage; justify-self: end; align-self: start; z-index: 1; margin: 8px; min-width: 0; max-width: calc(100% - 16px); display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-    /* S34.8: the heat map's legend, bottom left of the stage, over the plan like the cluster: end labels as text, a ramp between. */
-    .fp-heat-legend { grid-area: stage; justify-self: start; align-self: end; z-index: 1; margin: 8px; display: flex; align-items: center; gap: 6px; padding: 4px 8px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; pointer-events: none; }
-    .fp-heat-legend.fp-heat-legend-up { align-self: start; } /* the 3D fallback note holds the bottom left: the legend goes to the top */
-    .fp-heat-ramp { width: 96px; height: 10px; border-radius: 5px; }
-    /* One line, over the plan, when 3D cannot run: why, and that 2D is what is shown. */
-    .fp-3d-note { position: absolute; left: 8px; bottom: 8px; z-index: 1; margin: 0; max-width: calc(100% - 16px); padding: 4px 8px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; }
-    .fp-pop-wait { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; max-height: 60%; overflow: auto; box-sizing: border-box; color: var(--fp-ink); background: var(--fp-room); border-top: 1px solid var(--fp-idle); border-radius: 12px 12px 0 0; }
-    p.msg { grid-area: 1 / 1 / -1 / -1; padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
-    /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
-       renderFloor draws and is positioned over it instead. */
-    /* Opus review finding 13: the active-devices panel below (also z-index: 1, and later in DOM order, so it
-       would otherwise win ties) can be dragged to sit right under this row; the floor chips must still take the
-       click, not the panel behind — or in front of, without this — them. */
-    .fp-floors { flex: 0 1 auto; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 3px 4px; }
-    .fp-floors button { flex: 0 0 auto; white-space: nowrap; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
-    /* Same combination the editor's floor chips already proved at 4.5:1 (S1.40); the current floor is carried by
-       aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
-       one attribute serves both the visual state and the accessible one, no added "(current)" text). */
-    .fp-floors button[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
-    /* S20.2: the floor whose panel is open. A ring in the primary colour, so it reads beside the fill that marks the floor shown. */
-    .fp-floors button.fp-floor-picked { box-shadow: 0 0 0 2px var(--fp-bg), 0 0 0 4px var(--fp-primary); }
-    /* S24.7: a floor with a triggered alarm. After the pressed rule, so the shown floor keeps the warn border too; the count
-       sits on a warn badge in --fp-on-light, readable on the pressed pill's ink and on the plain one alike. */
-    .fp-floors button.fp-floor-alarm { border-color: var(--fp-warn); }
-    .fp-floor-alarm .fp-floor-count { background: var(--fp-warn); color: var(--fp-on-light); border-radius: 999px; padding: 0 5px; font-weight: 600; }
-    /* S7.4: the zoom buttons are card chrome, the same colours as the floor chips, in the corner of the stage. S31.6: only +, - and
-       Fit (Reset camera in 3D) are left here; the look controls are the ⋯ menu's (more-menu.ts). */
-    .fp-stack { display: flex; flex-direction: column; gap: 4px; }
-    .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
-    .fp-stack button:disabled { opacity: 0.45; cursor: default; }
-    .fp-stack svg { width: 14px; height: 14px; }
-    /* While the plan turns it takes no taps: a tap would land on a device that is moving away from the finger.
-       The star reaches the children that carry their own pointer-events (.room{pointer-events:all} in the editor's
-       rules, .extra, .door-hit), which an inherited value on the svg alone would lose to. */
-    svg.fp-turning, svg.fp-turning * { pointer-events: none; }
-    /* S7.15: with zoom on, the plan takes every touch once it is zoomed in, so the page does not scroll or zoom under
-       a pan or a pinch. At fit there is nothing to pan, so a vertical swipe scrolls the dashboard as it would over
-       any other card; the browser still leaves a pinch and a double-tap to the plan (pan-y allows neither). */
-    svg.fp-zoomable { touch-action: pan-y; }
-    svg.fp-zoomable.fp-zoomed { touch-action: none; }
-    /* S37.7: room for the zoom buttons (28 px + the cluster's 8 px margin) beside the plan, so the floor below does not run under them. */
-    svg.fp-zoomable.fp-clear-stack { width: calc(100% - 40px); justify-self: start; }
-    .fp-pop.fp-pop-sheet { position: static; width: auto; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 4px 4px 12px; }
-    /* S24.7: the ring a row tap puts on its thing. Card chrome over the plan, never a hit target. Reduced motion: a steady ring. */
-    .fp-pulse { position: absolute; z-index: 1; pointer-events: none; box-sizing: border-box; border: 3px solid var(--fp-primary); border-radius: 50%; transform: translate(-50%, -50%); animation: fp-pulse-ring 0.8s ease-out 3; }
-    /* Not fp-locate: that is the plan's own ring (render.ts), and one name in one shadow root means one wins (S24.R7). */
-    @keyframes fp-pulse-ring { 0% { opacity: 1; box-shadow: 0 0 0 0 var(--fp-primary); } 100% { opacity: 0.6; box-shadow: 0 0 0 10px transparent; } }
-    @media (prefers-reduced-motion: reduce) { .fp-pulse { animation: none; } }
-    /* S31.10 (D4): the ring of the device a key stands on, and the line a screen reader reads. Chrome over the plan like the pulse, never a hit
-       target: the behaviour is this class rule, not an attribute (a presentation attribute loses to the editor's own \`.room { pointer-events }\`
-       kind of rule, finding 18). The plan itself is the Tab stop; its outline is the thin frame of the focused stop, the ring says which device. Ink inside a bg and a primary halo, so it reads on every theme. */
-    .fp-focus { position: absolute; z-index: 1; pointer-events: none; box-sizing: border-box; border: 3px solid var(--fp-ink); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--fp-bg, #fff), 0 0 0 4px var(--fp-primary); }
-    .fp-focus[hidden] { display: none; }
-    .fp-focus-status { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-    svg.fp-zoomable:focus { outline: none; }
-    svg.fp-zoomable:focus-visible { outline: 2px solid var(--fp-primary); outline-offset: -2px; }
+    :host{display:grid;grid-template-columns:var(--fp-sheet-w,0px) minmax(0,1fr);grid-template-rows:auto 1fr var(--fp-peek-row,0px) auto;grid-template-areas:"head head" "sheet stage" "peek peek" "bar bar";position:relative;height:100%}
+    :host([panel]){height:calc(100vh - var(--header-height,56px))}
+    svg{width:100%;height:100%;display:block}
+    svg.fp-zoomable,.fp-3d{grid-area:stage;min-width:0;min-height:0}
+    .fp-3d{position:relative;width:100%;height:100%;display:block}
+    .fp-head{grid-area:head;box-sizing:border-box;height:52px;min-width:0;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid var(--fp-idle)}
+    .fp-head-gap{flex:1 1 0;min-width:0}
+    .fp-head-btn{flex:0 0 auto;font:12px/1.2 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:999px;padding:4px 10px;min-width:32px;cursor:pointer}
+    .fp-cluster{grid-area:stage;justify-self:end;align-self:start;z-index:1;margin:8px;min-width:0;max-width:calc(100% - 16px);display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+    .fp-heat-legend{grid-area:stage;justify-self:start;align-self:end;z-index:1;margin:8px;display:flex;align-items:center;gap:6px;padding:4px 8px;font:12px/1.3 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px;pointer-events:none}
+    .fp-heat-legend.fp-heat-legend-up{align-self:start}
+    .fp-heat-ramp{width:96px;height:10px;border-radius:5px}
+    .fp-3d-note{position:absolute;left:8px;bottom:8px;z-index:1;margin:0;max-width:calc(100% - 16px);padding:4px 8px;font:12px/1.3 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px}
+    .fp-pop-wait{position:absolute;left:0;right:0;bottom:0;z-index:2;max-height:60%;overflow:auto;box-sizing:border-box;color:var(--fp-ink);background:var(--fp-room);border-top:1px solid var(--fp-idle);border-radius:12px 12px 0 0}
+    p.msg{grid-area:1 / 1 / -1 / -1;padding:16px;margin:0;font:14px sans-serif;color:var(--fp-text)}
+    .fp-floors{flex:0 1 auto;min-width:0;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:3px 4px}
+    .fp-floors button{flex:0 0 auto;white-space:nowrap;font:12px/1.2 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:999px;padding:4px 10px;cursor:pointer}
+    .fp-floors button[aria-pressed="true"]{background:var(--fp-ink);color:var(--fp-bg);border-color:var(--fp-ink)}
+    .fp-floors button.fp-floor-picked{box-shadow:0 0 0 2px var(--fp-bg),0 0 0 4px var(--fp-primary)}
+    .fp-floors button.fp-floor-alarm{border-color:var(--fp-warn)}
+    .fp-floor-alarm .fp-floor-count{background:var(--fp-warn);color:var(--fp-on-light);border-radius:999px;padding:0 5px;font-weight:600}
+    .fp-stack{display:flex;flex-direction:column;gap:4px}
+    .fp-stack button{width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;font:16px/1 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px;cursor:pointer}
+    .fp-stack button:disabled{opacity:.45;cursor:default}
+    .fp-stack svg{width:14px;height:14px}
+    svg.fp-turning,svg.fp-turning *{pointer-events:none}
+    svg.fp-zoomable{touch-action:pan-y}
+    svg.fp-zoomable.fp-zoomed{touch-action:none}
+    svg.fp-zoomable.fp-clear-stack{width:calc(100% - 40px);justify-self:start}
+    .fp-pop.fp-pop-sheet{position:static;width:auto;max-height:none;border:0;border-radius:0;box-shadow:none;background:transparent;padding:4px 4px 12px}
+    .fp-pulse{position:absolute;z-index:1;pointer-events:none;box-sizing:border-box;border:3px solid var(--fp-primary);border-radius:50%;transform:translate(-50%,-50%);animation:fp-pulse-ring .8s ease-out 3}
+    @keyframes fp-pulse-ring{0%{opacity:1;box-shadow:0 0 0 0 var(--fp-primary)}100%{opacity:.6;box-shadow:0 0 0 10px transparent}}
+    @media (prefers-reduced-motion:reduce){.fp-pulse{animation:none}}
+    .fp-focus{position:absolute;z-index:1;pointer-events:none;box-sizing:border-box;border:3px solid var(--fp-ink);border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 2px var(--fp-bg,#fff),0 0 0 4px var(--fp-primary)}
+    .fp-focus[hidden]{display:none}
+    .fp-focus-status{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+    svg.fp-zoomable:focus{outline:none}
+    svg.fp-zoomable:focus-visible{outline:2px solid var(--fp-primary);outline-offset:-2px}
   `, POPUP_CSS, SCENES_CSS, TOUCH_CSS, KIOSK_CSS, unsafeCSS(REPLAY_CSS)];
 
   _config: FloorplanStudioCardConfig = {};

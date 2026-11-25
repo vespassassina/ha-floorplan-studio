@@ -65,6 +65,8 @@ export interface LinkStatus {
   away: boolean;
   /** A vacuum's charge in whole percent (its `battery_level`, else an attached battery sensor); null when unread. */
   battery: number | null;
+  /** Optional thermal readout for boiler / water-tank (e.g. "54 → 60 °C · 1.6 bar"). */
+  thermal?: string;
 }
 
 /** Watts from a power sensor: W, or kW times 1000; null for any other unit or a number that is not one. */
@@ -112,7 +114,7 @@ const batteryLevel = (v: unknown): number | null => (typeof v === "number" && Nu
 
 /** What the entities of an appliance, a robot or a plant say. `sym` decides which half is read; `now` (ms) is only for a timestamp sensor. */
 export function linkStatus(sym: unknown, m: LinkLike | null | undefined, states: States, now: number = Date.now()): LinkStatus {
-  const plant = sym === "plant", robot = sym === "robot-vacuum" || sym === "robot-dock";
+  const plant = sym === "plant", robot = sym === "robot-vacuum" || sym === "robot-dock", thermal = sym === "boiler" || sym === "water-tank";
   const ids = carEntities(m);
   const min = validMinMoisture(m?.minMoisture) ? m.minMoisture : validMinMoisture(m?.min) ? m.min : MIN_MOISTURE;
   // `program`: the appliance's own word on whether it works (true, false), null when it has none. It wins over the plug's power.
@@ -120,6 +122,8 @@ export function linkStatus(sym: unknown, m: LinkLike | null | undefined, states:
   const plugs = new Set(Array.isArray(m?.plugs) ? (m.plugs as unknown[]).filter((e): e is string => typeof e === "string") : []);
   let seen = 0, gone = 0;
   let moisture: number | null = null, humidity: number | null = null, low = false, vac: LinkStatus["vac"] = null, battery: number | null = null, sensorBattery: number | null = null;
+  let curT: number | null = null, tgtT: number | null = null, tUnit = "°C", press: string | null = null;
+  const fin = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.round(v * 10) / 10 : null);
   for (const e of ids) {
     const r = read(states, e);
     if (!r) continue;
@@ -140,10 +144,19 @@ export function linkStatus(sym: unknown, m: LinkLike | null | undefined, states:
       else if (!(typeof cls === "string" && MEASURED.has(cls)) && IDLE_WORDS.has(word)) program ??= false;
       if (ERROR_WORDS.has(word)) alert = "error";
       if (cls === "battery" && sensorBattery === null) sensorBattery = percent(r);
+      if (thermal && (cls === "temperature" || cls === "pressure")) {
+        const n = Number(r.state), u = typeof r.attrs.unit_of_measurement === "string" ? r.attrs.unit_of_measurement : "";
+        if (r.state.trim() !== "" && Number.isFinite(n)) {
+          const v = Math.round(n * 10) / 10;
+          if (cls === "temperature" && curT === null) { curT = v; if (u) tUnit = u; }
+          if (cls === "pressure" && press === null) press = `${v} ${u || "bar"}`;
+        }
+      }
       remaining ??= minutesLeft(r, cls, now);
     }
-    const thermal = sym === "boiler" || sym === "water-tank";
     if (thermal && (domain === "water_heater" || domain === "climate")) {
+      curT ??= fin(r.attrs.current_temperature);
+      tgtT ??= fin(r.attrs.temperature);
       const act = typeof r.attrs.hvac_action === "string" ? r.attrs.hvac_action.trim().toLowerCase() : "";
       if (act) program = act === "heating" ? true : (program ?? false);
       else if (domain === "climate") { if (word === "heating") program = true; else if (IDLE_WORDS.has(word)) program ??= false; }
@@ -160,9 +173,12 @@ export function linkStatus(sym: unknown, m: LinkLike | null | undefined, states:
   if (vac === "error") alert = "error";
   const running = sym === "robot-vacuum" ? vac === "cleaning" || vac === "returning" : sym === "robot-dock" ? false : (program ?? (w !== null ? w > RUN_WATTS : stoveOn));
   const level = moisture ?? humidity;
+  const tempLine = curT !== null && tgtT !== null ? `${curT} → ${tgtT} ${tUnit}` : curT !== null ? `${curT} ${tUnit}` : tgtT !== null ? `→ ${tgtT} ${tUnit}` : "";
+  const thermalStr = [tempLine, press ?? ""].filter(Boolean).join(" · ");
   return {
     running, remaining: running ? remaining : null, alert, dead: seen > 0 && gone === seen, moisture: level, thirsty: plant && (level !== null ? level < min : low),
     plugOff: plugOff && !running && vac === null, watts: w, kwh, vac, away: sym === "robot-vacuum" && running, battery: battery ?? sensorBattery,
+    ...(thermalStr ? { thermal: thermalStr } : {}),
   };
 }
 
@@ -177,7 +193,7 @@ export function linkText(sym: unknown, s: LinkStatus): string {
   if (sym === "plant") return s.thirsty ? (s.moisture === null ? t("Needs water") : t("Needs water · {n} %", { n: s.moisture })) : s.moisture === null ? "" : t("Moisture {n} %", { n: s.moisture });
   if (s.vac) return [VAC_TEXT[s.vac](), s.battery === null ? "" : t("{n} %", { n: s.battery })].filter(Boolean).join(" · ");
   const state = s.running ? (s.remaining === null ? t("Running") : t("Running · {n} min left", { n: s.remaining })) : s.alert ? "" : s.plugOff ? t("Off at the plug") : t("Idle");
-  return [state, s.alert === "door" ? t("Door open") : s.alert === "error" ? t("Error") : ""].filter(Boolean).join(" · ");
+  return [state, s.thermal ?? "", s.alert === "door" ? t("Door open") : s.alert === "error" ? t("Error") : ""].filter(Boolean).join(" · ");
 }
 /** A vacuum's state word as the popup prints it. */
 const VAC_TEXT: Record<NonNullable<LinkStatus["vac"]>, () => string> = {

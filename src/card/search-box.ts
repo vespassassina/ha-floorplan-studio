@@ -163,20 +163,7 @@ export class FpSearch extends LitElement {
     `;
   }
 
-  static styles = [css`
-    :host{display:block;position:relative;box-sizing:border-box;width:100%}
-    input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px;padding:6px 10px;width:100%;box-sizing:border-box}
-    input::placeholder{color:var(--fp-idle)}
-    .list{position:absolute;z-index:50;left:0;right:0;top:calc(100% + 2px);margin:0;padding:2px;list-style:none;box-sizing:border-box;
-      max-height:min(360px, 60vh);overflow:auto;background:var(--fp-bg);color:var(--fp-ink);border:1px solid var(--fp-idle);border-radius:6px;
-      box-shadow:0 4px 16px color-mix(in srgb, var(--fp-ink) 25%, transparent)}
-    .opt{display:flex;flex-direction:column;padding:4px 8px;cursor:pointer;border-radius:4px;color:var(--fp-ink);background:transparent}
-    .opt:hover{background:color-mix(in srgb, var(--fp-ink) 14%, transparent)}
-    .opt.active{background:var(--fp-ink);color:var(--fp-bg)}
-    .name,.detail{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .detail{font-size:.8em;opacity:.75}
-    .empty{padding:6px 10px;font-size:.9em} /* no opacity: the box must hide what is under it */
-  `, SEARCH_TOUCH_CSS];
+  static styles = [css`:host{display:block;position:relative;box-sizing:border-box;width:100%}input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px;padding:6px 10px;width:100%;box-sizing:border-box}input::placeholder{color:var(--fp-idle)}.list{position:absolute;z-index:50;left:0;right:0;top:calc(100% + 2px);margin:0;padding:2px;list-style:none;box-sizing:border-box;max-height:min(360px,60vh);overflow:auto;background:var(--fp-bg);color:var(--fp-ink);border:1px solid var(--fp-idle);border-radius:6px;box-shadow:0 4px 16px color-mix(in srgb,var(--fp-ink) 25%,transparent)}.opt{display:flex;flex-direction:column;padding:4px 8px;cursor:pointer;border-radius:4px;color:var(--fp-ink);background:transparent}.opt:hover{background:color-mix(in srgb,var(--fp-ink) 14%,transparent)}.opt.active{background:var(--fp-ink);color:var(--fp-bg)}.name,.detail{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail{font-size:.8em;opacity:.75}.empty{padding:6px 10px;font-size:.9em}`, SEARCH_TOUCH_CSS];
 }
 
 if (!customElements.get("fp-search")) customElements.define("fp-search", FpSearch);

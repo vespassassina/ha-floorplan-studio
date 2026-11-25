@@ -5,12 +5,12 @@ import type { RoomSceneMenu } from "../core";
 import { t } from "../core/i18n";
 
 export const SCENES_CSS = css`
-  .fp-scenes { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
-  .fp-scene, .fp-scene-ed-btn { min-height: 32px; max-width: 100%; padding: 0 10px; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
-  .fp-scene:hover, .fp-scene:focus-visible, .fp-scene-ed-btn:hover, .fp-scene-ed-btn:focus-visible, .fp-scene-play { border-color: var(--fp-primary); }
-  .fp-scene.fp-scene-ha, .fp-scene-ed-btn { border-style: dashed; }
-  .fp-scene.fp-scene-ask { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); }
-  .fp-scene.fp-scene-ask, .fp-scene-play { font-weight: 600; }
+  .fp-scenes{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 6px}
+  .fp-scene,.fp-scene-ed-btn{min-height:32px;max-width:100%;padding:0 10px;font:12px/1.2 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:8px;cursor:pointer;overflow-wrap:anywhere}
+  .fp-scene:hover,.fp-scene:focus-visible,.fp-scene-ed-btn:hover,.fp-scene-ed-btn:focus-visible,.fp-scene-play{border-color:var(--fp-primary)}
+  .fp-scene.fp-scene-ha,.fp-scene-ed-btn{border-style:dashed}
+  .fp-scene.fp-scene-ask{color:var(--fp-on-dark,#fff);background:var(--fp-primary);border-color:var(--fp-primary)}
+  .fp-scene.fp-scene-ask,.fp-scene-play{font-weight:600}
 `;
 
 export interface ScenesView {

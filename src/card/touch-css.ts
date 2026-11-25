@@ -13,25 +13,7 @@ import { css } from "lit";
 // stylesheet (overview/css.ts), after its base rules, because that sheet comes after this one; the walk in the spec above covers them still.
 
 /** Sizes for the card's own shadow root: header, tabs, zoom cluster, rail, sheets, rows, scene and floor buttons, popup, dialogs. */
-export const TOUCH_CSS = css`
-  @media (pointer: coarse) {
-    .fp-head-btn, .fp-floors button, .fp-scene, .fp-scene-ed-btn { min-height: 44px; min-width: 44px; }
-    .fp-stack button { width: 44px; height: 44px; }
-    svg.fp-zoomable.fp-clear-stack { width: calc(100% - 60px); }
-    .fp-pop button.fp-pop-more, .fp-pop-info summary { min-height: 44px; }
-    /* The hue bar was a 20 px input with the gradient on the input itself; a 44 px input would be a 44 px bar. The input is the touch
-       target, the gradient moves to its track (20 px, as before), and the thumb stays centred on it. Same gradient as popup-ui.ts. */
-    .fp-pop input.fp-pop-hue { height: 44px; margin: 0; background: none; border-radius: 0; }
-    .fp-pop input.fp-pop-hue::-webkit-slider-runnable-track { height: 20px; border-radius: 8px; background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
-    .fp-pop input.fp-pop-hue::-webkit-slider-thumb { margin-top: -4px; }
-    .fp-pop input.fp-pop-hue::-moz-range-track { height: 20px; border-radius: 8px; background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
-  }
-`;
+export const TOUCH_CSS = css`@media (pointer:coarse){.fp-head-btn,.fp-floors button,.fp-scene,.fp-scene-ed-btn{min-height:44px;min-width:44px}.fp-stack button{width:44px;height:44px}svg.fp-zoomable.fp-clear-stack{width:calc(100% - 60px)}.fp-pop button.fp-pop-more,.fp-pop-info summary{min-height:44px}.fp-pop input.fp-pop-hue{height:44px;margin:0;background:none;border-radius:0}.fp-pop input.fp-pop-hue::-webkit-slider-runnable-track{height:20px;border-radius:8px;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)}.fp-pop input.fp-pop-hue::-webkit-slider-thumb{margin-top:-4px}.fp-pop input.fp-pop-hue::-moz-range-track{height:20px;border-radius:8px;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)}}`;
 
 /** Sizes inside `<fp-search>`'s own shadow root: the field and each result row (the Studio uses the same box). */
-export const SEARCH_TOUCH_CSS = css`
-  @media (pointer: coarse) {
-    input { min-height: 44px; }
-    .opt { min-height: 44px; justify-content: center; }
-  }
-`;
+export const SEARCH_TOUCH_CSS = css`@media (pointer:coarse){input{min-height:44px}.opt{min-height:44px;justify-content:center}}`;
