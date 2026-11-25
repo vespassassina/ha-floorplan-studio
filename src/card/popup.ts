@@ -68,7 +68,7 @@ export function lampOp(d: Device, states: StateOverlay | undefined): PopupOp | n
 
 export interface LightCaps { brightness: boolean; temp: { min: number; max: number } | null; hue: boolean }
 
-const COLOUR_MODES = ["hs", "xy", "rgb", "rgbw", "rgbww"];
+import { LIGHT_COLOUR_MODES } from "../core/render";
 const kelvin = (v: unknown, dflt: number) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : dflt);
 
 /** What a light can do, from its `supported_color_modes` (any mode but `onoff` dims) and, with none listed, from an own `brightness`. */
@@ -78,7 +78,7 @@ export function lightCaps(attrs: Record<string, unknown> | undefined): LightCaps
   const brightness = modes.length ? modes.some((m) => m !== "onoff") : typeof a.brightness === "number";
   let min = kelvin(a.min_color_temp_kelvin, 2000), max = kelvin(a.max_color_temp_kelvin, 6500);
   if (!(min < max)) { min = 2000; max = 6500; }
-  return { brightness, temp: modes.includes("color_temp") ? { min, max } : null, hue: modes.some((m) => COLOUR_MODES.includes(m)) };
+  return { brightness, temp: modes.includes("color_temp") ? { min, max } : null, hue: modes.some((m) => LIGHT_COLOUR_MODES.includes(m)) };
 }
 
 export interface FanCaps { step: number }

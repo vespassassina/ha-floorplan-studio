@@ -94,7 +94,7 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
         if (d.type === "light" && base === "on") {
           const st = o.state?.[d.entity];
           const rot = typeof d.rot === "number" && Number.isFinite(d.rot) ? d.rot : undefined;
-          lights.push({ device: i, room: roomAt(safe, at), at, rgb: lightFill(st), level: lightOpacity(st) ?? 1, ...(fxScale(d) !== 1 ? { scale: fxScale(d) } : {}), ...(d.lamp ? { lamp: { ...d.lamp, ...(rot !== undefined ? { rot } : {}) } } : {}) });
+          lights.push({ device: i, room: roomAt(safe, at), at, rgb: lightFill(st, d), level: lightOpacity(st) ?? 1, ...(fxScale(d) !== 1 ? { scale: fxScale(d) } : {}), ...(d.lamp ? { lamp: { ...d.lamp, ...(rot !== undefined ? { rot } : {}) } } : {}) });
         }
       } catch (e) { debugOnce("3D live state: a device could not be read and draws nothing", e); }
     });

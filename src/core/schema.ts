@@ -167,7 +167,7 @@ export const LAMP_BOUNDS = {
 export const OTHER_ICONS = ["value"] as const;
 export type OtherIcon = (typeof OTHER_ICONS)[number];
 
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; underfloor?: true; body?: DeviceBody; lamp?: LampSpec; icon?: OtherIcon } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; underfloor?: true; whiteOnly?: true; body?: DeviceBody; lamp?: LampSpec; icon?: OtherIcon } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /**
  * S35.1: the car models, in the order the Studio lists them. `model`, `color` (`#rrggbb`) and `attached` (at most
  * `MAX_CAR_ATTACHED` entity ids) exist on a furniture piece with symbol `car` only; `entity` is then the car's main
@@ -623,9 +623,12 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
           if (d.bound === d.entity) errors.push(`${at} ${d.id} bound must differ from entity`);
         }
       }
-      if (d.underfloor !== undefined) {
-        if (d.underfloor !== true) errors.push(`${at} ${d.id} underfloor must be true; leave it out for no underfloor heating`);
-        else if (d.type !== "climate" && d.type !== "heater") errors.push(`${at} ${d.id} underfloor is only allowed on a climate or heater`);
+      for (const [k, ok, msg] of [["underfloor", d.type === "climate" || d.type === "heater", "climate or heater"], ["whiteOnly", d.type === "light", "light"]] as const) {
+        const v = (d as Record<string, unknown>)[k];
+        if (v !== undefined) {
+          if (v !== true) errors.push(`${at} ${d.id} ${k} must be true`);
+          else if (!ok) errors.push(`${at} ${d.id} ${k} is only allowed on a ${msg}`);
+        }
       }
       if (d.lamp !== undefined) {
         if (d.type !== "light") errors.push(`${at} ${d.id} lamp is only allowed on a light`);

@@ -114,6 +114,23 @@ describe("renderFloor", () => {
     expect(html).toMatch(/data-x="1"[^>]*style="[^"]*--fp-dev-fill:rgb\(255,0,0\)/);
   });
 
+  it("S72: a light with no colour option (or in brightness/onoff/white mode) ignores rgb_color, and whiteOnly forces pure white", () => {
+    for (const attrs of [
+      { rgb_color: [255, 0, 0], supported_color_modes: ["onoff"] },
+      { rgb_color: [255, 0, 0], supported_color_modes: ["brightness"] },
+      { rgb_color: [255, 0, 0], supported_color_modes: ["color_temp"] },
+      { rgb_color: [255, 0, 0], supported_color_modes: ["rgb", "brightness"], color_mode: "brightness" },
+    ]) {
+      const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: attrs }) } });
+      expect(html.match(/<g[^>]*data-x="1"[^>]*>/)![0]).not.toContain("--fp-dev-fill");
+      expect(html).not.toContain("--fp-aura:rgb(255,0,0)");
+    }
+    const whiteFloor = { ...ground, devices: ground.devices.map((d, i) => (i === 1 ? { ...d, whiteOnly: true as const } : d)) };
+    const whiteHtml = renderFloor(whiteFloor, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0], supported_color_modes: ["rgb"] } }) } });
+    expect(whiteHtml).toMatch(/data-x="1"[^>]*style="[^"]*--fp-dev-fill:#fff/);
+    expect(whiteHtml).toContain("--fp-aura:#fff");
+  });
+
   it("S2.2: with no rgb_color the group carries no --fp-dev-fill, so the CSS var(--fp-on) fallback applies", () => {
     const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on") } });
     const group = html.match(/<g[^>]*data-x="1"[^>]*>/)![0];

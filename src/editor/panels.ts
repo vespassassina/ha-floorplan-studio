@@ -595,6 +595,11 @@ function underfloorBox(c: PanelCtx, i: number) {
   return html`<label title="While it is heating, the room that holds this icon is washed warm and patterned with pipes."><input type="checkbox" id="vunderfloor" .checked=${live(on)} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).checked; if (v !== on) c.commit((f) => { if (v) f.devices[i].underfloor = true; else delete f.devices[i].underfloor; }); }}> Underfloor</label>`;
 }
 
+function whiteOnlyBox(c: PanelCtx, i: number) {
+  const on = c.st.f.devices[i].whiteOnly === true;
+  return html`<label title="Force this light to render white only, ignoring any colour from Home Assistant."><input type="checkbox" id="vwhiteonly" .checked=${live(on)} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).checked; if (v !== on) c.commit((f) => { if (v) f.devices[i].whiteOnly = true; else delete f.devices[i].whiteOnly; }); }}> White only</label>`;
+}
+
 /** B53.2: the Mirror box of an L sofa. Ticked writes `mirror: true`, unticked removes the key; the same value again is no step. */
 function mirrorBox(c: PanelCtx, i: number) {
   const on = c.st.f.furniture[i].mirror === true;
@@ -1078,6 +1083,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${deviceTypeField(c, i)}
     ${"a" in d ? number(c, "length (cm)", "vl", Math.round(dist(d.a, d.b)), (n) => c.commit((f) => { Object.assign(f.devices[i], resizeSegment(d.a, d.b, Math.max(10, n))); })) : nothing}
     ${d.type === "light" ? lampFields(c, i) : nothing}
+    ${d.type === "light" ? whiteOnlyBox(c, i) : nothing}
     ${d.type === "other" ? otherIconField(c, i) : nothing}
     ${heading("Home Assistant")}
     ${deviceEntity(c, i)}
@@ -1139,7 +1145,7 @@ function deviceTypeField(c: PanelCtx, i: number) {
   const set = (t: string) => c.commit((f) => {
     const dv = f.devices[i];
     dv.type = t as DeviceType;
-    if (t !== "light") { delete dv.bound; delete dv.motion; delete dv.lamp; }
+    if (t !== "light") { delete dv.bound; delete dv.motion; delete dv.lamp; delete dv.whiteOnly; }
     if (t !== "other") delete dv.icon;
     if (t !== "heater") { delete dv.trvs; delete dv.tempSensors; }
     if (t !== "climate" && t !== "heater") delete dv.underfloor;

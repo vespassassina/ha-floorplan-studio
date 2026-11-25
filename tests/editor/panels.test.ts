@@ -131,3 +131,28 @@ describe("S70 studio badges: room Badges lives in its own collapsible section", 
     expect(sensorsSec?.querySelector("#rbadge")).toBeNull();
   });
 });
+
+describe("S72 white-only light toggle", () => {
+  it("toggles whiteOnly on a light in one undo step and clears it when retyped", () => {
+    const l = fresh();
+    l.floors.ground.devices = [{ id: "l1", type: "light", entity: "light.a", x: 100, y: 100 }];
+    const st = new EditorState(l);
+    st.sel = { t: "dev", i: 0 };
+    const div = document.createElement("div");
+    render(selectionPanel({ ...baseCtx(st), commit: (fn) => { st.edit(fn); } }), div);
+    const cb = div.querySelector<HTMLInputElement>("#vwhiteonly")!;
+    expect(cb.checked).toBe(false);
+    cb.checked = true;
+    cb.dispatchEvent(new Event("change"));
+    expect(st.f.devices[0].whiteOnly).toBe(true);
+    expect(st.undo()).toBe(true);
+    expect(st.f.devices[0].whiteOnly).toBeUndefined();
+    cb.checked = true;
+    cb.dispatchEvent(new Event("change"));
+    expect(st.f.devices[0].whiteOnly).toBe(true);
+    const typeSel = div.querySelector<HTMLSelectElement>("#vtype")!;
+    typeSel.value = "switch";
+    typeSel.dispatchEvent(new Event("change"));
+    expect(st.f.devices[0].whiteOnly).toBeUndefined();
+  });
+});
