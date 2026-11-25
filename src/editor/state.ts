@@ -1160,6 +1160,7 @@ export class EditorState {
     this.sel = items.length === 1 ? { t: "dev", i: startIdx } : { t: "devs", is: items.map((_, k) => startIdx + k) };
     return { kind: "dev", count: items.length, roomName };
   }
+  get hasClip(): boolean { return this.clip !== null; }
   copyFurniture(): boolean { return this.sel?.t === "furn" && this.copySelection(); }
   cutFurniture(): boolean { return this.sel?.t === "furn" && this.cutSelection(); }
   pasteFurniture(fallbackCenter?: Pt): { index: number; roomName?: string } | null {

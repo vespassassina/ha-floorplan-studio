@@ -31,7 +31,7 @@ import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayou
 import { planFixed, setPlanLocked, attachEntity, attachToRoom, rotateTexture, rotateItem, scaleTexture } from "./editor-changes";
 import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, toggleHaSync, toggleAttention, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, haSyncView, attentionView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, captureSceneDraft, migrateLegacyScenes, loadExistingScene, migrateHueSceneDraft, installCodeView } from "./editor-popups";
 import { getActionRegistry, type CustomAction } from "./custom-actions";
-import { edgeNear, onDown, onMove, onUp, onDblClick, onWheel, edgeKind } from "./editor-pointer";
+import { edgeNear, onDown, onMove, onUp, onDblClick, onWheel, edgeKind, openCtxMenuAt } from "./editor-pointer";
 import { toggleTrace, setTrace, traceView } from "./editor-trace";
 import { onKeyUp, onBlur, onKey, onButtonClick, onFocusOut, onWindowPointerDown, onWindowClick, closeSubs } from "./editor-keys";
 import { resetViews, startSaveView, onViewFormKey, submitViewForm, applyView, openViewMenu, renameViewFromMenu, deleteViewFromMenu, setFloor } from "./editor-views";
@@ -121,7 +121,7 @@ export class FloorplanStudioEditor extends LitElement {
    * S4.18: the right-click context menu — a room, zone or structure, or (S4.27) a wall: a room/outline edge or a
    * free-standing wall. Its screen position and its target. Closed (null) by an outside click, Escape or scroll.
    */
-  ctxMenu: { x: number; y: number; target: CtxTarget } | null = null;
+  ctxMenu: { x: number; y: number; target: CtxTarget; pt?: Pt } | null = null;
   /** The Device colours popup's screen position; null when closed. Dragged by its header, closed by its own X or Escape. */
   devColsPos: { x: number; y: number } | null = null;
   /** S8.1: Edit, Home Assistant: the popover's screen position; null when closed. Dragged by its head, closed by its X or Escape. */
@@ -959,7 +959,7 @@ export class FloorplanStudioEditor extends LitElement {
       <div class="ed">
         ${sideView(this, find.tree)}
         <div class=${`canvas${this.open3d ? " in3d" : ""}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label=${`Floor plan, ${f.title || st.floor}`} class=${[this.draw ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @animationend=${this.onSwitchEnd} @dblclick=${this.onDblClick} @contextmenu=${(e: Event) => e.preventDefault()}>${unsafeSVG(body)}</svg>
+          <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label=${`Floor plan, ${f.title || st.floor}`} class=${[this.draw ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @animationend=${this.onSwitchEnd} @dblclick=${this.onDblClick} @contextmenu=${(e: MouseEvent) => { e.preventDefault(); if (!this.ctxMenu) openCtxMenuAt(this, e.clientX, e.clientY); }}>${unsafeSVG(body)}</svg>
           <!-- After the plan svg in the DOM, not before: specs and code that ask for "the first svg" must get the plan, not a button icon. It sits on top by z-index. -->
           <div class="zoom" role="group" aria-label="Zoom">
             <button class="btn" id="zin" title="Zoom in" aria-label="Zoom in" @click=${() => zoomBy(this, 1 / 1.25)}>+</button>
@@ -969,7 +969,7 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="vrotr" title="Rotate view right" aria-label="Rotate view right" @click=${() => turnBy(this, ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateRight} fill="currentColor"/></svg></button>
           </div>
           ${this.open3d ? html`
-            <div class="pane3d" id="pane3d" @contextmenu=${(e: Event) => e.preventDefault()}>
+            <div class="pane3d" id="pane3d" @contextmenu=${(e: MouseEvent) => { e.preventDefault(); this.studio3d.openCtxAt(e.clientX, e.clientY); }}>
               <div class="stage3d" id="stage3d"></div>
               <svg class="ov3d" id="ov3d" aria-hidden="true"></svg>
               <div class="bar3d">

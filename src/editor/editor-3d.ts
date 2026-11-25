@@ -18,6 +18,7 @@ import {
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
 import type { Hit3D, View3D } from "../card/three/host";
 import { pivotOnArc, gridRound, movePointAll } from "./ops";
+import { openCtxMenuAt } from "./editor-pointer";
 import {
   applyHeightHandle,
   handlesForSel,
@@ -382,6 +383,22 @@ export class Studio3D {
     if (nextHtml === this.lastOvHtml && ov.childNodes.length === parts.length) return;
     this.lastOvHtml = nextHtml;
     ov.innerHTML = nextHtml;
+  }
+
+  /** S75: right-click in the 3D pane picks the solid under the cursor and opens the Studio context menu at the floor point. */
+  openCtxAt(clientX: number, clientY: number) {
+    if (!this.view) return;
+    const f = this.ed.st.f;
+    const hit = this.view.hit(clientX, clientY);
+    const sel = selFromHit(f, hit);
+    const ray = this.view.rayAt(clientX, clientY);
+    const pt = ray ? rayOnZ(ray, 0) : null;
+    const forced = sel
+      ? sel.t === "edge" ? { k: "edge", poly: sel.poly, i: sel.i }
+        : sel.t === "dev" || sel.t === "furn" || sel.t === "unl" || sel.t === "room" || sel.t === "wall" || sel.t === "door" || sel.t === "opening" || sel.t === "stairs"
+          ? { k: sel.t, i: sel.i } : { k: "bg" }
+      : { k: "bg" };
+    openCtxMenuAt(this.ed, clientX, clientY, forced, pt ?? undefined);
   }
 
   private onHostDown = (ev: PointerEvent) => {

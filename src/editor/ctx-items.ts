@@ -13,6 +13,8 @@ export interface CtxFacts {
   count: number;
   /** Home Assistant is connected: the items that read its areas and entities need it. */
   ha: boolean;
+  /** S75: clipboard holds a copied/cut item ready to paste here. */
+  canPaste?: boolean;
 }
 
 export interface CtxItem { id: string; label: string; key?: string; disabled?: boolean }
@@ -34,17 +36,19 @@ export function ctxItems(target: CtxTargetKind, facts: CtxFacts): CtxItem[] {
     }
     case "room":
       return [item("rename", "Rename", { key: "F2" }), item("placeFromArea", "Place devices from area…", needHa), item("selectInside", "Select devices inside"),
-        item("toFront", "Bring to front"), item("toBack", "Send to back"), del];
+        item("toFront", "Bring to front"), item("toBack", "Send to back"), ...(facts?.canPaste === true ? [item("paste", "Paste here", { key: "⌘V" })] : []), del];
     case "edge":
       return [item("kind", "Change type"), item("addPoint", "Add a point"), ...openings, del];
     case "wall":
       return [item("kind", "Change type"), ...openings, lock, del];
-    case "door": case "opening": case "furn": case "unl":
+    case "furn":
+      return [item("copy", "Copy", { key: "⌘C" }), item("cut", "Cut", { key: "⌘X" }), item("duplicate", "Duplicate"), item("rotate", "Rotate 90°", { key: "R" }), lock, del];
+    case "door": case "opening": case "unl":
       return [lock, del];
     case "stairs": case "extra":
       return [del];
     case "canvas":
-      return [item("addDeviceHere", "Add device here…", needHa), item("selectAll", "Select all devices", { key: "Ctrl+A" }), item("zoomFit", "Zoom to fit")];
+      return [...(facts?.canPaste === true ? [item("paste", "Paste here", { key: "⌘V" })] : []), item("addDeviceHere", "Add device here…", needHa), item("selectAll", "Select all devices", { key: "Ctrl+A" }), item("zoomFit", "Zoom to fit")];
     default:
       return [];
   }

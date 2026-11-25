@@ -1,10 +1,10 @@
 import { css, html, nothing } from "lit";
-import { WALL_KINDS, areaMenuEntities, deleteEdge, insertPoint, inside, layerOfType, onEdge, setEdgeKind, typeForEntity } from "../core";
+import { FURNITURE, type FurnitureSymbol, WALL_KINDS, areaMenuEntities, deleteEdge, insertPoint, inside, layerOfType, onEdge, setEdgeKind, typeForEntity } from "../core";
 import type { Floor, HaData, Pt, WallKind } from "../core";
 import { lockDevices, removeDevices } from "./bulk";
 import { ctxItems, type CtxFacts, type CtxItem, type CtxTargetKind } from "./ctx-items";
 import { TYPE_LABELS, WALL_LABELS } from "./panels";
-import { polyPts } from "./state";
+import { newId, polyPts } from "./state";
 import type { FloorplanStudioEditor } from "./editor-app";
 
 /** S4.18/S4.27: what the right-click context menu opened on. */
@@ -20,6 +20,8 @@ export const ctxMenuCss = css`
     .ctxmenu .cm-k{font-size:.8em;opacity:.65}
     .ctxmenu .cm-ent{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
     .ctxmenu .cm-ent small{font-size:.78em;opacity:.7}
+    .ctxmenu .cm-quick{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+    .ctxmenu .cm-quick .btn{padding:3px 6px;font-size:.86em}
 `;
 
 function ctxDelete(h: FloorplanStudioEditor) {
@@ -158,7 +160,7 @@ const kindOf = (t: CtxTarget): CtxTargetKind => t.k;
 function factsOf(h: FloorplanStudioEditor, t: CtxTarget): CtxFacts {
   const f = h.st.f;
   const is = t.k === "dev" ? [t.i] : t.k === "devs" ? selectedDevices(h) : [];
-  return { locked: lockedOf(h, t), hasLight: is.some((i) => f.devices[i]?.type === "light"), count: t.k === "devs" ? is.length : 1, ha: !!h.st.ha };
+  return { locked: lockedOf(h, t), hasLight: is.some((i) => f.devices[i]?.type === "light"), count: t.k === "devs" ? is.length : 1, ha: !!h.st.ha, canPaste: h.st.hasClip };
 }
 
 /** The indices of the devices on this floor that are drawn, matching `pred`: a hidden layer is not selectable. */
@@ -220,10 +222,54 @@ function runItem(h: FloorplanStudioEditor, t: CtxTarget, id: string) {
       if (d && !st.hidden.includes(layerOfType(d.type))) h.setLayers([...st.hidden, layerOfType(d.type)]);
       return done();
     }
-    case "addDeviceHere": done(); return h.openAddDev(h.toSvg({ clientX: m.x, clientY: m.y }));
+    case "copy":
+      if (st.copySelection()) h.status = "Copied";
+      return done();
+    case "cut":
+      if (st.cutSelection()) h.changed("Cut");
+      return done();
+    case "paste": {
+      const pt = m.pt ?? h.toSvg({ clientX: m.x, clientY: m.y });
+      const res = st.pasteSelection(pt);
+      if (res) h.changed(res.roomName ? `Pasted in ${res.roomName}` : "Pasted");
+      return done();
+    }
+    case "duplicate": {
+      if (t.k === "furn" && st.f.furniture[t.i]) {
+        const cur = st.f.furniture[t.i];
+        st.sel = { t: "furn", i: t.i };
+        if (st.copySelection() && st.pasteSelection([cur.x + 25, cur.y + 25])) h.changed("Duplicated");
+      }
+      return done();
+    }
+    case "rotate":
+      if (t.k === "furn") h.commit((f) => { const p = f.furniture[t.i]; if (p) p.rot = ((p.rot ?? 0) + 90) % 360; });
+      return done();
+    case "addDeviceHere": done(); return h.openAddDev(m.pt ?? h.toSvg({ clientX: m.x, clientY: m.y }));
     case "selectAll": selectDevices(h, visibleDevices(h, () => true)); return done();
     case "zoomFit": st.fit(); return done();
   }
+}
+
+const QUICK_FURN: readonly [FurnitureSymbol, string][] = [
+  ["sofa", "Sofa"], ["table", "Table"], ["chair", "Chair"], ["bed", "Bed"],
+  ["desk", "Desk"], ["cabinet", "Cabinet"], ["plant", "Plant"], ["rug", "Rug"],
+];
+
+function quickAddFurn(h: FloorplanStudioEditor, m: { x: number; y: number; pt?: Pt }, sym: FurnitureSymbol) {
+  const raw = m.pt ?? h.toSvg({ clientX: m.x, clientY: m.y });
+  const g = h.st.snapGrid || 1, x = Math.round(raw[0] / g) * g, y = Math.round(raw[1] / g) * g;
+  const spec = FURNITURE[sym];
+  if (!h.st.edit((f) => { f.furniture.push({ id: newId(f, h.st.floor, "furniture"), symbol: sym, x, y, rot: 0, w: spec.w, h: spec.h }); })) return;
+  h.st.sel = { t: "furn", i: h.st.f.furniture.length - 1 };
+  h.closeCtxMenu();
+  h.changed(`Added ${sym}`);
+}
+
+function quickAddView(h: FloorplanStudioEditor, m: { x: number; y: number; pt?: Pt }) {
+  return html`<div class="sep"></div><span class="grp">Quick add furniture</span><div class="cm-quick">
+    ${QUICK_FURN.map(([sym, lbl]) => html`<button class="btn" data-cm=${`quick:${sym}`} @click=${() => quickAddFurn(h, m, sym)}>+ ${lbl}</button>`)}
+  </div>`;
 }
 
 /** One menu item as a button: the label at the left, its key at the right edge. The id on it is the `ctxItems` id. */
@@ -233,17 +279,18 @@ function itemView(h: FloorplanStudioEditor, t: CtxTarget, it: CtxItem) {
 }
 
 /** S4.18/S4.27's menu markup, positioned at the click (`position:fixed`, so no container-relative math is needed). S26.20: the items and their order come from `ctxItems`; a wall's Change type is a heading with the kinds under it. */
-export function ctxMenuView(h: FloorplanStudioEditor, m: { x: number; y: number; target: CtxTarget }) {
+export function ctxMenuView(h: FloorplanStudioEditor, m: { x: number; y: number; target: CtxTarget; pt?: Pt }) {
   const t = m.target;
   const confirm = (t.k === "edge" || t.k === "wall") ? edgeConfirm(h, t) : null;
   const items = confirm ?? ctxItems(kindOf(t), factsOf(h, t)).map((it) => it.id === "kind" && (t.k === "edge" || t.k === "wall") ? kindView(h, t, it) : itemView(h, t, it));
+  const quick = !confirm && (t.k === "room" || t.k === "canvas") ? quickAddView(h, m) : nothing;
   const extra = t.k === "room" && !confirm ? roomEntities(h, t.i) : nothing;
   // Keep the menu on screen: it opens at the click, but not past the right edge; `fitCtxMenu` shifts it up once its height is known,
   // and a menu taller than the window scrolls.
   const left = Math.max(0, Math.min(m.x, window.innerWidth - 240)), top = Math.max(0, Math.min(m.y, window.innerHeight - 120));
   // Windows fires the browser's `contextmenu` after mouseup, by when this menu (opened on pointerup) is under the
   // pointer and the svg's cancel no longer sees it; cancel it here too, or the browser's menu covers ours.
-  return html`<div class="ctxmenu" style="left:${left}px;top:${top}px;" @contextmenu=${(e: Event) => e.preventDefault()}>${items}${extra}</div>`;
+  return html`<div class="ctxmenu" style="left:${left}px;top:${top}px;" @contextmenu=${(e: Event) => e.preventDefault()}>${items}${quick}${extra}</div>`;
 }
 
 /** R5: after a render, moves an open menu up so its foot is inside the window (8 px spare), as far as the top allows. The height is only known now. */

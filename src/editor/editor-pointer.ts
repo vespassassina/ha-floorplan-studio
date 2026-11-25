@@ -130,7 +130,7 @@ export const onDown = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
   const capture = () => { try { svg.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ } };
   if (ev.button === 1 || ev.button === 2 || ev.ctrlKey || ev.metaKey) {
     ev.preventDefault();
-    ed.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false };
+    ed.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: ev.button, moved: false, ctrl: ev.ctrlKey };
     capture();
     return;
   }
@@ -336,8 +336,12 @@ export const onMove = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
   if (!d && ed.draw) { ed.hover = ed.aim = snapDraw(ed, ed.draw, ed.toSvg(ev), ev.altKey); ed.requestUpdate(); return; }
   if (!d) return;
   if (d.type === "pan") {
-    // Screen movement past a few pixels means this is a drag, not a (possibly right-button) click — same threshold "room" uses.
-    if (!d.moved && Math.hypot(ev.clientX - d.sx, ev.clientY - d.sy) >= 4) d.moved = true;
+    // Screen movement past slop means this is a drag, not a right-click / Ctrl-click. Do not pan before slop so hit-testing stays under the pointer.
+    const slop = d.button === 2 || d.ctrl ? 6 : 4;
+    if (!d.moved) {
+      if (Math.hypot(ev.clientX - d.sx, ev.clientY - d.sy) < slop) return;
+      d.moved = true;
+    }
     // The drag is on the screen; the view is in plan coordinates, so turn the shift back by the plan's rotation.
     const s = ed.scale, r = st.rotation, shift: Pt = [(ev.clientX - d.sx) / s, (ev.clientY - d.sy) / s];
     const [dx, dy] = r ? rotateAbout(shift, -r.deg, [0, 0]) : shift;
@@ -520,9 +524,8 @@ export const onUp = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
   ed.drag = null;
   if (!d) return;
   if (d.type === "pan") {
-    // A right button pressed and released without a drag: not a pan, the context menu on whatever is under it.
-    // (`ev.type === "pointercancel"` carries no useful position and is never this case.)
-    if (d.button === 2 && !d.moved && ev.type === "pointerup") openCtxMenuAt(ed, ev.clientX, ev.clientY);
+    // A right button or macOS Ctrl+click pressed and released without a drag opens the context menu on whatever is under it.
+    if ((d.button === 2 || d.ctrl) && !d.moved && ev.type === "pointerup") openCtxMenuAt(ed, ev.clientX, ev.clientY);
     return;
   }
   if (d.type === "marquee") { endMarquee(ed, d, ev); return; }
@@ -636,14 +639,19 @@ export function edgeKind(ed: FloorplanStudioEditor, poly: string, i: number): Wa
  * suppresses the browser's own `contextmenu` event along with it. A stationary right-button press and release is
  * the signal instead, exactly how a left-button "room" drag already tells a click from a drag (`onUp`'s `d.moved`).
  */
-export function openCtxMenuAt(ed: FloorplanStudioEditor, clientX: number, clientY: number) {
+export function openCtxMenuAt(ed: FloorplanStudioEditor, clientX: number, clientY: number, forcedHit?: { k: string; i?: number; poly?: string }, pt?: Pt) {
   if (ed.aligning) return; // Review 29: the menu selects and deletes; Align is read-only
-  const el = (ed.renderRoot as unknown as DocumentOrShadowRoot).elementFromPoint(clientX, clientY);
-  let hit = hitOf(el);
-  if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = edgeNear(ed, ed.toSvg({ clientX, clientY })) ?? hit;
+  let hit: { k: string; i?: number; poly?: string };
+  if (forcedHit) {
+    hit = forcedHit;
+  } else {
+    const el = (ed.renderRoot as unknown as DocumentOrShadowRoot).elementFromPoint(clientX, clientY);
+    hit = hitOf(el);
+    if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = edgeNear(ed, ed.toSvg({ clientX, clientY })) ?? hit;
+  }
   const target = ctxTargetFor(ed, hit);
   if (!target) { closeCtxMenu(ed); return; }
-  ed.ctxMenu = { x: clientX, y: clientY, target };
+  ed.ctxMenu = { x: clientX, y: clientY, target, ...(pt ? { pt } : {}) };
   ed.focus({ preventScroll: true }); // a right click never focuses the host on its own; Escape needs it to
   ed.requestUpdate();
 }

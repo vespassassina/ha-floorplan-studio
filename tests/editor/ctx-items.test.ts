@@ -61,6 +61,11 @@ describe("ctxItems", () => {
   });
   it("canvas", () => {
     expect(ids("canvas")).toEqual(["addDeviceHere", "selectAll", "zoomFit"]);
+    expect(ids("canvas", { canPaste: true })).toEqual(["paste", "addDeviceHere", "selectAll", "zoomFit"]);
+  });
+  it("S75: furniture offers copy, cut, duplicate, rotate, lock, delete; room offers paste when clipboard has an item", () => {
+    expect(ids("furn")).toEqual(["copy", "cut", "duplicate", "rotate", "lock", "delete"]);
+    expect(ids("room", { canPaste: true })).toEqual(["rename", "placeFromArea", "selectInside", "toFront", "toBack", "paste", "delete"]);
   });
   it("items that need Home Assistant are disabled without it, and enabled with it", () => {
     const dis = (t: CtxTargetKind, id: string, ha: boolean) => ctxItems(t, { ...base, ha }).find((i) => i.id === id)?.disabled;
