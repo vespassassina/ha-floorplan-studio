@@ -134,7 +134,15 @@ describe("S25.3 badges in renderFloor", () => {
   it("the CSS hides badges unless the root says far or mid, and gives them no pointer events", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.room-badge\{[^}]*display:none/);
     expect(FLOORPLAN_CSS).toMatch(/\[data-detail="far"\] \.room-badge,\[data-detail="mid"\] \.room-badge\{[^}]*display:inline/);
+    expect(FLOORPLAN_CSS).toMatch(/\[data-ed\] \.room-badge\{[^}]*display:inline/);
     expect(FLOORPLAN_CSS).toMatch(/\.room-badge[^{]*\{[^}]*pointer-events:none/);
+  });
+
+  it("sets data-ed on the root group only in editor mode so badges show at near zoom in studio", () => {
+    const f = floorOf([dev("light", "light.a", 100, 100)]);
+    const state = { "light.a": st("on") };
+    expect(renderFloor(f, { scale: 1, px: 1, zoom: 1, state, detail: "near", editor: true })).toContain('data-ed="1"');
+    expect(renderFloor(f, { scale: 1, px: 1, zoom: 1, state, detail: "near", editor: false })).not.toContain('data-ed="1"');
   });
 });
 

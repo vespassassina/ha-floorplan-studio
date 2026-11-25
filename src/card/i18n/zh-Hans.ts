@@ -218,6 +218,7 @@ const c: Catalogue = {
   "Boiler": "锅炉",
   "UPS": "UPS",
   "Printer": "打印机",
+  "Power meter": "电表",
   "Speaker": "扬声器",
   "Person": "人员",
   "Radar": "雷达",

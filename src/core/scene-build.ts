@@ -495,6 +495,69 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
         add("device", id, type, { type: "point", at, z: lampZ }, ref, paint);
         return;
       }
+      if (type === "camera" || type === "server" || type === "ups" || type === "computer" || type === "printer" || type === "power_meter" || type === "battery" || type === "inverter") {
+        const rot = fin(dev.rot) ? dev.rot : 0;
+        const bodyRef: SolidRef = { index: i, id: text(d.id), entity: text(d.entity), body: type };
+        const boxAt = (cx: number, cy: number, w: number, h: number, ang = rot): Pt[] =>
+          ([[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]] as Pt[]).map((q) => turnAbout([cx + q[0], cy + q[1]], ang, [cx, cy]));
+        const oct = (cx: number, cy: number, r: number): Pt[] => Array.from({ length: 8 }, (_, k) => { const a = (k * Math.PI) / 4; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; });
+        const wallRot = (): number => {
+          let bestD = 60, bestA = rot;
+          const seg = (a: Pt, b: Pt) => {
+            const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+            if (!l2) return;
+            const t = Math.max(0, Math.min(1, ((at[0] - a[0]) * dx + (at[1] - a[1]) * dy) / l2));
+            const qx = a[0] + t * dx, qy = a[1] + t * dy, dd = Math.hypot(at[0] - qx, at[1] - qy);
+            if (dd < bestD) { bestD = dd; bestA = (Math.atan2(dy, dx) * 180) / Math.PI; }
+          };
+          list(f.walls).forEach((w) => { const ww = w as { a?: unknown; b?: unknown }; if (isPt(ww.a) && isPt(ww.b)) seg(ww.a, ww.b); });
+          for (const r of list(f.rooms)) {
+            const rr = r as { kind?: unknown; pts?: unknown[] };
+            if (rr.kind !== "zone" && Array.isArray(rr.pts)) rr.pts.forEach((p, k) => { const q = rr.pts![(k + 1) % rr.pts!.length]; if (isPt(p) && isPt(q)) seg(p, q); });
+          }
+          return bestD < 60 ? bestA : rot;
+        };
+        const zIcon = Math.min(deviceZ(dev), Math.max(0, wallTop - ICON_MARGIN));
+        add("device", id, type, { type: "point", at, z: zIcon }, ref, paint);
+        if (type === "camera") {
+          const z = zIcon, rad = (rot * Math.PI) / 180, fx = Math.sin(rad), fy = -Math.cos(rad);
+          add("device", `${id}:mount`, type, { type: "prism", base: boxAt(at[0], at[1], 6, 6), z0: z, z1: z + 4 }, bodyRef, paint);
+          add("device", `${id}:cam`, type, { type: "prism", base: boxAt(at[0] + fx * 4, at[1] + fy * 4, 10, 16), z0: z - 4, z1: z + 4 }, bodyRef, paint);
+          add("device", `${id}:lens`, type, { type: "prism", base: oct(at[0] + fx * 13, at[1] + fy * 13, 3.5), z0: z - 3, z1: z + 3 }, bodyRef, { role: "frame" });
+        } else if (type === "server" || type === "ups") {
+          const z0 = fin(dev.z) ? dev.z : 0, w = type === "server" ? 34 : 22, dp = type === "server" ? 44 : 34, ht = type === "server" ? 68 : 34;
+          add("device", `${id}:rack`, type, { type: "prism", base: boxAt(at[0], at[1], w, dp), z0, z1: z0 + ht }, bodyRef, paint);
+          add("device", `${id}:top`, type, { type: "prism", base: boxAt(at[0], at[1], w - 4, dp - 4), z0: z0 + ht, z1: z0 + ht + 2 }, bodyRef, { role: "frame" });
+        } else if (type === "computer") {
+          const z0 = fin(dev.z) ? dev.z : 75;
+          const off = turnAbout([at[0] + 18, at[1]], rot, at);
+          add("device", `${id}:tower`, type, { type: "prism", base: boxAt(off[0], off[1], 16, 34), z0, z1: z0 + 36 }, bodyRef, paint);
+          add("device", `${id}:stand`, type, { type: "prism", base: boxAt(at[0] - 8, at[1], 8, 8), z0, z1: z0 + 8 }, bodyRef, { role: "frame" });
+          add("device", `${id}:mon`, type, { type: "prism", base: boxAt(at[0] - 8, at[1], 36, 4), z0: z0 + 8, z1: z0 + 32 }, bodyRef, paint);
+        } else if (type === "printer") {
+          const z0 = fin(dev.z) ? dev.z : 75;
+          add("device", `${id}:base`, type, { type: "prism", base: boxAt(at[0], at[1], 36, 36), z0, z1: z0 + 6 }, bodyRef, paint);
+          add("device", `${id}:bed`, type, { type: "prism", base: boxAt(at[0], at[1], 24, 24), z0: z0 + 6, z1: z0 + 8 }, bodyRef, { role: "frame" });
+          const pL = turnAbout([at[0] - 16, at[1]], rot, at), pR = turnAbout([at[0] + 16, at[1]], rot, at);
+          add("device", `${id}:gl`, type, { type: "prism", base: boxAt(pL[0], pL[1], 4, 4), z0: z0 + 6, z1: z0 + 44 }, bodyRef, { role: "frame" });
+          add("device", `${id}:gr`, type, { type: "prism", base: boxAt(pR[0], pR[1], 4, 4), z0: z0 + 6, z1: z0 + 44 }, bodyRef, { role: "frame" });
+          add("device", `${id}:gt`, type, { type: "prism", base: boxAt(at[0], at[1], 36, 4), z0: z0 + 40, z1: z0 + 44 }, bodyRef, paint);
+          add("device", `${id}:head`, type, { type: "prism", base: boxAt(at[0], at[1], 6, 6), z0: z0 + 22, z1: z0 + 28 }, bodyRef, paint);
+        } else if (type === "power_meter") {
+          const z0 = fin(dev.z) ? dev.z : 126, wr = wallRot();
+          add("device", `${id}:meter`, type, { type: "prism", base: boxAt(at[0], at[1], 20, 8, wr), z0, z1: z0 + 28 }, bodyRef, paint);
+          add("device", `${id}:disp`, type, { type: "prism", base: boxAt(at[0], at[1], 14, 10, wr), z0: z0 + 10, z1: z0 + 22 }, bodyRef, { role: "frame" });
+        } else if (type === "battery") {
+          const z0 = fin(dev.z) ? dev.z : 0, wr = wallRot();
+          add("device", `${id}:bat`, type, { type: "prism", base: boxAt(at[0], at[1], 44, 18, wr), z0, z1: z0 + 64 }, bodyRef, paint);
+          add("device", `${id}:cap`, type, { type: "prism", base: boxAt(at[0], at[1], 42, 16, wr), z0: z0 + 64, z1: z0 + 68 }, bodyRef, { role: "frame" });
+        } else if (type === "inverter") {
+          const z0 = fin(dev.z) ? dev.z : 100, wr = wallRot();
+          add("device", `${id}:inv`, type, { type: "prism", base: boxAt(at[0], at[1], 40, 14, wr), z0, z1: z0 + 48 }, bodyRef, paint);
+          add("device", `${id}:fin`, type, { type: "prism", base: boxAt(at[0], at[1], 32, 16, wr), z0: z0 + 16, z1: z0 + 36 }, bodyRef, { role: "frame" });
+        }
+        return;
+      }
       add("device", id, type, { type: "point", at, z: Math.min(deviceZ(dev), Math.max(0, wallTop - ICON_MARGIN)) }, ref, paint);
     }));
 

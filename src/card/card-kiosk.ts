@@ -28,13 +28,7 @@ export function formatWeatherChip(st: { state?: unknown; attributes?: Record<str
   return [t !== null ? `${t} ${u}` : "", c[0]!.toUpperCase() + c.slice(1)].filter(Boolean).join(" · ");
 }
 
-export const KIOSK_CSS = css`
-  .fp-head-clock,.fp-kiosk-clock{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font:600 12px/1.2 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);white-space:nowrap}
-  .fp-kiosk-clock{position:absolute;top:8px;left:8px;z-index:4;pointer-events:none}
-  .fp-screensaver{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(8,12,20,.82);color:#f3f6fb;cursor:pointer;font-family:var(--fp-font,system-ui,sans-serif)}
-  .fp-ss-time{font-size:clamp(36px,9vw,64px);font-weight:600}
-  .fp-ss-weather{font-size:15px;opacity:.85}
-`;
+export const KIOSK_CSS = css`.fp-head-clock,.fp-kiosk-clock{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font:600 12px/1.2 var(--fp-font,system-ui,sans-serif);color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);white-space:nowrap}.fp-kiosk-clock{position:absolute;top:8px;left:8px;z-index:4;pointer-events:none}.fp-screensaver{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(8,12,20,.82);color:#f3f6fb;cursor:pointer;font-family:var(--fp-font,system-ui,sans-serif)}.fp-ss-time{font-size:clamp(36px,9vw,64px);font-weight:600}.fp-ss-weather{font-size:15px;opacity:.85}`;
 
 function defaultFloorKey(c: FloorplanStudioCard): string | null {
   const f = c._config.floor, fl = c._layout?.floors;

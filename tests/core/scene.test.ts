@@ -458,14 +458,17 @@ describe("scene: devices match the 2.5D numbers", () => {
     light: "none", camera: "none", motion: "none", radar: "none", access_point: "none", ac: "ac-wall", speaker: "speaker", cover: "none",
     switch: "none", plug: "none", contact: "none", vibration: "none", lock: "none", temp: "none", humidity: "none", climate: "none",
     boiler: "none", battery: "none", inverter: "none", media: "speaker", tv: "tv", other: "none", heater: "radiator", computer: "none",
-    server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none", siren: "none", alarm: "none", fan: "none", screen: "screen", // S33.1; B53.7
+    server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none", siren: "none", alarm: "none", fan: "none", screen: "screen", power_meter: "none", // S33.1; B53.7
   };
   it("decides every DeviceType: a solid for the three, a point at deviceZ for the rest", () => {
     expect(Object.keys(KIND).sort()).toEqual([...DEVICE_TYPES].sort());
+    const BODIED = new Set(["camera", "server", "ups", "computer", "printer", "power_meter", "battery", "inverter"]);
     for (const t of DEVICE_TYPES) {
       expect(DEVICE_SOLID[t], t).toBe(KIND[t]);
       const d = t === "heater" ? dev(t, { x: undefined, y: undefined, a: [100, 50], b: [300, 50] }) : dev(t);
-      const out = buildScene(floor({ devices: [d] })).solids.filter((s) => s.kind === "device");
+      const all = buildScene(floor({ devices: [d] })).solids.filter((s) => s.kind === "device");
+      const out = BODIED.has(t) ? all.filter((s) => s.shape.type === "point") : all;
+      if (BODIED.has(t)) expect(all.some((s) => s.shape.type === "prism"), `${t} 3D body`).toBe(true);
       expect(out, t).toHaveLength(1);
       expect(out[0].tag).toBe(t);
       expect(out[0].ref.entity).toBe(`x.${t}`);
@@ -487,8 +490,8 @@ describe("scene: whole-scene properties", () => {
     const g = buildScene(demoFloors()[0]);
     for (const k of ["floor", "wall", "room", "furniture", "stair", "device"]) expect(g.solids.some((s) => s.kind === k), k).toBe(true);
     expect(new Set(g.solids.filter((s) => s.kind === "furniture").map((s) => s.ref.index)).size).toBe(2); // two pieces, each of its blocks (B53.5)
-    expect(g.solids.filter((s) => s.kind === "device")).toHaveLength(12); // 8, and the four icons stacked in the Hall (S27.C, for spiderfy)
-    expect(g.solids.filter((s) => s.kind === "device" && s.shape.type === "prism").map((s) => s.tag)).toEqual(["heater"]);
+    expect(new Set(g.solids.filter((s) => s.kind === "device").map((s) => s.ref.index)).size).toBe(12); // 8, and the four icons stacked in the Hall (S27.C, for spiderfy)
+    expect(g.solids.filter((s) => s.kind === "device" && s.shape.type === "prism" && s.ref.body === "radiator").map((s) => s.tag)).toEqual(["heater"]);
     for (const s of g.solids.filter((x) => x.kind === "wall" && x.tag !== "glass" && x.tag !== "door-leaf")) expect(prism(s).z1).toBeLessThanOrEqual(floorHeight(demoFloors()[0]));
   });
 
@@ -690,5 +693,24 @@ describe("scene: a stairwell opens the slab and the room fill (0.26.1)", () => {
     const across = flr(); (across.stairs![0] as { pts: number[][] }).pts = [[360, 100], [440, 100], [440, 260], [360, 260]];
     const sc = buildScene(across);
     expect(sc.solids.filter((s) => s.shape.type === "prism" && s.shape.holes).map((s) => s.id)).toEqual(["floor", "room:0", "room:1"]); // the slab and both rooms it lies across; the mesh clips each to its own edge
+  });
+});
+
+describe("scene: 3D bodies for technical devices (S70)", () => {
+  const BODIED = ["camera", "server", "ups", "computer", "printer", "power_meter", "battery", "inverter"] as const;
+  it.each(BODIED)("%s emits a point solid and at least one prism body solid", (type) => {
+    const sc = buildScene(floor({
+      rooms: [{ name: "Tech", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]] }] as never,
+      devices: [{ id: `d-${type}`, type, entity: `sensor.demo_${type}`, x: 40, y: 200, rot: 45 }] as never,
+    }));
+    const ds = sc.solids.filter((s) => s.kind === "device" && s.tag === type);
+    expect(ds.some((s) => s.shape.type === "point")).toBe(true);
+    const prisms = ds.filter((s) => s.shape.type === "prism" && s.ref.body === type);
+    expect(prisms.length).toBeGreaterThan(0);
+    for (const p of prisms) {
+      const sh = prism(p);
+      expect(sh.z0).toBeGreaterThanOrEqual(0);
+      expect(sh.z1).toBeGreaterThan(sh.z0);
+    }
   });
 });

@@ -218,6 +218,7 @@ const c: Catalogue = {
   "Boiler": "Caldeira",
   "UPS": "UPS",
   "Printer": "Impressora",
+  "Power meter": "Medidor de energia",
   "Speaker": "Coluna",
   "Person": "Pessoa",
   "Radar": "Radar",

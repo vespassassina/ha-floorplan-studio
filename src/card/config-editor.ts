@@ -58,24 +58,7 @@ const VIEW_CHOICES = [["2d", "2D"], ["2.5d", "2.5D"]] as const;
  * variables directly, with plain fallbacks for the standalone test harness where those are unset.
  */
 export class FloorplanStudioCardEditor extends LitElement {
-  static styles = css`
-    :host { display: block; font: 14px/1.4 system-ui, sans-serif; color: var(--primary-text-color, #212121); padding: 8px 0; }
-    .row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
-    .row label.main { flex: 0 0 120px; }
-    .row select, .row input[type="number"], .row input[type="text"] {
-      font: inherit; color: inherit; background: var(--card-background-color, #fff);
-      border: 1px solid var(--divider-color, #ccc); border-radius: 4px; padding: 4px 6px;
-    }
-    .floors { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-    .floors label { display: flex; align-items: center; gap: 4px; }
-    .fav-add input { flex: 1; min-width: 0; }
-    ul.fav { margin: 0; padding: 0; list-style: none; }
-    ul.fav li { display: flex; gap: 8px; padding: 2px 0; }
-    ul.fav .rm-x { flex: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: var(--error-color, #db4437); color: #fff; cursor: pointer; }
-    ul.fav .rm-x svg { width: 16px; height: 16px; fill: currentColor; pointer-events: none; }
-    ul.fav span { flex: 1; overflow-wrap: anywhere; }
-    p.hint { margin: 4px 0 0; color: var(--secondary-text-color, #727272); font-size: 12px; }
-  `;
+  static styles = css`:host { display: block; font: 14px/1.4 system-ui, sans-serif; color: var(--primary-text-color, #212121); padding: 8px 0; }.row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }.row label.main { flex: 0 0 120px; }.row select, .row input[type="number"], .row input[type="text"] {font: inherit; color: inherit; background: var(--card-background-color, #fff);border: 1px solid var(--divider-color, #ccc); border-radius: 4px; padding: 4px 6px;}.floors { display: flex; flex-wrap: wrap; gap: 4px 14px; }.floors label { display: flex; align-items: center; gap: 4px; }.fav-add input { flex: 1; min-width: 0; }ul.fav { margin: 0; padding: 0; list-style: none; }ul.fav li { display: flex; gap: 8px; padding: 2px 0; }ul.fav .rm-x { flex: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: var(--error-color, #db4437); color: #fff; cursor: pointer; }ul.fav .rm-x svg { width: 16px; height: 16px; fill: currentColor; pointer-events: none; }ul.fav span { flex: 1; overflow-wrap: anywhere; }p.hint { margin: 4px 0 0; color: var(--secondary-text-color, #727272); font-size: 12px; }`;
 
   private _config: EditorConfig = {};
   private _hass?: Hass;

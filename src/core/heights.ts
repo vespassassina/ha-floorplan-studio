@@ -45,6 +45,7 @@ export const UNLINKED_HEIGHTS: Record<DeviceType, number> = {
   screen: 160, // a panel on the wall, its top edge
   siren: 230, alarm: 120, // a siren high on the wall or ceiling; an alarm keypad at hand height
   cover: 200, // a blind or curtain motor sits up at the head of the window
+  power_meter: 160,
 };
 
 /** Mount height of the real object an icon stands for. Same reasoning as UNLINKED_HEIGHTS, but where it is fixed, not its top. */
@@ -66,6 +67,7 @@ export const DEVICE_Z: Record<DeviceType, number> = {
   siren: 205, alarm: 120,
   // A control screen on the wall at hand height (a 9 inch panel by the door, centred about 148 cm).
   screen: 140,
+  power_meter: 140,
 };
 
 /** `storey` means the wall rises to the ceiling of its floor (or its room). */

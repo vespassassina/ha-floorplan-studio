@@ -31,7 +31,7 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["media", "Media players"], ["cover", "Covers"], ["battery", "Batteries"], ["inverter", "Inverters"], ["server", "Servers"],
   ["access_point", "Access points"], ["lock", "Door locks"], ["vibration", "Vibration sensors"], ["other", "Other"],
   ["boiler", "Boiler"], ["car", "Car"], ["ups", "UPS"], ["printer", "3D printer"], ["speaker", "Speaker"], ["person", "People"],
-  ["radar", "mmWave radar"], ["vacuum", "Vacuums"], ["siren", "Siren"], ["alarm", "Alarm"], ["fan", "Fans"], ["screen", "Control screens"],
+  ["radar", "mmWave radar"], ["vacuum", "Vacuums"], ["siren", "Siren"], ["alarm", "Alarm"], ["fan", "Fans"], ["screen", "Control screens"], ["power_meter", "Power meters"],
 ];
 
 /** A type as a word in a sentence ("Added access point"): its label, lower case unless it is an initialism (UPS, AC, TV).
@@ -754,6 +754,7 @@ function roomPanel(c: PanelCtx, i: number) {
     <p>${button("rdel", "Delete", () => { c.commit((f) => { f.rooms.splice(i, 1); }); c.select(null); }, "warn")}</p>`)}
     ${c.st.ha ? heading("Home Assistant") : nothing}
     ${roomSensors(c, i)}
+    ${roomBadgesPanel(c, i)}
     ${ROOM_OWNS[r.kind] ? section(c, "room:temprange", "Temperature range", roomRangePanel(c, i)) : nothing}
     ${roomScenesPanel(c, i)}
     ${c.st.ha ? section(c, "room:ha", "In this area (Home Assistant)", haBox(c, i)) : nothing}
@@ -780,11 +781,17 @@ function roomPanel(c: PanelCtx, i: number) {
  */
 const ROOM_SENSORS: [RoomSensorField, string, string][] = [["temps", "rtemp", "temperature sensors"], ["humidity", "rhum", "humidity sensors"], ["motion", "rmot", "motion sensors"], ["power", "rpow", "power sensors"], ["water", "rwat", "water sensors"]];
 const BADGE_CORNER_NAMES: Record<string, string> = { off: "Off", nw: "Top left", ne: "Top right", sw: "Bottom left", se: "Bottom right" };
+function roomBadgesPanel(c: PanelCtx, i: number) {
+  const r = c.st.f.rooms[i];
+  if (!ROOM_OWNS[r.kind]) return nothing;
+  return section(c, "room:badges", "Badges", html`
+    ${select("Corner", "rbadge", r.badges?.corner ?? "off", ["off", ...ROOM_CORNERS], (v) => c.commit((f) => { if (v === "off") delete f.rooms[i].badges; else f.rooms[i].badges = { corner: v as (typeof ROOM_CORNERS)[number] }; }), BADGE_CORNER_NAMES)}
+  `);
+}
 function roomSensors(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
   if (!ROOM_OWNS[r.kind]) return nothing;
   return section(c, "room:sensors", "Sensors", html`
-    ${select("Badges", "rbadge", r.badges?.corner ?? "off", ["off", ...ROOM_CORNERS], (v) => c.commit((f) => { if (v === "off") delete f.rooms[i].badges; else f.rooms[i].badges = { corner: v as (typeof ROOM_CORNERS)[number] }; }), BADGE_CORNER_NAMES)}
     ${ROOM_SENSORS.map(([field, id, label]) => {
       const write = (f: Floor, next: string[]) => setRoomList(f.rooms[i], field, next);
       return multiAttachField(c, id, label, r[field] ?? [], c.st.roomSensorChoices(i, field), (next) => c.commit((f) => write(f, next)), { apply: write, targetLabel: r.name || "the room" }, { grouped: (avail) => groupSensorChoices(c.st.layout, avail, c.st.floor, r.name), boxed: true });

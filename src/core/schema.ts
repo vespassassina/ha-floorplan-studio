@@ -8,7 +8,7 @@ export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
   | "battery" | "inverter" | "server" | "access_point" | "lock" | "vibration" | "other"
-  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum" | "siren" | "alarm" | "fan" | "screen";
+  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum" | "siren" | "alarm" | "fan" | "screen" | "power_meter";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "sofa-l" | "coffee-table" | "bookcase" | "buffet" | "wardrobe" | "dresser" | "nightstand" | "desk" | "armchair" | "counter" | "stove" | "fridge" | "dishwasher" | "washer" | "dryer" | "rug" | "plant" | "treadmill" | "barbell-rack" | "weight-rack" | "chaise-longue" | "cube-shelf" | "mirror" | "mirror-stand" | "robot-vacuum" | "robot-dock" | "tv" | "computer" | "speaker" | "tree" | "patio-wood" | "patio-concrete" | "car" | "worktop"
@@ -298,12 +298,12 @@ export const isSiren = (d: { entity?: unknown }): boolean => typeof d.entity ===
 export const drawsEffect = (d: { type?: unknown; entity?: unknown }): boolean => (FX_TYPES as readonly unknown[]).includes(d.type) || isSiren(d);
 /** The effect size as a fraction (1 = the type's own size). A missing or invalid `fx` reads as 1. */
 export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX ? d.fx / 100 : 1);
-export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen"];
+export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen", "power_meter"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car", "worktop", "metal-shelf", "worktable", "wash-basin", "boiler", "water-tank"];
 /** S4.25: the appliance types offered in the Add > Unlinked device menu — a curated subset of DEVICE_TYPES, each with a fixed icon and no linked-entity state. "heatpump" reuses the "ac" icon and colour; there is no separate type for it. */
-export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light", "fan"];
+export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light", "fan", "power_meter"];
 
 /** What is wrong with one saved view, as short phrases; empty when it is good. Never throws. `floors` is the layout's floors: a view must name one of its own keys (not `__proto__`, not `constructor`). Shared by `validate` and `migrate`, so a view that migrate keeps is a view validate accepts. */
 export function viewProblems(v: unknown, floors: unknown): string[] {

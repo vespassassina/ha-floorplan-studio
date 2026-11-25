@@ -115,3 +115,19 @@ describe("S24.R10a typeNoun: a type as a word in a sentence", () => {
     expect(typeNoun("nonsense" as never)).toBe("device");
   });
 });
+
+describe("S70 studio badges: room Badges lives in its own collapsible section", () => {
+  it("renders Badges (#rbadge) in a separate details.pnl-sec from Sensors", () => {
+    const st = new EditorState(fresh());
+    st.sel = { t: "room", i: 0 };
+    const div = document.createElement("div");
+    render(selectionPanel(baseCtx(st)), div);
+    const secs = [...div.querySelectorAll("details.pnl-sec")];
+    const badgesSec = secs.find((s) => s.querySelector("summary")?.textContent === "Badges");
+    const sensorsSec = secs.find((s) => s.querySelector("summary")?.textContent === "Sensors");
+    expect(badgesSec).toBeTruthy();
+    expect(sensorsSec).toBeTruthy();
+    expect(badgesSec?.querySelector("#rbadge")).toBeTruthy();
+    expect(sensorsSec?.querySelector("#rbadge")).toBeNull();
+  });
+});

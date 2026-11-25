@@ -25,7 +25,7 @@ export const CATEGORY_OF: Record<DeviceType, CategoryId> = {
   heater: "climate", climate: "climate", ac: "climate", boiler: "climate", fan: "climate",
   camera: "security", siren: "security", alarm: "security", lock: "security", motion: "security", contact: "security", vibration: "security", radar: "security",
   tv: "media", media: "media", speaker: "media",
-  switch: "power", plug: "power", battery: "power", inverter: "power", ups: "power",
+  switch: "power", plug: "power", battery: "power", inverter: "power", ups: "power", power_meter: "power",
   cover: "covers",
   computer: "computing", server: "computing", access_point: "computing", printer: "computing",
   temp: "sensors", humidity: "sensors",

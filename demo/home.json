@@ -60,6 +60,7 @@
     {"id":"server-server","type":"server","entity":"sensor.demo_server","name":"Server","x":650,"y":480},
     {"id":"access-point-ap-basement","type":"access_point","entity":"sensor.demo_ap_basement","name":"Basement access point","x":650,"y":765},
     {"id":"other-water-meter","type":"other","entity":"sensor.demo_water_meter","name":"Water meter","x":650,"y":570},
+    {"id":"power-meter-power-meter","type":"power_meter","entity":"sensor.demo_power_meter","name":"Power meter","x":650,"y":660},
     {"id":"light-wine-cellar","type":"light","entity":"light.demo_wine_cellar","name":"Wine cellar light","x":800,"y":560},
     {"id":"temp-wine-cellar-t","type":"temp","entity":"sensor.demo_wine_cellar_temperature","name":"Wine cellar temperature","x":740,"y":470},
     {"id":"humidity-wine-cellar-h","type":"humidity","entity":"sensor.demo_wine_cellar_humidity","name":"Wine cellar humidity","x":760,"y":470}
@@ -511,6 +512,14 @@
    "type": "other",
    "name": "Water meter",
    "entity": "sensor.demo_water_meter"
+  },
+  {
+   "id": "power-meter-power-meter",
+   "floor": "basement",
+   "room": "Technical",
+   "type": "power_meter",
+   "name": "Power meter",
+   "entity": "sensor.demo_power_meter"
   },
   {
    "id": "light-wine-cellar",
