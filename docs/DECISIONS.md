@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-25: Streamlined Overview KPIs, Studio/Card right-click menus, and chunk budgets (S74–S76)
+
+1. S74 placed the Home Glance KPI strip (lights, open openings, power + cost, temperature, water, gas) inside the lazy `floorplan-studio-overview-<hash>.js` chunk (9,947 B gz; raised `OVERVIEW_CHUNK_LIMIT` from 9,000 to 11,000 B; 0 B added to the card) and removed the redundant `"Tap a row: the plan goes to it."` hint from the UI and all 9 language catalogues.
+2. S76 placed the Card 2D/3D right-click context menu and hit resolution inside the lazy `floorplan-studio-dialogs-<hash>.js` chunk (well under its 4,000 B cap). With S70 (`power_meter`), S72 (`whiteOnly`), S73 (`home` default theme), and S76 (`_onCardCtx` hook), `floorplan-studio-card.js` measured 138,498 B gz; raised `CARD_GROWTH_LIMIT` by +1,000 B (`<= 139,000` B gz).
+
 ## 2026-11-25: New default `home` theme and luminous 2D/3D lighting (S73)
 
 1. Added `home` (light + dark auto-following HA's dark mode) to `THEMES` and set it as the default theme for new/unset cards and Studio sessions (approved by Diego 2026-11-25). Existing configs with an explicit `theme` (such as `blueprint`) keep their chosen theme. Recorded in `tests/card/surface-freeze.test.ts`.

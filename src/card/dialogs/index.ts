@@ -6,6 +6,15 @@ import type { FloorplanStudioCard } from "../floorplan-studio-card";
 
 export const DIALOGS_CHUNK = "fp-dialogs-v1";
 
+export type CardCtxTarget =
+  | { kind: "dev"; index: number }
+  | { kind: "furn"; index: number }
+  | { kind: "room"; index: number }
+  | { kind: "canvas" };
+
+export interface CardCtxMenu { x: number; y: number; target: CardCtxTarget }
+
+const CTX_TOGGLE_TYPES = new Set(["light", "switch", "plug", "fan", "media", "tv", "speaker", "cover", "lock", "climate", "ac", "heater"]);
 const OFF_GROUPS = ["lights", "switches", "plugs", "fans", "media"] as const;
 const OFF_GROUP_LABEL: Record<(typeof OFF_GROUPS)[number], string> = { lights: "Lights", switches: "Switches", plugs: "Plugs", fans: "Fans", media: "Media" };
 const OFF_DOMAINS = ["light", "switch", "media_player"];
@@ -41,7 +50,12 @@ const DIALOGS_CSS = `
 .fp-off-row{display:flex;align-items:center;gap:8px;min-height:32px;font:13px/1.3 var(--fp-font,system-ui,sans-serif);cursor:pointer}
 .fp-off-row input{width:18px;height:18px;margin:0;flex:0 0 auto;accent-color:var(--fp-primary)}
 .fp-off-via{font-size:11px;color:var(--fp-text)}
-@media (pointer:coarse){.fp-dialog-actions button{min-height:44px;min-width:44px}.fp-chooser-list button,.fp-off-row{min-height:44px}}
+.fp-ctx-backdrop{position:fixed;inset:0;z-index:20}
+.fp-ctx{position:fixed;z-index:21;min-width:170px;max-width:240px;display:flex;flex-direction:column;gap:2px;padding:6px;background:var(--fp-room);color:var(--fp-ink);border:1px solid var(--fp-idle);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.32)}
+.fp-ctx-h{padding:4px 8px 6px;margin-bottom:2px;border-bottom:1px solid color-mix(in srgb,var(--fp-idle) 35%,transparent);font:600 12px/1.2 var(--fp-font,system-ui,sans-serif);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fp-ctx button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;border:none;background:transparent;color:inherit;font:13px/1.3 var(--fp-font,system-ui,sans-serif);padding:6px 8px;border-radius:6px;cursor:pointer}
+.fp-ctx button:hover,.fp-ctx button:focus-visible{background:color-mix(in srgb,var(--fp-ink) 10%,transparent);outline:none}
+@media (pointer:coarse){.fp-dialog-actions button{min-height:44px;min-width:44px}.fp-chooser-list button,.fp-off-row,.fp-ctx button{min-height:44px}}
 `;
 
 export interface DialogDeps {
@@ -55,6 +69,13 @@ export interface DialogDeps {
   closeOff: (c: FloorplanStudioCard) => void;
   closeVacuum: (c: FloorplanStudioCard) => void;
   closeChooser: (c: FloorplanStudioCard) => void;
+  closeCtx: (c: FloorplanStudioCard) => void;
+  openPopup: (c: FloorplanStudioCard, sub: { device: Device; index: number }, at: { x: number; y: number }) => void;
+  openHistory: (c: FloorplanStudioCard, entity: string, name: string) => void;
+  pickRoom: (c: FloorplanStudioCard, index: number) => void;
+  resetView: (c: FloorplanStudioCard) => void;
+  toggleView: (c: FloorplanStudioCard) => void;
+  toggleLabels: (c: FloorplanStudioCard) => void;
 }
 
 function chooserEntityName(card: FloorplanStudioCard, entityId: string): string {
@@ -176,18 +197,99 @@ export function renderChooserDialog(d: DialogDeps, card: FloorplanStudioCard): u
   `;
 }
 
+export function resolveCtxMenu(c: FloorplanStudioCard, x: number, y: number, el: Element | null): CardCtxMenu | null {
+  if (!c._floor()) return null;
+  let target: CardCtxTarget = { kind: "canvas" };
+  if (c._shows3d()) {
+    const h = c._view3d?.hit(x, y);
+    if (h?.kind === "device") target = { kind: "dev", index: h.index };
+    else if (h?.kind === "solid" && h.solid.kind === "furniture" && typeof h.solid.ref.index === "number") target = { kind: "furn", index: h.solid.ref.index };
+    else if (h?.kind === "solid" && h.solid.kind === "room" && typeof h.solid.ref.index === "number") target = { kind: "room", index: h.solid.ref.index };
+  } else {
+    const dx = el?.closest?.("g[data-x], [data-xbar]"), df = el?.closest?.("[data-f]"), dr = el?.closest?.("[data-r]");
+    if (dx) target = { kind: "dev", index: Number(dx.getAttribute("data-x") ?? dx.getAttribute("data-xbar") ?? -1) };
+    else if (df) target = { kind: "furn", index: Number(df.getAttribute("data-f") ?? -1) };
+    else if (dr) target = { kind: "room", index: Number(dr.getAttribute("data-r") ?? -1) };
+  }
+  return { x, y, target };
+}
+
+function renderCtxMenu(d: DialogDeps, c: FloorplanStudioCard): unknown {
+  const m = c._ctxMenu;
+  const fl = c._floor();
+  if (!m || !fl) return null;
+  const { html, nothing, t } = d;
+  const kiosk = c._kiosk();
+  const replaying = c._replayGuard().replaying();
+  const left = Math.max(8, Math.min(m.x, (globalThis.innerWidth ?? 800) - 210));
+  const top = Math.max(8, Math.min(m.y, (globalThis.innerHeight ?? 600) - 180));
+  const act = (fn: () => void) => () => { d.closeCtx(c); fn(); };
+  let title = "";
+  const rows: unknown[] = [];
+
+  if (m.target.kind === "dev") {
+    const dev = fl.devices[m.target.index];
+    if (!dev) return null;
+    const st = c._hass?.states[dev.entity];
+    const isOn = st?.state === "on" || st?.state === "open" || st?.state === "playing" || st?.state === "unlocked";
+    title = dev.name || String(st?.attributes?.friendly_name ?? dev.entity);
+    if (!replaying && dev.entity && CTX_TOGGLE_TYPES.has(dev.type)) {
+      const dom = dev.entity.split(".")[0] ?? "homeassistant";
+      const svc = dom === "cover" ? (isOn ? "close_cover" : "open_cover")
+        : dom === "lock" ? (isOn ? "lock" : "unlock")
+          : isOn ? "turn_off" : "turn_on";
+      const lbl = dom === "cover" ? (isOn ? t("Close") : t("Open")) : isOn ? t("Turn off") : t("Turn on");
+      rows.push(html`<button type="button" data-ctx="toggle" @click=${act(() => d.callService(c, dom, svc, { entity_id: dev.entity }))}>${lbl}</button>`);
+    }
+    rows.push(html`<button type="button" data-ctx="popup" @click=${act(() => d.openPopup(c, { device: dev, index: m.target.kind === "dev" ? m.target.index : 0 }, { x: m.x, y: m.y }))}>${t("Overview")}</button>`);
+    if (!kiosk && dev.entity) {
+      rows.push(html`<button type="button" data-ctx="more" @click=${act(() => d.fireEvent(c, "hass-more-info", { entityId: dev.entity }))}>${t("More info")}</button>`);
+      rows.push(html`<button type="button" data-ctx="history" @click=${act(() => d.openHistory(c, dev.entity, title))}>${t("History")}</button>`);
+    }
+  } else if (m.target.kind === "furn") {
+    const fn = fl.furniture?.[m.target.index];
+    if (!fn) return null;
+    title = fn.name || fn.symbol;
+    if (!kiosk && fn.entity) {
+      rows.push(html`<button type="button" data-ctx="more" @click=${act(() => d.fireEvent(c, "hass-more-info", { entityId: fn.entity }))}>${t("More info")}</button>`);
+      rows.push(html`<button type="button" data-ctx="history" @click=${act(() => d.openHistory(c, fn.entity!, title))}>${t("History")}</button>`);
+    }
+  } else if (m.target.kind === "room") {
+    const rm = fl.rooms[m.target.index];
+    if (!rm) return null;
+    title = rm.name;
+    rows.push(html`<button type="button" data-ctx="room" @click=${act(() => d.pickRoom(c, m.target.kind === "room" ? m.target.index : 0))}>${t("Overview")}</button>`);
+    rows.push(html`<button type="button" data-ctx="fit" @click=${act(() => d.resetView(c))}>${t("Fit")}</button>`);
+  } else {
+    rows.push(html`<button type="button" data-ctx="fit" @click=${act(() => d.resetView(c))}>${t("Fit")}</button>`);
+    rows.push(html`<button type="button" data-ctx="view" @click=${act(() => d.toggleView(c))}>${c._shows3d() ? "2D" : "3D"}</button>`);
+    rows.push(html`<button type="button" data-ctx="labels" @click=${act(() => d.toggleLabels(c))}>${t("Labels")}</button>`);
+  }
+  if (!rows.length) return null;
+  return html`
+    <style>${DIALOGS_CSS}</style>
+    <div class="fp-ctx-backdrop" @click=${() => d.closeCtx(c)} @contextmenu=${(e: Event) => { e.preventDefault(); d.closeCtx(c); }}></div>
+    <div class="fp-ctx" role="menu" style="left:${left}px;top:${top}px" @keydown=${c._onDialogKeydown} @contextmenu=${(e: Event) => e.preventDefault()}>
+      ${title ? html`<div class="fp-ctx-h">${title}</div>` : nothing}
+      ${rows}
+    </div>
+  `;
+}
+
 export function renderDialogs(d: DialogDeps, c: FloorplanStudioCard): unknown {
   return c._coverDialog ? renderCoverDialog(d, c)
     : c._vacuumDialog ? renderVacuumDialog(d, c)
     : c._chooserDialog ? renderChooserDialog(d, c)
     : c._offDialog ? renderOffDialog(d, c)
+    : c._ctxMenu ? renderCtxMenu(d, c)
     : null;
 }
 
 export function handleDialogKeydown(d: DialogDeps, c: FloorplanStudioCard, e: KeyboardEvent): void {
   if (e.key === "Escape") {
     e.preventDefault();
-    if (c._vacuumDialog) d.closeVacuum(c);
+    if (c._ctxMenu) d.closeCtx(c);
+    else if (c._vacuumDialog) d.closeVacuum(c);
     else if (c._chooserDialog) d.closeChooser(c);
     else if (c._offDialog) d.closeOff(c);
     else d.closeCover(c);

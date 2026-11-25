@@ -2,8 +2,9 @@ import { type Device, type Door, floorOffRows } from "../core";
 import { t } from "../core/i18n";
 import { fireEvent } from "./actions";
 import { html, nothing } from "lit";
-import { floorTitle } from "./card-overview";
-import { callService, closePopup } from "./card-popup";
+import { floorTitle, pickRoom } from "./card-overview";
+import { openHistory } from "./card-extras";
+import { callService, closePopup, openPopup } from "./card-popup";
 import { lazy } from "./lazy";
 import type { FloorplanStudioCard } from "./floorplan-studio-card";
 import type { DialogDeps } from "./dialogs";
@@ -17,8 +18,19 @@ function ensureDialogs(c: FloorplanStudioCard): void {
 
 /** Whether any of the card's dialogs is open. Only one is ever open; each `open…Dialog` checks this first. */
 export function dialogOpen(c: FloorplanStudioCard): boolean {
-  return !!(c._coverDialog || c._vacuumDialog || c._chooserDialog || c._offDialog);
+  return !!(c._coverDialog || c._vacuumDialog || c._chooserDialog || c._offDialog || c._ctxMenu);
 }
+
+export const openCtxMenu = (c: FloorplanStudioCard, e: MouseEvent): void => {
+  e.preventDefault();
+  closePopup(c);
+  const { clientX: x, clientY: y } = e, el = e.target as Element | null;
+  const apply = (lib: DialogsLib) => { c._ctxMenu = lib.resolveCtxMenu(c, x, y, el); c.requestUpdate(); };
+  const lib = dialogsMod.get();
+  if (lib) apply(lib);
+  else void dialogsMod.load().then((m) => { if (c.isConnected) apply(m); }, () => {});
+};
+export const closeCtxMenu = (c: FloorplanStudioCard): void => { c._ctxMenu = null; c.requestUpdate(); };
 
 function openDlg(c: FloorplanStudioCard, set: () => void): void {
   if (dialogOpen(c)) return;
@@ -62,6 +74,13 @@ export function closeOffDialog(c: FloorplanStudioCard): void { c._offDialog = nu
 const deps: DialogDeps = {
   html, nothing, t, fireEvent, callService, coverService,
   closeCover: closeCoverDialog, closeOff: closeOffDialog, closeVacuum: closeVacuumDialog, closeChooser: closeChooserDialog,
+  closeCtx: closeCtxMenu,
+  openPopup: (c, sub, at) => openPopup(c, sub, at, null),
+  openHistory: (c, entity, name) => openHistory(c, name, [entity]),
+  pickRoom,
+  resetView: (c) => { c._view3d?.reset(); c._view = null; c.requestUpdate(); },
+  toggleView: (c) => { c._pickedView = c._shows3d() ? "2d" : "3d"; c._fallback3d = null; c.requestUpdate(); },
+  toggleLabels: (c) => { c._pickedLabels = !c._labels(); c.requestUpdate(); },
 };
 
 export const dialogsTemplate = (c: FloorplanStudioCard) => (dialogOpen(c) ? dialogsMod.get()?.renderDialogs(deps, c) ?? null : null);
