@@ -10,7 +10,7 @@ import { panelVar } from "./theme";
 import type { HaData } from "../core";
 import type { FloorplanStudioEditor } from "./editor-app";
 import { CARD_VERSION } from "../card/version";
-import { clearDraft, loadLayout, readDraft } from "./state";
+import { clearDraft, isBlank, loadLayout, readDraft } from "./state";
 
 /** "2026-10-21 14:03" in the browser's time zone, 24 h; "an earlier session" when the draft carries no usable time. */
 function draftTime(iso: string): string {
@@ -30,6 +30,7 @@ interface PanelHass {
 }
 
 const REPO_URL = "https://github.com/vespassassina/ha-floorplan-studio/";
+const AUTOSAVE_MS = 30_000;
 
 /** The update HACS offers for this integration, if any. Matched by its release URL, so a renamed entity is still found. The prefix is checked, not a substring: the URL ends up in a link href. */
 function findUpdate(hass: PanelHass | undefined) {
@@ -81,6 +82,7 @@ export class FloorplanStudioPanel extends LitElement {
   private draft: unknown = null;
   private saving = false;
   private saveQueued = false;
+  private autosaveTimer: ReturnType<typeof setInterval> | null = null;
   /** Empty, or what to tell the person after the server refused a save because the plan changed elsewhere. */
   declare conflict: string;
   /** The stored revision this page last saw; null when the integration does not report one (then a save carries no `expected_rev`). */
@@ -109,11 +111,20 @@ export class FloorplanStudioPanel extends LitElement {
     super.connectedCallback();
     document.addEventListener("visibilitychange", this.onVisible);
     window.addEventListener("beforeunload", this.onUnload);
+    if (this.autosaveTimer) clearInterval(this.autosaveTimer);
+    this.autosaveTimer = setInterval(() => this.autosave(), AUTOSAVE_MS);
   }
   disconnectedCallback() {
     document.removeEventListener("visibilitychange", this.onVisible);
     window.removeEventListener("beforeunload", this.onUnload);
+    if (this.autosaveTimer) { clearInterval(this.autosaveTimer); this.autosaveTimer = null; }
     super.disconnectedCallback();
+  }
+  private autosave() {
+    if (!this.hass || !this.ready || this.saving || this.stale || this.conflict) return;
+    const ed = this.editor();
+    if (!ed || !ed.dirty || isBlank(ed.st.layout)) return;
+    ed.save();
   }
   private editor() { return this.renderRoot?.querySelector("floorplan-studio-editor") as FloorplanStudioEditor | null; }
   /** Asks the integration which version is installed. Any failure or odd reply says nothing: a guard must never be the thing that breaks the panel. */

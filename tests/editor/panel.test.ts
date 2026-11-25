@@ -355,4 +355,40 @@ describe("<floorplan-studio-panel>", () => {
       el.remove();
     }
   });
+
+  it("S71: autosaves dirty non-blank edits every 30 seconds and stops when clean or disconnected", async () => {
+    vi.useFakeTimers();
+    try {
+      const hass = stubHass((m) => (m.type === "floorplan_studio/load" ? { layout: L } : { rev: 2 }));
+      const el = new FloorplanStudioPanel();
+      document.body.appendChild(el);
+      el.hass = hass as never;
+      for (let i = 0; i < 4; i++) { await el.updateComplete; await vi.advanceTimersByTimeAsync(0); }
+
+      const saves = () => hass.callWS.mock.calls.filter(([m]) => m.type === "floorplan_studio/save");
+      // Clean plan: 30s passes without saving.
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(saves()).toHaveLength(0);
+
+      // Make an edit: dirty plan autosaves at 30s and becomes clean.
+      const ed = editorOf(el)!;
+      ed.st.edit((f) => { f.title = "Edited"; });
+      expect(ed.dirty).toBe(true);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(saves()).toHaveLength(1);
+      expect(ed.dirty).toBe(false);
+
+      // Next 30s with no new edits: no extra save.
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(saves()).toHaveLength(1);
+
+      // Disconnected panel stops autosaving even when dirty.
+      ed.st.edit((f) => { f.title = "After remove"; });
+      el.remove();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(saves()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
