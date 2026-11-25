@@ -639,7 +639,7 @@ export class FloorplanStudioEditor extends LitElement {
     // so the editor's own chrome (menus, panels, buttons) themes with the plan. data-mode is for the ha theme only.
     this.setAttribute("data-theme", this.st.theme);
     this.toggleAttribute("data-narrow", this.narrow);
-    if (this.st.theme === "ha" && this.isDark()) this.setAttribute("data-mode", "dark");
+    if ((this.st.theme === "ha" || this.st.theme === "home") && this.isDark()) this.setAttribute("data-mode", "dark");
     else this.removeAttribute("data-mode");
   }
 

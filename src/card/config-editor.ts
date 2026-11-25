@@ -15,7 +15,7 @@ type ZoomChoice = "on" | "wheel" | "off";
 const TAP_CHOICES: readonly (readonly [TapAction, string])[] = [["popup", "Popup"], ["more-info", "More info"], ["toggle", "Toggle"], ["none", "Nothing"]];
 const HOLD_CHOICES: readonly (readonly [HoldAction, string])[] = [["more-info", "More info"], ["none", "Nothing"]];
 
-const DEFAULT_THEME: Theme = "blueprint";
+const DEFAULT_THEME: Theme = "home";
 const DEFAULT_FADE = 120;
 const DEFAULT_ROOM_GLOW = false;
 // Matches PLUG_ACTIVE_WATTS in core/power.ts, kept apart like the defaults around it.

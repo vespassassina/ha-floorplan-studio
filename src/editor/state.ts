@@ -41,7 +41,7 @@ function readMeasure(): boolean {
 export const THEME_KEY = "floorplan-studio:theme";
 export const THEME_VALUES = THEMES;
 export type ThemeChoice = Theme;
-export const DEFAULT_THEME: ThemeChoice = "blueprint";
+export const DEFAULT_THEME: ThemeChoice = "home";
 /** The stored choice, or blueprint when there is none, it is not one of the three (an old "auto" or "dark" lands here), or storage is blocked. */
 function readTheme(): ThemeChoice {
   try {

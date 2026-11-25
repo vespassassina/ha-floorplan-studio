@@ -115,6 +115,6 @@ describe("the stylesheet gives every one of those classes a rule that reads a --
     expect(FLOORPLAN_CSS).toMatch(/\.opn\{[^}]*var\(--fp-open-door\)/);
     expect(FLOORPLAN_CSS).toMatch(/\.door-leaf\{[^}]*var\(--fp-door\)/);
     expect(FLOORPLAN_CSS).toMatch(/\.ws\.sealed\.open[^{]*\{[^}]*var\(--fp-open-door\)/);
-    expect(THEMES.length).toBe(13);
+    expect(THEMES.length).toBe(14);
   });
 });

@@ -123,7 +123,7 @@ const hex = (n: number) => n.toString(16).padStart(6, "0");
 /** radians. How far an open door's leaf swings about its hinge: about 70 degrees. */
 const SWING = (70 * Math.PI) / 180;
 /** The lights' strength by day and by night, and how much more a lit room and a lamp's pool count at night, against the dark. */
-const DAY = { hemi: 1.6, sun: 1.9, boost: 1.3 }, NIGHT = { hemi: 0.5, sun: 0.35, boost: 3.5 };
+const DAY = { hemi: 1.45, sun: 1.75, boost: 1.35 }, NIGHT = { hemi: 0.78, sun: 0.55, boost: 3.2 };
 const EMPTY: Live3D = { pulse: [3, 1.4], night: false, labels: false, names: false, lights: [], heated: [], doors: [], devices: [], pieces: [], rooms: [] };
 const hexOf = (c: Color) => `#${c.getHexString()}`;
 
@@ -169,7 +169,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
 
   const buildScene = makeBuildScene(opts.deps.scene), liveOf = makeLiveOf(opts.deps.live);
   const scene = new Scene(), camera = new PerspectiveCamera(FOV, 1, 1, 1000);
-  const hemi = new HemisphereLight(0xffffff, 0x8a8a8a, DAY.hemi);
+  const hemi = new HemisphereLight(0xf2f7ff, 0xcabca8, DAY.hemi);
   scene.add(hemi);
   const sun = new DirectionalLight(0xffffff, DAY.sun);
   const FIXED_SUN: [number, number, number] = [-0.5, 1, 0.8]; // from the south-west, above: the south and west faces catch it, the others stay in half tone
@@ -864,7 +864,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   function applySun(L: Live3D, mode: typeof DAY): { dir: [number, number, number]; az: number; el: number; north: number; rgb: Rgb } | null {
     const s = (__FP3D_TEST__ && forcedSun !== undefined ? forcedSun : L.sun) as { azimuth?: unknown; elevation?: unknown; north?: unknown } | null | undefined;
     const dir = L.night || typeof s !== "object" || s === null ? null : sunDir(s.azimuth, s.elevation, s.north ?? 0);
-    if (!dir) { sun.position.set(...FIXED_SUN); sun.color.setRGB(1, 1, 1, SRGBColorSpace); sun.intensity = mode.sun; return null; }
+    if (!dir) { sun.position.set(...FIXED_SUN); if (L.night) sun.color.setRGB(0.75, 0.84, 0.98, SRGBColorSpace); else sun.color.setRGB(1, 0.97, 0.92, SRGBColorSpace); sun.intensity = mode.sun; return null; }
     const look = sunLook(s!.elevation as number);
     sun.position.set(dir[0], dir[2], dir[1]);
     sun.color.setRGB(...look.rgb, SRGBColorSpace); // sRGB: `setRGB` takes the linear working space unless told, and #ffd9a0 would read back as #ffeed0
@@ -889,6 +889,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   function applyLive() {
     const L = liveNow ?? EMPTY, mode = L.night ? NIGHT : DAY;
     hemi.intensity = mode.hemi;
+    hemi.color.setHex(L.night ? 0xb6cdf2 : 0xf2f7ff);
+    hemi.groundColor.setHex(L.night ? 0x3e3a36 : 0xcabca8);
     const sunNow = applySun(L, mode);
     const lit = L.lights.map((l) => ({ room: l.room, at: l.at, rgb: rgbOf(l.rgb), level: l.level, device: l.device, scale: l.scale ?? 1, lamp: l.lamp }));
     lifts = roomLifts(lit, mode.boost);
@@ -896,9 +898,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     const key = JSON.stringify([[...lifts], [...heatTint]]);
     if (key !== liftKey) { liftKey = key; for (const m of meshes) paintLifts(m); for (const m of wallMeshes) paintLifts(m); }
     const b = plan?.bounds, centre: [number, number] = b ? [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2] : [0, 0];
+    const gBox: readonly [number, number][] | null = b ? [[b.min[0] - 400, b.min[1] - 400], [b.max[0] + 400, b.min[1] - 400], [b.max[0] + 400, b.max[1] + 400], [b.min[0] - 400, b.max[1] + 400]] : null;
     const here = lit.filter((l) => roomSolid.has(l.room));
-    pools.set(pickLights(here, centre, MAX_POOLS).map((l) => { const r = roomSolid.get(l.room)!; return { at: l.at, z: r.z, base: r.base, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale, lamp: l.lamp }; }));
-    container.dataset.pools = `${pools.visible()}/${here.length}`;
+    const poolLights = lit.filter((l) => roomSolid.has(l.room) || (l.room < 0 && gBox));
+    pools.set(pickLights(poolLights, centre, MAX_POOLS).map((l) => {
+      const r = roomSolid.get(l.room);
+      return { at: l.at, z: r ? r.z : 0, base: r ? r.base : gBox!, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale, lamp: l.lamp };
+    }));
+    container.dataset.pools = `${pools.visible()}/${poolLights.length}`;
     // The same lamps light the walls of their rooms: a lamp's own height is its icon's (held under the walls), else a standing lamp's.
     // S23.8: the theme kind is the one the 2D glow blends by (`--fp-glow-blend`, ink.ts themeExtras): multiply means a light theme.
     const light = getComputedStyle(probe).getPropertyValue("--fp-glow-blend").trim() === "multiply";

@@ -1198,7 +1198,7 @@ export class FloorplanStudioCard extends LitElement {
   _theme(): Theme {
     if (this._pickedTheme) return this._pickedTheme;
     const t = this._config.theme;
-    return isTheme(t) ? t : "blueprint";
+    return isTheme(t) ? t : "home";
   }
 
   /** Whether the names and values show: the toggle's pick, else `config.labels` (only a real `false` hides). */
@@ -1397,7 +1397,7 @@ export class FloorplanStudioCard extends LitElement {
     this._measurePx();
     const t = this._theme();
     this.setAttribute("data-theme", t);
-    if (t === "ha" && this._haDark()) this.setAttribute("data-mode", "dark");
+    if ((t === "ha" || t === "home") && this._haDark()) this.setAttribute("data-mode", "dark");
     else this.removeAttribute("data-mode");
 
     // S9.1: open_color overrides --fp-open-door on the host itself, which every theme's own [data-theme] rule

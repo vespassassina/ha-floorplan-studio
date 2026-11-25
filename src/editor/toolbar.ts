@@ -94,7 +94,7 @@ export const toolbarCss = css`
 /** What each theme is called on its chip. `ha` says what it does rather than what it is. */
 const HEAT_LABELS: Record<(typeof HEAT_KINDS)[number], string> = { off: "Off", temperature: "Temperature", humidity: "Humidity" };
 const THEME_LABELS: Record<(typeof THEME_VALUES)[number], string> = {
-  blueprint: "Blueprint", midnight: "Midnight", light: "Light", slate: "Light Gray", terminal: "Terminal", solarized: "Solarized", ha: "Home Assistant",
+  home: "Home", blueprint: "Blueprint", midnight: "Midnight", light: "Light", slate: "Light Gray", terminal: "Terminal", solarized: "Solarized", ha: "Home Assistant",
   coffee: "Coffee", "a-team": "A-Team", space: "Space", cyberpunk: "Cyberpunk", "carpenter-brut": "Carpenter Brut", "beach-house": "Beach House",
 };
 

@@ -14,7 +14,7 @@ const CONFIG_KEYS = [
   "idle_return", "idle_dim", "header_clock",
 ];
 const FROZEN_THEMES = [
-  "blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha", "coffee", "a-team", "space", "cyberpunk",
+  "home", "blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha", "coffee", "a-team", "space", "cyberpunk",
   "carpenter-brut", "beach-house",
 ];
 const FROZEN_CARS = ["sedan", "wagon", "suv", "offroad", "truck", "van", "utility", "citycar", "electric"];

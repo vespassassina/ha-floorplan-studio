@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-25: New default `home` theme and luminous 2D/3D lighting (S73)
+
+1. Added `home` (light + dark auto-following HA's dark mode) to `THEMES` and set it as the default theme for new/unset cards and Studio sessions (approved by Diego 2026-11-25). Existing configs with an explicit `theme` (such as `blueprint`) keep their chosen theme. Recorded in `tests/card/surface-freeze.test.ts`.
+2. Replaced flat studio-white 3D lighting with warm sky/earth hemisphere bounce by day (`#f2f7ff`/`#cabca8`, `hemi: 1.65`) and luminous moonlight twilight at night (`#b6cdf2`/`#3e3a36`, `hemi: 0.78`, `sun: 0.55`), tinted the 3D exterior ground plane softly toward `--fp-garden`, softened the 2D night overlay, and enabled 3D floor light pools for outdoor lights (`room < 0`).
+
 ## 2026-11-24: Wall-tablet & kiosk polish config keys (S65)
 
 1. Added `idle_return?: number`, `idle_dim?: number`, and `header_clock?: boolean` to `FloorplanStudioCardConfig` (`docs/specs/kiosk-polish-s65.md`, approved by Diego 2026-11-24) and recorded them in `tests/card/surface-freeze.test.ts`.

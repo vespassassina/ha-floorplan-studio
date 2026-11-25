@@ -29,7 +29,7 @@ export const isView = (v: unknown): v is CardView => VIEW_OPTIONS.some((o) => o.
 
 /** The Theme dropdown's labels. A Record over `Theme`, so a theme added to core fails the build here until it has a name. */
 export const THEME_LABELS: Record<Theme, string> = {
-  blueprint: "Blueprint", midnight: "Midnight", light: "Light|theme", slate: "Slate", terminal: "Terminal", solarized: "Solarized",
+  home: "Home", blueprint: "Blueprint", midnight: "Midnight", light: "Light|theme", slate: "Slate", terminal: "Terminal", solarized: "Solarized",
   ha: "Home Assistant", coffee: "Coffee", "a-team": "A-Team", space: "Space", cyberpunk: "Cyberpunk",
   "carpenter-brut": "Carpenter Brut", "beach-house": "Beach house",
 };

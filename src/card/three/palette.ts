@@ -80,7 +80,7 @@ TABLE.set("car-tyre", solid("color-mix(in srgb, var(--fp-bg) 8%, black)"));
 TABLE.set("car-trim", solid("color-mix(in srgb, var(--fp-ink) 25%, black)"));
 TABLE.set("car-charge", solid("var(--fp-dev-car, var(--fp-active))")); // --fp-dev-car is S35.4's token; --fp-active until it lands
 TABLE.set("backdrop", solid("var(--fp-bg)"));
-TABLE.set("ground", solid(mix("--fp-ink", 6, "--fp-bg"))); // S28.8: the plane under the house
+TABLE.set("ground", solid(mix("--fp-garden", 24, "--fp-bg"))); // S73: soft outdoor surround instead of near-black slab
 TABLE.set("shade", solid("var(--fp-shade)")); // S28.8: contact shadows; their strength is --fp-shade-alpha, read by the viewer
 for (const k of ROOM_KINDS) TABLE.set(`room-${k}`, solid(ROOM[k] ?? "var(--fp-room)"));
 for (const k of WALL_KINDS) TABLE.set(`wall-${k}`, solid(WALL[k] ?? "var(--fp-wall)"));

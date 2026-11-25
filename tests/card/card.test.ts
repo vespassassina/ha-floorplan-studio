@@ -253,14 +253,16 @@ describe("FloorplanStudioCard", () => {
     expect(el.shadowRoot!.textContent).toContain("north must be a number");
   });
 
-  it("draws blueprint by default, whatever hass.themes.darkMode says, and takes light or ha from the config", async () => {
+  it("draws home by default (adapting data-mode to darkMode), and takes light or ha from the config", async () => {
     const el = await mount();
     el.setConfig({ layout: structuredClone(L) });
-    for (const dark of [true, false]) {
-      el.hass = stubHass({}, dark) as never;
-      await el.updateComplete;
-      expect(el.shadowRoot!.querySelector("svg")!.innerHTML).toContain('data-theme="blueprint"');
-    }
+    el.hass = stubHass({}, true) as never;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector("svg")!.innerHTML).toContain('data-theme="home" data-mode="dark"');
+    el.hass = stubHass({}, false) as never;
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector("svg")!.innerHTML).toContain('data-theme="home"');
+    expect(el.shadowRoot!.querySelector("svg")!.innerHTML).not.toContain('data-mode="dark"');
     el.setConfig({ layout: structuredClone(L), theme: "light" });
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector("svg")!.innerHTML).toContain('data-theme="light"');
@@ -1328,10 +1330,15 @@ describe("FloorplanStudioCard", () => {
     expect(sizeAt90).not.toBe(sizeAt0);
   });
 
-  it("sets data-theme on the host itself, matching the plan; an unknown theme falls back to blueprint; data-mode is for ha in dark only (Opus review)", async () => {
+  it("sets data-theme on the host itself, matching the plan; an unknown theme falls back to home; data-mode is for home and ha in dark only", async () => {
     const el = await mount();
     el.setConfig({ layout: structuredClone(L) });
     el.hass = stubHass({}, true) as never;
+    await el.updateComplete;
+    expect(el.getAttribute("data-theme")).toBe("home");
+    expect(el.getAttribute("data-mode")).toBe("dark");
+
+    el.setConfig({ layout: structuredClone(L), theme: "blueprint" });
     await el.updateComplete;
     expect(el.getAttribute("data-theme")).toBe("blueprint");
     expect(el.hasAttribute("data-mode")).toBe(false);
@@ -1347,7 +1354,7 @@ describe("FloorplanStudioCard", () => {
     el.setConfig({ layout: structuredClone(L), theme: "neon" as never });
     el.hass = { states: {} } as never; // no themes field at all
     await el.updateComplete;
-    expect(el.getAttribute("data-theme")).toBe("blueprint");
+    expect(el.getAttribute("data-theme")).toBe("home");
   });
 
   it("the message colour has no hard-coded hex fallback outside FLOORPLAN_CSS (Opus review, CLAUDE.md finding 9)", () => {
