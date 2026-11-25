@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.57.0 - 2026-11-25
+
+3D Studio rotation gizmo and universal item clipboard (Sprint 68):
+
+- **3D Studio rotation ring & handle (S68):** Selecting any unlocked furniture piece, device, or unlinked appliance in 3D Studio now shows a rotation ring and drag handle to rotate items around their centre in 15° steps (hold `Alt` for free 1° rotation) with a live degree readout and single-step undo.
+- **Universal item clipboard (S68):** Extended `Cmd/Ctrl+C`, `Cmd/Ctrl+X`, and `Cmd/Ctrl+V` copy/cut/paste to single devices, multi-selected devices (preserving relative offsets), and unlinked appliances in addition to furniture, placing into the selected room's interior centre across floors.
+
 ## 0.56.0 - 2026-11-24
 
 3D Studio vertical placement gizmo, basement and garage furniture with connectable Vaillant boiler and cylindrical water tank, furniture copy/cut/paste, room wall painting, and GitHub issue fixes (#1, #3).
