@@ -71,6 +71,7 @@ const c: Catalogue = {
   "Reset view": "重置视图",
   "Area": "区域",
   "Temperature": "温度",
+  "Presence": "存在",
   "Humidity": "湿度",
   "Motion": "移动",
   "on since {when}": "自 {when} 起开启",

@@ -34,7 +34,7 @@ import { dialogsTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, o
 import type { CardCtxMenu } from "./dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
 import { closeReplay, isReplaying, REPLAY_CSS, replayBar, replayEnergyOverlay, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
-import { extrasOverlay, type HistoryState, type SceneEditorDraft } from "./card-extras";
+import { extrasOverlay, presenceValues, type HistoryState, type PresenceState, type SceneEditorDraft } from "./card-extras";
 import { clockChipTemplate, KIOSK_CSS, screensaverTemplate, stopKioskTimers, syncKioskTimers, touchKioskIdle } from "./card-kiosk";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
@@ -353,6 +353,8 @@ export class FloorplanStudioCard extends LitElement {
   _pickedBelow: BelowMode | null = null;
   /** S34.8: the Heat map pick; `null` leaves the card's YAML `heat_map` in charge. */
   _pickedHeat: HeatKind | null = null;
+  /** S77: cached per-room presence heat values from 24 h history. */
+  _presence: PresenceState | null = null;
   /** S16.3: the Camera thumbnail picks (on, size, position), each field a viewer's own; `null` leaves the YAML in charge. */
   _pickedCam: Partial<CamThumb> | null = null;
   /** S16.3: the pictures' refresh clock (10 s, stopped while the tab is hidden or the card is off the page) and the cameras whose picture failed. */
@@ -1582,7 +1584,7 @@ export class FloorplanStudioCard extends LitElement {
   private _warnHeat(): void {
     if (this._heatWarned || !heatKindOf(this._config.heat_map).warn) return;
     this._heatWarned = true;
-    console.warn(`floorplan-studio-card: heat_map is not off, temperature or humidity, so it is off. Use one of the three words, in lower case (docs/card.md).`);
+    console.warn(`floorplan-studio-card: heat_map is not off, temperature, humidity or presence, so it is off. Use one of those words, in lower case (docs/card.md).`);
   }
 
   /** S16.3: the thumbnail choice: this viewer's picks over the YAML, junk as the defaults. */
@@ -1616,8 +1618,11 @@ export class FloorplanStudioCard extends LitElement {
     const lg = heatLegend(this._heatKind()), f = this._floor();
     if (!lg || this._shows3d() || !f) return null;
     const cls = this._fallback3d && this._viewPick() === "3d" ? "fp-heat-legend fp-heat-legend-up" : "fp-heat-legend";
-    // Same check as the Studio's status bar: a scale with no room on it would explain colours that are not there.
-    if (!anyRoomHeated(f, lg.kind, this._stateForRender())) return html`<div class=${cls}><span class="fp-heat-end">${t("Heat map: no readings")}</span></div>`;
+    if (lg.kind === "presence") {
+      const pv = presenceValues(this, f, this._floorKey() ?? "");
+      if (pv?.status === "loading") return html`<div class=${cls}><span class="fp-heat-end">${t("Loading…")}</span></div>`;
+      if (!pv?.values || !Object.keys(pv.values).length) return html`<div class=${cls}><span class="fp-heat-end">${t("Heat map: no readings")}</span></div>`;
+    } else if (!anyRoomHeated(f, lg.kind, this._stateForRender())) return html`<div class=${cls}><span class="fp-heat-end">${t("Heat map: no readings")}</span></div>`;
     const ramp = `background:linear-gradient(to right in oklch,${lg.stops.map((s) => `var(${s.token})`).join(",")})`;
     return html`<div class=${cls}><span class="fp-heat-end">${lg.from}</span><span class="fp-heat-ramp" style=${ramp} aria-hidden="true"></span><span class="fp-heat-end">${lg.to}</span></div>`;
   }
@@ -1832,7 +1837,8 @@ export class FloorplanStudioCard extends LitElement {
       ghost: this._ghost(), // S27.13: the floor below, as faint lines at its place in the house
       spider: spiderSpots(this, f, fit, box, rotate), // S25.5: a fanned stack, or nothing
       keep: keptHere(this),
-      heat: this._heatKind(), // S34.8: rooms with a reading of that kind are filled by it; `off` draws the plan as before
+      heat: this._heatKind(), // S34.8 / S77: rooms with a reading of that kind are filled by it; `off` draws the plan as before
+      heatValues: this._heatKind() === "presence" && !live3d ? presenceValues(this, f, this._floorKey() ?? "")?.values : undefined,
       camThumb: this._camOpts(), // S16.3: a picture beside each camera icon; off asks for none
       wallColors: this._layout!.wallColors,
       colors: this._layout!.colors, // S19.E3: the studio's per-type colours, as the editor draws them

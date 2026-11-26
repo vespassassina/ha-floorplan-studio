@@ -14,7 +14,7 @@ export function belowModeOf(v: unknown): BelowMode {
 }
 
 /** S34.8: the Heat map menu's words, one per `HEAT_KINDS` member. */
-export const HEAT_LABELS: Record<HeatKind, string> = { off: "Off", temperature: "Temperature", humidity: "Humidity" };
+export const HEAT_LABELS: Record<HeatKind, string> = { off: "Off", temperature: "Temperature", humidity: "Humidity", presence: "Presence" };
 
 /** A user turn is a multiple of this many degrees. */
 export const ROTATION_STEP = 45;

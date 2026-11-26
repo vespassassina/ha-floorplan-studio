@@ -2,13 +2,14 @@
 import { html, nothing } from "lit";
 import { UI_ICONS } from "../core/icons";
 import { t } from "../core/i18n";
-import { customCalls, renderFloor } from "../core";
+import { customCalls, renderFloor, roomAt, ROOM_OWNS } from "../core";
+import type { Floor } from "../core";
 import { lazy } from "./lazy";
 import { planPatch } from "./plan-patch";
 import { callService, closePopup } from "./card-popup";
 import { fetchHistoryFor } from "./card-replay";
 import type { FloorplanStudioCard } from "./floorplan-studio-card";
-import type { HistoryHost, HistorySeriesSpec } from "./history";
+import type { HistoryHost, HistorySeriesSpec, PresenceState } from "./history";
 import type { SceneEditorDraft } from "./scene";
 
 type HistoryLib = typeof import("./history");
@@ -22,7 +23,25 @@ const sceneMod = lazy<SceneLib>(() => import("./scene"), "__FPSCENE_CHUNK__", "s
 const carMod = lazy<CarLib>(() => import("./car"), "__FPCAR_CHUNK__", "car");
 
 export type HistoryState = NonNullable<HistoryHost["_history"]>;
-export type { SceneEditorDraft };
+export type { PresenceState, SceneEditorDraft };
+
+/** S77: returns cached per-room presence heat values (or kicks off a lazy 24 h history fetch). */
+export function presenceValues(c: FloorplanStudioCard, f: Floor, floorKey: string): PresenceState | null {
+  const rp = c._replay;
+  const endMs = rp && !rp.idle ? rp.end : Date.now();
+  const hours = rp && !rp.idle ? rp.hours : 24;
+  const startMs = endMs - hours * 3600_000;
+  const key = `${floorKey}:${Math.floor(endMs / 300_000)}:${hours}`;
+  if (c._presence?.key === key) return c._presence;
+  const st: PresenceState = { key, status: "loading" };
+  c._presence = st;
+  const run = (lib: HistoryLib) => {
+    if (c._presence === st) lib.runCardPresence(c, f, key, roomAt as never, ROOM_OWNS, startMs, endMs, (ids, a, b) => fetchHistoryFor(c, ids, a, b));
+  };
+  const lib = historyMod.get();
+  if (lib) run(lib); else void historyMod.load().then(run, () => { if (c._presence === st) { c._presence = { key, status: "error" }; c.requestUpdate(); } });
+  return c._presence;
+}
 
 function reset(c: FloorplanStudioCard) { c._history = null; c._legendOpen = false; c._sceneEd = null; }
 
