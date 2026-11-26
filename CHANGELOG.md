@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.58.0 - 2026-11-26
+
+New default **Home** theme & luminous 2D/3D lighting, streamlined Overview sidebar with Home Glance KPIs, working 2D/3D right-click menus in Studio and Card, 30 s Studio autosave, white-only lights, Studio badges, and 3D technical devices (Sprints 70–76):
+
+- **New default `home` theme & luminous 2D/3D lighting (S73):** Warm architectural **Home** theme (auto-adapting light & dark with Home Assistant) with natural sage-meadow gardens, cedar terraces, and twilight slate dark mode. Upgraded 3D daylight (sky/earth hemisphere bounce) and moonlight night lighting, outdoor-tinted 3D ground plane, softer 2D night wash, and 3D floor light pools for outdoor lights.
+- **Streamlined Overview sidebar with Home Glance KPIs (S74):** Compact 2-column KPI strip at the top of the Overview showing Lights (`on/total` + progress bar), Open doors/windows, Power + monetary cost, indoor Temperature range, Water, and Gas (auto-hidden when unconfigured), with redundant helper text removed.
+- **Working Studio 2D/3D right-click context menu (S75):** Fixed right-click reliability (no sub-threshold pan jitter, macOS `Ctrl+Click` & trackpad two-finger tap support, and full 3D raycast right-click in `#pane3d`). Added a 2-column **Quick add furniture** grid under the cursor, **Paste here**, and **Copy / Cut / Duplicate / Rotate 90°** on furniture.
+- **Card 2D/3D right-click context menu (S76):** Right-click any device, linked furniture piece, room, or canvas in 2D or 3D for quick toggle (`Turn on`/`Turn off`/`Open`/`Close`), popup controls, `More info`, `History`, `Overview`, `Fit`, `2D`/`3D`, and `Labels`.
+- **Studio 30-second autosave (S71):** Dirty non-blank Studio layouts now autosave to Home Assistant every 30 seconds automatically.
+- **White-only lights (S72):** Lights whose HA `supported_color_modes` has no colour mode (or currently in `onoff`/`brightness`/`white` mode) no longer inherit `rgb_color`; added a **White only** checkbox in the Light inspector to force pure white in 2D and 3D.
+- **Studio badges, `power_meter`, and 3D technical devices (S70):** Room badges now display in Studio mode too, with their setting grouped in a collapsible **Badges** section. Added the connectable `power_meter` device type and 3D prism bodies for `camera`, `server`, `ups`, `computer`, `printer`, `power_meter`, `battery`, and `inverter`.
+
 ## 0.57.0 - 2026-11-25
 
 3D Studio rotation gizmo and universal item clipboard (Sprint 68):
