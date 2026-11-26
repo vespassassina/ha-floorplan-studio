@@ -92,7 +92,8 @@ export const toolbarCss = css`
 
 
 /** What each theme is called on its chip. `ha` says what it does rather than what it is. */
-const HEAT_LABELS: Record<(typeof HEAT_KINDS)[number], string> = { off: "Off", temperature: "Temperature", humidity: "Humidity" };
+const HEAT_LABELS: Record<(typeof HEAT_KINDS)[number], string> = { off: "Off", temperature: "Temperature", humidity: "Humidity", presence: "Presence" };
+const STUDIO_HEAT_KINDS = HEAT_KINDS.filter((k) => k !== "presence");
 const THEME_LABELS: Record<(typeof THEME_VALUES)[number], string> = {
   home: "Home", blueprint: "Blueprint", midnight: "Midnight", light: "Light", slate: "Light Gray", terminal: "Terminal", solarized: "Solarized", ha: "Home Assistant",
   coffee: "Coffee", "a-team": "A-Team", space: "Space", cyberpunk: "Cyberpunk", "carpenter-brut": "Carpenter Brut", "beach-house": "Beach House",
@@ -239,7 +240,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
             ${DETAIL_MODES.map((m) => html`<button class="btn keep" data-detail=${m} aria-pressed=${pressed(st.detail === m)} title=${m === "auto" ? "Follow the zoom: rooms far out, devices closer in" : m === "full" ? "Always draw everything (the default while editing)" : "Always draw only rooms and what needs attention"} @click=${() => { st.setDetail(m); h.requestUpdate(); }}>${DETAIL_LABELS[m]}</button>`)}
           </details>
           <details class="sub" id="heatSub" @toggle=${onSubToggle}><summary class="btn">Heat map: ${HEAT_LABELS[st.heat]}</summary>
-            ${HEAT_KINDS.map((k) => html`<button class="btn keep" data-heat=${k} aria-pressed=${pressed(st.heat === k)} title=${k === "off" ? "Rooms in their own colours" : `Colour each room by its ${k} reading, on the same scale every day`} @click=${() => { st.heat = k; h.requestUpdate(); }}>${HEAT_LABELS[k]}</button>`)}
+            ${STUDIO_HEAT_KINDS.map((k) => html`<button class="btn keep" data-heat=${k} aria-pressed=${pressed(st.heat === k)} title=${k === "off" ? "Rooms in their own colours" : `Colour each room by its ${k} reading, on the same scale every day`} @click=${() => { st.heat = k; h.requestUpdate(); }}>${HEAT_LABELS[k]}</button>`)}
           </details>
           <details class="sub" id="camSub" @toggle=${onSubToggle}><summary class="btn">Camera thumbnail: ${st.cam.on ? "On" : "Off"}</summary>
             ${[false, true].map((on) => html`<button class="btn keep" data-camon=${on ? "on" : "off"} aria-pressed=${pressed(st.cam.on === on)} title=${on ? "A small live picture beside each camera icon" : "No camera pictures"} @click=${() => { st.cam = { ...st.cam, on }; h.requestUpdate(); }}>${on ? "On" : "Off"}</button>`)}

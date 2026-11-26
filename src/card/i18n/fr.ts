@@ -71,6 +71,7 @@ const c: Catalogue = {
   "Reset view": "Réinitialiser la vue",
   "Area": "Zone",
   "Temperature": "Température",
+  "Presence": "Présence",
   "Humidity": "Humidité",
   "Motion": "Mouvement",
   "on since {when}": "allumé depuis {when}",

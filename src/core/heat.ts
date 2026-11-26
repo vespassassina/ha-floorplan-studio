@@ -8,21 +8,22 @@ import { meanText } from "./state-text";
 // `render.ts` is imported for functions only, used at call time; this file touches none of it at load, so the cycle
 // render -> heat -> render (S34.7) is safe. `room-info.ts` is left out on purpose: it reads render's constants at load.
 
-export type HeatKind = "off" | "temperature" | "humidity";
-export const HEAT_KINDS: readonly HeatKind[] = ["off", "temperature", "humidity"];
+export type HeatKind = "off" | "temperature" | "humidity" | "presence";
+export const HEAT_KINDS: readonly HeatKind[] = ["off", "temperature", "humidity", "presence"];
 
 /** The mode a `heat_map` value names. Absent (or YAML's empty `null`) is `off` without a warning; anything else that is not
- *  one of the three exact words is `off` with `warn` set, so the caller says so once. Exact match: `Temperature` is junk. */
+ *  one of the valid words is `off` with `warn` set, so the caller says so once. Exact match: `Temperature` is junk. */
 export function heatKindOf(raw: unknown): { kind: HeatKind; warn: boolean } {
   if (raw === undefined || raw === null) return { kind: "off", warn: false };
   const kind = typeof raw === "string" ? HEAT_KINDS.find((k) => k === raw) : undefined;
   return kind ? { kind, warn: false } : { kind: "off", warn: true };
 }
 
-/** The fixed, absolute scale (H3, Q1). `from`, `mid`, `to` are in `unit`; `tokens` are the three colours, cold or dry end first. */
+/** The fixed, absolute scale (H3, Q1). `from`, `mid`, `to` are in `unit`; `tokens` are the three colours, cold/dry/idle end first. */
 export const HEAT_SCALE: Record<Exclude<HeatKind, "off">, { from: number; mid: number; to: number; unit: string; tokens: readonly [string, string, string] }> = {
   temperature: { from: 16, mid: 21, to: 26, unit: "°C", tokens: ["--fp-heat-cool", "--fp-heat-mid", "--fp-heat-hot"] },
   humidity: { from: 30, mid: 50, to: 70, unit: "%", tokens: ["--fp-hum-dry", "--fp-hum-mid", "--fp-hum-wet"] },
+  presence: { from: 0, mid: 4, to: 8, unit: "h", tokens: ["--fp-pres-low", "--fp-pres-mid", "--fp-pres-high"] },
 };
 
 /** What a device type feeds the map with. Every type is a decision (finding 17): a `climate` reads at the radiator and its state is a mode, so it is no source. */
@@ -33,7 +34,7 @@ export const HEAT_SOURCE: Record<DeviceType, HeatKind | null> = {
 };
 
 const NB = " ";
-const scaleOf = (kind: HeatKind) => (kind === "temperature" || kind === "humidity" ? HEAT_SCALE[kind] : undefined);
+const scaleOf = (kind: HeatKind) => (kind === "temperature" || kind === "humidity" || kind === "presence" ? HEAT_SCALE[kind] : undefined);
 
 /** A reading the map accepts, as a number in the kind's own unit (°F becomes °C), or null. Unit rules (H3): temperature takes
  *  `°C`, `°F`, or no unit (taken as °C); humidity `%` or none; any other unit is not a reading. Bounds (H3): -60..90 °C,
@@ -82,5 +83,5 @@ export function anyRoomHeated(f: Floor, kind: HeatKind, state: StateOverlay | un
 /** The legend a host draws in its chrome (H5): three stops, the two end labels as real text, the unit; null for `off`. */
 export function heatLegend(kind: HeatKind): { kind: HeatKind; unit: string; from: string; to: string; stops: { at: number; token: string }[] } | null {
   const sc = scaleOf(kind);
-  return sc ? { kind, unit: sc.unit, from: `${sc.from}${NB}${sc.unit}`, to: `${sc.to}${NB}${sc.unit}`, stops: sc.tokens.map((token, k) => ({ at: k / 2, token })) } : null;
+  return sc ? { kind, unit: sc.unit, from: `${sc.from}${NB}${sc.unit}`, to: `${sc.to}${NB}${sc.unit}${kind === "presence" ? "+" : ""}`, stops: sc.tokens.map((token, k) => ({ at: k / 2, token })) } : null;
 }

@@ -74,6 +74,12 @@ describe("criterion 11: temperature on the demo", () => {
       expect(heated.length, k).toBe(k === "off" ? 0 : k === "humidity" ? 1 : 0); // first floor on ON: only the bathroom reads, and only humidity
     }
   });
+  it("presence heat uses precomputed heatValues and prints formatted occupied duration", () => {
+    const html = renderFloor(ground, { ...o, heat: "presence", heatValues: { [IDX.living]: { text: "3h 30m", t: 0.44 } } });
+    expect(poly(html, IDX.living)?.[1]).toContain("heat-presence");
+    expect(heatOf(html, IDX.living)).toBe(0.44);
+    expect(readout(html, IDX.living)?.[2]).toBe("3h 30m");
+  });
 });
 
 describe("the readout in a heat mode", () => {

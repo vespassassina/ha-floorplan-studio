@@ -219,3 +219,118 @@ export function renderCardHistory(
     onClose: () => { c._history = null; c.requestUpdate(); },
   });
 }
+
+// ---- S77: per-room presence heat map over a day (zero-import, lives in the lazy history chunk) ----
+
+const PRESENCE_ON = new Set(["on", "detected", "occupied", "home"]);
+const PRESENCE_CAP_MS = 8 * 3600_000;
+
+export type PresenceValues = Record<number, { text: string; t: number }>;
+export interface PresenceState { key: string; status: "loading" | "ready" | "error"; values?: PresenceValues }
+export interface PresenceHost { _presence: PresenceState | null; requestUpdate(): void }
+
+function fmtDuration(ms: number): string {
+  if (!(ms > 0)) return "0m";
+  if (ms < 60_000) return "<1m";
+  const mins = Math.round(ms / 60_000);
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+/** Collects per-room motion/radar/attached-motion entity ids for a floor. */
+export function presenceSensorsForFloor(
+  f: { rooms?: readonly { kind?: unknown; motion?: unknown }[]; devices?: readonly { type?: unknown; entity?: unknown; motion?: unknown; x?: unknown; y?: unknown }[] } | null | undefined,
+  roomAtFn: (f: never, pt: [number, number]) => number,
+  roomOwns: Record<string, boolean>,
+): Map<number, string[]> {
+  const out = new Map<number, Set<string>>();
+  const rooms = Array.isArray(f?.rooms) ? f.rooms : [];
+  const add = (i: number, id: unknown) => {
+    if (typeof id !== "string" || !id || !rooms[i] || !roomOwns[String(rooms[i]!.kind)]) return;
+    let s = out.get(i);
+    if (!s) { s = new Set(); out.set(i, s); }
+    s.add(id);
+  };
+  rooms.forEach((r, i) => {
+    if (Array.isArray(r?.motion)) (r.motion as unknown[]).forEach((id) => add(i, id));
+  });
+  for (const d of Array.isArray(f?.devices) ? f.devices : []) {
+    if (!d || typeof d !== "object") continue;
+    const x = d.x, y = d.y;
+    if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const i = roomAtFn(f as never, [x, y]);
+    if (i < 0) continue;
+    if (d.type === "motion" || d.type === "radar") add(i, d.entity);
+    if (d.motion) add(i, d.motion);
+  }
+  return new Map([...out].map(([i, s]) => [i, [...s]]));
+}
+
+/** Pure per-room occupied duration & heat value (0..1 capped at 8 h) using merged ON intervals across sensors. */
+export function presenceHeat(
+  roomSensors: Map<number, readonly string[]>,
+  index: HistoryIndex | undefined,
+  startMs: number,
+  endMs: number,
+): PresenceValues {
+  const out: PresenceValues = Object.create(null);
+  if (!index || !(endMs > startMs)) return out;
+  for (const [roomIdx, ids] of roomSensors) {
+    const intervals: [number, number][] = [];
+    let hasData = false;
+    for (const id of ids) {
+      const rows = index.get(id);
+      if (!Array.isArray(rows) || !rows.length) continue;
+      hasData = true;
+      for (let j = 0; j < rows.length; j++) {
+        const r = rows[j];
+        if (!r || typeof r.state !== "string" || typeof r.lu !== "number" || !Number.isFinite(r.lu)) continue;
+        if (!PRESENCE_ON.has(r.state.trim().toLowerCase())) continue;
+        const s0 = Math.max(startMs, Math.min(endMs, r.lu * 1000));
+        const next = rows[j + 1];
+        const e0 = next && typeof next.lu === "number" && Number.isFinite(next.lu) ? Math.max(startMs, Math.min(endMs, next.lu * 1000)) : endMs;
+        if (e0 > s0) intervals.push([s0, e0]);
+      }
+    }
+    if (!hasData) continue;
+    intervals.sort((a, b) => a[0] - b[0]);
+    let totalMs = 0;
+    let curS = -1, curE = -1;
+    for (const [s, e] of intervals) {
+      if (curS < 0) { curS = s; curE = e; }
+      else if (s <= curE) curE = Math.max(curE, e);
+      else { totalMs += curE - curS; curS = s; curE = e; }
+    }
+    if (curS >= 0) totalMs += curE - curS;
+    const t = Math.min(1, Math.round((totalMs / PRESENCE_CAP_MS) * 1000) / 1000);
+    out[roomIdx] = { text: fmtDuration(totalMs), t };
+  }
+  return out;
+}
+
+/** Fetches 24 h (or active replay window) history for presence sensors and stores per-room heat values on the host. */
+export function runCardPresence(
+  c: PresenceHost,
+  f: Parameters<typeof presenceSensorsForFloor>[0],
+  key: string,
+  roomAtFn: (f: never, pt: [number, number]) => number,
+  roomOwns: Record<string, boolean>,
+  startMs: number,
+  endMs: number,
+  fetchFn: (ids: string[], startMs: number, endMs: number) => Promise<HistoryIndex>,
+): void {
+  const sensors = presenceSensorsForFloor(f, roomAtFn, roomOwns);
+  const allIds = [...new Set([...sensors.values()].flat())];
+  if (!allIds.length) {
+    c._presence = { key, status: "ready", values: Object.create(null) };
+    c.requestUpdate();
+    return;
+  }
+  const st: PresenceState = { key, status: "loading" };
+  c._presence = st;
+  void fetchFn(allIds, startMs, endMs).then(
+    (index) => { if (c._presence === st) { c._presence = { key, status: "ready", values: presenceHeat(sensors, index, startMs, endMs) }; c.requestUpdate(); } },
+    () => { if (c._presence === st) { c._presence = { key, status: "error", values: Object.create(null) }; c.requestUpdate(); } },
+  );
+}

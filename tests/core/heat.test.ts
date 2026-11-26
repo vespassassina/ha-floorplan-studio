@@ -43,8 +43,8 @@ describe("heatKindOf", () => {
 });
 
 describe("the tables iterate their unions (findings 17, 20)", () => {
-  it("HEAT_KINDS is off, temperature, humidity; every kind but off has a scale and a legend", () => {
-    expect([...HEAT_KINDS]).toEqual(["off", "temperature", "humidity"]);
+  it("HEAT_KINDS is off, temperature, humidity, presence; every kind but off has a scale and a legend", () => {
+    expect([...HEAT_KINDS]).toEqual(["off", "temperature", "humidity", "presence"]);
     for (const k of HEAT_KINDS) {
       if (k === "off") { expect(heatLegend(k), k).toBeNull(); expect(Object.keys(HEAT_SCALE)).not.toContain(k); continue; }
       const sc = HEAT_SCALE[k], lg = heatLegend(k);
@@ -52,11 +52,12 @@ describe("the tables iterate their unions (findings 17, 20)", () => {
       expect(lg?.stops.length, k).toBe(3);
       expect(lg?.unit, k).toBe(sc.unit);
     }
-    expect(Object.keys(HEAT_SCALE).sort()).toEqual(["humidity", "temperature"]);
+    expect(Object.keys(HEAT_SCALE).sort()).toEqual(["humidity", "presence", "temperature"]);
   });
   it("the legend gives the two end labels in real text and the three tokens", () => {
     expect(heatLegend("temperature")).toEqual({ kind: "temperature", unit: "°C", from: `16${N}°C`, to: `26${N}°C`, stops: [{ at: 0, token: "--fp-heat-cool" }, { at: 0.5, token: "--fp-heat-mid" }, { at: 1, token: "--fp-heat-hot" }] });
     expect(heatLegend("humidity")).toEqual({ kind: "humidity", unit: "%", from: `30${N}%`, to: `70${N}%`, stops: [{ at: 0, token: "--fp-hum-dry" }, { at: 0.5, token: "--fp-hum-mid" }, { at: 1, token: "--fp-hum-wet" }] });
+    expect(heatLegend("presence")).toEqual({ kind: "presence", unit: "h", from: `0${N}h`, to: `8${N}h+`, stops: [{ at: 0, token: "--fp-pres-low" }, { at: 0.5, token: "--fp-pres-mid" }, { at: 1, token: "--fp-pres-high" }] });
   });
   it("HEAT_SOURCE names a decision for every device type: temp and humidity only", () => {
     const want: Record<DeviceType, HeatKind | null> = Object.fromEntries(DEVICE_TYPES.map((t) => [t, t === "temp" ? "temperature" : t === "humidity" ? "humidity" : null])) as Record<DeviceType, HeatKind | null>;
