@@ -5042,3 +5042,18 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 - [x] 2026-11-24 S65.1 `idle_return` (seconds): auto-close popups/dialogs/extras/overview pick, reset zoom/pan, and return to default floor after idle.
 - [x] 2026-11-24 S65.2 `idle_dim` (screensaver / auto-dim overlay with 24 h clock & optional weather, wake on first tap without accidental device toggle).
 - [x] 2026-11-24 S65.3 Optional `header_clock` chip (24 h clock + weather from `weather` entity) in normal header and floating top-left pill in `kiosk: true` mode.
+
+### Sprints 70 to 76 (done, released in v0.58.0)
+
+- [x] 2026-11-25 S70 Studio badges, collapsible Badges section, `power_meter` device type, and 3D technical devices (`camera`, `server`, `ups`, `computer`, `printer`, `power_meter`, `battery`, `inverter`).
+- [x] 2026-11-25 S71 Studio 30-second autosave for dirty non-blank layouts.
+- [x] 2026-11-25 S72 White-only lights (`whiteOnly?: true` and ignoring `rgb_color` without a colour mode).
+- [x] 2026-11-25 S73 New default `home` theme (light + dark auto-following HA) and luminous 2D/3D lighting + outdoor light pools.
+- [x] 2026-11-25 S74 Streamlined Overview sidebar with Home Glance KPIs.
+- [x] 2026-11-25 S75 Fixed Studio 2D/3D right-click context menu with Quick add furniture grid and Copy/Cut/Paste/Duplicate/Rotate.
+- [x] 2026-11-25 S76 Card 2D/3D right-click context menu in lazy `dialogs` chunk.
+
+### Sprints 77 and 78 (done)
+
+- [x] 2026-11-26 S77 Per-room presence heat map over a day (`heat_map: presence`, union of room motion/radar intervals in lazy `history` chunk, `0 h` to `8 h+` scale, all 9 card i18n catalogues).
+- [x] 2026-11-26 S78 Custom car Lovelace card in popover (`car_cards` YAML map mounted via `window.loadCardHelpers()` inside lazy `car` chunk with clean fallback to built-in car popover; recorded in `surface-freeze.test.ts`).

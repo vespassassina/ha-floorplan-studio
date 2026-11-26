@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { carDetails } from "../../src/card/car";
+import { describe, it, expect, vi } from "vitest";
+import { carCardConfigOf, carDetails, renderCarPopover, type CarCardState } from "../../src/card/car";
 
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes });
 
@@ -61,5 +61,56 @@ describe("Sprint 64: carDetails telemetry & control extractor", () => {
       level: null, range: null, charging: false, chargePower: null, chargeEta: null, openings: [], controls: [],
     });
     expect(carDetails(["sensor.x"], { "sensor.x": st("unavailable") }).level).toBeNull();
+  });
+});
+
+describe("Sprint 78: carCardConfigOf & custom car card popover", () => {
+  it("validates car_cards safely and rejects junk or prototype-pollution keys", () => {
+    const cfg = { type: "custom:ultra-vehicle-card", entity: "sensor.car_battery" };
+    expect(carCardConfigOf({ "device_tracker.car": cfg }, "device_tracker.car")).toEqual(cfg);
+    expect(carCardConfigOf({ "device_tracker.car": cfg }, "device_tracker.other")).toBeNull();
+    expect(carCardConfigOf({ "device_tracker.car": { type: "   " } }, "device_tracker.car")).toBeNull();
+    expect(carCardConfigOf({ "device_tracker.car": ["not-obj"] }, "device_tracker.car")).toBeNull();
+    expect(carCardConfigOf("not-map", "device_tracker.car")).toBeNull();
+    expect(carCardConfigOf({ "device_tracker.car": cfg }, "__proto__")).toBeNull();
+    expect(carCardConfigOf({ "device_tracker.car": cfg }, "constructor")).toBeNull();
+    expect(carCardConfigOf({ "device_tracker.car": cfg }, "prototype")).toBeNull();
+  });
+
+  it("warns once and falls back when loadCardHelpers is unavailable, and mounts when available", async () => {
+    const warnOnce = vi.fn();
+    const holder: { state: CarCardState | null } = { state: null };
+    const readState = () => holder.state;
+    const html = ((s: TemplateStringsArray, ...v: unknown[]) => ({ s, v })) as unknown as Parameters<typeof renderCarPopover>[0]["html"];
+    const baseDeps = {
+      html, nothing: null, kiosk: false, confirmEntity: null, setConfirm: () => {}, callService: () => {},
+      carCards: { "device_tracker.car": { type: "custom:my-car" } },
+      mainEntity: "device_tracker.car",
+      hass: { states: {} },
+      setCarCardState: (s: CarCardState | null) => { holder.state = s; },
+      warnOnce,
+    };
+
+    // Without loadCardHelpers -> warns once, sets failed, falls through to built-in car popover
+    const fallbackRes = renderCarPopover({ ...baseDeps, carCardState: readState() }, ["sensor.car_battery"], { "sensor.car_battery": st("70", { device_class: "battery", unit_of_measurement: "%" }) });
+    expect(warnOnce).toHaveBeenCalledTimes(1);
+    expect(readState()?.status).toBe("failed");
+    expect(fallbackRes).not.toBeNull();
+
+    // With stubbed loadCardHelpers -> creates element and forwards hass
+    const fakeEl = { tagName: "MY-CAR", hass: undefined as unknown } as unknown as HTMLElement & { hass?: unknown };
+    (globalThis as unknown as { loadCardHelpers?: unknown }).loadCardHelpers = async () => ({ createCardElement: async () => fakeEl });
+    holder.state = null;
+    try {
+      renderCarPopover({ ...baseDeps, carCardState: readState() }, ["device_tracker.car"], {});
+      expect(readState()?.status).toBe("loading");
+      await vi.waitFor(() => expect(readState()?.status).toBe("ready"));
+      const nextHass = { states: { "sensor.car_battery": st("75") } };
+      const mounted = renderCarPopover({ ...baseDeps, hass: nextHass, carCardState: readState() }, ["device_tracker.car"], {});
+      expect(fakeEl.hass).toBe(nextHass);
+      expect(mounted).not.toBeNull();
+    } finally {
+      delete (globalThis as unknown as { loadCardHelpers?: unknown }).loadCardHelpers;
+    }
   });
 });

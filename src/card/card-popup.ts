@@ -114,6 +114,7 @@ export function closePopup(c: FloorplanStudioCard): void {
   c._popupReturn = c._popup.opener;
   c._popup = null;
   c._carConfirm = null;
+  c._carCard = null;
   c.requestUpdate();
 }
 
@@ -216,7 +217,7 @@ export function popupMarkup(c: FloorplanStudioCard, inSheet = false) {
     act: () => popupAct(c),
     cancel: () => { if (c._popup) { c._popup.confirming = false; c.requestUpdate(); } },
     more: () => popupMore(c),
-    extra: s.type === "car" ? carExtra(c, s.entities) : undefined,
+    extra: s.type === "car" ? carExtra(c, s.entities, s.entity) : undefined,
     history: histIds.length && c._hass?.connection?.sendMessagePromise && !c._kiosk() ? () => openHistory(c, s.name, histIds) : undefined,
     key: (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePopup(c); } },
     slide: (kind, value, commit) => popupSlide(c, kind, value, commit),

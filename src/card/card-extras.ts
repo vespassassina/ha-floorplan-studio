@@ -11,6 +11,7 @@ import { fetchHistoryFor } from "./card-replay";
 import type { FloorplanStudioCard } from "./floorplan-studio-card";
 import type { HistoryHost, HistorySeriesSpec, PresenceState } from "./history";
 import type { SceneEditorDraft } from "./scene";
+import type { CarCardState } from "./car";
 
 type HistoryLib = typeof import("./history");
 type LegendLib = typeof import("./legend");
@@ -23,7 +24,7 @@ const sceneMod = lazy<SceneLib>(() => import("./scene"), "__FPSCENE_CHUNK__", "s
 const carMod = lazy<CarLib>(() => import("./car"), "__FPCAR_CHUNK__", "car");
 
 export type HistoryState = NonNullable<HistoryHost["_history"]>;
-export type { PresenceState, SceneEditorDraft };
+export type { CarCardState, PresenceState, SceneEditorDraft };
 
 /** S77: returns cached per-room presence heat values (or kicks off a lazy 24 h history fetch). */
 export function presenceValues(c: FloorplanStudioCard, f: Floor, floorKey: string): PresenceState | null {
@@ -64,23 +65,14 @@ export const openLegend = (c: FloorplanStudioCard) =>
 
 export const openSceneEditor = (c: FloorplanStudioCard, i: number) => withMod(c, sceneMod, (lib) => lib.openCardScene(c, i));
 
-/** S64.2: renders the rich car popover section inside `.fp-pop` once the lazy car chunk is loaded. */
-export function carExtra(c: FloorplanStudioCard, entities: readonly string[]): unknown {
+/** S64.2 / S78: renders the custom Lovelace car card (`car_cards`) or rich car popover inside `.fp-pop`. */
+export function carExtra(c: FloorplanStudioCard, entities: readonly string[], mainEntity?: string | null): unknown {
   const lib = carMod.get();
   if (!lib) {
     void carMod.load().then(() => { if (c.isConnected && c._popup?.s.type === "car") c.requestUpdate(); }, () => {});
     return nothing;
   }
-  return lib.renderCarPopover(
-    {
-      html, nothing, kiosk: c._kiosk(),
-      confirmEntity: c._carConfirm,
-      setConfirm: (entity) => { c._carConfirm = entity; c.requestUpdate(); },
-      callService: (d, s, data) => callService(c, d, s, data),
-    },
-    entities,
-    c._stateForRender(),
-  );
+  return lib.renderCarCard(c, { html, nothing, callService: (d, s, data) => callService(c, d, s, data) }, entities, mainEntity);
 }
 
 export function extrasOverlay(c: FloorplanStudioCard) {
