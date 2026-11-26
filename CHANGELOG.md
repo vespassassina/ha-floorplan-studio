@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.59.0 - 2026-11-26
+
+Per-room presence heat map over a day and custom car Lovelace cards in the car popover (Sprints 77–78):
+
+- **Per-room presence heat map over a day (S77):** Added **Presence** to the card's Heat map menu (`heat_map: presence`, zero new YAML keys). Fetches 24-hour (or active Replay window) history for each room's motion/radar sensors, unions overlapping active intervals without double-counting, tints rooms on a `0 h` to `8 h+` occupancy ramp, and prints the occupied duration under each room name.
+- **Custom car Lovelace card in popover (S78):** Added card-YAML-only `car_cards` (`{ [main_entity_id]: lovelace_card_config }`) to mount any custom Lovelace vehicle card inside the car popover via `window.loadCardHelpers()` with live `hass` updates and automatic fallback to the built-in rich car popover when unavailable.
+
 ## 0.58.0 - 2026-11-26
 
 New default **Home** theme & luminous 2D/3D lighting, streamlined Overview sidebar with Home Glance KPIs, working 2D/3D right-click menus in Studio and Card, 30 s Studio autosave, white-only lights, Studio badges, and 3D technical devices (Sprints 70–76):
