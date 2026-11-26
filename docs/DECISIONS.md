@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-26: Per-room presence heat map (S77) and custom car Lovelace card in popover (S78)
+
+1. S77 added `"presence"` to `HEAT_KINDS` (`heat_map: presence`, zero new YAML keys). Per-room occupancy union maths (`presenceHeat` and `presenceSensorsForFloor`) live in the zero-import lazy `floorplan-studio-history-<hash>.js` chunk, using a `0 h` to `8 h+` scale over 24 hours (or the active Replay window) and passing precomputed `heatValues` into `renderFloor`.
+2. S78 added card-YAML-only `car_cards?: Record<string, Record<string, unknown>>` (per `docs/specs/car-s35.md` C11, never stored in untrusted `layout.json`) and recorded it in `tests/card/surface-freeze.test.ts`. Custom card mounting via `window.loadCardHelpers().createCardElement()` and fallback to the built-in rich car popover live inside the zero-import lazy `floorplan-studio-car-<hash>.js` chunk.
+
 ## 2026-11-25: Streamlined Overview KPIs, Studio/Card right-click menus, and chunk budgets (S74–S76)
 
 1. S74 placed the Home Glance KPI strip (lights, open openings, power + cost, temperature, water, gas) inside the lazy `floorplan-studio-overview-<hash>.js` chunk (9,947 B gz; raised `OVERVIEW_CHUNK_LIMIT` from 9,000 to 11,000 B; 0 B added to the card) and removed the redundant `"Tap a row: the plan goes to it."` hint from the UI and all 9 language catalogues.

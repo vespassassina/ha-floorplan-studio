@@ -108,6 +108,26 @@ export function carDetails(entities: readonly string[], states: CarStates): CarD
   return { level, range, charging, chargePower, chargeEta, openings, controls };
 }
 
+export interface CarCardState {
+  key: string;
+  status: "loading" | "ready" | "failed";
+  el?: HTMLElement;
+}
+
+const RESERVED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/** S78: validates `config.car_cards[entity]` from untrusted card YAML. Never throws; rejects prototype keys and missing `type`. */
+export function carCardConfigOf(carCards: unknown, entity: string | null | undefined): Record<string, unknown> | null {
+  if (!entity || typeof entity !== "string" || RESERVED_KEYS.has(entity)) return null;
+  if (!carCards || typeof carCards !== "object" || Array.isArray(carCards)) return null;
+  if (!Object.prototype.hasOwnProperty.call(carCards, entity)) return null;
+  const raw = (carCards as Record<string, unknown>)[entity];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const typ = (raw as Record<string, unknown>).type;
+  if (typeof typ !== "string" || !typ.trim()) return null;
+  return raw as Record<string, unknown>;
+}
+
 export interface CarPopoverDeps {
   html: typeof Html;
   nothing: unknown;
@@ -115,9 +135,16 @@ export interface CarPopoverDeps {
   confirmEntity: string | null;
   setConfirm: (entity: string | null) => void;
   callService: (domain: string, service: string, data: Record<string, unknown>) => void;
+  carCards?: unknown;
+  mainEntity?: string | null;
+  hass?: unknown;
+  carCardState?: CarCardState | null;
+  setCarCardState?: (s: CarCardState | null) => void;
+  warnOnce?: (msg: string) => void;
 }
 
 const CAR_CSS = `
+.fp-car-custom{margin:2px 0 4px;min-width:240px;max-width:360px}
 .fp-car-pop{display:flex;flex-direction:column;gap:6px;margin:2px 0 4px;font-size:12px}
 .fp-car-meter{display:flex;flex-direction:column;gap:3px}
 .fp-car-row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
@@ -135,10 +162,78 @@ const CAR_CSS = `
 @media (pointer:coarse){.fp-car-btn{min-height:44px;min-width:44px}}
 `;
 
+export interface CarCardHost {
+  _config: { car_cards?: unknown };
+  _hass?: unknown;
+  _carConfirm: string | null;
+  _carCard: CarCardState | null;
+  _carCardWarned: boolean;
+  _kiosk(): boolean;
+  _stateForRender(): CarStates;
+  requestUpdate(): void;
+}
+
+/** Host adapter inside the lazy car chunk so the main card passes `c` directly with minimal bytes. */
+export function renderCarCard(
+  c: CarCardHost,
+  tools: { html: typeof Html; nothing: unknown; callService: (domain: string, service: string, data: Record<string, unknown>) => void },
+  entities: readonly string[],
+  mainEntity?: string | null,
+): unknown {
+  return renderCarPopover(
+    {
+      ...tools,
+      kiosk: c._kiosk(),
+      confirmEntity: c._carConfirm,
+      setConfirm: (entity) => { c._carConfirm = entity; c.requestUpdate(); },
+      carCards: c._config.car_cards,
+      mainEntity,
+      hass: c._hass,
+      carCardState: c._carCard,
+      setCarCardState: (s) => { c._carCard = s; c.requestUpdate(); },
+      warnOnce: (msg) => { if (!c._carCardWarned) { c._carCardWarned = true; console.warn(msg); } },
+    },
+    entities,
+    c._stateForRender(),
+  );
+}
+
 export function renderCarPopover(d: CarPopoverDeps, entities: readonly string[], states: CarStates): unknown {
+  const { html, nothing } = d;
+  const customCfg = carCardConfigOf(d.carCards, d.mainEntity);
+  if (customCfg && d.setCarCardState) {
+    let key = String(d.mainEntity ?? "");
+    try { key += `:${JSON.stringify(customCfg)}`; } catch { /* ignore */ }
+    const cur = d.carCardState;
+    if (cur?.key === key) {
+      if (cur.status === "ready" && cur.el) {
+        try { (cur.el as unknown as { hass?: unknown }).hass = d.hass; } catch { /* ignore */ }
+        return html`<style>${CAR_CSS}</style><div class="fp-car-custom" data-car-custom>${cur.el}</div>`;
+      }
+      if (cur.status === "loading") return nothing;
+      // status === "failed" -> fall through to built-in rich car popover
+    } else {
+      const w = globalThis as unknown as { loadCardHelpers?: () => Promise<{ createCardElement(cfg: Record<string, unknown>): HTMLElement | Promise<HTMLElement> }> };
+      if (typeof w.loadCardHelpers !== "function") {
+        d.warnOnce?.("floorplan-studio-card: car_cards requires Home Assistant loadCardHelpers; using built-in car popover.");
+        d.setCarCardState({ key, status: "failed" });
+      } else {
+        const st: CarCardState = { key, status: "loading" };
+        d.setCarCardState(st);
+        void w.loadCardHelpers().then((h) => h.createCardElement(customCfg)).then((el) => {
+          if (!el || el.tagName === "HUI-ERROR-CARD") throw new Error("Card element failed to load");
+          try { (el as unknown as { hass?: unknown }).hass = d.hass; } catch { /* ignore */ }
+          d.setCarCardState?.({ key, status: "ready", el });
+        }).catch((err) => {
+          d.warnOnce?.(`floorplan-studio-card: car_cards could not render "${String(customCfg.type)}": ${String((err as { message?: unknown })?.message ?? err)}`);
+          d.setCarCardState?.({ key, status: "failed" });
+        });
+        return nothing;
+      }
+    }
+  }
   const info = carDetails(entities, states);
   if (!info.level && !info.range && !info.charging && !info.openings.length && !info.controls.length) return d.nothing;
-  const { html, nothing } = d;
 
   const actCtrl = (c: CarControl) => {
     if (c.domain === "lock") {

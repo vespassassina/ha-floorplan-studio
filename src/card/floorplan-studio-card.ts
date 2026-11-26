@@ -34,7 +34,7 @@ import { dialogsTemplate, onDialogKeydown, openChooserDialog, openCoverDialog, o
 import type { CardCtxMenu } from "./dialogs";
 import { header, isTheme, isView, onMenuPick, optionsMenu } from "./card-menu";
 import { closeReplay, isReplaying, REPLAY_CSS, replayBar, replayEnergyOverlay, replayStates, replayTap, syncReplay, type ReplayState } from "./card-replay";
-import { extrasOverlay, presenceValues, type HistoryState, type PresenceState, type SceneEditorDraft } from "./card-extras";
+import { extrasOverlay, presenceValues, type CarCardState, type HistoryState, type PresenceState, type SceneEditorDraft } from "./card-extras";
 import { clockChipTemplate, KIOSK_CSS, screensaverTemplate, stopKioskTimers, syncKioskTimers, touchKioskIdle } from "./card-kiosk";
 import { activePanel, attentionOf, floorTitle, keptHere, pickRoom, picked, placePulse, restorePick } from "./card-overview";
 import { bindHover, bindSpider, closePopup, hideTip, onOutsideDown, openPopup, popupMarkup, showTip, spiderSpots, subjectOf, subjectText, syncPopup, syncTip, tapOpts, tapStack, targetOf } from "./card-popup";
@@ -180,6 +180,8 @@ export interface FloorplanStudioCardConfig {
   idle_dim?: number;
   /** S65: `true` shows a compact 24 h clock and optional weather chip (from `weather`) in the header or top-left in kiosk mode. */
   header_clock?: boolean;
+  /** S78 (car-s35.md C11): optional map from a car's main entity id to a custom Lovelace card config rendered in the car popover via `window.loadCardHelpers()`. Card YAML only, never in layout.json. */
+  car_cards?: Record<string, Record<string, unknown>>;
 }
 
 /** What the View dropdown offers: the two flat plans `renderFloor` draws and the 3D model, which is a renderer of its own. */
@@ -497,6 +499,8 @@ export class FloorplanStudioCard extends LitElement {
   _legendOpen = false;
   _sceneEd: SceneEditorDraft | null = null;
   _carConfirm: string | null = null;
+  _carCard: CarCardState | null = null;
+  _carCardWarned = false;
   _dimmed = false;
   _idleRetTimer: number | null = null;
   _idleDimTimer: number | null = null;
