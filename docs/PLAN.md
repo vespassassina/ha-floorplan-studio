@@ -5057,3 +5057,7 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 
 - [x] 2026-11-26 S77 Per-room presence heat map over a day (`heat_map: presence`, union of room motion/radar intervals in lazy `history` chunk, `0 h` to `8 h+` scale, all 9 card i18n catalogues).
 - [x] 2026-11-26 S78 Custom car Lovelace card in popover (`car_cards` YAML map mounted via `window.loadCardHelpers()` inside lazy `car` chunk with clean fallback to built-in car popover; recorded in `surface-freeze.test.ts`).
+
+### Sprint 79 (done): Import from `ha-floorplan` SVGs
+
+- [x] 2026-11-26 S79 `src/editor/svg-import.ts` (`importHaFloorplanSvg`) wired to Studio `File > Import SVG…` (`#impSvg`): safe `DOMParser` with size/node/room/device caps, ancestor transform composition, room polygon extraction, HA entity ID device placement with type inference, and single-step undo (0 B added to card).

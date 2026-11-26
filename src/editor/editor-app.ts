@@ -27,7 +27,7 @@ import { viewKey, onSwitchEnd, startSwitch, flushView, onVisibility, stopTurn, z
 import { scrollRow, pulse, onSearchPick, toggleSide, onOutlineQuery, onOutlineToggle, onOutlineRow, onOutlineCtx, onOutlineKey, setLayers, openLayers, counted, placedNote, findData, sideView } from "./editor-search";
 import { renameFloor, moveFloor, deleteFloor, undo, setColour, openLink, closeLink, linkRows, applyLink, rotatePlan, centre, moveCurrentFloor, askDeleteFloor, startAddFloor, onNewFloorKey, spawnDevice } from "./editor-actions";
 import { closeAlign, openAlign, alignPreview, applyAlign, alignStairInfo, alignStairs, setAlignStep, moveAlign, turnAlign, setAlignOffset, setAlignRotation, resetAlignOffset, ghostOpts } from "./editor-align";
-import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayout, openFile, firstRunDemo, firstRunBlank } from "./editor-file";
+import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayout, openFile, importSvgFile, firstRunDemo, firstRunBlank } from "./editor-file";
 import { planFixed, setPlanLocked, attachEntity, attachToRoom, rotateTexture, rotateItem, scaleTexture } from "./editor-changes";
 import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, toggleHaSync, toggleAttention, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, haSyncView, attentionView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, captureSceneDraft, migrateLegacyScenes, loadExistingScene, migrateHueSceneDraft, installCodeView } from "./editor-popups";
 import { getActionRegistry, type CustomAction } from "./custom-actions";
@@ -930,6 +930,7 @@ export class FloorplanStudioEditor extends LitElement {
   roomsFromAreas() { return roomsFromAreas(this); } // editor-file.ts
   adoptLayout(x: unknown, status: string): boolean { return adoptLayout(this, x, status); } // editor-file.ts
   openFile(ev: Event) { return openFile(this, ev); } // editor-file.ts
+  importSvgFile(ev: Event) { return importSvgFile(this, ev); } // editor-file.ts
 
   // ---- drawing -------------------------------------------------------------
 

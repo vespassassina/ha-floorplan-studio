@@ -277,6 +277,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
         </div></details>
         <details class="menu" id="mFile" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">File</summary><div class="box">
           <button class="btn" id="imp" @click=${() => h.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
+          <button class="btn" id="impSvg" title="Import rooms and Home Assistant entity IDs from an ha-floorplan SVG" @click=${() => h.renderRoot.querySelector<HTMLInputElement>("#svgFile")?.click()}>Import SVG…</button>
           <button class="btn" id="exp" title="Download the current layout as JSON" @click=${() => h.exportJson()}>Export…</button>
           <label class="grp"><input type="checkbox" id="expTrace" .checked=${live(h.exportTrace)} @change=${(e: Event) => { h.exportTrace = (e.target as HTMLInputElement).checked; }}> Include trace image</label>
           <button class="btn" id="installcode" aria-expanded=${pressed(h.installCodeOpen)} @click=${() => h.toggleInstallCode()}>Install code…</button>
@@ -303,5 +304,6 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
         </div>
         </div>
         <input type="file" id="file" accept=".json,application/json" hidden @change=${(e: Event) => h.openFile(e)}>
+        <input type="file" id="svgFile" accept=".svg,image/svg+xml" hidden @change=${(e: Event) => h.importSvgFile(e)}>
       </div>`;
 }

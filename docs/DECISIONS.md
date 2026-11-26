@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-26: Import from `ha-floorplan` SVGs in Studio (S79)
+
+1. Added `src/editor/svg-import.ts` (`importHaFloorplanSvg`, Studio-only, 0 B added to `floorplan-studio-card.js`) wired to `File > Import SVG…` (`#impSvg`). Parses SVG safely via `DOMParser` with hard caps (`5 MB`, `4,000` nodes, `200` rooms, `500` devices), composes ancestor `transform` matrices, extracts closed shapes (`<rect>`, `<polygon>`, `<path>`) as rooms, extracts elements/groups with HA entity IDs as placed devices, and loads an unlocked plan in one undo step.
+
 ## 2026-11-26: Per-room presence heat map (S77) and custom car Lovelace card in popover (S78)
 
 1. S77 added `"presence"` to `HEAT_KINDS` (`heat_map: presence`, zero new YAML keys). Per-room occupancy union maths (`presenceHeat` and `presenceSensorsForFloor`) live in the zero-import lazy `floorplan-studio-history-<hash>.js` chunk, using a `0 h` to `8 h+` scale over 24 hours (or the active Replay window) and passing precomputed `heatValues` into `renderFloor`.

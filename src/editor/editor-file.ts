@@ -2,6 +2,7 @@ import { emptyLayout, isBlank, loadLayout } from "./state";
 import { availableEntities, type Floor, MAX_LAYOUT_BYTES, validate } from "../core";
 import { stopDraw } from "./editor-draw";
 import { layoutFromAreas } from "./from-areas";
+import { importHaFloorplanSvg } from "./svg-import";
 import type { FloorplanStudioEditor } from "./editor-app";
 
 // ---- save, export, reset, load the demo, open a file -----------------------------------------------------
@@ -122,6 +123,27 @@ export async function openFile(ed: FloorplanStudioEditor, ev: Event) {
   } catch (e) {
     ed.errors = [`${file.name} is not valid JSON: ${e instanceof Error ? e.message : String(e)}`];
     ed.status = "Could not use that file";
+  }
+  input.value = "";
+}
+
+/** S79: Imports an `ha-floorplan` SVG into an unlocked plan (one undo step). */
+export async function importSvgFile(ed: FloorplanStudioEditor, ev: Event) {
+  const input = ev.target as HTMLInputElement, file = input.files?.[0];
+  if (!file) return;
+  try {
+    const res = importHaFloorplanSvg(await file.text(), ed.ha);
+    if (!res.ok) {
+      ed.errors = [res.error];
+      ed.status = "Could not import SVG";
+      ed.requestUpdate();
+    } else {
+      applyLayout(ed, res.layout, `Imported ${file.name}: ${res.rooms} rooms, ${res.devices} devices (Undo to revert)`, false);
+    }
+  } catch (e) {
+    ed.errors = [`${file.name}: ${e instanceof Error ? e.message : String(e)}`];
+    ed.status = "Could not import SVG";
+    ed.requestUpdate();
   }
   input.value = "";
 }
