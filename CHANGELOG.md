@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.60.0 - 2026-11-27
+
+`ha-floorplan` SVG import, 2D & 3D outdoor sun shadows, 3D weather atmosphere, Studio ruler, wall straightening & exact corner angles, external-wall floor alignment, draggable Studio tool palette, and Fullscreen mode (Sprints 79–87):
+
+- **Import from `ha-floorplan` SVGs (S79):** Added `File > Import SVG…` in Studio to import rooms (`<rect>`, `<polygon>`, `<path>`) and Home Assistant entity IDs directly from Inkscape/Illustrator `ha-floorplan` SVGs with transform composition, size/node caps, and single-step undo.
+- **3D outdoor sun casting & house/tree/car shadows (S80):** Enabled on-demand `PCFSoftShadowMap` (`1024×1024`, zero orbit shadow-pass cost) so house walls, fences, door leaves, tree crowns/trunks, parked cars, and furniture cast live directional shadows across gardens, terraces, pavements, walls, and the ground plane.
+- **2D sun wedge & outdoor directional shadows (S81):** Added a soft daytime 2D sun wedge and directional outdoor shadows (masked house outline, trees, parked cars) driven by live `sun.sun` azimuth and elevation.
+- **3D weather atmosphere (S82):** Live overcast lighting, `FogExp2` mist, animated 3D rain streaks, and drifting snowflakes driven by `weather.*` (respecting `prefers-reduced-motion` and tab visibility).
+- **Studio measurement ruler (S83):** Interactive two-point snapped distance ruler (`View > Ruler`, shortcut `M`, `Esc` to exit) showing live `m`/`cm` and `Δx`/`Δy` readouts without touching undo history.
+- **Wall straightening & collinear wall merging (S84):** Added `Edit > Straighten walls (90°)` / `(45°)` and `Merge collinear walls` to clean up jagged imported walls while keeping stitched rooms and junctions intact.
+- **Exact corner angle inspector (S85):** Selecting any room or outline corner now shows its live interior angle with custom degree input and `90°`/`45°`/`60°`/`120°`/`135°`/`180°` presets.
+- **Multi-floor external-wall alignment & copy (S86):** Added `Align external wall`, `Copy perimeter`, and `Copy stairs` from the floor below inside `Floor > Align to floor below…`.
+- **Draggable Studio tool palette & Fullscreen mode (S87):** Added a movable, collapsible 8-tool icon rail in Studio plus Fullscreen mode for both Studio (`View > Fullscreen`, palette icon, shortcut `F`) and Card (`⋯` menu `Fullscreen`, translated in all 9 languages).
+
 ## 0.59.0 - 2026-11-26
 
 Per-room presence heat map over a day and custom car Lovelace cards in the car popover (Sprints 77–78):
