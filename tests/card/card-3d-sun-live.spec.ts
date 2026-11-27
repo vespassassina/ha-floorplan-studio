@@ -25,7 +25,7 @@ async function still(page: Page) {
   let prev = -1, same = 0;
   await expect.poll(async () => { const n = await frames(page); same = n === prev ? same + 1 : 0; prev = n; return same; }, { intervals: [100], timeout: 15000 }).toBeGreaterThanOrEqual(3);
 }
-const FIXED = { x: -0.5, y: 1, z: 0.8, intensity: 1.9, colour: "#ffffff", hemi: 1.6 };
+const FIXED = { x: -0.5, y: 1, z: 0.8, intensity: 1.75, colour: "#fff7eb", hemi: 1.45 };
 
 async function boot(page: Page, states: Record<string, unknown>, o: { north?: number; rotation?: number; config?: Record<string, unknown> } = {}) {
   const layout = structuredClone(demo); const g = layout.floors.ground;
@@ -117,14 +117,14 @@ test.describe("the card hands sun.sun to the 3D view (S38.2)", () => {
       await boot(page, { "sun.sun": junk }, {});
       const e = await lightOf(page);
       // below_horizon is night as well (S7.6): the night light, which has the same direction. The rest is the day light, fixed.
-      expect(e, JSON.stringify(junk)).toMatchObject({ x: FIXED.x, y: FIXED.y, z: FIXED.z, colour: "#ffffff" });
-      expect(e.intensity, JSON.stringify(junk)).toBe(junk.state === "below_horizon" ? 0.35 : FIXED.intensity);
+      expect(e, JSON.stringify(junk)).toMatchObject({ x: FIXED.x, y: FIXED.y, z: FIXED.z, colour: junk.state === "below_horizon" ? "#bfd6fa" : FIXED.colour });
+      expect(e.intensity, JSON.stringify(junk)).toBe(junk.state === "below_horizon" ? 0.55 : FIXED.intensity);
     }
   });
 
   test("a binary_sensor named as the sun (state on, no attributes) gives the night light and no sun", async ({ page }) => {
     await boot(page, { "binary_sensor.x": { state: "on", attributes: {}, last_changed: "2026-10-27T10:00:00Z" } }, { config: { sun: "binary_sensor.x" } });
-    expect(await lightOf(page)).toMatchObject({ x: FIXED.x, y: FIXED.y, z: FIXED.z, intensity: 0.35 });
+    expect(await lightOf(page)).toMatchObject({ x: FIXED.x, y: FIXED.y, z: FIXED.z, intensity: 0.55 });
   });
 
   test("a hass update that changes only the sun's azimuth moves the light (no device reads the sun)", async ({ page }) => {
@@ -135,5 +135,21 @@ test.describe("the card hands sun.sun to the 3D view (S38.2)", () => {
     const west = await lightOf(page);
     expect(west.x, `west ${JSON.stringify(west)} after east ${JSON.stringify(east)}`).toBeLessThan(-0.6);
     expect(west.y).toBeCloseTo(east.y, 6);
+  });
+
+  test("S80: directional sun shadows cast by day, turn off at night, and do not re-bake on camera orbit", async ({ page }) => {
+    await boot(page, { "sun.sun": sunState(180, 40) });
+    const day = await hook(page, (h) => h.shadows()) as { enabled: boolean; casting: boolean; updates: number };
+    expect(day.enabled).toBe(true);
+    expect(day.casting).toBe(true);
+    expect(day.updates).toBeGreaterThanOrEqual(1);
+    // Camera orbit reuses the baked shadow map with zero extra shadow passes.
+    await hook(page, (h, a) => h.look(a, 0.5), 1.2); await still(page);
+    const afterOrbit = await hook(page, (h) => h.shadows()) as { enabled: boolean; casting: boolean; updates: number };
+    expect(afterOrbit.updates).toBe(day.updates);
+    // Night disables sun shadow casting.
+    await setStates(page, { "sun.sun": sunState(180, -10, "below_horizon") });
+    const night = await hook(page, (h) => h.shadows()) as { enabled: boolean; casting: boolean; updates: number };
+    expect(night.casting).toBe(false);
   });
 });

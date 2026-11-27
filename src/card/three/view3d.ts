@@ -4,7 +4,7 @@
 // are the card's `--fp-*` theme tokens, read from the card itself once per theme change. No network. S13: a room's or tread's top face wears its floor texture (tex.ts), and a lit lamp lights the walls of its room (glow.ts).
 // S12.5: `setLive` brings the live state in (core/live.ts, plain JSON): lit rooms and lamp pools, doors, bodies, balls, the
 // motion edge, and the HTML overlay. Every part changes in place; the scene is built again only for a new floor or theme.
-import { CylinderGeometry, DirectionalLight, type Material, BufferAttribute, BufferGeometry, Color, HemisphereLight, InstancedMesh, LineDashedMaterial, LineLoop, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, PerspectiveCamera, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer, DoubleSide, LessEqualDepth, MultiplyBlending, PlaneGeometry, SRGBColorSpace } from "three";
+import { CylinderGeometry, DirectionalLight, type Material, BufferAttribute, BufferGeometry, Color, HemisphereLight, InstancedMesh, LineDashedMaterial, LineLoop, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, PCFSoftShadowMap, PerspectiveCamera, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer, DoubleSide, LessEqualDepth, MultiplyBlending, PlaneGeometry, SRGBColorSpace } from "three";
 // Types only: this module imports nothing from the card at run time, so the bundler keeps it a chunk of its own (see palette.ts).
 import { CUT_WALL_HEIGHT, ICON_MARGIN, makeBuildScene, type Scene as Plan3D, type Solid, type SceneDeps } from "../../core/scene-build";
 import { makeLiveOf, type Live3D, type LiveDeps } from "../../core/live-build";
@@ -24,7 +24,7 @@ import { crownMesh } from "./crowns";
 import { contactShadows, groundBox } from "./shade";
 import { debugOnce } from "../../core/debug-once";
 import { breathAt, pulseAt } from "./ring";
-import { sunDir, sunLook } from "./sun";
+import { sunDir, sunLook, sunShadowBox } from "./sun";
 import { createSunPatches } from "./patches";
 import { MAX_SUN_PATCHES, sunPatches } from "./sunpatch";
 
@@ -171,12 +171,22 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   const scene = new Scene(), camera = new PerspectiveCamera(FOV, 1, 1, 1000);
   const hemi = new HemisphereLight(0xf2f7ff, 0xcabca8, DAY.hemi);
   scene.add(hemi);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false;
   const sun = new DirectionalLight(0xffffff, DAY.sun);
   const FIXED_SUN: [number, number, number] = [-0.5, 1, 0.8]; // from the south-west, above: the south and west faces catch it, the others stay in half tone
+  let sunVec: [number, number, number] = [...FIXED_SUN];
+  let shadowKey = "", shadowUpdates = 0;
+  const markShadowDirty = () => { renderer.shadowMap.needsUpdate = true; shadowUpdates++; };
   sun.position.set(...FIXED_SUN);
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 2.5;
   /** Test build only (`__fp3d.sun`): a sun given to the view directly, standing in for `setLive`'s `sun` until the card hands it. `undefined` is "use the live state's". */
   let forcedSun: unknown;
   scene.add(sun);
+  scene.add(sun.target);
 
   let framed = false, inDraw = false;
   let orbit = new Orbit({ min: [0, 0, 0], max: [0, 0, 0] }, 1, FOV, opts.turnDeg);
@@ -464,24 +474,25 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   /** S28.7: the crowns of the trees in `solids`, one InstancedMesh, in the tree role's colour; null when there is none. */
   const crownsOf = (solids: Plan3D["solids"]): InstancedMesh | null => {
     const p = paintOf("tree-crown", undefined), m = crownMesh(solids, new MeshLambertMaterial({ color: p.colour, flatShading: true }));
-    if (m) scene.add(m);
+    if (m) { m.castShadow = true; m.receiveShadow = true; scene.add(m); }
     return m;
   };
   /** One mesh per colour from the solids `pick` accepts, drawn over the z range `zOf` gives (null: left out). A solid with a floor texture gives its top face to a mesh of its own, with UVs in plan cm (tex.ts); its other faces stay the flat colour. */
   const meshesOf = (pick: (s: Plan3D["solids"][number]) => boolean, zOf: (s: Plan3D["solids"][number]) => [number, number] | null, from: Plan3D["solids"] = plan?.solids ?? [], textured = true): Mesh[] => {
-    const groups = new Map<string, { tris: Triangles; colour: Color; opacity: number; tile?: TextureTile; uv: number[] }>();
-    const group = (key: string, colour: Color, opacity: number, tile?: TextureTile) => { let g = groups.get(key); if (!g) groups.set(key, (g = { tris: { position: [], normal: [] }, colour, opacity, tile, uv: [] })); return g; };
+    const groups = new Map<string, { tris: Triangles; colour: Color; opacity: number; casts: boolean; tile?: TextureTile; uv: number[] }>();
+    const group = (key: string, colour: Color, opacity: number, casts: boolean, tile?: TextureTile) => { let g = groups.get(key); if (!g) groups.set(key, (g = { tris: { position: [], normal: [] }, colour, opacity, casts, tile, uv: [] })); return g; };
     for (const s of from) {
       if (s.shape.type === "point" || !pick(s)) continue; // a point (a device with no body of its own) is a ball, below
       const z = zOf(s);
       if (!z) continue;
-      const p = paintOf(s.paint.role, s.paint.color), flat = group(`${p.colour.getHexString()}|${p.opacity}`, p.colour, p.opacity);
+      const casts = s.kind !== "room" && s.kind !== "floor";
+      const p = paintOf(s.paint.role, s.paint.color), flat = group(`${p.colour.getHexString()}|${p.opacity}|${casts ? 1 : 0}`, p.colour, p.opacity, casts);
       if (s.shape.type === "loft") { loftTriangles(s.shape.base, s.shape.top, z[0], z[1], flat.tris); continue; }
       const tile = textured && s.paint.texture !== undefined ? opts.deps.texture(s.paint.texture, s.paint.textureRot, s.paint.textureScale) : null;
       if (!tile) { prismTriangles(s.shape.base, z[0], z[1], flat.tris, s.shape.holes); continue; }
       const all: Triangles = { position: [], normal: [] };
       prismTriangles(s.shape.base, z[0], z[1], all, s.shape.holes);
-      const top = group(`tex|${textureKey(tile)}|${tile.rot}`, dimTile(tile.preview), 1, tile);
+      const top = group(`tex|${textureKey(tile)}|${tile.rot}`, dimTile(tile.preview), 1, false, tile);
       for (let t = 0; t < all.position.length; t += 9) {
         const to = all.normal[t + 1] > 0.5 ? top : flat; // the cap that faces up wears the texture
         to.tris.position.push(...all.position.slice(t, t + 9));
@@ -500,6 +511,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       geo.computeBoundingSphere();
       const glass = g.opacity < 1, mat = new MeshLambertMaterial({ color: g.colour, vertexColors: true, transparent: glass, opacity: g.opacity, depthWrite: !glass, ...(glass ? { side: DoubleSide } : {}) }); // `side: undefined` makes three warn
       const mesh = new Mesh(geo, mat);
+      mesh.castShadow = !glass && g.casts;
+      mesh.receiveShadow = !glass;
       mesh.renderOrder = glass ? 1 : 0;
       scene.add(mesh);
       out.push(mesh);
@@ -571,7 +584,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     g.rotateX(-Math.PI / 2); // flat, facing up; plan y runs towards three's +z
     g.translate((box.x0 + box.x1) / 2, low, (box.y0 + box.y1) / 2);
     const m = new Mesh(g, new MeshLambertMaterial({ color: paintOf("ground", undefined).colour }));
-    m.name = "ground"; m.raycast = () => undefined; m.visible = shadeOn;
+    m.name = "ground"; m.receiveShadow = true; m.raycast = () => undefined; m.visible = shadeOn;
     scene.add(m);
     ground = m;
   };
@@ -623,6 +636,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     dispose(wallMeshes);
     wallMeshes = meshesOf((x) => isWall(x) && !isPart(x), (x) => wallZ(x, lowered, CUT_WALL_HEIGHT));
     for (const m of wallMeshes) paintLifts(m);
+    if (sun.castShadow) markShadowDirty();
     wallSides = [];
     for (const x of plan?.solids ?? []) {
       if (x.kind !== "wall" || x.shape.type !== "prism") continue;
@@ -687,6 +701,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       const p = paintOf(s.paint.role, s.paint.color), glass = p.opacity < 1;
       const mat = new MeshLambertMaterial({ color: p.colour, transparent: glass, opacity: p.opacity, depthWrite: !glass, side: DoubleSide });
       const mesh = new Mesh(geo, mat);
+      mesh.castShadow = !glass;
+      mesh.receiveShadow = !glass;
       mesh.position.set(hx, 0, hy);
       mesh.renderOrder = glass ? 1 : 0;
       mesh.frustumCulled = false;
@@ -705,6 +721,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       geo.setAttribute("position", new BufferAttribute(new Float32Array(tris.position), 3));
       geo.setAttribute("normal", new BufferAttribute(new Float32Array(tris.normal), 3));
       const p = paintOf(s.paint.role, s.paint.color), mat = new MeshLambertMaterial({ color: p.colour }), mesh = new Mesh(geo, mat);
+      mesh.castShadow = true; mesh.receiveShadow = true;
       scene.add(mesh);
       const lit: Mesh[] = [], glow = (g: BufferGeometry) => { const m = new Mesh(g, new MeshBasicMaterial({ color: 0x000000, side: DoubleSide })); m.renderOrder = 1; scene.add(m); lit.push(m); return m; };
       const cx = b.reduce((a, q) => a + q[0], 0) / b.length, cy = b.reduce((a, q) => a + q[1], 0) / b.length;
@@ -734,6 +751,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       geo.setAttribute("position", new BufferAttribute(new Float32Array(tris.position), 3));
       geo.setAttribute("normal", new BufferAttribute(new Float32Array(tris.normal), 3));
       const p = paintOf(s.paint.role, s.paint.color), mat = new MeshLambertMaterial({ color: p.colour }), mesh = new Mesh(geo, mat);
+      mesh.castShadow = true; mesh.receiveShadow = true;
       scene.add(mesh);
       // A car part keeps a depth-only twin of its geometry (S35.5, spec C6). While the car is away the twin writes the car's depth first
       // and the part is drawn faded only where it is the nearest surface, so the wheels do not show through the body.
@@ -755,7 +773,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     m.transparent = away; m.opacity = away ? CAR_AWAY : 1; m.depthWrite = !away; m.depthFunc = LessEqualDepth;
     m.needsUpdate = true;
     b.mesh.renderOrder = away ? 2 : 0;
+    b.mesh.castShadow = !away;
     if (b.twin) b.twin.visible = away && b.mesh.visible;
+    if (sun.castShadow) markShadowDirty();
   }
   function applyPieces() {
     const L = liveNow ?? EMPTY, on = paintOf("piece-on", undefined).colour, charge = paintOf("car-charge", undefined).colour, alert = paintOf("open-door", undefined).colour;
@@ -864,12 +884,42 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   function applySun(L: Live3D, mode: typeof DAY): { dir: [number, number, number]; az: number; el: number; north: number; rgb: Rgb } | null {
     const s = (__FP3D_TEST__ && forcedSun !== undefined ? forcedSun : L.sun) as { azimuth?: unknown; elevation?: unknown; north?: unknown } | null | undefined;
     const dir = L.night || typeof s !== "object" || s === null ? null : sunDir(s.azimuth, s.elevation, s.north ?? 0);
-    if (!dir) { sun.position.set(...FIXED_SUN); if (L.night) sun.color.setRGB(0.75, 0.84, 0.98, SRGBColorSpace); else sun.color.setRGB(1, 0.97, 0.92, SRGBColorSpace); sun.intensity = mode.sun; return null; }
-    const look = sunLook(s!.elevation as number);
-    sun.position.set(dir[0], dir[2], dir[1]);
+    if (!dir) {
+      sunVec = [...FIXED_SUN];
+      sun.position.set(...FIXED_SUN);
+      sun.target.position.set(0, 0, 0);
+      sun.target.updateMatrixWorld();
+      if (sun.castShadow) { sun.castShadow = false; shadowKey = ""; markShadowDirty(); }
+      if (L.night) sun.color.setRGB(0.75, 0.84, 0.98, SRGBColorSpace); else sun.color.setRGB(1, 0.97, 0.92, SRGBColorSpace);
+      sun.intensity = mode.sun;
+      return null;
+    }
+    const az = s!.azimuth as number, el = s!.elevation as number, north = (s!.north ?? 0) as number;
+    const look = sunLook(el);
+    sunVec = [dir[0], dir[2], dir[1]];
     sun.color.setRGB(...look.rgb, SRGBColorSpace); // sRGB: `setRGB` takes the linear working space unless told, and #ffd9a0 would read back as #ffeed0
     sun.intensity = mode.sun * look.k;
-    return { dir, az: s!.azimuth as number, el: s!.elevation as number, north: (s!.north ?? 0) as number, rgb: look.rgb };
+    const sb = shadeOn ? sunShadowBox(plan?.bounds, dir) : null;
+    if (sb) {
+      sun.position.set(...sb.pos);
+      sun.target.position.set(...sb.target);
+      sun.target.updateMatrixWorld();
+      const nextKey = `${builds}|${Math.round(az)}|${Math.round(el)}|${north}|${shadeOn}`;
+      if (!sun.castShadow || nextKey !== shadowKey) {
+        shadowKey = nextKey;
+        const sc = sun.shadow.camera;
+        sc.left = -sb.half; sc.right = sb.half; sc.top = sb.half; sc.bottom = -sb.half; sc.near = sb.near; sc.far = sb.far;
+        sc.updateProjectionMatrix();
+        sun.castShadow = true;
+        markShadowDirty();
+      }
+    } else {
+      sun.position.set(dir[0], dir[2], dir[1]);
+      sun.target.position.set(0, 0, 0);
+      sun.target.updateMatrixWorld();
+      if (sun.castShadow) { sun.castShadow = false; shadowKey = ""; markShadowDirty(); }
+    }
+    return { dir, az, el, north, rgb: look.rgb };
   }
   /**
    * S38.4: the sun's patches on the floor. Built when the floor or the theme was (`builds`), or the sun moved 1 degree or more in azimuth or
@@ -1251,7 +1301,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       /** S38.4: the sun's patches: how many times they were built, and the ones shown (room, outline in the plan, colour, peak strength). */
       patches: () => ({ builds: sunBuilds, shown: suns.info() }),
       /** S38.3: the directional light as three has it (position is its direction in three's frame), the colour as sRGB hex, and the hemisphere light's strength. */
-      light: () => ({ x: sun.position.x, y: sun.position.y, z: sun.position.z, intensity: sun.intensity, colour: hexOf(sun.color), hemi: hemi.intensity }),
+      light: () => ({ x: sunVec[0], y: sunVec[1], z: sunVec[2], intensity: sun.intensity, colour: hexOf(sun.color), hemi: hemi.intensity }),
+      shadows: () => ({ enabled: renderer.shadowMap.enabled, casting: sun.castShadow, updates: shadowUpdates }),
       /** S32.1: the camera as the card would store it ({ az, polar, zoom, dx, dz }; zoom is a multiple of the fit). */
       camera: () => api.camera(),
       setBelow: (floors: unknown, mode: string) => api.setBelow(floors, mode),
@@ -1294,7 +1345,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         const one = (m: Mesh) => { const g = m.geometry, mat = m.material as MeshLambertMaterial; if (!g.boundingBox) g.computeBoundingBox(); const b = g.boundingBox!; return { verts: g.getAttribute("position").count, opacity: (m.userData.strength as number | undefined) ?? mat.opacity, depthWrite: mat.depthWrite, transparent: mat.transparent, box: [b.min.x, b.min.z, b.min.y, b.max.x, b.max.z, b.max.y], colour: hexOf(mat.color) }; };
         return { ground: ground ? one(ground) : null, own: shades.map(one), below: belowShades.map(one), inScene: scene.children.filter((c) => c.name === "shade").length, grounds: scene.children.filter((c) => c.name === "ground").length };
       },
-      shadeVisible(on: boolean) { shadeOn = !!on; for (const m of [...shades, ...belowShades, ...(ground ? [ground] : [])]) m.visible = shadeOn; want(); },
+      shadeVisible(on: boolean) { shadeOn = !!on; shadowKey = ""; for (const m of [...shades, ...belowShades, ...(ground ? [ground] : [])]) m.visible = shadeOn; applyLive(); want(); },
       /** Draws one frame now and returns how many draw calls it took. */
       calls() { prepare(); renderer.render(scene, camera); return renderer.info.render.calls; },
       /** Gives the view a floor directly, as `setFloor` does: what the card's own check (validate) would have refused reaches the view this way. */
