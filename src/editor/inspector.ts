@@ -260,12 +260,13 @@ export function alignView(h: FloorplanStudioEditor) {
   const steps = h.alignSteps, stairs = h.alignStairInfo();
   const mv = (id: string, cls: string, label: string, glyph: string, dir: Pt) => html`<button class="btn keep ${cls}" id=${id} aria-label=${label} title=${label} @click=${() => h.moveAlign(dir)}>${glyph}</button>`;
   const turn = (id: string, label: string, glyph: string, sign: 1 | -1) => html`<button class="btn keep" id=${id} aria-label=${label} title=${label} @click=${() => h.turnAlign(sign)}>${glyph}</button>`;
-  return html`<div class="imode align-panel" id="alignPanel" role="tabpanel" aria-label="Align to floor below" @keydown=${esc}>
+  const above = h.alignDir === "above", headingTxt = above ? "Align to floor above" : "Align to floor below";
+  return html`<div class="imode align-panel" id="alignPanel" role="tabpanel" aria-label=${headingTxt} @keydown=${esc}>
     <div class="imode-head">
       <button class="btn keep" id="alignClose" aria-label="Close" @click=${() => h.closeAlign()}>&times;</button>
-      <span>Align to floor below</span>
+      <span>${headingTxt}</span>
     </div>
-    <p>Lay this floor over <strong>${a.belowTitle}</strong>. The floor below is drawn as faint lines on the plan.</p>
+    <p>Align this floor with <strong>${a.belowTitle}</strong>. The floor ${above ? "above" : "below"} is drawn as faint lines on the plan.</p>
     <h4 class="pnl-h">Auto align</h4>
     ${a.r && a.words
       ? html`<p id="alignScore">${a.words.score}</p>

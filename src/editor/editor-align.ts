@@ -1,17 +1,21 @@
-import { alignCandidates, alignKeyOf, alignStatus, alignSummary, chooseAlign, COORD_LIMIT, type Floor, floorBelow, floorPivot, floorPlace, floorPose, poseFromPlace, type Pt, stairPlace, stairReport } from "../core";
+import { alignCandidates, alignKeyOf, alignStatus, alignSummary, chooseAlign, COORD_LIMIT, type Floor, floorAbove, floorBelow, floorPivot, floorPlace, floorPose, poseFromPlace, type Pt, stairPlace, stairReport } from "../core";
 import { stopDraw } from "./editor-draw";
 import { parseAlignNumber, writeAlignSteps } from "./inspector";
 import { externalWallPlace } from "./straighten";
 import { takesTyping } from "../card/view-keys";
 import type { FloorplanStudioEditor } from "./editor-app";
 
-// ---- S27.10: the Align mode ------------------------------------------------------------------------------
+// ---- S27.10 / S96: the Align mode (below or above) -------------------------------------------------------
 
-/** S27.10: Floors, Align to floor below… opens the Align mode on the current floor; the floor below shows as a ghost while it is open. */
-export function openAlign(ed: FloorplanStudioEditor) {
+const refFloorOf = (ed: FloorplanStudioEditor, key: string | null): string | null =>
+  key === null ? null : ed.alignDir === "above" ? floorAbove(ed.st.layout, key) : floorBelow(ed.st.layout, key);
+
+/** S27.10 / S96: Floors, Align to floor below/above… opens the Align mode on the current floor; the reference floor shows as a ghost while it is open. */
+export function openAlign(ed: FloorplanStudioEditor, dir: "below" | "above" = "below") {
   ed.closeMenus();
-  if (floorBelow(ed.st.layout, ed.st.floor) === null) return;
-  stopDraw(ed); ed.traceMove = false; ed.st.sel = null; ed.alignKey = ed.st.floor; ed.asideMode = "align"; ed.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
+  const ref = dir === "above" ? floorAbove(ed.st.layout, ed.st.floor) : floorBelow(ed.st.layout, ed.st.floor);
+  if (ref === null) return;
+  stopDraw(ed); ed.traceMove = false; ed.st.sel = null; ed.alignDir = dir; ed.alignKey = ed.st.floor; ed.asideMode = "align"; ed.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
   if (ed.st.helpOpen) ed.st.setHelp(false);
   ed.requestUpdate();
   ed.focus({ preventScroll: true }); // S29.10: the keys are heard on the host, so the menu click must leave focus there
@@ -31,7 +35,7 @@ export function closeAlign(ed: FloorplanStudioEditor, update = true) {
  */
 export function alignPreview(ed: FloorplanStudioEditor) {
   const st = ed.st, key = ed.alignKey;
-  const bk = key === null ? null : floorBelow(st.layout, key);
+  const bk = refFloorOf(ed, key);
   if (key === null || bk === null) return null;
   const upper = st.layout.floors[key], lower = st.layout.floors[bk];
   const place = floorPlace(st.layout, key, bk);
@@ -60,7 +64,7 @@ export function poseNone(ed: FloorplanStudioEditor) {
 
 /** S29.11: the stair report for the panel, live from the layout (so it follows every press), and whether Align stairs can run. */
 export function alignStairInfo(ed: FloorplanStudioEditor) {
-  const st = ed.st, key = ed.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
+  const st = ed.st, key = ed.alignKey, bk = refFloorOf(ed, key);
   if (key === null || bk === null) return null;
   const upper = st.layout.floors[key], lower = st.layout.floors[bk], place = floorPlace(st.layout, key, bk);
   return { rows: stairReport(upper, lower, place), belowTitle: lower.title || bk, can: stairPlace(upper, lower, place) !== null };
@@ -68,7 +72,7 @@ export function alignStairInfo(ed: FloorplanStudioEditor) {
 
 /** Align stairs: the first stair of this floor laid on the nearest stair below, turn and shift, one undo step; the status says what it did. */
 export function alignStairs(ed: FloorplanStudioEditor) {
-  const st = ed.st, key = ed.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
+  const st = ed.st, key = ed.alignKey, bk = refFloorOf(ed, key);
   if (key === null || bk === null) return;
   const r = stairPlace(st.layout.floors[key], st.layout.floors[bk], floorPlace(st.layout, key, bk));
   if (!r) { ed.status = "Both floors need a stair to align"; ed.requestUpdate(); return; }
@@ -80,7 +84,7 @@ export function alignStairs(ed: FloorplanStudioEditor) {
 
 /** S86: aligns this floor's longest exterior wall flush onto the floor below's longest exterior wall. */
 export function alignExternalWall(ed: FloorplanStudioEditor) {
-  const st = ed.st, key = ed.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
+  const st = ed.st, key = ed.alignKey, bk = refFloorOf(ed, key);
   if (key === null || bk === null) return;
   const r = externalWallPlace(st.layout.floors[key]!, st.layout.floors[bk]!);
   if (!r) { ed.status = "Both floors need an outline to align external walls"; ed.requestUpdate(); return; }
@@ -92,7 +96,7 @@ export function alignExternalWall(ed: FloorplanStudioEditor) {
 
 /** S86: copies the exterior perimeter (`outline`) from the floor below onto this floor (one undo step). */
 export function copyPerimeterFromBelow(ed: FloorplanStudioEditor) {
-  const st = ed.st, key = ed.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
+  const st = ed.st, key = ed.alignKey, bk = refFloorOf(ed, key);
   if (key === null || bk === null) return;
   if (st.planLocked) { ed.planFixed(); return; }
   const lower = st.layout.floors[bk];
@@ -108,7 +112,7 @@ export function copyPerimeterFromBelow(ed: FloorplanStudioEditor) {
 
 /** S86: copies all stairs from the floor below onto this floor with unique IDs (one undo step). */
 export function copyStairsFromBelow(ed: FloorplanStudioEditor) {
-  const st = ed.st, key = ed.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
+  const st = ed.st, key = ed.alignKey, bk = refFloorOf(ed, key);
   if (key === null || bk === null) return;
   if (st.planLocked) { ed.planFixed(); return; }
   const lower = st.layout.floors[bk];
@@ -190,11 +194,12 @@ export function alignKeyDo(ed: FloorplanStudioEditor, ev: KeyboardEvent): boolea
   return true;
 }
 
-/** The floor below as `renderFloor`'s ghost: while the Align mode is open, or when View, Floor below is on (S27.11). */
+/** The reference floor (below, or above while Align-to-above is open) as `renderFloor`'s ghost (S27.11, S96). */
 export function ghostOpts(ed: FloorplanStudioEditor): { floor: Floor; shift: Pt; turn: number } | undefined {
-  const st = ed.st, bk = floorBelow(st.layout, st.floor);
-  if (bk === null) return undefined;
+  const st = ed.st;
   const aligning = ed.asideMode === "align" && ed.alignKey === st.floor;
+  const bk = aligning ? refFloorOf(ed, st.floor) : floorBelow(st.layout, st.floor);
+  if (bk === null) return undefined;
   if (!aligning && !st.ghostFloor) return undefined;
   const p = floorPlace(st.layout, bk, st.floor);
   return { floor: st.layout.floors[bk], shift: p.shift, turn: p.turn };
