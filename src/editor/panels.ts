@@ -32,7 +32,7 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["media", "Media players"], ["cover", "Covers"], ["battery", "Batteries"], ["inverter", "Inverters"], ["server", "Servers"],
   ["access_point", "Access points"], ["lock", "Door locks"], ["vibration", "Vibration sensors"], ["other", "Other"],
   ["boiler", "Boiler"], ["car", "Car"], ["ups", "UPS"], ["printer", "3D printer"], ["speaker", "Speaker"], ["person", "People"],
-  ["radar", "mmWave radar"], ["vacuum", "Vacuums"], ["siren", "Siren"], ["alarm", "Alarm"], ["fan", "Fans"], ["screen", "Control screens"], ["power_meter", "Power meters"],
+  ["radar", "mmWave radar"], ["vacuum", "Vacuums"], ["siren", "Siren"], ["alarm", "Alarm"], ["fan", "Fans"], ["screen", "Control screens"], ["power_meter", "Power meters"], ["air_quality", "Air quality"], ["smoke", "Smoke detectors"],
 ];
 
 /** A type as a word in a sentence ("Added access point"): its label, lower case unless it is an initialism (UPS, AC, TV).
@@ -822,7 +822,7 @@ function roomPanel(c: PanelCtx, i: number) {
  * (`multiAttachField`): a pick pulls a loose icon of that entity off the plan in the same undo step, a Remove button
  * only detaches. Only a kind that `roomAt` can pick takes sensors (`ROOM_OWNS`): attached to a zone, structure or fill, nothing would show them.
  */
-const ROOM_SENSORS: [RoomSensorField, string, string][] = [["temps", "rtemp", "temperature sensors"], ["humidity", "rhum", "humidity sensors"], ["motion", "rmot", "motion sensors"], ["power", "rpow", "power sensors"], ["water", "rwat", "water sensors"]];
+const ROOM_SENSORS: [RoomSensorField, string, string][] = [["temps", "rtemp", "temperature sensors"], ["humidity", "rhum", "humidity sensors"], ["motion", "rmot", "motion sensors"], ["airQuality", "rair", "air quality sensors"], ["smoke", "rsmk", "smoke detectors"], ["power", "rpow", "power sensors"], ["water", "rwat", "water sensors"]];
 const BADGE_CORNER_NAMES: Record<string, string> = { off: "Off", nw: "Top left", ne: "Top right", sw: "Bottom left", se: "Bottom right" };
 function roomBadgesPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
@@ -1181,7 +1181,7 @@ function devicePanel(c: PanelCtx, i: number) {
  * layout stays valid and the panel never shows a field for the wrong type.
  */
 /** S11.2: a temp, humidity or motion device either already belongs to a room (shown as text) or may join the one it sits in. */
-const ROOM_SENSOR_TYPES: DeviceType[] = ["temp", "humidity", "motion"];
+const ROOM_SENSOR_TYPES: DeviceType[] = ["temp", "humidity", "motion", "air_quality", "smoke"];
 function attachToRoomField(c: PanelCtx, i: number) {
   if (!ROOM_SENSOR_TYPES.includes(c.st.f.devices[i].type)) return nothing;
   const owner = c.st.roomOwning(i);

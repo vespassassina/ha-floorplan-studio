@@ -541,7 +541,7 @@ export const DEVICE_SOLID: Record<DeviceType, DeviceBody> = {
   switch: "none", plug: "none", contact: "none", vibration: "none", lock: "none", temp: "none", humidity: "none", climate: "none",
   boiler: "none", battery: "none", inverter: "none", media: "speaker", tv: "tv", other: "none", heater: "radiator", computer: "none",
   server: "none", ups: "none", printer: "none", car: "none", person: "none", vacuum: "none", siren: "none", alarm: "none", fan: "none",
-  screen: "screen", power_meter: "none",
+  screen: "screen", power_meter: "none", air_quality: "none", smoke: "none",
 };
 /**
  * The body a device draws: the one it names, or its type's own. A name that is not a body, a radiator on a device with no

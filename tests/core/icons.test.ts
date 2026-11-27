@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { DEVICE_ICONS, FURNITURE } from "../../src/core/icons";
 import type { DeviceType, FurnitureSymbol } from "../../src/core/schema";
 
-const DEVICE_TYPES: DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen", "power_meter"];
+const DEVICE_TYPES: DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen", "power_meter", "air_quality", "smoke"];
 const SYMBOLS: FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "worktop", "metal-shelf", "worktable", "wash-basin", "boiler", "water-tank", "carport", "awning", "garden-house", "skylight", "chimney", "solar-panel", "roof-vent"];
 
 describe("icons", () => {

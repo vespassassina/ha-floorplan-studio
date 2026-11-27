@@ -157,6 +157,7 @@ describe("DEVICE_Z: every type's mount height is pinned (S14.5, Diego: lights an
     switch: 120, plug: 30, contact: 120, vibration: 120, lock: 100, temp: 135, humidity: 135, climate: 135,
     boiler: 120, battery: 120, inverter: 100, tv: 100, other: 100, speaker: 30, media: 30,
     power_meter: 140,
+    air_quality: 135, smoke: 215,
     heater: 60, computer: 75, server: 60, ups: 30, printer: 90, car: 150, person: 170, vacuum: 10,
     siren: 205, alarm: 120, // S18.14
     fan: 215, // S33.1: as a light, a ceiling fan

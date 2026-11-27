@@ -8,7 +8,7 @@ export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
   | "battery" | "inverter" | "server" | "access_point" | "lock" | "vibration" | "other"
-  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum" | "siren" | "alarm" | "fan" | "screen" | "power_meter";
+  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum" | "siren" | "alarm" | "fan" | "screen" | "power_meter" | "air_quality" | "smoke";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "sofa-l" | "coffee-table" | "bookcase" | "buffet" | "wardrobe" | "dresser" | "nightstand" | "desk" | "armchair" | "counter" | "stove" | "fridge" | "dishwasher" | "washer" | "dryer" | "rug" | "plant" | "treadmill" | "barbell-rack" | "weight-rack" | "chaise-longue" | "cube-shelf" | "mirror" | "mirror-stand" | "robot-vacuum" | "robot-dock" | "tv" | "computer" | "speaker" | "tree" | "patio-wood" | "patio-concrete" | "car" | "worktop"
@@ -43,7 +43,7 @@ export function roomBadgesProblem(v: unknown): string | null {
  *  `temps`/`humidity`/`motion` (S11.1): the sensors that belong to this room, the way a door owns its contact sensors. The
  *  plan shows no icon for them; the room shows the mean temperature and humidity under its name, and a red pulsing border
  *  while any `motion` entity is on. At most `MAX_ROOM_SENSORS` each. */
-export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; /** B53.9: a colour per edge, parallel to `wk`; null is the layout's or the theme's. Absent: none set. */ wc?: (string | null)[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; /** B55.1: the room's badges (a corner of its box) and the power and water sensors its energy badge reads. */ badges?: RoomBadges; power?: string[]; water?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
+export interface Room { id: string; name: string; area: string; kind: RoomKind; pts: Pt[]; wk: EdgeKind[]; /** B53.9: a colour per edge, parallel to `wk`; null is the layout's or the theme's. Absent: none set. */ wc?: (string | null)[]; color?: string; texture?: string; textureRot?: number; textureScale?: number; free?: boolean; entity?: string; height?: number; temps?: string[]; humidity?: string[]; motion?: string[]; /** S94: room-attached air-quality sensors (CO2/VOC/PM/formaldehyde/CO/gas) and smoke detectors. */ airQuality?: string[]; smoke?: string[]; /** B55.1: the room's badges (a corner of its box) and the power and water sensors its energy badge reads. */ badges?: RoomBadges; power?: string[]; water?: string[]; scenes?: RoomScene[]; haScenes?: string[]; tempRange?: { min?: number; max?: number } }
 /** Most custom scenes one room may keep, and most lights or switches one scene may set. */
 export const MAX_ROOM_SCENES = 12;
 export const MAX_SCENE_ITEMS = 40;
@@ -173,7 +173,7 @@ export const LAMP_BOUNDS = {
 export const OTHER_ICONS = ["value"] as const;
 export type OtherIcon = (typeof OTHER_ICONS)[number];
 
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; underfloor?: true; whiteOnly?: true; body?: DeviceBody; lamp?: LampSpec; icon?: OtherIcon } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; view?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; airSensors?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean; underfloor?: true; whiteOnly?: true; body?: DeviceBody; lamp?: LampSpec; icon?: OtherIcon } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /**
  * S35.1: the car models, in the order the Studio lists them. `model`, `color` (`#rrggbb`) and `attached` (at most
  * `MAX_CAR_ATTACHED` entity ids) exist on a furniture piece with symbol `car` only; `entity` is then the car's main
@@ -309,7 +309,7 @@ export const isSiren = (d: { entity?: unknown }): boolean => typeof d.entity ===
 export const drawsEffect = (d: { type?: unknown; entity?: unknown }): boolean => (FX_TYPES as readonly unknown[]).includes(d.type) || isSiren(d);
 /** The effect size as a fraction (1 = the type's own size). A missing or invalid `fx` reads as 1. */
 export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX ? d.fx / 100 : 1);
-export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen", "power_meter"];
+export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen", "power_meter", "air_quality", "smoke"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car", "worktop", "metal-shelf", "worktable", "wash-basin", "boiler", "water-tank", "carport", "awning", "garden-house", "skylight", "chimney", "solar-panel", "roof-vent"];
@@ -522,6 +522,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       entityList(r, "motion", "binary_sensor.name", ["binary_sensor", "group"], MAX_ROOM_SENSORS); // a group is a motion group (ha.ts isMotionGroup)
       entityList(r, "power", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
       entityList(r, "water", "sensor.name", ["sensor"], MAX_ROOM_SENSORS);
+      entityList(r, "airQuality", "sensor.name", ["sensor", "binary_sensor"], MAX_ROOM_SENSORS);
+      entityList(r, "smoke", "binary_sensor.name", ["binary_sensor", "sensor"], MAX_ROOM_SENSORS);
       if (r.badges !== undefined) { const why = roomBadgesProblem(r.badges); if (why) errors.push(`${at} ${r.id} badges ${why}`); }
       entityList(r, "haScenes", "scene.name", ["scene"], MAX_ROOM_SCENES * 4);
       if (r.scenes !== undefined) {
@@ -698,6 +700,10 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       if (d.linked !== undefined) {
         entityList(d, "linked", "climate.name");
         if (d.type !== "ac") errors.push(`${at} ${d.id} linked is only allowed on an ac`);
+      }
+      if (d.airSensors !== undefined) {
+        entityList(d, "airSensors", "sensor.name", ["sensor", "binary_sensor"], MAX_ROOM_SENSORS);
+        if (d.type !== "air_quality") errors.push(`${at} ${d.id} airSensors is only allowed on an air_quality sensor`);
       }
       if (d.room !== undefined) {
         if (!isEntity(d.room)) errors.push(`${at} ${d.id} room must be an entity id like sensor.name`);

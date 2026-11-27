@@ -37,7 +37,7 @@ describe("S24.3: every DeviceType has a written attention rule (finding 17)", ()
 
   it.each(DEVICE_TYPES)("%s: raises exactly what its rule says, and unavailable like every type", (t) => {
     const rule = ATTENTION_RULE[t];
-    const e = t === "other" ? `binary_sensor.${t}` : `x.${t}`;
+    const e = t === "other" || t === "smoke" ? `binary_sensor.${t}` : `x.${t}`;
     const kinds = (s: ReturnType<typeof st>) => attention(one([dev(t, e)]), { [e]: s }).items.map((i) => i.kind);
     expect(attention(one([dev(t, e)]), { [e]: st("unavailable") }).unavailable.map((i) => i.entity)).toEqual([e]);
     expect(kinds(st("unavailable"))).toEqual([]);

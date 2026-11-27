@@ -23,12 +23,12 @@ export const CATEGORIES: readonly { id: CategoryId; label: string }[] = [
 export const CATEGORY_OF: Record<DeviceType, CategoryId> = {
   light: "lights",
   heater: "climate", climate: "climate", ac: "climate", boiler: "climate", fan: "climate",
-  camera: "security", siren: "security", alarm: "security", lock: "security", motion: "security", contact: "security", vibration: "security", radar: "security",
+  camera: "security", siren: "security", alarm: "security", lock: "security", motion: "security", contact: "security", vibration: "security", radar: "security", smoke: "security",
   tv: "media", media: "media", speaker: "media",
   switch: "power", plug: "power", battery: "power", inverter: "power", ups: "power", power_meter: "power",
   cover: "covers",
   computer: "computing", server: "computing", access_point: "computing", printer: "computing",
-  temp: "sensors", humidity: "sensors",
+  temp: "sensors", humidity: "sensors", air_quality: "sensors",
   person: "people",
   vacuum: "other", car: "other", other: "other", screen: "computing", // a wall tablet is a small computer
 };

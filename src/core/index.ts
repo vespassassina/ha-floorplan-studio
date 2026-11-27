@@ -1,4 +1,6 @@
 export * from "./schema";
+export { isAirQualityBad, isSmokeDetected, roomHazards } from "./air-quality";
+export type { RoomHazard } from "./air-quality";
 export { TEXTURES, TEXTURE_IDS, texturePatterns } from "./textures";
 export { furniturePaint, furniturePaintable } from "./furniture-paint";
 export type { Texture } from "./textures";
