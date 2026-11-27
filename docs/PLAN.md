@@ -5135,3 +5135,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ## Sprint 94 — Air quality sensor, smoke detector, and room warning signs
 
 - [x] **S94.1** Added `"air_quality"` and `"smoke"` device types, `Room.airQuality` / `Room.smoke` / `Device.airSensors`, CO2/VOC/formaldehyde/PM2.5/PM5/PM10/CO/gas thresholds (`src/core/air-quality.ts`), small yellow air-quality and bigger red smoke room warning signs (`src/core/render.ts`), HA auto-detection, and Studio room attachment.
+
+---
+
+## Sprint 95 — Smooth lofted multi-wing roofs and roof fixes
+
+- [x] **S95.1** Replaced stepped roof pyramid with smooth `{ type: "loft" }` planes, added `RoofSpec.wallHeight` (`0..250 cm`, default `0`), removed stairs & parapet walls from roof floors, and added multi-wing angled roof support (one oriented loft per roof room polygon + flat terrace sections).

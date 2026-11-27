@@ -229,7 +229,7 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
 export const ROOF_SHAPES = ["gable", "hip", "shed", "flat"] as const;
 export type RoofShape = (typeof ROOF_SHAPES)[number];
 /** S92: optional roof floor definition. When present, the floor renders a roof surface with shape/ridge/pitch/overhang in 2D and 3D; terrace rooms drawn on top become flat roof sections. */
-export interface RoofSpec { shape: RoofShape; pitch?: number; ridge?: 0 | 90; color?: string; overhang?: number }
+export interface RoofSpec { shape: RoofShape; pitch?: number; ridge?: 0 | 90; color?: string; overhang?: number; /** S95: optional knee-wall height under the roof eaves in cm (0..250, default 0 = no wall). */ wallHeight?: number }
 
 export interface Floor {
   ha?: string; height?: number; slab?: number; offset?: [number, number]; rotation?: number; roof?: RoofSpec; title: string; outline: Pt[]; owk?: EdgeKind[]; /** B53.9: a colour per outline edge, parallel to `owk`; null is the layout's or the theme's. */ owc?: (string | null)[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
@@ -484,6 +484,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
         if (rf.ridge !== undefined && rf.ridge !== 0 && rf.ridge !== 90) errors.push(`${at} roof.ridge must be 0 or 90`);
         if (rf.color !== undefined && !(typeof rf.color === "string" && /^#[0-9a-fA-F]{6}$/.test(rf.color))) errors.push(`${at} roof.color must be #rrggbb`);
         if (rf.overhang !== undefined && !(fin(rf.overhang) && rf.overhang >= 0 && rf.overhang <= 150)) errors.push(`${at} roof.overhang must be 0..150`);
+        if (rf.wallHeight !== undefined && !(fin(rf.wallHeight) && rf.wallHeight >= 0 && rf.wallHeight <= 250)) errors.push(`${at} roof.wallHeight must be 0..250`);
       }
     }
     if (farCoordinate(f)) errors.push(`${at} a coordinate lies further than ${COORD_LIMIT} cm (100 km) from the origin; keep every point within +-${COORD_LIMIT} cm`);

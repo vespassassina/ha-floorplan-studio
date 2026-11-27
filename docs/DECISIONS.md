@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-28: Smooth lofted multi-wing roofs, variable wallHeight, and no roof stairs/parapet (S95)
+
+1. Replaced the 6-step prism roof pyramid in `src/core/scene-build.ts` with smooth `{ type: "loft" }` straight sloped planes (`gable`, `hip`, `shed`) rendered by `loftTriangles`.
+2. Added `RoofSpec.wallHeight` (`0..250 cm`, default `0`) so walls under the roof are optional and variable in height (`src/core/schema.ts`, `src/editor/panels.ts`), and changed `addRoofFloor` (`src/editor/editor-actions.ts`) to clear `stairs` and set perimeter `owk` to `"none"`.
+3. Roof floors now suppress stairwells and stair solids in 3D, and support multi-wing angled roofs: drawing `room`/`structure` polygons on a roof floor builds one smooth oriented lofted wing per polygon while `terrace` rooms stay flat roof sections.
+
 ## 2026-11-27: Air quality sensor, smoke detector, and room warning signs (S94)
 
 1. Added `"air_quality"` and `"smoke"` to `DEVICE_TYPES` (`src/core/schema.ts`, `icons.ts`, `heights.ts`, `ha.ts`, `active.ts`, `attention.ts`, `categories.ts`, etc.), plus room-attached lists `Room.airQuality` and `Room.smoke` and multi-sensor `Device.airSensors` (CO2, VOC, formaldehyde, PM2.5, PM5, PM10, CO, gas, AQI).

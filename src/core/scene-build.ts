@@ -115,6 +115,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     const outline = ring(f.outline);
     if (outline) polys.push({ id: "o", pts: outline, room: null });
     list(f.rooms).forEach((r, i) => {
+      if (isObj(f.roof) && isObj(r) && (r.kind === "room" || r.kind === "structure")) return;
       const pts = isObj(r) && r.kind !== "zone" ? ring(r.pts) : null;
       if (pts) polys.push({ id: `r${i}`, pts, room: r as Floor["rooms"][number] });
     });
@@ -223,7 +224,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
 
     // The footprints of the flights that go down: the slab and the room fills are open there, or the flight lies under a lid (0.26.1).
     const wells: Pt[][] = [];
-    list(f.stairs).forEach((t) => piece(() => {
+    if (!isObj(f.roof)) list(f.stairs).forEach((t) => piece(() => {
       const blocks = isObj(t) ? stairBlocks(t as never) : null;
       if (blocks && resolveStairDirection(t as never, opts?.around) === "down") wells.push(blocks.foot(0));
     }));
@@ -291,34 +292,58 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       add("room", `room:${i}`, r.kind, { type: "prism", base: p, z0, z1: z0 + ROOM_THICKNESS, ...holesIn(p) }, { room: i }, paint);
     }));
 
-    // S92: Roof floor pitched/flat tiers over the floor outline (gable, hip, shed, flat).
+    // S92 / S95: Smooth lofted roof planes (no stepped pyramid), supporting multi-wing angled roof polygons + flat terrace sections + variable wallHeight.
     if (isObj(f.roof)) piece(() => {
       const rf = f.roof as NonNullable<Floor["roof"]>, out = ring(f.outline);
-      if (!out) return;
       const paint: Paint = { role: "roof", ...(typeof rf.color === "string" ? { color: rf.color } : {}) };
-      const [x0, y0, x1, y1] = box(out), w = x1 - x0, h = y1 - y0, vert = rf.ridge === 90;
+      const wallH = fin(rf.wallHeight) ? Math.max(0, Math.min(250, rf.wallHeight)) : 0;
       const pitch = fin(rf.pitch) ? Math.max(0, Math.min(60, rf.pitch)) : rf.shape === "flat" ? 0 : rf.shape === "shed" ? 15 : 30;
-      const span = Math.max(40, vert ? w : h);
-      const peak = rf.shape === "flat" ? 16 : Math.min(350, Math.max(24, Math.round((span / (rf.shape === "shed" ? 1 : 2)) * Math.tan((pitch * Math.PI) / 180))));
-      if (rf.shape === "flat") {
-        add("floor", "roof:flat", "roof", { type: "prism", base: out, z0: 0, z1: peak }, {}, paint);
-      } else {
-        const steps = 6, dz = peak / steps;
-        for (let k = 0; k < steps; k++) {
-          const frac = k / steps, z0 = k * dz, z1 = (k + 1) * dz;
-          let tier: Pt[];
-          if (rf.shape === "gable") {
-            tier = vert
-              ? [[x0 + (w * frac) / 2, y0], [x1 - (w * frac) / 2, y0], [x1 - (w * frac) / 2, y1], [x0 + (w * frac) / 2, y1]]
-              : [[x0, y0 + (h * frac) / 2], [x1, y0 + (h * frac) / 2], [x1, y1 - (h * frac) / 2], [x0, y1 - (h * frac) / 2]];
-          } else if (rf.shape === "hip") {
-            tier = [[x0 + (w * frac) / 2, y0 + (h * frac) / 2], [x1 - (w * frac) / 2, y0 + (h * frac) / 2], [x1 - (w * frac) / 2, y1 - (h * frac) / 2], [x0 + (w * frac) / 2, y1 - (h * frac) / 2]];
-          } else {
-            tier = vert
-              ? [[x0 + w * frac, y0], [x1, y0], [x1, y1], [x0 + w * frac, y1]]
-              : [[x0, y0 + h * frac], [x1, y0 + h * frac], [x1, y1], [x0, y1]];
-          }
-          add("floor", `roof:${rf.shape}:${k}`, "roof", { type: "prism", base: k === 0 ? out : tier, z0, z1 }, {}, paint);
+      const roofWings: { id: string; poly: Pt[]; autoAxis: boolean }[] = [];
+      rooms.forEach((r, i) => {
+        const p = rings[i];
+        if (p && isObj(r) && (r.kind === "room" || r.kind === "structure")) roofWings.push({ id: `wing:${i}`, poly: p, autoAxis: true });
+      });
+      if (!roofWings.length && out) roofWings.push({ id: "main", poly: out, autoAxis: false });
+      const longestAxis = (poly: Pt[]): [number, number] => {
+        let bestL = 0, ax: [number, number] = [1, 0];
+        for (let i = 0; i < poly.length; i++) {
+          const a = poly[i], b = poly[(i + 1) % poly.length], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+          if (l > bestL) { bestL = l; ax = [dx / l, dy / l]; }
+        }
+        return ax;
+      };
+      for (const wing of roofWings) {
+        const poly = wing.poly;
+        if (wallH > 0) add("wall", `roof:${wing.id}:wall`, "external", { type: "prism", base: poly, z0: 0, z1: wallH }, {}, { role: "wall-external" });
+        const [ux, uy]: [number, number] = wing.autoAxis ? longestAxis(poly) : rf.ridge === 90 ? [0, 1] : [1, 0];
+        const nx = -uy, ny = ux;
+        const cx = poly.reduce((s, p) => s + p[0], 0) / poly.length, cy = poly.reduce((s, p) => s + p[1], 0) / poly.length;
+        const us = poly.map((p) => (p[0] - cx) * ux + (p[1] - cy) * uy);
+        const ts = poly.map((p) => (p[0] - cx) * nx + (p[1] - cy) * ny);
+        const uMin = Math.min(...us), uMax = Math.max(...us), tMin = Math.min(...ts), tMax = Math.max(...ts);
+        const span = Math.max(40, tMax - tMin), len = Math.max(40, uMax - uMin);
+        const peak = rf.shape === "flat" ? 14 : Math.min(350, Math.max(20, Math.round((span / (rf.shape === "shed" ? 1 : 2)) * Math.tan((pitch * Math.PI) / 180))));
+        if (rf.shape === "flat") {
+          add("floor", `roof:${wing.id}:flat`, "roof", { type: "prism", base: poly, z0: wallH, z1: wallH + peak }, {}, paint);
+        } else {
+          const tMid = (tMin + tMax) / 2, uMid = (uMin + uMax) / 2;
+          const hipInset = Math.min(span * 0.45, len * 0.35);
+          const top: Pt[] = poly.map((_, k) => {
+            let u = us[k], t = ts[k];
+            if (rf.shape === "gable") {
+              t = tMid + (t - tMid) * 0.02;
+            } else if (rf.shape === "hip") {
+              t = tMid + (t - tMid) * 0.02;
+              const du = u - uMid;
+              const shrink = Math.max(0.05, Math.abs(du) - hipInset);
+              u = uMid + Math.sign(du) * shrink;
+            } else {
+              // shed: slope linearly up toward tMax
+              t = tMax - (tMax - t) * 0.02;
+            }
+            return [cx + u * ux + t * nx, cy + u * uy + t * ny];
+          });
+          add("floor", `roof:${wing.id}:${rf.shape}`, "roof", { type: "loft", base: poly, top, z0: wallH, z1: wallH + peak }, {}, paint);
         }
       }
     });
@@ -398,9 +423,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       block(cursor, len, 0, w.h);
     })); });
 
-    // Stairs: one block per step, each as high as the flight has climbed by then. Down, the treads are sunk into the floor (a
-    // stairwell; the viewer may cut the slab); both ways, the flight rises and keeps a kerb round its foot.
-    list(f.stairs).forEach((t, i) => piece(() => {
+    // Stairs: one block per step, each as high as the flight has climbed by then. Never drawn on a roof floor (S95).
+    if (!isObj(f.roof)) list(f.stairs).forEach((t, i) => piece(() => {
       const blocks = isObj(t) ? stairBlocks(t as never) : null;
       if (!blocks) return;
       const dir = resolveStairDirection(t as never, opts?.around), rise = floorHeight(f), count = blocks.steps.length, paint: Paint = { role: "stair" };

@@ -47,11 +47,30 @@ describe("S92: Dedicated roof floor and roof fixtures", () => {
     expect(flatSvg).not.toContain('class="roof-ridge"');
   });
 
-  it("builds 3D pitched roof tiers and roof fixture solids", () => {
-    const scGable = buildScene(makeRoofFloor({ shape: "gable", pitch: 35, ridge: 0, color: "#9c523b" }));
+  it("builds smooth lofted 3D roof planes (no stepped pyramid), skips stairs, supports wallHeight and multi-wing angled roofs", () => {
+    const scGable = buildScene(makeRoofFloor({ shape: "gable", pitch: 35, ridge: 0, wallHeight: 40, color: "#9c523b" }));
     const roofSolids = scGable.solids.filter((s) => s.paint?.role === "roof");
-    expect(roofSolids.length).toBe(6);
+    expect(roofSolids.length).toBe(1);
+    expect(roofSolids[0].shape.type).toBe("loft");
     expect(roofSolids[0].paint?.color).toBe("#9c523b");
+    if (roofSolids[0].shape.type === "loft") {
+      expect(roofSolids[0].shape.z0).toBe(40);
+      expect(roofSolids[0].shape.z1).toBeGreaterThan(40);
+    }
+    expect(scGable.solids.some((s) => s.id === "roof:main:wall")).toBe(true);
+
+    // Multi-wing L-shaped angled roof + flat terrace + stairs on roof floor are ignored
+    const lFloor = makeRoofFloor({ shape: "hip", pitch: 30, wallHeight: 0, color: "#5a5d64" });
+    lFloor.rooms.push(
+      { id: "w1", name: "North wing", area: "", kind: "room", pts: [[0, 0], [600, 0], [600, 200], [0, 200]], wk: ["none", "none", "none", "none"] },
+      { id: "w2", name: "West wing", area: "", kind: "room", pts: [[0, 200], [200, 200], [200, 500], [0, 500]], wk: ["none", "none", "none", "none"] },
+    );
+    lFloor.stairs.push({ id: "st1", name: "Stairs", pts: [[100, 100], [200, 100], [200, 200], [100, 200]], shape: "straight", steps: 10, rot: 0 });
+    const scMulti = buildScene(lFloor);
+    const wings = scMulti.solids.filter((s) => s.paint?.role === "roof");
+    expect(wings.length).toBe(2);
+    expect(wings.every((w) => w.shape.type === "loft")).toBe(true);
+    expect(scMulti.solids.some((s) => s.kind === "stair")).toBe(false);
 
     const scFlat = buildScene(makeRoofFloor({ shape: "flat" }));
     expect(scFlat.solids.filter((s) => s.paint?.role === "roof").length).toBe(1);

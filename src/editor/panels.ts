@@ -412,7 +412,7 @@ function houseEnergyPanel(c: PanelCtx) {
 const ROOF_PRESETS: readonly [string, string][] = [["Terracotta", "#9c523b"], ["Slate", "#4a4e57"], ["Anthracite", "#2f3238"], ["Copper", "#5f7d6e"]];
 function roofFloorPanel(c: PanelCtx) {
   const rf = c.st.f.roof;
-  if (!rf) return html`<p>${button("froofOn", "Convert to roof floor", () => c.commit((f) => { f.roof = { shape: "gable", pitch: 30, ridge: 0, overhang: 40, color: "#9c523b" }; }))}</p>`;
+  if (!rf) return html`<p>${button("froofOn", "Convert to roof floor", () => c.commit((f) => { f.stairs = []; f.owk = f.outline.map(() => "none"); f.roof = { shape: "hip", pitch: 30, ridge: 0, overhang: 40, wallHeight: 0, color: "#5a5d64" }; }))}</p>`;
   const set = (patch: Partial<NonNullable<Floor["roof"]>>) => c.commit((f) => { if (f.roof) f.roof = { ...f.roof, ...patch }; });
   return html`
     <label for="froofShape">roof shape</label><select id="froofShape" .value=${live(rf.shape)} @change=${(e: Event) => set({ shape: val(e) as RoofShape })}>
@@ -425,7 +425,9 @@ function roofFloorPanel(c: PanelCtx) {
         <option value="90" ?selected=${rf.ridge === 90}>Vertical (90°)</option>
       </select></div>
     </div>` : nothing}
-    <label for="froofCol">roof colour</label><div class="rotrow">${ROOF_PRESETS.map(([n, hex]) => html`<button class="btn" type="button" title=${`${n} (${hex})`} aria-pressed=${String(rf.color === hex)} @click=${() => set({ color: hex })}>${n}</button>`)}<input id="froofCol" type="color" .value=${live(rf.color ?? "#9c523b")} @change=${(e: Event) => set({ color: val(e) })}></div>
+    ${number(c, "wall under roof (cm)", "froofWallH", rf.wallHeight ?? 0, (n) => set({ wallHeight: Math.max(0, Math.min(250, Math.round(n))) }))}
+    ${hint("Draw Room shapes on a roof floor for angled multi-wing sections, and Terrace shapes for flat roof parts.")}
+    <label for="froofCol">roof colour</label><div class="rotrow">${ROOF_PRESETS.map(([n, hex]) => html`<button class="btn" type="button" title=${`${n} (${hex})`} aria-pressed=${String(rf.color === hex)} @click=${() => set({ color: hex })}>${n}</button>`)}<input id="froofCol" type="color" .value=${live(rf.color ?? "#5a5d64")} @change=${(e: Event) => set({ color: val(e) })}></div>
     <p>${button("froofOff", "Remove roof mode", () => c.commit((f) => { delete f.roof; }))}</p>`;
 }
 
