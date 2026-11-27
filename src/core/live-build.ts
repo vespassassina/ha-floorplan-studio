@@ -45,6 +45,8 @@ export interface Live3D {
   night: boolean; labels: boolean; names: boolean;
   /** S38.3: `RenderOpts.sun` passed straight through; the view works out the direction. Absent when the card gave none, so the JSON of a floor with no sun is what it was. */
   sun?: { azimuth: number; elevation: number; north?: number } | null;
+  /** S82: `RenderOpts.weather` condition string passed straight through to 3D weather atmosphere. */
+  weather?: string;
   /** How many times a tripped room's edge pulses, and how long one pulse is in seconds: the plan's own figures. */
   pulse: [number, number];
   lights: LiveLight[];
@@ -126,7 +128,7 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
         return { name: typeof r.name === "string" && r.kind !== "structure" ? r.name : "", at: polyCentre(p), readout: owns ? roomReadout(r, o.state) : "", motion: m ? { radar: m.radar, on: m.on, v: m.v, pulseAge: motion.pulsing.get(i) ?? null } : null };
       } catch (e) { debugOnce("3D live state: a room could not be read", e); return null; }
     });
-    return { pulse: [MOTION_PULSES, MOTION_PULSE_S], night: !!o.night, labels: o.labels !== false, names: !!o.showNames, ...(o.sun ? { sun: o.sun } : {}), lights, heated, doors, devices: out, pieces, rooms: liveRooms };
+    return { pulse: [MOTION_PULSES, MOTION_PULSE_S], night: !!o.night, labels: o.labels !== false, names: !!o.showNames, ...(o.sun ? { sun: o.sun } : {}), ...(o.weather ? { weather: o.weather } : {}), lights, heated, doors, devices: out, pieces, rooms: liveRooms };
   }
   return liveOf;
 }

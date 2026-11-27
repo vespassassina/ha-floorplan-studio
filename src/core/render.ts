@@ -100,7 +100,10 @@ export interface RenderOpts {
   /** Daytime shade of the outdoor rooms (garden, terrace, pavement, pond), 0..0.35, from the weather and the hour (see daylight.ts). Ignored at night and in a heat mode; 0, junk or omitted draws nothing. */
   daylight?: number;
   /** S38.3: the sun's `azimuth` and `elevation` (degrees, from the `sun` entity) and the layout's `north`, for the 3D view only; the 2D plan never reads it. Omitted or junk: today's fixed light. */
+  /** S38.2: live sun angles (`azimuth`, `elevation`, `north`) for the 3D directional light and 2D sun wedge/shadows. */
   sun?: { azimuth: number; elevation: number; north?: number } | null;
+  /** S82: live weather condition string (from `weather.*`) passed into 3D atmosphere. */
+  weather?: string;
   /** "2d" (default, also when omitted) is the flat plan, byte for byte as ever; "2.5d" adds depth (see OBLIQUE). */
   view?: PlanView;
   /** `false` draws no text at all: room, zone, extra and device names, sensor values and the leader lines. Icons, tap targets and state stay. Default `true`; absent output is byte for byte as before. */
