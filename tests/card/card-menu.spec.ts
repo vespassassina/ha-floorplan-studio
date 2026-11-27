@@ -72,7 +72,7 @@ test.describe("S31.6 the ⋯ menu: criterion 7", () => {
     const checks = await names(page, "menuitemcheckbox");
     expect(checks.slice(0, 3)).toEqual(["Floor below", "Labels", "Device names"]);
     expect(checks.length, "and a layer per family on the floor").toBeGreaterThan(3);
-    expect(await names(page, "menuitem")).toEqual(["Rotate left", "Rotate right", "Reset view"]);
+    expect(await names(page, "menuitem")).toEqual(["Rotate left", "Rotate right", "Reset view", "Fullscreen"]);
     // The order in the menu is the order of the spec.
     const order = await menuPanel(page).locator("css=[role^=menuitem], select.sel").evaluateAll((els) => els.map((e) => e.getAttribute("data-value")));
     expect(order.indexOf("view:2d")).toBeLessThan(order.indexOf("ghost"));
@@ -98,7 +98,7 @@ test.describe("S31.6 the ⋯ menu: criterion 7", () => {
     await page.keyboard.press("ArrowDown");
     expect(await focused()).toBe("view:2.5d");
     await page.keyboard.press("End");
-    expect(await focused(), "End skips Reset view, disabled while nothing differs").toBe("rotate:1");
+    expect(await focused(), "End lands on Fullscreen, the last enabled item").toBe("fullscreen");
     await page.keyboard.press("Home");
     expect(await focused()).toBe("view:2d");
     await page.keyboard.press("Escape");

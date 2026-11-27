@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Draggable Studio icon tool palette and Fullscreen mode (S87)
+
+1. Added `src/editor/tool-palette.ts` (`toolPaletteView`, persisted in `localStorage`) with a draggable, collapsible 8-tool icon rail (Select, Draw Room, Draw Wall, Door, Window, Ruler, 3D Split, Fullscreen) inside `.canvas` (`0 B` in card).
+2. Added Fullscreen pop-out mode for Studio (`#fullscreenBtn`, palette icon, shortcut `F`, `requestFullscreen()` with `.fs-pop` fixed-viewport fallback) and for the Card (`⋯` menu `Fullscreen`, translated in all 9 language catalogues).
+
 ## 2026-11-27: Multi-floor external-wall alignment and copy perimeter/stairs (S86)
 
 1. Added `externalWallPlace` in `src/editor/straighten.ts` and `alignExternalWall`, `copyPerimeterFromBelow`, `copyStairsFromBelow` in `src/editor/editor-align.ts`, wired into `#alignPanel` (`src/editor/inspector.ts`, Studio-only, `0 B` added to card).

@@ -251,6 +251,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
           ${viewsSub(h)}
           <button class="btn" id="recenter" @click=${() => { st.recenter(); h.requestUpdate(); }}>Re-center</button>
           <button class="btn keyed" id="fit" title="Fit the whole floor in the window" @click=${() => { st.fit(); h.requestUpdate(); }}>Fit to window${kbd(MENU_KEYS.fit)}</button>
+          <button class="btn" id="fullscreenBtn" aria-pressed=${pressed(h.fullscreenOn)} title="Expand Studio to fullscreen (shortcut: F)" @click=${() => h.toggleFullscreen()}>Fullscreen</button>
           <button class="btn" id="copyCardView" title="Copies center and zoom_level for a card pinned to what's on screen now" @click=${() => h.copyCardView()}>Copy card view</button>
         </div></details>
         <details class="menu" id="mEdit" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Edit</summary><div class="box">

@@ -5089,3 +5089,7 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ### Sprint 86 (done): External-wall floor alignment & copy perimeter/stairs
 
 - [x] 2026-11-27 S86 `externalWallPlace` + `alignExternalWall`, `copyPerimeterFromBelow`, `copyStairsFromBelow` in `#alignPanel` (`src/editor/inspector.ts`, `src/editor/editor-align.ts`, `0 B` added to card).
+
+### Sprint 87 (done): Draggable Studio icon palette & Fullscreen mode
+
+- [x] 2026-11-27 S87 `src/editor/tool-palette.ts` draggable/collapsible 8-tool icon rail in Studio + Fullscreen mode in Studio (`#fullscreenBtn`, shortcut `F`, `.fs-pop` fallback) and Card (`⋯` menu `Fullscreen`, 9 languages).

@@ -68,6 +68,7 @@ const c: Catalogue = {
   "Thumbnail position": "Posizione miniatura",
   "Rotate left": "Ruota a sinistra",
   "Rotate right": "Ruota a destra",
+  "Fullscreen": "Schermo intero",
   "Reset view": "Ripristina vista",
   "Area": "Area",
   "Temperature": "Temperatura",
