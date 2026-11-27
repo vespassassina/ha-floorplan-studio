@@ -5085,3 +5085,7 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ### Sprint 85 (done): Exact corner angle inspector & presets
 
 - [x] 2026-11-27 S85 `cornerAngleDeg` + `setCornerAngle` wired into `cornerPanel` (`src/editor/panels.ts`) with live interior angle readout, custom degree input, and `90°`/`45°`/`60°`/`120°`/`135°`/`180°` preset buttons (`0 B` added to card).
+
+### Sprint 86 (done): External-wall floor alignment & copy perimeter/stairs
+
+- [x] 2026-11-27 S86 `externalWallPlace` + `alignExternalWall`, `copyPerimeterFromBelow`, `copyStairsFromBelow` in `#alignPanel` (`src/editor/inspector.ts`, `src/editor/editor-align.ts`, `0 B` added to card).

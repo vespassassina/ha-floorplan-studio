@@ -301,6 +301,14 @@ export function alignView(h: FloorplanStudioEditor) {
       : stairs.rows.every((r) => r.nearest === null) ? html`<p id="alignStairsNone">No stairs on ${stairs.belowTitle}</p>`
       : html`<ul id="alignStairs" class="al-stairs">${stairs.rows.map((r) => html`<li>${r.name}: ${r.distance === null || !r.nearest ? "no stair below" : html`${Math.round(r.distance)} cm from ${r.nearest.name}${r.angle === null ? nothing : `, ${(Math.round(r.angle * 10) / 10).toFixed(1)}\u00B0 off`}`}</li>`)}</ul>`}
     <button class="btn keep" id="alignStairsBtn" ?disabled=${!stairs?.can} @click=${() => h.alignStairs()}>Align stairs</button>
+    <h4 class="pnl-h">External walls & copy</h4>
+    <div class="al-row">
+      <button class="btn keep" id="alignWallBtn" title="Rotate and shift this floor so its main external wall matches the floor below" @click=${() => h.alignExternalWall()}>Align external wall</button>
+    </div>
+    <div class="al-row">
+      <button class="btn keep" id="copyPerimeterBtn" title="Copy the exterior outline from the floor below onto this floor" @click=${() => h.copyPerimeterFromBelow()}>Copy perimeter</button>
+      <button class="btn keep" id="copyStairsBtn" title="Copy stairs from the floor below onto this floor" @click=${() => h.copyStairsFromBelow()}>Copy stairs</button>
+    </div>
   </div>`;
 }
 
