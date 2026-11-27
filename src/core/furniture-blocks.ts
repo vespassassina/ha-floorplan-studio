@@ -214,6 +214,18 @@ export function furnitureBlocks(m: Furniture): Block[] {
       box(0, w, cas, h, mid, H);
       break;
     }
+    case "garden-house": {
+      const ov = room(Math.min(w, h), 14, 0.1), plinth = lift(8, 0.12), eaves = H * 0.72, ridge = H - eaves;
+      // Foundation plinth + inset cabin walls
+      box(ov, w - ov, ov, h - ov, 0, plinth, "dark");
+      box(ov, w - ov, ov, h - ov, plinth, eaves);
+      // 3-tier stepped pitched gable roof with overhang
+      const t1 = eaves + ridge / 3, t2 = eaves + (ridge * 2) / 3;
+      box(0, w, 0, h, eaves, t1, "dark");
+      box(0, w, h * 0.18, h * 0.82, t1, t2, "dark");
+      box(0, w, h * 0.36, h * 0.64, t2, H, "dark");
+      break;
+    }
     // Every other symbol is one box, as before. Decided one by one (finding 17): a tree and a car are drawn by their own code
     // (a trunk and a crown; the car's table) and a patio is flat, so for them this box is the footprint and nothing more.
     case "toilet": case "bookcase": case "cube-shelf": case "robot-vacuum": case "robot-dock": case "fridge": case "washer": case "dryer": case "rug": case "tv": case "computer": case "speaker": case "tree": case "patio-wood": case "patio-concrete": case "car": case "water-tank":

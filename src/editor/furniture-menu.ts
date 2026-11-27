@@ -7,7 +7,7 @@ export const FURNITURE_LABELS: Record<FurnitureSymbol, string> = {
   table: "Table", sofa: "Sofa", bed: "Bed", cabinet: "Cabinet", chair: "Chair", sink: "Sink", toilet: "Toilet", shower: "Shower", bathtub: "Bathtub", "sofa-l": "Corner sofa", "coffee-table": "Coffee table", bookcase: "Bookcase", buffet: "Buffet", wardrobe: "Wardrobe", dresser: "Chest of drawers", nightstand: "Nightstand", desk: "Desk", armchair: "Armchair", counter: "Kitchen counter", stove: "Stove", fridge: "Fridge", dishwasher: "Dishwasher", washer: "Washing machine", dryer: "Dryer", rug: "Rug", plant: "Plant", treadmill: "Treadmill", "barbell-rack": "Barbell rack", "weight-rack": "Dumbbell rack", "chaise-longue": "Chaise longue", "cube-shelf": "Cube shelf", mirror: "Mirror", "mirror-stand": "Standing mirror", "robot-vacuum": "Robot vacuum", "robot-dock": "Robot dock",
   tv: "TV", computer: "Computer", speaker: "Speaker", tree: "Tree", "patio-wood": "Patio, wood", "patio-concrete": "Patio, concrete", car: "Car", worktop: "Worktop",
   "metal-shelf": "Metal shelves", worktable: "Worktable", "wash-basin": "Wash basin", boiler: "Boiler", "water-tank": "Water tank",
-  carport: "Carport", awning: "Awning / sun cover",
+  carport: "Carport", awning: "Awning / sun cover", "garden-house": "Garden house / shed",
 };
 
 /** Where each piece goes in the Add menu: one area of the house each, the areas in walking order. A table, so a new
@@ -21,6 +21,6 @@ export const FURNITURE_AREAS: readonly (readonly [string, readonly FurnitureSymb
   ["Gym", ["treadmill", "barbell-rack", "weight-rack"]],
   ["Laundry and cleaning", ["washer", "dryer", "robot-vacuum", "robot-dock"]],
   ["Basement and garage", ["metal-shelf", "worktable", "wash-basin", "boiler", "water-tank"]],
-  ["Outdoor", ["tree", "patio-wood", "patio-concrete", "car", "carport", "awning"]],
+  ["Outdoor", ["tree", "patio-wood", "patio-concrete", "car", "carport", "awning", "garden-house"]],
 ];
 export const furnitureMenu = () => FURNITURE_AREAS.map(([a, s]) => [a, [...s].sort((x, y) => FURNITURE_LABELS[x].localeCompare(FURNITURE_LABELS[y]))] as const);

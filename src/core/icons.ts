@@ -152,4 +152,5 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   "water-tank": { w: 65, h: 65, svg: c(50, 50, 46) + c(50, 50, 26) + c(36, 36, 5) + c(64, 64, 5) },
   carport: { w: 520, h: 300, svg: r(2, 2, 96, 96, 1) + `<path d="M2 5 H98" ${S} stroke-width="4"/>` + [20, 40, 60, 80].map((x) => `<path d="M${x} 4 V96" ${S} stroke-opacity=".45"/>`).join("") + [6, 35, 65, 94].map((x) => c(x, 93, 3.2)).join("") },
   awning: { w: 400, h: 250, svg: r(2, 2, 96, 10, 1) + r(2, 12, 96, 84, 0) + [18, 34, 50, 66, 82].map((x) => `<path d="M${x} 12 V96" ${S} stroke-opacity=".45"/>`).join("") + `<path d="M16 12 L24 90 M84 12 L76 90" ${S} stroke-opacity=".6"/>` },
+  "garden-house": { w: 300, h: 250, svg: r(2, 2, 96, 96, 1) + r(8, 8, 84, 84, 0) + `<path d="M2 50 H98" ${S} stroke-width="3.5"/>` + [20, 35, 65, 80].map((y) => `<path d="M4 ${y} H96" ${S} stroke-opacity=".38"/>`).join("") + `<path d="M40 94 H60" ${S} stroke-width="4.5"/>` },
 };
