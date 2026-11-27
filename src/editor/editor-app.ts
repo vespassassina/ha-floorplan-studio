@@ -29,6 +29,7 @@ import { renameFloor, moveFloor, deleteFloor, undo, setColour, openLink, closeLi
 import { closeAlign, openAlign, alignPreview, applyAlign, alignStairInfo, alignStairs, setAlignStep, moveAlign, turnAlign, setAlignOffset, setAlignRotation, resetAlignOffset, ghostOpts } from "./editor-align";
 import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayout, openFile, importSvgFile, firstRunDemo, firstRunBlank } from "./editor-file";
 import type { RulerState } from "./ruler";
+import { simplifyFloorWalls, straightenFloorWalls } from "./straighten";
 import { planFixed, setPlanLocked, attachEntity, attachToRoom, rotateTexture, rotateItem, scaleTexture } from "./editor-changes";
 import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, toggleHaSync, toggleAttention, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, haSyncView, attentionView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, captureSceneDraft, migrateLegacyScenes, loadExistingScene, migrateHueSceneDraft, installCodeView } from "./editor-popups";
 import { getActionRegistry, type CustomAction } from "./custom-actions";
@@ -947,6 +948,22 @@ export class FloorplanStudioEditor extends LitElement {
       this.status = "Ruler: click two points to measure (Alt to unsnap, Esc to exit)";
     }
     this.requestUpdate();
+  }
+  straightenWalls(stepDeg: 90 | 45 = 90) {
+    if (this.st.planLocked) { this.planFixed(); return; }
+    const res = straightenFloorWalls(this.st.f, 6, stepDeg);
+    if (!res.straightened) { this.status = `All walls are already aligned to ${stepDeg}°`; this.requestUpdate(); return; }
+    this.st.snapshot();
+    this.st.replaceFloor(res.floor);
+    this.changed(`Straightened ${res.straightened} walls to ${stepDeg}°`);
+  }
+  simplifyWalls() {
+    if (this.st.planLocked) { this.planFixed(); return; }
+    const res = simplifyFloorWalls(this.st.f);
+    if (!res.merged && !res.wallsMerged) { this.status = "No collinear wall segments found to merge"; this.requestUpdate(); return; }
+    this.st.snapshot();
+    this.st.replaceFloor(res.floor);
+    this.changed(`Merged ${res.merged} redundant corners and ${res.wallsMerged} wall segments`);
   }
 
   // ---- drawing -------------------------------------------------------------

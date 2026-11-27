@@ -5077,3 +5077,7 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ### Sprint 83 (done): Studio interactive measurement ruler tool
 
 - [x] 2026-11-27 S83 `src/editor/ruler.ts` wired into Studio `View > Ruler` (`#ruler`, shortcut `M`, `Esc` to exit): two-point snapped distance measurement in `m`/`cm` + `Δx`/`Δy` (`0 B` added to card).
+
+### Sprint 84 (done): Straighten walls & merge collinear segments
+
+- [x] 2026-11-27 S84 `src/editor/straighten.ts` (`simplifyFloorWalls`, `straightenFloorWalls`) wired to Studio `Edit` (`Straighten walls (90°)`, `Straighten walls (45°)`, `Merge collinear walls`), keeping stitched rooms intact in one undo step (`0 B` added to card).

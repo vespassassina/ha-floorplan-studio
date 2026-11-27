@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Straighten walls and merge collinear segments (S84)
+
+1. Added `src/editor/straighten.ts` (`simplifyFloorWalls`, `straightenFloorWalls`, Studio-only, `0 B` added to card) wired into Studio `Edit` (`Straighten walls (90°)`, `Straighten walls (45°)`, `Merge collinear walls`). Preserves T-junctions and door/opening endpoints, keeps stitched room corners moving together, and commits in one undo step.
+
 ## 2026-11-27: Studio interactive measurement ruler tool (S83)
 
 1. Added `src/editor/ruler.ts` (`formatRulerMeasure`, `rulerSvg`, Studio-only, `0 B` added to `floorplan-studio-card.js`) wired to `View > Ruler` (`#ruler`) and shortcut `M` (`Esc` to exit). Click two points (snapped via `snapPoint`, `Alt` to unsnap) to read live and locked `m`/`cm` + `Δx`/`Δy` distances without touching the layout or undo history.
