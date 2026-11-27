@@ -13,6 +13,12 @@ export function floorBelow(layout: Layout, key: string): string | null {
   return i > 0 ? ks[i - 1] : null;
 }
 
+/** S96: the key of the floor above this one, or null for the highest floor and for an unknown key. */
+export function floorAbove(layout: Layout, key: string): string | null {
+  const ks = keys(layout), i = ks.indexOf(key);
+  return i >= 0 && i + 1 < ks.length ? ks[i + 1] : null;
+}
+
 /** Every key under this one, nearest first. Empty for the lowest floor and for an unknown key. */
 export function floorsBelow(layout: Layout, key: string): string[] {
   const ks = keys(layout), i = ks.indexOf(key);

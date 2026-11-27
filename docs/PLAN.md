@@ -5141,3 +5141,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ## Sprint 95 — Smooth lofted multi-wing roofs and roof fixes
 
 - [x] **S95.1** Replaced stepped roof pyramid with smooth `{ type: "loft" }` planes, added `RoofSpec.wallHeight` (`0..250 cm`, default `0`), removed stairs & parapet walls from roof floors, and added multi-wing angled roof support (one oriented loft per roof room polygon + flat terrace sections).
+
+---
+
+## Sprint 96 — Align to floor above
+
+- [x] **S96.1** Added `floorAbove` (`src/core/floor-stack.ts`) and `Floors > Align to floor above…` in Studio reusing the full Align mode (ghost overlay, auto-align, move/turn, stairs, external wall, copy perimeter/stairs).

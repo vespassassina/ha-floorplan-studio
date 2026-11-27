@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { lampRenderer } from "../card/lamp";
-import { type DetailMode, type Layout, type Pt, type Floor, alignCandidates, type DeviceType, type SceneItem, type HaData, type StateOverlay, TempWatch, DEFAULT_MOTION_FADE_S, applyHaNames, FLOORPLAN_CSS, ThumbFeed, floorBelow, rotateAbout, type AddCandidate, type Trace, type WallKind, type LayerId, areaMove, renderFloor, badgeInfo, bindBadgeBubble, plugThreshold, type Bubble, detailFor, viewBoxFor, floorsAroundKey, UI_ICONS, heatLegend, anyRoomHeated } from "../core";
+import { type DetailMode, type Layout, type Pt, type Floor, alignCandidates, type DeviceType, type SceneItem, type HaData, type StateOverlay, TempWatch, DEFAULT_MOTION_FADE_S, applyHaNames, FLOORPLAN_CSS, ThumbFeed, floorAbove, floorBelow, rotateAbout, type AddCandidate, type Trace, type WallKind, type LayerId, areaMove, renderFloor, badgeInfo, bindBadgeBubble, plugThreshold, type Bubble, detailFor, viewBoxFor, floorsAroundKey, UI_ICONS, heatLegend, anyRoomHeated } from "../core";
 import { ROTATION_STEP } from "../card/view-state";
 import { type BannerLevel, isQuiet, bannerLevel, BANNER_MS } from "./banner";
 import { statusFacts } from "./status-bar";
@@ -146,6 +146,7 @@ export class FloorplanStudioEditor extends LitElement {
   linkOff = new Set<string>();
   /** S27.10: the key of the floor the Align mode was opened on (null when closed), and its memoised preview. */
   alignKey: string | null = null;
+  alignDir: "below" | "above" = "below";
   /** How many times the Align preview has run `alignCandidates` (a test reads it: a drag must not search on every pointer move). */
   alignSearches = 0;
   alignMemo: { key: string; fits: ReturnType<typeof alignCandidates> } | null = null;
@@ -654,7 +655,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.linkScope && this.st.f !== this.linkFloor) { this.linkScope = null; if (this.asideMode === "link") this.asideMode = "selection"; } // R2
     if (changed.has("status") && this.banner?.text !== this.status) this.notify(this.status); // already shown by an explicit notify, with its level and action
     if (changed.has("floor") && this.floor && this.floor !== this.st.floor && hasOwn(this.st.layout.floors, this.floor)) { stopDraw(this); this.st.setFloor(this.floor); }
-    if (this.alignKey !== null && (this.st.floor !== this.alignKey || floorBelow(this.st.layout, this.alignKey) === null)) closeAlign(this, false); // after the host's floor change above, so one render never shows the panel on the old floor: the mode belongs to one floor with a floor below
+    if (this.alignKey !== null && (this.st.floor !== this.alignKey || (this.alignDir === "above" ? floorAbove(this.st.layout, this.alignKey) : floorBelow(this.st.layout, this.alignKey)) === null)) closeAlign(this, false); // after the host's floor change above, so one render never shows the panel on the old floor: the mode belongs to one floor with a floor below
     // Always named, never left to inherit: blueprint unless the viewer chose otherwise. Reflected on the host itself, not just the svg,
     // so the editor's own chrome (menus, panels, buttons) themes with the plan. data-mode is for the ha theme only.
     this.setAttribute("data-theme", this.st.theme);
@@ -896,7 +897,7 @@ export class FloorplanStudioEditor extends LitElement {
   askDeleteFloor() { return askDeleteFloor(this); } // editor-actions.ts
   /** True while the Align mode is open on the floor being edited: the plan is then read-only (review 29). */
   get aligning() { return this.asideMode === "align" && this.alignKey === this.st.floor; }
-  openAlign() { return openAlign(this); } // editor-align.ts
+  openAlign(dir: "below" | "above" = "below") { return openAlign(this, dir); } // editor-align.ts
   closeAlign(update = true) { return closeAlign(this, update); } // editor-align.ts
   alignPreview() { return alignPreview(this); } // editor-align.ts
   applyAlign() { return applyAlign(this); } // editor-align.ts

@@ -1,6 +1,6 @@
 import { css, html, nothing } from "lit";
 import { live } from "./live-keep";
-import { CAM_POS, CAM_SIZES, DETAIL_LABELS, DETAIL_MODES, HEAT_KINDS, floorBelow, UI_ICONS, UNLINKED_TYPES, WALL_KINDS, layersSummary } from "../core";
+import { CAM_POS, CAM_SIZES, DETAIL_LABELS, DETAIL_MODES, HEAT_KINDS, floorAbove, floorBelow, UI_ICONS, UNLINKED_TYPES, WALL_KINDS, layersSummary } from "../core";
 import type { HaData } from "../core";
 import { FURNITURE_LABELS, furnitureMenu } from "./furniture-menu";
 import "../card/search-box";
@@ -220,7 +220,8 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
         <details class="menu" id="mFloors" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Floors</summary><div class="box">
           <button class="btn" id="addFloor" title="Add a floor" @click=${() => h.startAddFloor()}>Add floor</button>
           <button class="btn" id="addRoofFloor" title="Add a roof floor with overhang above the top floor" @click=${() => { h.addRoofFloor(); h.closeMenus(); }}>Add roof floor</button>
-          <button class="btn" id="alignFloor" ?disabled=${floorBelow(st.layout, st.floor) === null} title=${floorBelow(st.layout, st.floor) === null ? "This is the lowest floor: there is no floor below to align to" : "Lay this floor over the floor below"} @click=${() => h.openAlign()}>Align to floor below…</button>
+          <button class="btn" id="alignFloor" ?disabled=${floorBelow(st.layout, st.floor) === null} title=${floorBelow(st.layout, st.floor) === null ? "This is the lowest floor: there is no floor below to align to" : "Lay this floor over the floor below"} @click=${() => h.openAlign("below")}>Align to floor below…</button>
+          <button class="btn" id="alignFloorAbove" ?disabled=${floorAbove(st.layout, st.floor) === null} title=${floorAbove(st.layout, st.floor) === null ? "This is the highest floor: there is no floor above to align to" : "Lay this floor under the floor above"} @click=${() => h.openAlign("above")}>Align to floor above…</button>
           <button class="btn" id="mFloorUp" ?disabled=${floorKeys.indexOf(st.floor) >= floorKeys.length - 1} title="Higher floor: later in the chips" @click=${() => h.moveCurrentFloor(1)}>Move up</button>
           <button class="btn" id="mFloorDown" ?disabled=${floorKeys.indexOf(st.floor) <= 0} title="Lower floor: earlier in the chips" @click=${() => h.moveCurrentFloor(-1)}>Move down</button>
           <button class="btn danger" id="mFloorDel" ?disabled=${floorKeys.length < 2} title=${floorKeys.length < 2 ? "The last floor cannot be deleted" : "Delete this floor"} @click=${() => h.askDeleteFloor()}>Delete floor…</button>

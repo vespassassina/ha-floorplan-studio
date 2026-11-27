@@ -40,7 +40,7 @@ export { HEAT_FROM, HEAT_TO, PLUG_ACTIVE_WATTS, findPowerSensor, heatRange, plug
 export type { PowerCandidate } from "./power";
 export { plugMeters, rowsOfDevices } from "./plug-meters";
 export * from "./stairs";
-export { composePlace, floorBelow, floorPivot, floorPlace, floorPose, floorsBelow, invertPlace, normaliseTurn, placePoint, poseFromPlace } from "./floor-stack";
+export { composePlace, floorAbove, floorBelow, floorPivot, floorPlace, floorPose, floorsBelow, invertPlace, normaliseTurn, placePoint, poseFromPlace } from "./floor-stack";
 export type { Place, Pose } from "./floor-stack";
 export { stairAxis, stairPlace, stairReport } from "./hand-align";
 export type { StairAxis, StairPlaceResult, StairRow } from "./hand-align";

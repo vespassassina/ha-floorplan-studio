@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-28: Align to floor above (S96)
+
+1. Added `floorAbove` in `src/core/floor-stack.ts` and parameterized Studio's Align mode (`alignDir: "below" | "above"` in `src/editor/editor-align.ts`, `editor-app.ts`, `inspector.ts`, `toolbar.ts`) so `Floors > Align to floor above…` reuses the full alignment panel (auto-align, ghost overlay, move/turn/offset/rotation, align stairs, align external wall, copy perimeter/stairs) against the floor above.
+
 ## 2026-11-28: Smooth lofted multi-wing roofs, variable wallHeight, and no roof stairs/parapet (S95)
 
 1. Replaced the 6-step prism roof pyramid in `src/core/scene-build.ts` with smooth `{ type: "loft" }` straight sloped planes (`gable`, `hip`, `shed`) rendered by `loftTriangles`.
