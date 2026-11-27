@@ -1828,6 +1828,7 @@ export class FloorplanStudioCard extends LitElement {
       rotate,
       night: this._night(),
       daylight: this._daylight(),
+      sun: this._sun(),
       view,
       tilt: this._tilt(),
       walls: this._walls(),
