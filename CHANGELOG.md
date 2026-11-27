@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.61.0 - 2026-11-27
+
+City and street lights, living hedges, multi-colour fence presets, carports, extensible HA-linked awnings, and garden houses (Sprints 88–91):
+
+- **City & street lights (S88):** Added `"street"` lamp kind (`150–800 cm` pole height, `100–1200 cm` reach) with fixed colour presets (Sodium, Warm LED, Cool LED, Neon, custom hex) and `autoNight` mode so ambient street lights automatically illuminate at night in 2D and 3D without needing an HA entity (`Add > Street light`).
+- **Living hedges & multi-colour fences (S89):** Added `"hedge"` wall kind (`45 cm` thick foliage wall, `160 cm` default height, shadow-casting in 3D, auto-classifies enclosed spaces as Garden) plus quick colour presets for fences (Cedar, Anthracite, White, Forest green, Slate) and living hedges (Boxwood, Laurel, Privet, Autumn).
+- **Carports & extensible awnings (S90):** Added `"carport"` (wall-attached ledger beam, 4 poles on the open long side, translucent polycarbonate roof in 2D/3D keeping cars underneath visible) and `"awning"` (wall-mounted extensible sun cover that dynamically extends/retracts in 2D from a linked Home Assistant `cover.*` `current_position`).
+- **Garden houses & sheds (S91):** Added `"garden-house"` standalone outdoor building under `Add > Furniture > Outdoor` with pitched gable roof in 2D and 5-block plinth/walls/stepped-roof overhang in 3D, custom paint/texture, and optional HA entity link.
+
 ## 0.60.0 - 2026-11-27
 
 `ha-floorplan` SVG import, 2D & 3D outdoor sun shadows, 3D weather atmosphere, Studio ruler, wall straightening & exact corner angles, external-wall floor alignment, draggable Studio tool palette, and Fullscreen mode (Sprints 79–87):
