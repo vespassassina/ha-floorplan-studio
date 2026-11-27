@@ -5081,3 +5081,7 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ### Sprint 84 (done): Straighten walls & merge collinear segments
 
 - [x] 2026-11-27 S84 `src/editor/straighten.ts` (`simplifyFloorWalls`, `straightenFloorWalls`) wired to Studio `Edit` (`Straighten walls (90°)`, `Straighten walls (45°)`, `Merge collinear walls`), keeping stitched rooms intact in one undo step (`0 B` added to card).
+
+### Sprint 85 (done): Exact corner angle inspector & presets
+
+- [x] 2026-11-27 S85 `cornerAngleDeg` + `setCornerAngle` wired into `cornerPanel` (`src/editor/panels.ts`) with live interior angle readout, custom degree input, and `90°`/`45°`/`60°`/`120°`/`135°`/`180°` preset buttons (`0 B` added to card).

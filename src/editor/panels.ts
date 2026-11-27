@@ -19,6 +19,7 @@ import "./combo";
 import type { ComboOption } from "./combo";
 import { groupSensorChoices, type GroupedChoice } from "./sensor-order";
 import { CAR_LABELS } from "./car-ops";
+import { CORNER_ANGLE_PRESETS, cornerAngleDeg, setCornerAngle } from "./straighten";
 import { houseRangePanel, roomRangePanel } from "./temp-range-panel";
 import type { TempUnit } from "./temp-range-ops";
 
@@ -478,11 +479,21 @@ function cornerPanel(c: PanelCtx, s: Extract<Sel, { t: "v" }>) {
   const p = ptOf(c.st.f, s.ref);
   if (!p) return html`<p class="hint fit">Nothing selected.</p>`;
   const move = (to: [number, number]) => c.commit((f) => movePointAll(f, p, to, false, s.ref));
-  const canDelete = "poly" in s.ref && (polyPts(c.st.f, s.ref.poly)?.length ?? 0) > 3;
+  const polyRef = "poly" in s.ref ? s.ref : null;
+  const pts = polyRef ? polyPts(c.st.f, polyRef.poly) : null;
+  const canDelete = !!pts && pts.length > 3;
+  const ang = polyRef && pts ? cornerAngleDeg(pts, polyRef.j) : null;
+  const applyAngle = (deg: number) => {
+    if (!polyRef || !Number.isFinite(deg) || deg < 1 || deg > 180) return;
+    c.commit((f) => setCornerAngle(f, polyRef.poly, polyRef.j, deg));
+  };
   return html`<strong>Corner</strong>
     ${heading("Appearance")}
     <div class="grid2"><div>${number(c, "x (cm)", "px", p[0], (x) => move([x, p[1]]))}</div><div>${number(c, "y (cm)", "py", p[1], (y) => move([p[0], y]))}</div></div>
-    ${"poly" in s.ref && canDelete ? html`${heading("Danger")}<p>${button("delv", "Delete corner", () => { const ref = s.ref as { poly: string; j: number }; c.commit((f) => removePoint(f, ref.poly, ref.j)); const wi = worktopIndex(ref.poly); c.select(wi === null ? null : { t: "furn", i: wi }); }, "warn")}</p>` : nothing}`;
+    ${ang !== null ? html`${heading("Angle")}
+      ${number(c, "Corner angle (°)", "cang", ang, applyAngle)}
+      <div class="row" role="group" aria-label="Corner angle presets">${CORNER_ANGLE_PRESETS.map((deg) => html`<button class="btn" type="button" data-cang=${deg} @click=${() => applyAngle(deg)}>${deg}°</button>`)}</div>` : nothing}
+    ${polyRef && canDelete ? html`${heading("Danger")}<p>${button("delv", "Delete corner", () => { c.commit((f) => removePoint(f, polyRef.poly, polyRef.j)); const wi = worktopIndex(polyRef.poly); c.select(wi === null ? null : { t: "furn", i: wi }); }, "warn")}</p>` : nothing}`;
 }
 
 /** Delete for a room edge: it stops being drawn, on every room that shares it. A door or window on it asks first. */

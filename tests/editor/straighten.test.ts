@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validate, type Floor, type Layout, type Pt } from "../../src/core";
-import { simplifyFloorWalls, straightenFloorWalls } from "../../src/editor/straighten";
+import { cornerAngleDeg, setCornerAngle, simplifyFloorWalls, straightenFloorWalls } from "../../src/editor/straighten";
 
 const wrap = (f: Floor): Layout => ({ version: 2, unit: "cm", north: 0, floors: { ground: f }, catalog: [] });
 
@@ -48,5 +48,24 @@ describe("S84: simplifyFloorWalls & straightenFloorWalls", () => {
     const res45 = straightenFloorWalls(angled, 6, 45);
     const w = res45.floor.walls[0]!;
     expect(Math.abs(Math.abs(w.b[0] - w.a[0]) - Math.abs(w.b[1] - w.a[1]))).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("S85: cornerAngleDeg & setCornerAngle", () => {
+  it("measures and sets exact corner angles (90°, 45°, 60°, 135°) while keeping rooms stitched", () => {
+    const f = baseFloor([[0, 0], [400, 0], [430, 390], [0, 400]]);
+    const initial = cornerAngleDeg(f.outline, 1)!;
+    expect(initial).toBeGreaterThan(90);
+
+    const sq = setCornerAngle(f, "o", 1, 90);
+    expect(cornerAngleDeg(sq.outline, 1)).toBeCloseTo(90, 0);
+    expect(sq.rooms[0]!.pts[2]).toEqual(sq.outline[2]); // stitched corner moved together
+    expect(validate(wrap(sq)).ok).toBe(true);
+
+    const a60 = setCornerAngle(f, "o", 1, 60);
+    expect(cornerAngleDeg(a60.outline, 1)).toBeCloseTo(60, 0);
+
+    const a135 = setCornerAngle(f, "o", 1, 135);
+    expect(cornerAngleDeg(a135.outline, 1)).toBeCloseTo(135, 0);
   });
 });

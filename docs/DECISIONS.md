@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Exact corner angle inspector and presets (S85)
+
+1. Added `cornerAngleDeg`, `setCornerAngle`, and `CORNER_ANGLE_PRESETS` (`90°`, `45°`, `60°`, `120°`, `135°`, `180°`) in `src/editor/straighten.ts`, wired into `cornerPanel` in `src/editor/panels.ts` (Studio-only, `0 B` added to card). Rotates the outgoing leg around the selected corner while preserving leg length and moving coincident room corners together.
+
 ## 2026-11-27: Straighten walls and merge collinear segments (S84)
 
 1. Added `src/editor/straighten.ts` (`simplifyFloorWalls`, `straightenFloorWalls`, Studio-only, `0 B` added to card) wired into Studio `Edit` (`Straighten walls (90°)`, `Straighten walls (45°)`, `Merge collinear walls`). Preserves T-junctions and door/opening endpoints, keeps stitched room corners moving together, and commits in one undo step.
