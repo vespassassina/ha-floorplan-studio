@@ -122,13 +122,14 @@ export const onNewFloorKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
   else ed.refused();
 };
 
-/** S92: creates a dedicated Roof floor above the top floor, expanding its outline outward by `overhang` cm. */
+/** S92 / S95: creates a dedicated Roof floor above the top floor (no stairs, no parapet walls, +overhang cm). */
 export function addRoofFloor(ed: FloorplanStudioEditor, overhang = 40) {
   const keys = Object.keys(ed.st.layout.floors);
   const top = ed.st.layout.floors[keys[keys.length - 1]];
   if (!ed.st.addFloor("Roof")) { ed.refused(); return; }
   ed.commit((f) => {
-    f.roof = { shape: "gable", pitch: 30, ridge: 0, overhang, color: "#9c523b" };
+    f.stairs = [];
+    f.roof = { shape: "hip", pitch: 30, ridge: 0, overhang, wallHeight: 0, color: "#5a5d64" };
     if (top?.outline?.length >= 3) {
       const cx = top.outline.reduce((s, p) => s + p[0], 0) / top.outline.length;
       const cy = top.outline.reduce((s, p) => s + p[1], 0) / top.outline.length;
@@ -136,9 +137,9 @@ export function addRoofFloor(ed: FloorplanStudioEditor, overhang = 40) {
         const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy) || 1;
         return [Math.round(x + (dx / d) * overhang), Math.round(y + (dy / d) * overhang)];
       });
-      f.owk = f.outline.map(() => "parapet");
+      f.owk = f.outline.map(() => "none");
     }
   });
   ed.st.setGhostFloor(true);
-  floorDone(ed, `Added Roof floor (+${overhang} cm overhang)`);
+  floorDone(ed, `Added Roof floor (+${overhang} cm overhang, no walls/stairs)`);
 }
