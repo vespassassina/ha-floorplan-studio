@@ -418,6 +418,7 @@ export const FURNITURE_SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> =
   car: "box", worktop: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
   "metal-shelf": "box", worktable: "box", "wash-basin": "box", boiler: "box", "water-tank": "box",
   carport: "box", awning: "box", "garden-house": "box",
+  skylight: "box", chimney: "box", "solar-panel": "box", "roof-vent": "box",
 };
 /** How a piece of furniture draws in 2.5D. A piece that is not finite or not known is flat: the 2D path deals with it as ever. */
 export function furnitureMode(m: Furniture): "box" | "pole" | "flat" {

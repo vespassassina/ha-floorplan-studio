@@ -25,7 +25,7 @@ const CORNERS: [number, number][] = [[260, 220], [340, 220], [340, 280], [260, 2
 const SOLID: Record<FurnitureSymbol, "box" | "pole" | "flat"> = {
   table: "box", sofa: "box", bed: "box", cabinet: "box", chair: "box", sink: "box", toilet: "box", shower: "box", bathtub: "box", "sofa-l": "box", "coffee-table": "box", bookcase: "box", buffet: "box", wardrobe: "box", dresser: "box", nightstand: "box", desk: "box", armchair: "box", counter: "box", stove: "box", fridge: "box", dishwasher: "box", washer: "box", dryer: "box", rug: "flat", plant: "box", tv: "box", computer: "box", speaker: "box", treadmill: "box", "barbell-rack": "box", "weight-rack": "box", "chaise-longue": "box", "cube-shelf": "box", mirror: "box", "mirror-stand": "box", "robot-vacuum": "box", "robot-dock": "box",
   car: "box", worktop: "box", tree: "pole", "patio-wood": "flat", "patio-concrete": "flat",
-  "metal-shelf": "box", worktable: "box", "wash-basin": "box", boiler: "box", "water-tank": "box", carport: "box", awning: "box", "garden-house": "box",
+  "metal-shelf": "box", worktable: "box", "wash-basin": "box", boiler: "box", "water-tank": "box", carport: "box", awning: "box", "garden-house": "box", skylight: "box", chimney: "box", "solar-panel": "box", "roof-vent": "box",
 };
 /** Whether a device of each type, mounted at its default height, gets a stem up from its icon. */
 const STEM: Record<DeviceType, boolean> = {

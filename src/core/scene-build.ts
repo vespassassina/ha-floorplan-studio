@@ -291,6 +291,38 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       add("room", `room:${i}`, r.kind, { type: "prism", base: p, z0, z1: z0 + ROOM_THICKNESS, ...holesIn(p) }, { room: i }, paint);
     }));
 
+    // S92: Roof floor pitched/flat tiers over the floor outline (gable, hip, shed, flat).
+    if (isObj(f.roof)) piece(() => {
+      const rf = f.roof as NonNullable<Floor["roof"]>, out = ring(f.outline);
+      if (!out) return;
+      const paint: Paint = { role: "roof", ...(typeof rf.color === "string" ? { color: rf.color } : {}) };
+      const [x0, y0, x1, y1] = box(out), w = x1 - x0, h = y1 - y0, vert = rf.ridge === 90;
+      const pitch = fin(rf.pitch) ? Math.max(0, Math.min(60, rf.pitch)) : rf.shape === "flat" ? 0 : rf.shape === "shed" ? 15 : 30;
+      const span = Math.max(40, vert ? w : h);
+      const peak = rf.shape === "flat" ? 16 : Math.min(350, Math.max(24, Math.round((span / (rf.shape === "shed" ? 1 : 2)) * Math.tan((pitch * Math.PI) / 180))));
+      if (rf.shape === "flat") {
+        add("floor", "roof:flat", "roof", { type: "prism", base: out, z0: 0, z1: peak }, {}, paint);
+      } else {
+        const steps = 6, dz = peak / steps;
+        for (let k = 0; k < steps; k++) {
+          const frac = k / steps, z0 = k * dz, z1 = (k + 1) * dz;
+          let tier: Pt[];
+          if (rf.shape === "gable") {
+            tier = vert
+              ? [[x0 + (w * frac) / 2, y0], [x1 - (w * frac) / 2, y0], [x1 - (w * frac) / 2, y1], [x0 + (w * frac) / 2, y1]]
+              : [[x0, y0 + (h * frac) / 2], [x1, y0 + (h * frac) / 2], [x1, y1 - (h * frac) / 2], [x0, y1 - (h * frac) / 2]];
+          } else if (rf.shape === "hip") {
+            tier = [[x0 + (w * frac) / 2, y0 + (h * frac) / 2], [x1 - (w * frac) / 2, y0 + (h * frac) / 2], [x1 - (w * frac) / 2, y1 - (h * frac) / 2], [x0 + (w * frac) / 2, y1 - (h * frac) / 2]];
+          } else {
+            tier = vert
+              ? [[x0 + w * frac, y0], [x1, y0], [x1, y1], [x0 + w * frac, y1]]
+              : [[x0, y0 + h * frac], [x1, y0 + h * frac], [x1, y1], [x0, y1]];
+          }
+          add("floor", `roof:${rf.shape}:${k}`, "roof", { type: "prism", base: k === 0 ? out : tier, z0, z1 }, {}, paint);
+        }
+      }
+    });
+
     // Walls, each cut by the openings that lie in it: a block under the sill, a header over the head, nothing between.
     const spans = spansOf(f), placed = new Set<number>(), apertures: Aperture[] = [];
     piece(() => { const all = collectWalls(f);

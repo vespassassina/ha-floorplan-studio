@@ -25,7 +25,7 @@ import { loadHaList, areaDiff, offerAreaMove, createArea, makeLight, createGroup
 import { stopDraw, startDraw, placeTyped, addDoor, addOpeningGap, addWall, addStructure, addArea, addStairs, addFurniture, addUnlinked, addStreetLight, placeDevice } from "./editor-draw";
 import { viewKey, onSwitchEnd, startSwitch, flushView, onVisibility, stopTurn, zoomBy, tickTurn, resetView, turnBy } from "./editor-view";
 import { scrollRow, pulse, onSearchPick, toggleSide, onOutlineQuery, onOutlineToggle, onOutlineRow, onOutlineCtx, onOutlineKey, setLayers, openLayers, counted, placedNote, findData, sideView } from "./editor-search";
-import { renameFloor, moveFloor, deleteFloor, undo, setColour, openLink, closeLink, linkRows, applyLink, rotatePlan, centre, moveCurrentFloor, askDeleteFloor, startAddFloor, onNewFloorKey, spawnDevice } from "./editor-actions";
+import { renameFloor, moveFloor, deleteFloor, undo, setColour, openLink, closeLink, linkRows, applyLink, rotatePlan, centre, moveCurrentFloor, askDeleteFloor, startAddFloor, onNewFloorKey, addRoofFloor, spawnDevice } from "./editor-actions";
 import { closeAlign, openAlign, alignPreview, applyAlign, alignStairInfo, alignStairs, alignExternalWall, copyPerimeterFromBelow, copyStairsFromBelow, setAlignStep, moveAlign, turnAlign, setAlignOffset, setAlignRotation, resetAlignOffset, ghostOpts } from "./editor-align";
 import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayout, openFile, importSvgFile, firstRunDemo, firstRunBlank } from "./editor-file";
 import type { RulerState } from "./ruler";
@@ -914,6 +914,7 @@ export class FloorplanStudioEditor extends LitElement {
   setAlignRotation(text: string) { return setAlignRotation(this, text); } // editor-align.ts
   resetAlignOffset() { return resetAlignOffset(this); } // editor-align.ts
   startAddFloor() { return startAddFloor(this); } // editor-actions.ts
+  addRoofFloor() { return addRoofFloor(this); } // editor-actions.ts
   onNewFloorKey = (ev: KeyboardEvent) => onNewFloorKey(this, ev); // editor-actions.ts
 
   // ---- S33.7: saved views. Save, rename and delete are one undo step each (EditorState); applying is not an edit. ----

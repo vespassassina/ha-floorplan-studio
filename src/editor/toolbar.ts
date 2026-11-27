@@ -219,6 +219,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
         </div></details>
         <details class="menu" id="mFloors" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">Floors</summary><div class="box">
           <button class="btn" id="addFloor" title="Add a floor" @click=${() => h.startAddFloor()}>Add floor</button>
+          <button class="btn" id="addRoofFloor" title="Add a roof floor with overhang above the top floor" @click=${() => { h.addRoofFloor(); h.closeMenus(); }}>Add roof floor</button>
           <button class="btn" id="alignFloor" ?disabled=${floorBelow(st.layout, st.floor) === null} title=${floorBelow(st.layout, st.floor) === null ? "This is the lowest floor: there is no floor below to align to" : "Lay this floor over the floor below"} @click=${() => h.openAlign()}>Align to floor below…</button>
           <button class="btn" id="mFloorUp" ?disabled=${floorKeys.indexOf(st.floor) >= floorKeys.length - 1} title="Higher floor: later in the chips" @click=${() => h.moveCurrentFloor(1)}>Move up</button>
           <button class="btn" id="mFloorDown" ?disabled=${floorKeys.indexOf(st.floor) <= 0} title="Lower floor: earlier in the chips" @click=${() => h.moveCurrentFloor(-1)}>Move down</button>

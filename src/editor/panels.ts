@@ -5,7 +5,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, deviceZDefault, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { worktopIndex, worktopPts, worktopTurn, STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import { CAR_MODELS, DEVICE_BODIES, ENERGY_KINDS, ENERGY_SHOWS, LAMP_BOUNDS, LAMP_KINDS, MAX_CAR_ATTACHED, MIN_MOISTURE, ROOM_CORNERS, isEntityId, isLinkable, strictEntity, validate } from "../core/schema";
+import { CAR_MODELS, DEVICE_BODIES, ENERGY_KINDS, ENERGY_SHOWS, LAMP_BOUNDS, LAMP_KINDS, MAX_CAR_ATTACHED, MIN_MOISTURE, ROOF_SHAPES, ROOM_CORNERS, isEntityId, isLinkable, strictEntity, validate, type RoofShape } from "../core/schema";
 import { LAMP_DEFAULTS, bodyOf, furniturePaintable } from "../core";
 import { boxOf, rectPts } from "../core/polygon";
 import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, EnergyKind, EnergyShow, Floor, Furniture, LampKind, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
@@ -409,6 +409,26 @@ function houseEnergyPanel(c: PanelCtx) {
     <label><input type="checkbox" id="enSpark" .checked=${live(cur.spark !== false)} @change=${(e: Event) => c.edited?.(c.st.setHouseEnergy({ spark: (e.target as HTMLInputElement).checked }))}> Sparkline</label>`;
 }
 
+const ROOF_PRESETS: readonly [string, string][] = [["Terracotta", "#9c523b"], ["Slate", "#4a4e57"], ["Anthracite", "#2f3238"], ["Copper", "#5f7d6e"]];
+function roofFloorPanel(c: PanelCtx) {
+  const rf = c.st.f.roof;
+  if (!rf) return html`<p>${button("froofOn", "Convert to roof floor", () => c.commit((f) => { f.roof = { shape: "gable", pitch: 30, ridge: 0, overhang: 40, color: "#9c523b" }; }))}</p>`;
+  const set = (patch: Partial<NonNullable<Floor["roof"]>>) => c.commit((f) => { if (f.roof) f.roof = { ...f.roof, ...patch }; });
+  return html`
+    <label for="froofShape">roof shape</label><select id="froofShape" .value=${live(rf.shape)} @change=${(e: Event) => set({ shape: val(e) as RoofShape })}>
+      ${ROOF_SHAPES.map((s) => html`<option value=${s} ?selected=${s === rf.shape}>${s[0].toUpperCase() + s.slice(1)}</option>`)}
+    </select>
+    ${rf.shape !== "flat" ? html`<div class="grid2">
+      <div>${number(c, "pitch (°)", "froofPitch", rf.pitch ?? (rf.shape === "shed" ? 15 : 30), (n) => set({ pitch: Math.max(0, Math.min(60, Math.round(n))) }))}</div>
+      <div><label for="froofRidge">ridge</label><select id="froofRidge" .value=${live(String(rf.ridge ?? 0))} @change=${(e: Event) => set({ ridge: Number(val(e)) === 90 ? 90 : 0 })}>
+        <option value="0" ?selected=${(rf.ridge ?? 0) === 0}>Horizontal (0°)</option>
+        <option value="90" ?selected=${rf.ridge === 90}>Vertical (90°)</option>
+      </select></div>
+    </div>` : nothing}
+    <label for="froofCol">roof colour</label><div class="rotrow">${ROOF_PRESETS.map(([n, hex]) => html`<button class="btn" type="button" title=${`${n} (${hex})`} aria-pressed=${String(rf.color === hex)} @click=${() => set({ color: hex })}>${n}</button>`)}<input id="froofCol" type="color" .value=${live(rf.color ?? "#9c523b")} @change=${(e: Event) => set({ color: val(e) })}></div>
+    <p>${button("froofOff", "Remove roof mode", () => c.commit((f) => { delete f.roof; }))}</p>`;
+}
+
 /** Shown when nothing is selected: the current floor. */
 function floorPanel(c: PanelCtx) {
   const { st } = c, key = st.floor, keys = Object.keys(st.layout.floors), i = keys.indexOf(key), title = st.f.title || key;
@@ -423,6 +443,8 @@ function floorPanel(c: PanelCtx) {
       <button class="btn" id="fdown" title="Lower floor: earlier in the chips" ?disabled=${i <= 0} @click=${() => c.floors.move(key, -1)}>Move down</button>
     </div>
     <div class="grid2"><div>${heightField(c, "floor height (cm)", "fht", st.f.height, DEFAULT_FLOOR_HEIGHT, (n) => c.commit((f) => { setHeight(f, "height", n); }))}</div><div>${heightField(c, "slab (cm)", "fslab", st.f.slab, DEFAULT_SLAB, (n) => c.commit((f) => { setHeight(f, "slab", n); }))}</div></div>
+    ${heading("Roof")}
+    ${roofFloorPanel(c)}
     ${heading("Temperature range")}
     ${houseRangePanel(c)}
     ${st.ha ? heading("Home Assistant") : nothing}

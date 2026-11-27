@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Dedicated roof floor and roof fixtures (S92)
+
+1. Added optional `roof?: RoofSpec` (`shape: "gable" | "hip" | "shed" | "flat"`, `pitch: 0..60`, `ridge: 0 | 90`, `overhang: 0..150`, `color`) to `Floor` (`src/core/schema.ts`), rendered as a 2D roof surface + ridge/hip/slope lines (`src/core/render.ts`) and stepped 3D pitched/flat roof tiers (`src/core/scene-build.ts`, `src/card/three/palette.ts`). Flat roof terrace sections work natively via `terrace` rooms drawn on top.
+2. Added roof fixture furniture symbols `"skylight"`, `"chimney"`, `"solar-panel"`, and `"roof-vent"` under `Add > Furniture > Roof` (`src/editor/furniture-menu.ts`), plus Studio `Floors > Add roof floor` (`addRoofFloor` with automatic `+40 cm` perimeter overhang) and a Roof inspector section in `floorPanel` (`src/editor/panels.ts`).
+
 ## 2026-11-27: Garden houses and sheds (S91)
 
 1. Added `"garden-house"` (`300 x 250 x 260 cm`) to `FURNITURE_SYMBOLS` (`src/core/schema.ts`, `heights.ts`, `solids.ts`, `icons.ts`, `furniture-blocks.ts`, `card/three/palette.ts`, `editor/furniture-menu.ts`).

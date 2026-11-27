@@ -8,6 +8,7 @@ export const FURNITURE_LABELS: Record<FurnitureSymbol, string> = {
   tv: "TV", computer: "Computer", speaker: "Speaker", tree: "Tree", "patio-wood": "Patio, wood", "patio-concrete": "Patio, concrete", car: "Car", worktop: "Worktop",
   "metal-shelf": "Metal shelves", worktable: "Worktable", "wash-basin": "Wash basin", boiler: "Boiler", "water-tank": "Water tank",
   carport: "Carport", awning: "Awning / sun cover", "garden-house": "Garden house / shed",
+  skylight: "Skylight (lucernario)", chimney: "Chimney", "solar-panel": "Solar panel", "roof-vent": "Roof vent",
 };
 
 /** Where each piece goes in the Add menu: one area of the house each, the areas in walking order. A table, so a new
@@ -22,5 +23,6 @@ export const FURNITURE_AREAS: readonly (readonly [string, readonly FurnitureSymb
   ["Laundry and cleaning", ["washer", "dryer", "robot-vacuum", "robot-dock"]],
   ["Basement and garage", ["metal-shelf", "worktable", "wash-basin", "boiler", "water-tank"]],
   ["Outdoor", ["tree", "patio-wood", "patio-concrete", "car", "carport", "awning", "garden-house"]],
+  ["Roof", ["skylight", "solar-panel", "chimney", "roof-vent"]],
 ];
 export const furnitureMenu = () => FURNITURE_AREAS.map(([a, s]) => [a, [...s].sort((x, y) => FURNITURE_LABELS[x].localeCompare(FURNITURE_LABELS[y]))] as const);

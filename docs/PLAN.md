@@ -5117,3 +5117,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ## Sprint 91 — Garden houses and sheds
 
 - [x] **S91.1** Added `"garden-house"` standalone outdoor building (`300 x 250 x 260 cm`, pitched gable roof with overhang in 2D/3D, custom paint/texture, optional HA entity link, listed under `Add > Furniture > Outdoor`).
+
+---
+
+## Sprint 92 — Dedicated roof floor and roof fixtures
+
+- [x] **S92.1** Added `Floor.roof` (`gable`, `hip`, `shed`, `flat`, pitch, ridge, overhang, colour), 2D/3D roof rendering, `Floors > Add roof floor` (+40 cm overhang), Roof inspector panel, and `"skylight"`, `"chimney"`, `"solar-panel"`, `"roof-vent"` symbols under `Add > Furniture > Roof`.
