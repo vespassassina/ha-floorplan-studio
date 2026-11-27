@@ -35,7 +35,7 @@ import { planFixed, setPlanLocked, attachEntity, attachToRoom, rotateTexture, ro
 import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, toggleHaSync, toggleAttention, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, haSyncView, attentionView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, captureSceneDraft, migrateLegacyScenes, loadExistingScene, migrateHueSceneDraft, installCodeView } from "./editor-popups";
 import { getActionRegistry, type CustomAction } from "./custom-actions";
 import { edgeNear, onDown, onMove, onUp, onDblClick, onWheel, edgeKind, openCtxMenuAt } from "./editor-pointer";
-import { toggleTrace, setTrace, traceView } from "./editor-trace";
+import { toggleTrace, setTrace, traceView, openAerialRoofImport } from "./editor-trace";
 import { onKeyUp, onBlur, onKey, onButtonClick, onFocusOut, onWindowPointerDown, onWindowClick, closeSubs } from "./editor-keys";
 import { resetViews, startSaveView, onViewFormKey, submitViewForm, applyView, openViewMenu, renameViewFromMenu, deleteViewFromMenu, setFloor } from "./editor-views";
 import { planOverlay, measureGrid } from "./editor-overlay";
@@ -780,6 +780,7 @@ export class FloorplanStudioEditor extends LitElement {
   // ---- S7.11: trace image ----------------------------------------------------
 
   toggleTrace() { return toggleTrace(this); } // editor-trace.ts
+  importAerialPhoto() { return openAerialRoofImport(this); } // editor-trace.ts
   setTrace(t: Trace | null, status: string) { return setTrace(this, t, status); } // editor-trace.ts
   /** S40.2: Move is on and there is an image to move. */
   get moving(): boolean { return this.traceMove && this.traceOpen && this.st.f.trace?.on === true; }

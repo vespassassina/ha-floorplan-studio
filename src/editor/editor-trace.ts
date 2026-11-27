@@ -1,7 +1,8 @@
 import { dist, MAX_LAYOUT_BYTES, type Pt, type Trace } from "../core";
-import { stopDraw } from "./editor-draw";
+import { startDraw, stopDraw } from "./editor-draw";
 import { takesTyping } from "../card/view-keys";
 import { traceImage, traceRotShown, traceRotStored } from "./trace";
+import { alignTraceToNorth, fitTraceToRoof } from "./aerial-roof";
 import { num } from "./editor-kit";
 import { html, nothing } from "lit";
 import { live } from "./live-keep";
@@ -120,14 +121,20 @@ export function applyTraceScale(ed: FloorplanStudioEditor) {
   ed.focus({ preventScroll: true });
 }
 
+/** S93: opens the trace panel and file picker to import an aerial / drone / Google Maps roof photo. */
+export async function openAerialRoofImport(ed: FloorplanStudioEditor) {
+  if (!ed.traceOpen) { ed.traceOpen = true; ed.requestUpdate(); await ed.updateComplete; }
+  ed.renderRoot.querySelector<HTMLInputElement>("#traceFile")?.click();
+}
+
 export function traceView(ed: FloorplanStudioEditor) {
   const t = ed.st.f.trace, sc = ed.traceScale;
   return html`<div class="trace-panel" id="tracePanel" role="dialog" aria-label="Trace image">
-    <div class="installcode-head"><span>Trace image</span>
+    <div class="installcode-head"><span>Trace / Aerial photo</span>
       <button class="btn keep" id="traceClose" aria-label="Close" @click=${() => toggleTrace(ed)}>&times;</button>
     </div>
     <input type="file" id="traceFile" accept="image/png,image/jpeg,image/webp" hidden @change=${(e: Event) => void loadTrace(ed, e)}>
-    <button class="btn" id="traceLoad" title="A scan or photo of a floor plan, drawn under this floor (editor only unless Show on card is ticked)" @click=${() => ed.renderRoot.querySelector<HTMLInputElement>("#traceFile")?.click()}>${t ? "Replace image…" : "Load image…"}</button>
+    <button class="btn" id="traceLoad" title="A floor plan scan, Google Maps satellite screenshot, or drone roof photo" @click=${() => ed.renderRoot.querySelector<HTMLInputElement>("#traceFile")?.click()}>${t ? "Replace image…" : "Load image…"}</button>
     ${t ? html`
       ${sc && sc.length === 2
         ? html`<label for="traceDist">Real distance (cm)</label>
@@ -138,6 +145,11 @@ export function traceView(ed: FloorplanStudioEditor) {
       ${ed.moving ? html`<p class="hint" id="traceMoveHint">Move: drag the image, arrows nudge it</p>` : nothing}
       <div class="rotrow"><label for="traceRot">Rotation (°)</label>
       <input id="traceRot" type="number" min="-180" max="180" step="0.1" .value=${live(String(traceRotShown(t.rot)))} @change=${(e: Event) => setTraceRot(ed, e)} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); setTraceRot(ed, e); } }}></div>
+      <div class="row">
+        <button class="btn" id="traceNorth" title="Rotate a North-up Google Maps image to match the plan's compass North" @click=${() => setTrace(ed, alignTraceToNorth(t, ed.st.layout.north ?? 0), "Aligned image to North")}>Align to North</button>
+        <button class="btn" id="traceFit" title="Center and fit the photo over this floor's outline" @click=${() => { const fit = fitTraceToRoof(ed.st.f.outline, 1, 1, ed.st.layout.north ?? 0); setTrace(ed, { ...t, ...fit }, "Fitted image to outline"); }}>Fit to outline</button>
+      </div>
+      <button class="btn" id="traceDrawOutline" title="Trace a new floor or roof outline over the photo" @click=${() => startDraw(ed, "outline")}>Trace roof outline…</button>
       <label for="traceAlpha">Opacity</label>
       <div class="rangerow"><input id="traceAlpha" type="range" min="0" max="1" step="0.05" .value=${live(String(t.alpha))} @change=${(e: Event) => { const a = Number((e.target as HTMLInputElement).value); if (Number.isFinite(a)) setTrace(ed, { ...t, alpha: Math.min(1, Math.max(0, a)) }, "Image opacity changed"); }}><span class="rot-val">${Math.round(t.alpha * 100)}%</span></div>
       <label><input id="traceOn" type="checkbox" .checked=${live(t.on)} @change=${(e: Event) => setTrace(ed, { ...t, on: (e.target as HTMLInputElement).checked }, (e.target as HTMLInputElement).checked ? "Image shown" : "Image hidden")}> Show</label>
