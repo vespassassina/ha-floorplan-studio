@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Multi-floor external-wall alignment and copy perimeter/stairs (S86)
+
+1. Added `externalWallPlace` in `src/editor/straighten.ts` and `alignExternalWall`, `copyPerimeterFromBelow`, `copyStairsFromBelow` in `src/editor/editor-align.ts`, wired into `#alignPanel` (`src/editor/inspector.ts`, Studio-only, `0 B` added to card).
+
 ## 2026-11-27: Exact corner angle inspector and presets (S85)
 
 1. Added `cornerAngleDeg`, `setCornerAngle`, and `CORNER_ANGLE_PRESETS` (`90°`, `45°`, `60°`, `120°`, `135°`, `180°`) in `src/editor/straighten.ts`, wired into `cornerPanel` in `src/editor/panels.ts` (Studio-only, `0 B` added to card). Rotates the outgoing leg around the selected corner while preserving leg length and moving coincident room corners together.

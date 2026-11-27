@@ -1,6 +1,7 @@
 import { alignCandidates, alignKeyOf, alignStatus, alignSummary, chooseAlign, COORD_LIMIT, type Floor, floorBelow, floorPivot, floorPlace, floorPose, poseFromPlace, type Pt, stairPlace, stairReport } from "../core";
 import { stopDraw } from "./editor-draw";
 import { parseAlignNumber, writeAlignSteps } from "./inspector";
+import { externalWallPlace } from "./straighten";
 import { takesTyping } from "../card/view-keys";
 import type { FloorplanStudioEditor } from "./editor-app";
 
@@ -75,6 +76,48 @@ export function alignStairs(ed: FloorplanStudioEditor) {
   if (st.setPose(key, pose)) { ed.changed(r.text); return; }
   if (st.planBlocked) { ed.refused(); return; }
   poseNone(ed);
+}
+
+/** S86: aligns this floor's longest exterior wall flush onto the floor below's longest exterior wall. */
+export function alignExternalWall(ed: FloorplanStudioEditor) {
+  const st = ed.st, key = ed.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
+  if (key === null || bk === null) return;
+  const r = externalWallPlace(st.layout.floors[key]!, st.layout.floors[bk]!);
+  if (!r) { ed.status = "Both floors need an outline to align external walls"; ed.requestUpdate(); return; }
+  const pose = poseFromPlace(st.layout, key, bk, { turn: r.rot, shift: r.off });
+  if (st.setPose(key, pose)) { ed.changed(r.text); return; }
+  if (st.planBlocked) { ed.refused(); return; }
+  poseNone(ed);
+}
+
+/** S86: copies the exterior perimeter (`outline`) from the floor below onto this floor (one undo step). */
+export function copyPerimeterFromBelow(ed: FloorplanStudioEditor) {
+  const st = ed.st, key = ed.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
+  if (key === null || bk === null) return;
+  if (st.planLocked) { ed.planFixed(); return; }
+  const lower = st.layout.floors[bk];
+  if (!lower || lower.outline.length < 3) { ed.status = "Floor below has no perimeter to copy"; ed.requestUpdate(); return; }
+  const next = structuredClone(st.layout.floors[key]!);
+  next.outline = structuredClone(lower.outline);
+  if (lower.owk) next.owk = [...lower.owk]; else delete next.owk;
+  if (lower.owc) next.owc = [...lower.owc]; else delete next.owc;
+  st.snapshot();
+  st.replaceFloor(next);
+  ed.changed(`Copied perimeter from ${lower.title || bk}`);
+}
+
+/** S86: copies all stairs from the floor below onto this floor with unique IDs (one undo step). */
+export function copyStairsFromBelow(ed: FloorplanStudioEditor) {
+  const st = ed.st, key = ed.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
+  if (key === null || bk === null) return;
+  if (st.planLocked) { ed.planFixed(); return; }
+  const lower = st.layout.floors[bk];
+  if (!lower || !lower.stairs.length) { ed.status = "Floor below has no stairs to copy"; ed.requestUpdate(); return; }
+  const next = structuredClone(st.layout.floors[key]!);
+  next.stairs = lower.stairs.map((s, idx) => ({ ...structuredClone(s), id: `stairs-${key}-${idx + 1}` }));
+  st.snapshot();
+  st.replaceFloor(next);
+  ed.changed(`Copied ${next.stairs.length} stair${next.stairs.length === 1 ? "" : "s"} from ${lower.title || bk}`);
 }
 
 export function setAlignStep(ed: FloorplanStudioEditor, kind: "move" | "turn", n: number) { ed.stepsNow = { ...ed.alignSteps, [kind]: n }; writeAlignSteps(ed.stepsNow); ed.requestUpdate(); }

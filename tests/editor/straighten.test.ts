@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validate, type Floor, type Layout, type Pt } from "../../src/core";
-import { cornerAngleDeg, setCornerAngle, simplifyFloorWalls, straightenFloorWalls } from "../../src/editor/straighten";
+import { cornerAngleDeg, externalWallPlace, setCornerAngle, simplifyFloorWalls, straightenFloorWalls } from "../../src/editor/straighten";
 
 const wrap = (f: Floor): Layout => ({ version: 2, unit: "cm", north: 0, floors: { ground: f }, catalog: [] });
 
@@ -67,5 +67,17 @@ describe("S85: cornerAngleDeg & setCornerAngle", () => {
 
     const a135 = setCornerAngle(f, "o", 1, 135);
     expect(cornerAngleDeg(a135.outline, 1)).toBeCloseTo(135, 0);
+  });
+});
+
+describe("S86: externalWallPlace", () => {
+  it("computes rotation and offset to align upper floor's longest exterior wall flush onto lower floor's", () => {
+    const lower = baseFloor([[0, 0], [800, 0], [800, 500], [0, 500]]);
+    // Upper floor shifted by (+50, +30)
+    const upper = baseFloor([[50, 30], [850, 30], [850, 530], [50, 530]]);
+    const r = externalWallPlace(upper, lower);
+    expect(r).not.toBeNull();
+    expect(r!.rot).toBe(0);
+    expect(r!.off).toEqual([-50, -30]);
   });
 });

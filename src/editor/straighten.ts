@@ -231,3 +231,36 @@ export function setCornerAngle(f: Floor, poly: string, j: number, targetDeg: num
   if (to[0] === moving[0] && to[1] === moving[1]) return f;
   return movePoints(f, moving, to, false);
 }
+
+// ---- S86: external wall alignment between floors ---------------------------------------------------------
+
+function longestEdge(pts: readonly Pt[]): { a: Pt; b: Pt; len: number; ang: number; mid: Pt } | null {
+  if (!Array.isArray(pts) || pts.length < 3) return null;
+  let best: { a: Pt; b: Pt; len: number; ang: number; mid: Pt } | null = null;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i]!, b = pts[(i + 1) % pts.length]!;
+    const len = dist(a, b);
+    if (!best || len > best.len) {
+      best = { a, b, len, ang: (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI, mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] };
+    }
+  }
+  return best && best.len >= 10 ? best : null;
+}
+
+/**
+ * Computes `{ rot, off }` (clockwise degrees + cm translation) to align `upper`'s longest exterior outline wall
+ * flush onto `lower`'s longest exterior outline wall. Returns null if either floor has no valid outline.
+ */
+export function externalWallPlace(upper: Floor, lower: Floor): { rot: number; off: Pt; text: string } | null {
+  const eu = longestEdge(upper.outline), el = longestEdge(lower.outline);
+  if (!eu || !el) return null;
+  let turn = ((el.ang - eu.ang) % 360 + 540) % 360 - 180;
+  // Pick the orientation (0 or 180 flip) closest to 0° so we don't flip the floor upside down unnecessarily
+  if (Math.abs(turn) > 90) turn = turn > 0 ? turn - 180 : turn + 180;
+  turn = Math.round(turn * 10) / 10;
+  const rad = (turn * Math.PI) / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+  const rx = eu.mid[0] * cos - eu.mid[1] * sin;
+  const ry = eu.mid[0] * sin + eu.mid[1] * cos;
+  const off: Pt = [round(el.mid[0] - rx), round(el.mid[1] - ry)];
+  return { rot: turn, off, text: `Aligned external wall (turn ${turn}°, shift ${off[0]}, ${off[1]} cm)` };
+}

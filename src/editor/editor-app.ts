@@ -26,7 +26,7 @@ import { stopDraw, startDraw, placeTyped, addDoor, addOpeningGap, addWall, addSt
 import { viewKey, onSwitchEnd, startSwitch, flushView, onVisibility, stopTurn, zoomBy, tickTurn, resetView, turnBy } from "./editor-view";
 import { scrollRow, pulse, onSearchPick, toggleSide, onOutlineQuery, onOutlineToggle, onOutlineRow, onOutlineCtx, onOutlineKey, setLayers, openLayers, counted, placedNote, findData, sideView } from "./editor-search";
 import { renameFloor, moveFloor, deleteFloor, undo, setColour, openLink, closeLink, linkRows, applyLink, rotatePlan, centre, moveCurrentFloor, askDeleteFloor, startAddFloor, onNewFloorKey, spawnDevice } from "./editor-actions";
-import { closeAlign, openAlign, alignPreview, applyAlign, alignStairInfo, alignStairs, setAlignStep, moveAlign, turnAlign, setAlignOffset, setAlignRotation, resetAlignOffset, ghostOpts } from "./editor-align";
+import { closeAlign, openAlign, alignPreview, applyAlign, alignStairInfo, alignStairs, alignExternalWall, copyPerimeterFromBelow, copyStairsFromBelow, setAlignStep, moveAlign, turnAlign, setAlignOffset, setAlignRotation, resetAlignOffset, ghostOpts } from "./editor-align";
 import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayout, openFile, importSvgFile, firstRunDemo, firstRunBlank } from "./editor-file";
 import type { RulerState } from "./ruler";
 import { simplifyFloorWalls, straightenFloorWalls } from "./straighten";
@@ -887,6 +887,9 @@ export class FloorplanStudioEditor extends LitElement {
   applyAlign() { return applyAlign(this); } // editor-align.ts
   alignStairInfo() { return alignStairInfo(this); } // editor-align.ts
   alignStairs() { return alignStairs(this); } // editor-align.ts
+  alignExternalWall() { return alignExternalWall(this); } // editor-align.ts
+  copyPerimeterFromBelow() { return copyPerimeterFromBelow(this); } // editor-align.ts
+  copyStairsFromBelow() { return copyStairsFromBelow(this); } // editor-align.ts
   /** S29.9: the two remembered step choices (move in cm, turn in degrees), read from `localStorage` on first use. */
   stepsNow: AlignSteps | null = null;
   get alignSteps(): AlignSteps { return (this.stepsNow ??= readAlignSteps()); }
