@@ -5123,3 +5123,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ## Sprint 92 — Dedicated roof floor and roof fixtures
 
 - [x] **S92.1** Added `Floor.roof` (`gable`, `hip`, `shed`, `flat`, pitch, ridge, overhang, colour), 2D/3D roof rendering, `Floors > Add roof floor` (+40 cm overhang), Roof inspector panel, and `"skylight"`, `"chimney"`, `"solar-panel"`, `"roof-vent"` symbols under `Add > Furniture > Roof`.
+
+---
+
+## Sprint 93 — Aerial and drone roof photo import
+
+- [x] **S93.1** Added `src/editor/aerial-roof.ts`, `File > Import aerial / drone photo…`, and `Align to North`, `Fit to outline`, and `Trace roof outline…` tools in Studio's Trace / Aerial photo panel.

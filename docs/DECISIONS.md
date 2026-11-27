@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Aerial and drone roof photo import (S93)
+
+1. Added `src/editor/aerial-roof.ts` (`fitTraceToRoof`, `alignTraceToNorth`, `calibrateTraceFromTwoPoints`, `simplifyRoofOutline`, Studio-only, `0 B` in card) and wired `File > Import aerial / drone photo…`, `Align to North` (rotates North-up Google Maps imagery about its centre to `layout.north`), `Fit to outline`, and `Trace roof outline…` into `traceView` (`src/editor/editor-trace.ts`, `src/editor/toolbar.ts`).
+
 ## 2026-11-27: Dedicated roof floor and roof fixtures (S92)
 
 1. Added optional `roof?: RoofSpec` (`shape: "gable" | "hip" | "shed" | "flat"`, `pitch: 0..60`, `ridge: 0 | 90`, `overhang: 0..150`, `color`) to `Floor` (`src/core/schema.ts`), rendered as a 2D roof surface + ridge/hip/slope lines (`src/core/render.ts`) and stepped 3D pitched/flat roof tiers (`src/core/scene-build.ts`, `src/card/three/palette.ts`). Flat roof terrace sections work natively via `terrace` rooms drawn on top.
