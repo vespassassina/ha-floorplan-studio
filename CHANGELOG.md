@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.62.0 - 2026-11-27
+
+Dedicated roof floor, roof fixtures, and aerial/drone roof photo import (Sprints 92–93):
+
+- **Dedicated roof floor & roof fixtures (S92):** Added optional `Floor.roof` (`gable`, `hip`, `shed`, `flat`, pitch `0–60°`, ridge `0°/90°`, overhang `0–150 cm`, roof tile colour) with 2D roof surface/ridge lines and 3D stepped pitched/flat roof tiers, plus `terrace` rooms for flat roof sections. Added `Floors > Add roof floor` (`+40 cm` automatic perimeter overhang + floor-below ghost), a Roof inspector section (Terracotta, Slate, Anthracite, Copper presets), and `"skylight"`, `"solar-panel"`, `"chimney"`, and `"roof-vent"` symbols under `Add > Furniture > Roof`.
+- **Aerial & drone roof photo import (S93):** Added `File > Import aerial / drone photo…` plus `Align to North` (rotates North-up Google Maps screenshots about their centre to match `layout.north`), `Fit to outline`, and `Trace roof outline…` in Studio's Trace / Aerial photo panel.
+
 ## 0.61.0 - 2026-11-27
 
 City and street lights, living hedges, multi-colour fence presets, carports, extensible HA-linked awnings, and garden houses (Sprints 88–91):
