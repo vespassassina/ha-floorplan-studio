@@ -8,7 +8,7 @@
 // unions (`ROOM_KINDS`, `WALL_KINDS`, `DEVICE_TYPES`, `FURNITURE_SYMBOLS`) so a new member fails until it is named here.
 const ROOM_KINDS = ["room", "garden", "pavement", "fill", "terrace", "water"] as const; // a zone and a structure have no floor of their own
 const WALL_KINDS = ["wall", "boundary", "external", "fence", "hedge", "edge", "parapet"] as const;
-const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car", "worktop", "metal-shelf", "worktable", "wash-basin", "boiler", "water-tank", "carport", "awning", "garden-house"] as const;
+const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car", "worktop", "metal-shelf", "worktable", "wash-basin", "boiler", "water-tank", "carport", "awning", "garden-house", "skylight", "chimney", "solar-panel", "roof-vent"] as const;
 const DEVICE_TYPES = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen", "power_meter"] as const;
 
 export interface RoleStyle { css: string; opacity: number }
@@ -40,6 +40,7 @@ const FURNITURE: Record<string, string> = {
   plant: "color-mix(in srgb, white var(--fp-crown-lift, 0%), var(--fp-tree))", // B53.10: foliage green, lifted on dark themes like a crown
   sink: mix("--fp-window", 25, "--fp-furniture"), toilet: mix("--fp-window", 25, "--fp-furniture"), shower: mix("--fp-window", 25, "--fp-furniture"), bathtub: mix("--fp-window", 25, "--fp-furniture"), "wash-basin": mix("--fp-window", 25, "--fp-furniture"),
   carport: mix("--fp-wall", 50, "--fp-furniture"), awning: mix("--fp-terrace", 65, "--fp-furniture"), "garden-house": "var(--fp-wall-fence)",
+  skylight: "var(--fp-frame)", chimney: "var(--fp-wall-external)", "solar-panel": mix("--fp-window", 55, "--fp-ink"), "roof-vent": "var(--fp-idle)",
 };
 // A device with a body in the scene (radiator, speaker, TV) is drawn at rest here; the live tints are the LIVE roles below. Every other type is a point.
 const DEVICE: Record<string, string> = {
@@ -49,6 +50,7 @@ const DEVICE: Record<string, string> = {
 
 const TABLE = new Map<string, RoleStyle>();
 TABLE.set("slab", solid(mix("--fp-furniture", 45, "--fp-bg")));
+TABLE.set("roof", solid("var(--fp-wall-fence)"));
 TABLE.set("panel", solid("var(--fp-sealed)"));
 TABLE.set("door-leaf", solid("color-mix(in srgb, var(--fp-door) 60%, var(--fp-wall-side))")); // S28.10: quiet at rest; red only through open-door
 TABLE.set("frame", solid("var(--fp-frame)"));

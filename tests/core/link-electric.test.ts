@@ -20,7 +20,7 @@ describe("which symbols link: each one decided", () => {
     desk: false, counter: false, table: false, sofa: false, bed: false, cabinet: false, chair: false, sink: false, toilet: false, shower: false, bathtub: false, "sofa-l": false,
     "coffee-table": false, bookcase: false, buffet: false, wardrobe: false, dresser: false, nightstand: false, armchair: false, rug: false, "barbell-rack": false,
     "weight-rack": false, "chaise-longue": false, "cube-shelf": false, mirror: false, "mirror-stand": false, tree: false, "patio-wood": false, "patio-concrete": false, worktop: false,
-    "metal-shelf": false, worktable: false, "wash-basin": false, carport: false, awning: false, "garden-house": false,
+    "metal-shelf": false, worktable: false, "wash-basin": false, carport: false, awning: false, "garden-house": false, skylight: false, chimney: false, "solar-panel": false, "roof-vent": false,
   };
   it("the table covers every symbol, so a new one fails here until someone decides", () => {
     expect(Object.keys(WHY).sort()).toEqual([...FURNITURE_SYMBOLS].sort());

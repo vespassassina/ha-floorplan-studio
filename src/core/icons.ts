@@ -153,4 +153,8 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
   carport: { w: 520, h: 300, svg: r(2, 2, 96, 96, 1) + `<path d="M2 5 H98" ${S} stroke-width="4"/>` + [20, 40, 60, 80].map((x) => `<path d="M${x} 4 V96" ${S} stroke-opacity=".45"/>`).join("") + [6, 35, 65, 94].map((x) => c(x, 93, 3.2)).join("") },
   awning: { w: 400, h: 250, svg: r(2, 2, 96, 10, 1) + r(2, 12, 96, 84, 0) + [18, 34, 50, 66, 82].map((x) => `<path d="M${x} 12 V96" ${S} stroke-opacity=".45"/>`).join("") + `<path d="M16 12 L24 90 M84 12 L76 90" ${S} stroke-opacity=".6"/>` },
   "garden-house": { w: 300, h: 250, svg: r(2, 2, 96, 96, 1) + r(8, 8, 84, 84, 0) + `<path d="M2 50 H98" ${S} stroke-width="3.5"/>` + [20, 35, 65, 80].map((y) => `<path d="M4 ${y} H96" ${S} stroke-opacity=".38"/>`).join("") + `<path d="M40 94 H60" ${S} stroke-width="4.5"/>` },
+  skylight: { w: 100, h: 120, svg: r(4, 4, 92, 92, 2) + r(12, 12, 76, 76, 1) + `<path d="M22 76 L46 24 M44 76 L62 36" ${S} stroke-opacity=".55"/>` },
+  chimney: { w: 60, h: 60, svg: r(8, 8, 84, 84, 2) + r(22, 22, 56, 56, 1) + c(50, 50, 14) },
+  "solar-panel": { w: 170, h: 100, svg: r(2, 2, 96, 96, 2) + [25, 50, 75].map((x) => `<path d="M${x} 4 V96" ${S} stroke-opacity=".55"/>`).join("") + [34, 67].map((y) => `<path d="M4 ${y} H96" ${S} stroke-opacity=".55"/>`).join("") },
+  "roof-vent": { w: 45, h: 45, svg: c(50, 50, 42) + c(50, 50, 22) + `<path d="M50 8 V92 M8 50 H92" ${S} stroke-opacity=".45"/>` },
 };

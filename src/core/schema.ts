@@ -12,7 +12,8 @@ export type DeviceType =
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "sofa-l" | "coffee-table" | "bookcase" | "buffet" | "wardrobe" | "dresser" | "nightstand" | "desk" | "armchair" | "counter" | "stove" | "fridge" | "dishwasher" | "washer" | "dryer" | "rug" | "plant" | "treadmill" | "barbell-rack" | "weight-rack" | "chaise-longue" | "cube-shelf" | "mirror" | "mirror-stand" | "robot-vacuum" | "robot-dock" | "tv" | "computer" | "speaker" | "tree" | "patio-wood" | "patio-concrete" | "car" | "worktop"
-  | "metal-shelf" | "worktable" | "wash-basin" | "boiler" | "water-tank" | "carport" | "awning" | "garden-house";
+  | "metal-shelf" | "worktable" | "wash-basin" | "boiler" | "water-tank" | "carport" | "awning" | "garden-house"
+  | "skylight" | "chimney" | "solar-panel" | "roof-vent";
 
 /** The twelve floor materials offered as swatches in the room panel (S1.35). Any #rrggbb is still valid on a room. */
 export const FLOOR_COLOURS: { name: string; hex: string }[] = [
@@ -225,8 +226,13 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
  *  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling
  *  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture
  *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height. `offset` (S27.2, cm, x right and y down) is where the floor sits in the house: a point's place in the house is its stored point plus the offset. Stored coordinates never change; absent means [0, 0], and writers delete the key at [0, 0]. `rotation` (S29.1, degrees, clockwise on screen with y pointing down, from -180 to 180) turns the floor about its stored origin [0, 0] before the offset: a stored point p sits in the house at R(rotation) · p + offset. Absent means 0, and writers delete the key at 0. */
+export const ROOF_SHAPES = ["gable", "hip", "shed", "flat"] as const;
+export type RoofShape = (typeof ROOF_SHAPES)[number];
+/** S92: optional roof floor definition. When present, the floor renders a roof surface with shape/ridge/pitch/overhang in 2D and 3D; terrace rooms drawn on top become flat roof sections. */
+export interface RoofSpec { shape: RoofShape; pitch?: number; ridge?: 0 | 90; color?: string; overhang?: number }
+
 export interface Floor {
-  ha?: string; height?: number; slab?: number; offset?: [number, number]; rotation?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; /** B53.9: a colour per outline edge, parallel to `owk`; null is the layout's or the theme's. */ owc?: (string | null)[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
+  ha?: string; height?: number; slab?: number; offset?: [number, number]; rotation?: number; roof?: RoofSpec; title: string; outline: Pt[]; owk?: EdgeKind[]; /** B53.9: a colour per outline edge, parallel to `owk`; null is the layout's or the theme's. */ owc?: (string | null)[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
@@ -306,7 +312,7 @@ export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number
 export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen", "power_meter"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
-export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car", "worktop", "metal-shelf", "worktable", "wash-basin", "boiler", "water-tank", "carport", "awning", "garden-house"];
+export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car", "worktop", "metal-shelf", "worktable", "wash-basin", "boiler", "water-tank", "carport", "awning", "garden-house", "skylight", "chimney", "solar-panel", "roof-vent"];
 /** S4.25: the appliance types offered in the Add > Unlinked device menu — a curated subset of DEVICE_TYPES, each with a fixed icon and no linked-entity state. "heatpump" reuses the "ac" icon and colour; there is no separate type for it. */
 export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light", "fan", "power_meter"];
 
@@ -469,6 +475,17 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       errors.push(`${at} offset must be two finite numbers [x, y] within +-${COORD_LIMIT} cm; leave it out for [0, 0]`);
     if (f.rotation !== undefined && !(typeof f.rotation === "number" && Number.isFinite(f.rotation) && f.rotation >= -180 && f.rotation <= 180))
       errors.push(`${at} rotation must be a finite number of degrees from -180 to 180; leave it out for 0`);
+    if (f.roof !== undefined) {
+      const rf = f.roof;
+      const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+      if (!isObj(rf) || !(ROOF_SHAPES as readonly unknown[]).includes(rf.shape)) errors.push(`${at} roof.shape must be one of ${ROOF_SHAPES.join(", ")}`);
+      else {
+        if (rf.pitch !== undefined && !(fin(rf.pitch) && rf.pitch >= 0 && rf.pitch <= 60)) errors.push(`${at} roof.pitch must be 0..60`);
+        if (rf.ridge !== undefined && rf.ridge !== 0 && rf.ridge !== 90) errors.push(`${at} roof.ridge must be 0 or 90`);
+        if (rf.color !== undefined && !(typeof rf.color === "string" && /^#[0-9a-fA-F]{6}$/.test(rf.color))) errors.push(`${at} roof.color must be #rrggbb`);
+        if (rf.overhang !== undefined && !(fin(rf.overhang) && rf.overhang >= 0 && rf.overhang <= 150)) errors.push(`${at} roof.overhang must be 0..150`);
+      }
+    }
     if (farCoordinate(f)) errors.push(`${at} a coordinate lies further than ${COORD_LIMIT} cm (100 km) from the origin; keep every point within +-${COORD_LIMIT} cm`);
     poly("outline", f.outline);
     // S1.52: owk is optional (migrate fills it), but once present it must match the outline point by point.
