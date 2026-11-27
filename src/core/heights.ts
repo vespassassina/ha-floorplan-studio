@@ -15,6 +15,7 @@ export const LAMP_DEFAULTS = {
   spot: {},
   pole: { height: 80 },
   flood: { angle: 60, reach: 300 },
+  street: { height: 420, reach: 450 },
 } as const;
 /** The range `validate` accepts for any height, sill or mount height. */
 export const MAX_HEIGHT = 1000;

@@ -22,7 +22,7 @@ import { firstRunCss, firstRunView } from "./first-run";
 import { type CtxTarget, fitCtxMenu, ctxMenuCss, ctxMenuView } from "./ctx-menu";
 import { type Drag, hasOwn, DRAW_HINT, type Hit, num } from "./editor-kit";
 import { loadHaList, areaDiff, offerAreaMove, createArea, makeLight, createGroup, controlsAutomation, scheduleAutomation, motionAutomation, moreInfo, runScene, addToArea } from "./editor-ha";
-import { stopDraw, startDraw, placeTyped, addDoor, addOpeningGap, addWall, addStructure, addArea, addStairs, addFurniture, addUnlinked, placeDevice } from "./editor-draw";
+import { stopDraw, startDraw, placeTyped, addDoor, addOpeningGap, addWall, addStructure, addArea, addStairs, addFurniture, addUnlinked, addStreetLight, placeDevice } from "./editor-draw";
 import { viewKey, onSwitchEnd, startSwitch, flushView, onVisibility, stopTurn, zoomBy, tickTurn, resetView, turnBy } from "./editor-view";
 import { scrollRow, pulse, onSearchPick, toggleSide, onOutlineQuery, onOutlineToggle, onOutlineRow, onOutlineCtx, onOutlineKey, setLayers, openLayers, counted, placedNote, findData, sideView } from "./editor-search";
 import { renameFloor, moveFloor, deleteFloor, undo, setColour, openLink, closeLink, linkRows, applyLink, rotatePlan, centre, moveCurrentFloor, askDeleteFloor, startAddFloor, onNewFloorKey, spawnDevice } from "./editor-actions";
@@ -859,6 +859,7 @@ export class FloorplanStudioEditor extends LitElement {
   addStairs() { return addStairs(this); } // editor-draw.ts
   addFurniture(symbol: string) { return addFurniture(this, symbol); } // editor-draw.ts
   addUnlinked(type: string) { return addUnlinked(this, type); } // editor-draw.ts
+  addStreetLight() { return addStreetLight(this); } // editor-draw.ts
   placeDevice(id: string) { return placeDevice(this, id); } // editor-draw.ts
 
   /** Set when the person ticked "Don't ask again this session": device-to-area moves then go through without the dialog. Not stored. */

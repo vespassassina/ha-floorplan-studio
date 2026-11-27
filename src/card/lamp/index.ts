@@ -68,8 +68,8 @@ export const lampRenderer: LampRenderer = {
         `<mask id="fp-lamp-falloff" class="fp-falloff" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fp-lamp-grad)"/></mask>`,
       out,
     );
-    const mult = kind === "desk" ? 0.7 : kind === "ceiling" ? 1.1 : kind === "pole" ? 1.4 : 1;
-    out.push(`<circle class="aura lamp-aura-${kind}" cx="${cx}" cy="${cy}" r="${num(reach * mult)}"${clip} mask="url(#fp-lamp-falloff)"${style}/>`);
+    const r = kind === "street" ? (lamp.reach ?? 450) * scale : reach * (kind === "desk" ? 0.7 : kind === "ceiling" ? 1.1 : kind === "pole" ? 1.4 : 1);
+    out.push(`<circle class="aura lamp-aura-${kind}" cx="${cx}" cy="${cy}" r="${num(r)}"${clip} mask="url(#fp-lamp-falloff)"${style}/>`);
   },
 
   icon({ kind, k, lamp }) {
@@ -97,6 +97,9 @@ export const lampRenderer: LampRenderer = {
     }
     if (kind === "flood") {
       return `${halo}<path d="M6.5 16L8.5 8.5H15.5L17.5 16Z M8.5 16.5H15.5V18.5H8.5Z"/><path class="lamp-stroke" d="M9.5 6.3H14.5" stroke-width="1.8" stroke-linecap="round"/>`;
+    }
+    if (kind === "street") {
+      return `${halo}<path class="lamp-stroke" d="M9 19.5V8.5Q9 5.5 12.5 5.5H16" stroke-width="1.9" stroke-linecap="round"/><path d="M13.5 6.5H18.5L17.2 9.5H14.8Z"/><circle cx="16" cy="11.2" r="1.6"/>`;
     }
     const _exhaustive: never = kind;
     return _exhaustive;

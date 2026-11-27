@@ -139,11 +139,11 @@ export type DeviceBody = (typeof DEVICE_BODIES)[number];
  * `heating` that room is washed and patterned in 2D and warmed in 3D. Absent is false; an older card ignores it.
  * `lamp` (S62, lights only): optional lamp shape and emission profile (`floor`, `desk`, `strip`, `ceiling`, `spot`, `pole`, `flood`). Absent keeps the plain light icon and soft aura.
  */
-export const LAMP_KINDS = ["floor", "desk", "strip", "ceiling", "spot", "pole", "flood"] as const;
+export const LAMP_KINDS = ["floor", "desk", "strip", "ceiling", "spot", "pole", "flood", "street"] as const;
 export type LampKind = (typeof LAMP_KINDS)[number];
 export interface LampSpec {
   kind: LampKind;
-  /** `floor` (40–300 cm, default 150) and `pole` (20–300 cm, default 80). */
+  /** `floor` (40–300 cm, default 150), `pole` (20–300 cm, default 80), and `street` (150–800 cm, default 420). */
   height?: number;
   /** `strip` length in cm (20–1000, default 150). Oriented by `Device.rot`. */
   length?: number;
@@ -151,8 +151,12 @@ export interface LampSpec {
   diameter?: number;
   /** `flood` beam angle in degrees (15–160, default 60). Oriented by `Device.rot`. */
   angle?: number;
-  /** `flood` reach in cm (50–1000, default 300). */
+  /** `flood` (50–1000 cm, default 300) and `street` (100–1200 cm, default 450) reach in cm. */
   reach?: number;
+  /** S88: fixed light colour (`#rrggbb`) for city/street lights (sodium, LED, neon, custom) or fixed-colour lamps. */
+  color?: string;
+  /** S88: when true and `entity` is empty, the light turns on automatically at night (`o.night`). */
+  autoNight?: true;
 }
 export const LAMP_BOUNDS = {
   floor: { height: [40, 300] as const },
@@ -162,6 +166,7 @@ export const LAMP_BOUNDS = {
   spot: {},
   pole: { height: [20, 300] as const },
   flood: { angle: [15, 160] as const, reach: [50, 1000] as const },
+  street: { height: [150, 800] as const, reach: [100, 1200] as const },
 } as const;
 
 export const OTHER_ICONS = ["value"] as const;
@@ -637,6 +642,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
           const b = LAMP_BOUNDS[d.lamp.kind as LampKind] as Record<string, readonly [number, number] | undefined>;
           for (const [k, v] of Object.entries(d.lamp)) {
             if (k === "kind" || v === undefined) continue;
+            if (k === "color") { if (typeof v !== "string" || !/^#[0-9a-fA-F]{6}$/.test(v)) errors.push(`${at} ${d.id} lamp.color must be #rrggbb`); continue; }
+            if (k === "autoNight") { if (v !== true) errors.push(`${at} ${d.id} lamp.autoNight must be true`); continue; }
             const r = b[k];
             if (!r) errors.push(`${at} ${d.id} lamp.${k} invalid for ${d.lamp.kind}`);
             else if (typeof v !== "number" || !Number.isFinite(v) || v < r[0] || v > r[1]) errors.push(`${at} ${d.id} lamp.${k} must be ${r[0]}..${r[1]}`);

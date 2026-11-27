@@ -53,7 +53,7 @@ export function createPools(scene: Scene) {
         pos.setXYZ(0, p.at[0], y, p.at[1]);
         col.setXYZ(0, p.rgb[0] * strength, p.rgb[1] * strength, p.rgb[2] * strength);
         const lk = p.lamp, kind = lk?.kind;
-        const baseReach = kind === "desk" ? POOL_REACH * 0.7 : kind === "ceiling" ? POOL_REACH * 1.1 : kind === "pole" ? POOL_REACH * 1.4 : kind === "spot" ? POOL_REACH * 0.35 : kind === "flood" ? (lk?.reach ?? 300) : POOL_REACH;
+        const baseReach = kind === "desk" ? POOL_REACH * 0.7 : kind === "ceiling" ? POOL_REACH * 1.1 : kind === "pole" ? POOL_REACH * 1.4 : kind === "spot" ? POOL_REACH * 0.35 : kind === "flood" ? (lk?.reach ?? 300) : kind === "street" ? (lk?.reach ?? 450) : POOL_REACH;
         const reach = baseReach * scale;
         const floodAng = kind === "flood" ? Math.min(160, Math.max(15, lk?.angle ?? 60)) * (Math.PI / 180) : 0;
         const floodStart = (-90 + (lk?.rot ?? 0)) * (Math.PI / 180) - floodAng / 2;
