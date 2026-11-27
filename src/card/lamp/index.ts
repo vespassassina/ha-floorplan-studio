@@ -60,6 +60,18 @@ export const lampRenderer: LampRenderer = {
       out.push(`<path class="aura lamp-aura-flood" d="${d}"${clip} mask="url(#fp-lamp-falloff)"${style}/>`);
       return;
     }
+    if (kind === "street") {
+      ensureDefs(
+        defs,
+        "fp-street-falloff",
+        `<radialGradient id="fp-street-grad"><stop offset="0" stop-opacity=".38"/><stop offset=".25" stop-opacity=".22"/><stop offset=".52" stop-opacity=".1"/><stop offset=".78" stop-opacity=".03"/><stop offset="1" stop-opacity="0"/></radialGradient>` +
+          `<mask id="fp-street-falloff" class="fp-falloff" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fp-street-grad)"/></mask>`,
+        out,
+      );
+      const r = (lamp.reach ?? 450) * scale;
+      out.push(`<circle class="aura lamp-aura-street" cx="${cx}" cy="${cy}" r="${num(r)}" mask="url(#fp-street-falloff)"${style}/>`);
+      return;
+    }
     // floor, desk, ceiling, pole: radial pool with kind-specific radius multiplier.
     ensureDefs(
       defs,
@@ -68,7 +80,7 @@ export const lampRenderer: LampRenderer = {
         `<mask id="fp-lamp-falloff" class="fp-falloff" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fp-lamp-grad)"/></mask>`,
       out,
     );
-    const r = kind === "street" ? (lamp.reach ?? 450) * scale : reach * (kind === "desk" ? 0.7 : kind === "ceiling" ? 1.1 : kind === "pole" ? 1.4 : 1);
+    const r = reach * (kind === "desk" ? 0.7 : kind === "ceiling" ? 1.1 : kind === "pole" ? 1.4 : 1);
     out.push(`<circle class="aura lamp-aura-${kind}" cx="${cx}" cy="${cy}" r="${num(r)}"${clip} mask="url(#fp-lamp-falloff)"${style}/>`);
   },
 

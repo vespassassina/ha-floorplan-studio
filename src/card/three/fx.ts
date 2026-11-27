@@ -49,10 +49,10 @@ export function createPools(scene: Scene) {
         if (key === s.key) return;
         s.key = key;
         const pos = s.geo.getAttribute("position") as BufferAttribute, col = s.geo.getAttribute("color") as BufferAttribute;
-        const strength = 0.5 * Math.max(0, Math.min(1, p.level)) * p.boost, y = p.z + POOL_LIFT;
+        const lk = p.lamp, kind = lk?.kind;
+        const strength = (kind === "street" ? 0.28 : 0.5) * Math.max(0, Math.min(1, p.level)) * p.boost, y = p.z + POOL_LIFT;
         pos.setXYZ(0, p.at[0], y, p.at[1]);
         col.setXYZ(0, p.rgb[0] * strength, p.rgb[1] * strength, p.rgb[2] * strength);
-        const lk = p.lamp, kind = lk?.kind;
         const baseReach = kind === "desk" ? POOL_REACH * 0.7 : kind === "ceiling" ? POOL_REACH * 1.1 : kind === "pole" ? POOL_REACH * 1.4 : kind === "spot" ? POOL_REACH * 0.35 : kind === "flood" ? (lk?.reach ?? 300) : kind === "street" ? (lk?.reach ?? 450) : POOL_REACH;
         const reach = baseReach * scale;
         const floodAng = kind === "flood" ? Math.min(160, Math.max(15, lk?.angle ?? 60)) * (Math.PI / 180) : 0;
@@ -84,7 +84,7 @@ export function createPools(scene: Scene) {
           }
           for (let k = 1; k <= RINGS; k++) {
             const f = k / RINGS, len = rayReach * t * f, v = 1 + (k - 1) * RAYS + r;
-            const fall = (kind === "spot" ? Math.pow(1 - f, 3) : (1 - f) * (1 - f)) * strength;
+            const fall = (kind === "spot" ? Math.pow(1 - f, 3) : kind === "street" ? Math.pow(1 - f, 2.8) : (1 - f) * (1 - f)) * strength;
             pos.setXYZ(v, p.at[0] + dx * len, y, p.at[1] + dy * len);
             if (len > extent) extent = len;
             col.setXYZ(v, p.rgb[0] * fall, p.rgb[1] * fall, p.rgb[2] * fall);

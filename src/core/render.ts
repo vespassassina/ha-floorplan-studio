@@ -1287,8 +1287,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       ? [floorAt[0] + 15 * Math.sin((rot * Math.PI) / 180), floorAt[1] - 15 * Math.cos((rot * Math.PI) / 180)]
       : floorAt;
     // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (`roomAt`: a zone, a structure
-    // and a fill are not rooms; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
-    const holder = roomAt(f, probeAt), own = holder < 0 ? null : ring(f.rooms[holder]);
+    // and a fill are not rooms; street lights spill freely across the garden and house exterior without a room-boundary clip).
+    const holder = d.lamp?.kind === "street" ? -1 : roomAt(f, probeAt), own = holder < 0 ? null : ring(f.rooms[holder]);
     let clip = "";
     if (own) {
       // The aura hangs with the lamp (`c`), so its clip takes the same lift off the floor.

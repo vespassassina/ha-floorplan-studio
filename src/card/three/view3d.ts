@@ -959,18 +959,21 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     const key = JSON.stringify([[...lifts], [...heatTint]]);
     if (key !== liftKey) { liftKey = key; for (const m of meshes) paintLifts(m); for (const m of wallMeshes) paintLifts(m); }
     const b = plan?.bounds, centre: [number, number] = b ? [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2] : [0, 0];
-    const gBox: readonly [number, number][] | null = b ? [[b.min[0] - 400, b.min[1] - 400], [b.max[0] + 400, b.min[1] - 400], [b.max[0] + 400, b.max[1] + 400], [b.min[0] - 400, b.max[1] + 400]] : null;
-    const here = lit.filter((l) => roomSolid.has(l.room));
-    const poolLights = lit.filter((l) => roomSolid.has(l.room) || (l.room < 0 && gBox));
+    const gBox: readonly [number, number][] | null = b ? [[b.min[0] - 1200, b.min[1] - 1200], [b.max[0] + 1200, b.min[1] - 1200], [b.max[0] + 1200, b.max[1] + 1200], [b.min[0] - 1200, b.max[1] + 1200]] : null;
+    const here = lit.filter((l) => roomSolid.has(l.room) || (l.lamp?.kind === "street" && gBox));
+    const poolLights = lit.filter((l) => roomSolid.has(l.room) || ((l.room < 0 || l.lamp?.kind === "street") && gBox));
     pools.set(pickLights(poolLights, centre, MAX_POOLS).map((l) => {
-      const r = roomSolid.get(l.room);
-      return { at: l.at, z: r ? r.z : 0, base: r ? r.base : gBox!, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale, lamp: l.lamp };
+      const r = l.lamp?.kind === "street" ? undefined : roomSolid.get(l.room);
+      return { at: l.at, z: r ? r.z : 1.5, base: r ? r.base : gBox!, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale, lamp: l.lamp };
     }));
     container.dataset.pools = `${pools.visible()}/${poolLights.length}`;
     // The same lamps light the walls of their rooms: a lamp's own height is its icon's (held under the walls), else a standing lamp's.
     // S23.8: the theme kind is the one the 2D glow blends by (`--fp-glow-blend`, ink.ts themeExtras): multiply means a light theme.
     const light = getComputedStyle(probe).getPropertyValue("--fp-glow-blend").trim() === "multiply";
-    glowSpecs = pickLights(here, centre, MAX_POOLS).map((l) => { const r = roomSolid.get(l.room)!; return { at: l.at, lampZ: deviceZ.get(l.device) ?? r.z + 200, base: r.base, rgb: l.rgb, level: l.level, room: l.room, boost: mode.boost, scale: l.scale, light }; });
+    glowSpecs = pickLights(here, centre, MAX_POOLS).map((l) => {
+      const st = l.lamp?.kind === "street", r = st ? undefined : roomSolid.get(l.room);
+      return { at: l.at, lampZ: deviceZ.get(l.device) ?? (st ? (l.lamp?.height ?? 420) : (r?.z ?? 0) + 200), base: r ? r.base : gBox!, rgb: l.rgb, level: st ? l.level * 0.6 : l.level, room: st ? -1 : l.room, boost: mode.boost, scale: l.scale, light };
+    });
     glow.set(glowSpecs, wallSides, sidesVersion, roomShapes);
     applyPatches(sunNow, light);
     overlay.set(L, anchors);
