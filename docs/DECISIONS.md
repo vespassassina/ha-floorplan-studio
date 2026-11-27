@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: 2D sun wedge, outdoor directional shadows, and card budget (S81)
+
+1. Added daytime 2D sun wedge (`<polygon class="sun-w" data-sun-wedge>`) and outdoor directional shadows (masked house outline, trees, parked cars; omitted for away cars, night, heat map, or missing sun) in `src/core/render.ts`, driven by `this._sun()` from `floorplan-studio-card.ts` (`--fp-sun-wedge: #ffd98a`).
+2. `floorplan-studio-card.js` measured `139,703 B` gz; raised `CARD_GROWTH_LIMIT` by +1,000 B (`<= 140,000 B` gz).
+
 ## 2026-11-27: 3D outdoor sun casting and house/tree/car shadows (S80)
 
 1. Enabled on-demand `PCFSoftShadowMap` (`1024×1024`, `autoUpdate = false`, updating only when geometry, cutaway, away state, or sun angle changes by ≥ 1°) inside the lazy `floorplan-studio-3d-<hash>.js` chunk (`0 B` added to `floorplan-studio-card.js`).

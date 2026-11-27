@@ -5065,3 +5065,7 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ### Sprint 80 (done): 3D outdoor sun casting and house/tree/car shadows
 
 - [x] 2026-11-27 S80 On-demand `PCFSoftShadowMap` in `src/card/three/view3d.ts` + `sunShadowBox` in `src/card/three/sun.ts`: house walls, tree crowns/trunks, cars, and furniture cast live directional sun shadows onto gardens, terraces, pavements, walls, and the ground plane (`0 B` added to card, zero orbit shadow-pass cost).
+
+### Sprint 81 (done): 2D sun wedge and outdoor directional shadows
+
+- [x] 2026-11-27 S81 2D sun wedge (`--fp-sun-wedge`) and outdoor directional shadows (masked house outline, trees, parked cars) in `src/core/render.ts`, fed by `this._sun()` in `floorplan-studio-card.ts` (`139,703 B` gz, cap `140,000 B`).
