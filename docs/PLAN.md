@@ -5105,3 +5105,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ## Sprint 89 — Living hedges and multi-colour fences
 
 - [x] **S89.1** Added `"hedge"` `WallKind` (45 cm thick foliage wall in 2D/2.5D/3D, 160 cm default height, shadow-casting in 3D) and quick colour presets for fences and hedges in Studio.
+
+---
+
+## Sprint 90 — Carports and extensible sun covers / awnings
+
+- [x] **S90.1** Added `"carport"` (wall-attached + 4 poles on long side + translucent polycarbonate roof in 2D/3D) and `"awning"` (wall-mounted extensible sun cover that scales dynamically with linked HA `cover.*` `current_position`).

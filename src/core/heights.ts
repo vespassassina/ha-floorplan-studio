@@ -28,10 +28,11 @@ export const FURNITURE_HEIGHTS: Record<FurnitureSymbol, number> = {
   worktop: 90, // B54.1: a kitchen worktop, floor to its top
   car: 145, // the sedan's; a car piece without its own height takes its model's (`furnitureHeight`)
   "metal-shelf": 190, worktable: 85, "wash-basin": 90, boiler: 140, "water-tank": 160,
+  carport: 250, awning: 20,
 };
 
 /** Bottom of the piece above the floor, for the few that do not stand on it: a wall TV, a speaker. The rest are 0. */
-export const FURNITURE_Z: Partial<Record<FurnitureSymbol, number>> = { tv: 100, speaker: 100, mirror: 90 }; // B53.12: a wall mirror hangs at 90 cm
+export const FURNITURE_Z: Partial<Record<FurnitureSymbol, number>> = { tv: 100, speaker: 100, mirror: 90, awning: 220 }; // B53.12: a wall mirror hangs at 90 cm; S90: awning cassette at 220 cm
 
 /** Top of an unlinked appliance. Wall and ceiling things sit at the height of their top edge; floor things at theirs. */
 export const UNLINKED_HEIGHTS: Record<DeviceType, number> = {
