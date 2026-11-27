@@ -30,6 +30,7 @@ import { closeAlign, openAlign, alignPreview, applyAlign, alignStairInfo, alignS
 import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayout, openFile, importSvgFile, firstRunDemo, firstRunBlank } from "./editor-file";
 import type { RulerState } from "./ruler";
 import { simplifyFloorWalls, straightenFloorWalls } from "./straighten";
+import { loadPaletteState, toolPaletteView, type PaletteState } from "./tool-palette";
 import { planFixed, setPlanLocked, attachEntity, attachToRoom, rotateTexture, rotateItem, scaleTexture } from "./editor-changes";
 import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, toggleHaSync, toggleAttention, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, haSyncView, attentionView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, captureSceneDraft, migrateLegacyScenes, loadExistingScene, migrateHueSceneDraft, installCodeView } from "./editor-popups";
 import { getActionRegistry, type CustomAction } from "./custom-actions";
@@ -189,6 +190,9 @@ export class FloorplanStudioEditor extends LitElement {
   traceScale: Pt[] | null = null;
   /** S83: interactive measurement ruler state; null when ruler mode is off. */
   ruler: RulerState | null = null;
+  /** S87: draggable Studio icon tool palette state & fullscreen pop-out state. */
+  palette: PaletteState = loadPaletteState();
+  fullscreenOn = false;
   /** S40.2: Move is on, so a drag on the plan moves the trace image and the arrows nudge it. Off on Hide, Remove, Scale, a closed panel and Escape. */
   traceMove = false;
   exportTrace = false;
@@ -488,6 +492,15 @@ export class FloorplanStudioEditor extends LitElement {
     .ruler-ln{stroke:var(--fp-primary,#1f6699);stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}
     .ruler-pt{fill:var(--fp-bg,#fff);stroke:var(--fp-primary,#1f6699);stroke-width:2;vector-effect:non-scaling-stroke}
     .ruler-lbl{fill:var(--fp-ink,#222);font-weight:600;paint-order:stroke;stroke:var(--fp-bg,#fff);stroke-width:4px;stroke-linejoin:round}
+    :host(.fs-pop){position:fixed;inset:0;z-index:9999;width:100vw;height:100vh}
+    .tool-pal{position:absolute;z-index:6;display:flex;flex-direction:column;gap:3px;padding:4px;border-radius:10px;background:color-mix(in srgb,var(--ed-surface,#fff) 92%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--ed-line,#d4d0c7);box-shadow:0 4px 16px rgba(0,0,0,.18);user-select:none}
+    .tool-pal-hd{display:flex;align-items:center;justify-content:space-between;gap:2px;border-bottom:1px solid var(--ed-line,#d4d0c7);padding-bottom:2px;margin-bottom:1px}
+    .tool-grip,.tool-min,.tool-btn{appearance:none;border:0;background:transparent;color:var(--ed-ink,#222);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+    .tool-grip{width:18px;height:16px;cursor:grab;opacity:.65}.tool-grip:active{cursor:grabbing}
+    .tool-min{width:16px;height:16px;opacity:.7}
+    .tool-btn{width:30px;height:30px}.tool-btn:hover{background:color-mix(in srgb,var(--ed-ink,#222) 10%,transparent)}
+    .tool-btn[aria-pressed="true"]{background:var(--fp-primary,#1f6699);color:#fff}
+    .tool-btn svg{width:18px;height:18px}.tool-grip svg,.tool-min svg{width:14px;height:14px}
     /* S7.11 / S49: see-through room fills under svg.tracing live in FLOORPLAN_CSS for both editor and card. */
     /* S58.1: 3D view replaces the canvas; toggle back to 2D via the same top button */
     .canvas.in3d>svg,.canvas.in3d>.zoom{display:none}
@@ -968,6 +981,36 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.replaceFloor(res.floor);
     this.changed(`Merged ${res.merged} redundant corners and ${res.wallsMerged} wall segments`);
   }
+  selectTool() {
+    if (this.draw) stopDraw(this);
+    if (this.ruler) this.ruler = null;
+    this.status = "Select tool";
+    this.requestUpdate();
+  }
+  toggleFullscreen() {
+    const doc = document as Document & { fullscreenElement?: Element | null; exitFullscreen?: () => Promise<void> };
+    if (doc.fullscreenElement === this) {
+      void doc.exitFullscreen?.();
+      this.fullscreenOn = false;
+      this.classList.remove("fs-pop");
+      this.requestUpdate();
+      return;
+    }
+    if (this.fullscreenOn) {
+      this.fullscreenOn = false;
+      this.classList.remove("fs-pop");
+      this.requestUpdate();
+      return;
+    }
+    this.fullscreenOn = true;
+    const req = (this as HTMLElement & { requestFullscreen?: () => Promise<void> }).requestFullscreen;
+    if (typeof req === "function") {
+      void req.call(this).catch(() => { this.classList.add("fs-pop"); });
+    } else {
+      this.classList.add("fs-pop");
+    }
+    this.requestUpdate();
+  }
 
   // ---- drawing -------------------------------------------------------------
 
@@ -1006,6 +1049,7 @@ export class FloorplanStudioEditor extends LitElement {
             <button class="btn" id="vrotl" title="Rotate view left" aria-label="Rotate view left" @click=${() => turnBy(this, -ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateLeft} fill="currentColor"/></svg></button>
             <button class="btn" id="vrotr" title="Rotate view right" aria-label="Rotate view right" @click=${() => turnBy(this, ROTATION_STEP)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d=${UI_ICONS.rotateRight} fill="currentColor"/></svg></button>
           </div>
+          ${toolPaletteView(this)}
           ${this.open3d ? html`
             <div class="pane3d" id="pane3d" @contextmenu=${(e: MouseEvent) => { e.preventDefault(); this.studio3d.openCtxAt(e.clientX, e.clientY); }}>
               <div class="stage3d" id="stage3d"></div>

@@ -107,6 +107,7 @@ export function menuSections(c: FloorplanStudioCard): MenuSection[] {
     const acts: MenuItem[] = [];
     if (c._rotateOn()) acts.push({ kind: "action", label: t("Rotate left"), value: "rotate:-1" }, { kind: "action", label: t("Rotate right"), value: "rotate:1" });
     acts.push({ kind: "action", label: t("Reset view"), value: "reset", disabled: !c._modified() });
+    if (!c._kiosk() && c._viewSwitchOn()) acts.push({ kind: "action", label: t("Fullscreen"), value: "fullscreen" });
     out.push({ items: acts });
   }
   return out;
@@ -205,6 +206,7 @@ export function onMenuPick(c: FloorplanStudioCard, ev: Event): void {
     case "layer": if (LAYERS.some((l) => l.id === arg)) c._setLayers(d?.alt === true ? soloLayer(c._hiddenLayers, arg as LayerId) : toggleLayer(c._hiddenLayers, arg as LayerId)); break; // Alt: this family alone, again: all
     case "rotate": if (arg === "1" || arg === "-1") c._turnBy(Number(arg) * ROTATION_STEP); break;
     case "reset": resetView(c); break;
+    case "fullscreen": if (document.fullscreenElement === c) void document.exitFullscreen?.(); else void c.requestFullscreen?.().catch(() => {}); break;
     case "replay": openReplay(c); break;
   }
 }

@@ -72,6 +72,7 @@ export const onKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
   // S26.13: "?" opens Help from the plan, never from a text field (the input check above, and `takesTyping` for the rest).
   if (ev.key === "?" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !takesTyping(t)) { ev.preventDefault(); ed.toggleHelp(); return; }
   if ((ev.key === "m" || ev.key === "M") && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !takesTyping(t) && !ed.draw) { ev.preventDefault(); ed.toggleRuler(); return; }
+  if ((ev.key === "f" || ev.key === "F") && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !takesTyping(t) && !ed.draw) { ev.preventDefault(); ed.toggleFullscreen(); return; }
   // Escape cancels a drag of devices before anything else: Help, Place and the rest must not swallow it while the plan is being dragged.
   if (ev.key === "Escape" && (ed.drag?.type === "devs" || ed.drag?.type === "dev")) { ev.preventDefault(); cancelDeviceDrag(ed); return; }
   if (ev.key === "Escape" && ed.studio3d.cancelDrag()) { ev.preventDefault(); return; }
@@ -90,6 +91,7 @@ export const onKey = (ed: FloorplanStudioEditor, ev: KeyboardEvent) => {
   if (ev.key === "Escape" && ed.installCodeOpen) { ev.preventDefault(); toggleInstallCode(ed); return; }
   if (ev.key === "Escape" && ed.traceScale) { ev.preventDefault(); cancelTraceScale(ed); return; }
   if (ev.key === "Escape" && ed.ruler) { ev.preventDefault(); ed.toggleRuler(); return; }
+  if (ev.key === "Escape" && ed.fullscreenOn) { ev.preventDefault(); ed.toggleFullscreen(); return; }
   if (ev.key === "Escape" && ed.traceMove) { ev.preventDefault(); ed.traceMove = false; ed.requestUpdate(); return; } // S40.2: ends Move first
   if (ev.key === "Escape" && ed.traceOpen) { ev.preventDefault(); toggleTrace(ed); return; }
   if (ed.draw) {

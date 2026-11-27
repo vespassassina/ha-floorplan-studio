@@ -68,6 +68,7 @@ const c: Catalogue = {
   "Thumbnail position": "缩略图位置",
   "Rotate left": "向左旋转",
   "Rotate right": "向右旋转",
+  "Fullscreen": "全屏",
   "Reset view": "重置视图",
   "Area": "区域",
   "Temperature": "温度",
