@@ -5147,3 +5147,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ## Sprint 96 — Align to floor above
 
 - [x] **S96.1** Added `floorAbove` (`src/core/floor-stack.ts`) and `Floors > Align to floor above…` in Studio reusing the full Align mode (ghost overlay, auto-align, move/turn, stairs, external wall, copy perimeter/stairs).
+
+---
+
+## Sprint 97 — Street light spill and smooth atmospheric falloff
+
+- [x] **S97.1** Removed garden/room boundary clip on `street` lights in 2D and 3D (now illuminates garden + house exterior), and added smooth multi-stop atmospheric falloff (`fp-street-falloff` in 2D, softer `pow(1-f, 2.8)` in 3D).

@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-28: Street light unclipped spill and smooth atmospheric falloff (S97)
+
+1. Removed room/garden boundary clipping on `street` lights in 2D (`src/core/render.ts`) and 3D (`src/card/three/view3d.ts` uses the padded `gBox` at `z = 1.5` and feeds street lights into `glow.set` so they illuminate exterior house walls across the garden).
+2. Replaced the dense indoor lamp gradient on `street` lights with a soft 5-stop atmospheric radial falloff (`fp-street-falloff`, peak `0.38` in `src/card/lamp/index.ts`; softer `0.28` peak + `pow(1-f, 2.8)` decay in `src/card/three/fx.ts`).
+
 ## 2026-11-28: Align to floor above (S96)
 
 1. Added `floorAbove` in `src/core/floor-stack.ts` and parameterized Studio's Align mode (`alignDir: "below" | "above"` in `src/editor/editor-align.ts`, `editor-app.ts`, `inspector.ts`, `toolbar.ts`) so `Floors > Align to floor above…` reuses the full alignment panel (auto-align, ghost overlay, move/turn/offset/rotation, align stairs, align external wall, copy perimeter/stairs) against the floor above.

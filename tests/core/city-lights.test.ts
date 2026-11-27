@@ -48,7 +48,14 @@ describe("S88: City and street lights", () => {
 
     const nightSvg = renderFloor(f, { scale: 1, night: true, lampLib: lampRenderer });
     expect(nightSvg).toContain("lamp-aura-street");
+    expect(nightSvg).toContain("fp-street-falloff");
     expect(nightSvg).toContain("--fp-aura:#ff9e3d");
+    // Street light inside a garden is not clipped to the garden boundary
+    const inGarden = makeFloor({ kind: "street", color: "#ff9e3d", autoNight: true });
+    inGarden.rooms.push({ id: "g1", name: "Garden", area: "garden", kind: "garden", pts: [[400, 0], [700, 0], [700, 300], [400, 300]], wk: ["fence", "fence", "fence", "fence"] });
+    const gSvg = renderFloor(inGarden, { scale: 1, night: true, lampLib: lampRenderer });
+    expect(gSvg).toContain('class="aura lamp-aura-street"');
+    expect(gSvg).not.toMatch(/class="aura lamp-aura-street"[^>]*clip-path=/);
   });
 
   it("builds 3D street-light pole, arm, and head and emits live light at night", () => {
