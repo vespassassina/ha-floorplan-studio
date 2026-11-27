@@ -275,6 +275,10 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
             <button class="btn keep" id="rotr" aria-label="Rotate the plan 45 degrees right" @click=${() => h.rotatePlan(45)}>45° &#8631;</button></div>
           <button class="btn" id="devcols" aria-expanded=${pressed(!!h.devColsPos)} @click=${() => h.toggleDevCols()}>Colours</button>
           <button class="btn" id="traceBtn" aria-expanded=${pressed(h.traceOpen)} @click=${() => h.toggleTrace()}>Trace image…</button>
+          <div class="sep"></div>
+          <button class="btn" id="straighten90" title="Snap slightly skewed walls to exact 90° angles while keeping rooms stitched" @click=${() => h.straightenWalls(90)}>Straighten walls (90°)</button>
+          <button class="btn" id="straighten45" title="Snap slightly skewed walls to exact 45°/90° angles" @click=${() => h.straightenWalls(45)}>Straighten walls (45°)</button>
+          <button class="btn" id="simplifyWalls" title="Collapse multi-segment nearly-straight walls into single straight walls" @click=${() => h.simplifyWalls()}>Merge collinear walls</button>
         </div></details>
         <details class="menu" id="mFile" @toggle=${(e: Event) => { h.onMenuToggle(e); fitBox(e); }}><summary class="btn">File</summary><div class="box">
           <button class="btn" id="imp" @click=${() => h.renderRoot.querySelector<HTMLInputElement>("#file")?.click()}>Open…</button>
