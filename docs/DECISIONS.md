@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Studio interactive measurement ruler tool (S83)
+
+1. Added `src/editor/ruler.ts` (`formatRulerMeasure`, `rulerSvg`, Studio-only, `0 B` added to `floorplan-studio-card.js`) wired to `View > Ruler` (`#ruler`) and shortcut `M` (`Esc` to exit). Click two points (snapped via `snapPoint`, `Alt` to unsnap) to read live and locked `m`/`cm` + `Δx`/`Δy` distances without touching the layout or undo history.
+
 ## 2026-11-27: 3D weather atmosphere (S82)
 
 1. Added `src/card/three/weather.ts` (`weatherMood`, `createWeatherFx`) inside the lazy `floorplan-studio-3d-<hash>.js` chunk (`0 B` added to `floorplan-studio-card.js`). Reads the live state of `config.weather` (`weather.home` by default) to apply overcast/fog lighting and `FogExp2`, plus animated 3D rain streaks (`LineSegments`) and drifting snowflakes (`Points`) throttled to ~15 fps only while precipitation is active, the tab is visible, and `prefers-reduced-motion` is off.

@@ -2,6 +2,7 @@ import { dist, floorPivot, type Pt, type Stairs, wallWidthAt, worktopIndex, work
 import { num, planZero } from "./editor-kit";
 import { polyPts, ptOf } from "./state";
 import { type Corner, looseEnds } from "./ops";
+import { rulerSvg } from "./ruler";
 import type { FloorplanStudioEditor } from "./editor-app";
 
 // ---- drawing: the measure grid and the handles over the plan ---------------------------------------------
@@ -141,5 +142,7 @@ export function planOverlay(ed: FloorplanStudioEditor, k: number): string {
   const ts = ed.traceScale;
   if (ts?.length === 2) o.push(`<line class="dr" x1="${num(ts[0][0])}" y1="${num(ts[0][1])}" x2="${num(ts[1][0])}" y2="${num(ts[1][1])}"/>`);
   ts?.forEach((p) => o.push(`<circle class="dp first" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
+  // S83: interactive measurement ruler overlay.
+  if (ed.ruler) o.push(rulerSvg(ed.ruler, k, st.turnDeg));
   return o.join("");
 }
