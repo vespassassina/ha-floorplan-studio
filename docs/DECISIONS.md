@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Carports and extensible sun covers/awnings (S90)
+
+1. Added `"carport"` (`520 x 300 x 250 cm`) and `"awning"` (`400 x 250 x 240 cm`) to `FURNITURE_SYMBOLS` (`src/core/schema.ts`, `heights.ts`, `solids.ts`, `icons.ts`, `furniture-blocks.ts`, `card/three/palette.ts`, `editor/furniture-menu.ts`).
+2. `carport` builds a wall-attached ledger beam, outer eaves beam, 4 poles along the open long side, and a translucent polycarbonate roof (`tone: "glass"`, `furniture-glass` in 3D, `.furn-canopy` translucent overlay in 2D so parked cars remain visible).
+3. `awning` builds a wall-mounted cassette, folding arms, and extended canopy in 3D, and dynamically scales its 2D extension (`12%..100%`) from a linked Home Assistant `cover.*` entity's `current_position` / `closed` state in `src/core/render.ts`.
+4. Raised `CARD_GROWTH_LIMIT` in `tests/card/size-budget.spec.ts` from `49220` (`<= 140,000 B` gz) to `50720` (`<= 141,500 B` gz; measured `140,365 B` gz after S88–S90) to cover Track B outdoor features (S88–S91).
+
 ## 2026-11-27: Living hedges and multi-colour fences (S89)
 
 1. Added `"hedge"` to `WALL_KINDS` (`src/core/schema.ts`, default height `160 cm` in `src/core/heights.ts`, 2D/3D thickness `45 cm` in `src/core/render.ts` and `src/core/scene-build.ts`, green foliage CSS `.e.hedge` / `.eh.hedge` / `.ws.hedge`, 3D palette `var(--fp-tree)` in `src/card/three/palette.ts`). Enclosing an area with hedges/fences auto-classifies as a Garden (`src/editor/draw.ts`).

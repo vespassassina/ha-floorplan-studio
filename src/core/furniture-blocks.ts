@@ -189,6 +189,31 @@ export function furnitureBlocks(m: Furniture): Block[] {
       box(w / 2 - fr, w / 2 + fr, h / 2 - fr, h / 2 + fr, H - flue, H, "dark");
       break;
     }
+    case "carport": {
+      const p = room(Math.min(w, h), 10, 0.2), roof = lift(6, 0.25), beam = lift(16, 0.35), under = Math.max(0, H - beam - roof);
+      // Ledger beam attached to house wall (y = 0) and outer eaves beam on the open long side (y = h - p..h)
+      box(0, w, 0, p, under, H - roof, "dark");
+      box(0, w, h - p, h, under, H - roof, "dark");
+      // 4 poles along the long open side
+      if (under > 0) for (let k = 0; k < 4; k++) {
+        const px = k === 0 ? 0 : k === 3 ? w - p : ((w - p) * k) / 3;
+        box(px, px + p, h - p, h, 0, under, "dark");
+      }
+      // Translucent polycarbonate roof slab
+      box(0, w, 0, h, H - roof, H, "glass");
+      break;
+    }
+    case "awning": {
+      const cas = room(h, 16, 0.2), arm = room(w, 6, 0.08), mid = H * 0.45;
+      // Wall-mounted cassette
+      box(0, w, 0, cas, 0, H, "dark");
+      // Two folding support arms
+      box(w * 0.16, w * 0.16 + arm, cas, h * 0.9, 0, mid, "dark");
+      box(w * 0.84 - arm, w * 0.84, cas, h * 0.9, 0, mid, "dark");
+      // Extended sun cover fabric
+      box(0, w, cas, h, mid, H);
+      break;
+    }
     // Every other symbol is one box, as before. Decided one by one (finding 17): a tree and a car are drawn by their own code
     // (a trunk and a crown; the car's table) and a patio is flat, so for them this box is the footprint and nothing more.
     case "toilet": case "bookcase": case "cube-shelf": case "robot-vacuum": case "robot-dock": case "fridge": case "washer": case "dryer": case "rug": case "tv": case "computer": case "speaker": case "tree": case "patio-wood": case "patio-concrete": case "car": case "water-tank":
