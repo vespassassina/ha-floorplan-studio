@@ -347,5 +347,14 @@ const c: Catalogue = {
   "Alarm or hazard": "警报或危险",
   "Attention": "注意",
   "Loading…": "正在加载…",
+  "Air quality": "空气质量",
+  "Air quality bad": "空气质量差",
+  "Clear": "正常",
+  "No air sensor": "无空气传感器",
+  "No climate device": "无温控设备",
+  "No smoke detector": "无烟雾探测器",
+  "Smoke / gas": "烟雾 / 燃气",
+  "Smoke / gas detected": "检测到烟雾 / 燃气",
+  "Smoke detector": "烟雾探测器",
 };
 export default c;

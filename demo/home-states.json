@@ -1,154 +1,1359 @@
 {
- "alarm_control_panel.demo_alarm": {"state":"armed_home","attributes":{"friendly_name":"Alarm"},"last_changed":"2026-10-22T15:40:00+00:00"},
- "binary_sensor.demo_balcony_door": {"state":"off","attributes":{"device_class":"door","friendly_name":"balcony door"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_car_charging": {"state":"on","attributes":{"device_class":"battery_charging","friendly_name":"Car charging"},"last_changed":"2026-10-22T16:25:00+00:00"},
- "binary_sensor.demo_cellar_motion": {"state":"off","attributes":{"friendly_name":"Cellar motion","device_class":"motion"},"last_changed":"2026-10-22T16:45:00+00:00"},
- "binary_sensor.demo_dining_door": {"state":"off","attributes":{"device_class":"door","friendly_name":"dining door"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_dining_window": {"state":"on","attributes":{"device_class":"window","friendly_name":"dining window"},"last_changed":"2026-10-22T16:30:00+00:00"},
- "binary_sensor.demo_driveway_motion": {"state":"off","attributes":{"friendly_name":"Driveway motion","device_class":"motion"},"last_changed":"2026-10-22T15:40:00+00:00"},
- "binary_sensor.demo_front_door": {"state":"off","attributes":{"device_class":"door","friendly_name":"front door"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_garden_gate": {"state":"off","attributes":{"friendly_name":"Garden gate","device_class":"door"},"last_changed":"2026-10-22T09:20:00+00:00"},
- "binary_sensor.demo_hall_motion": {"state":"off","attributes":{"friendly_name":"Hall motion","device_class":"motion"},"last_changed":"2026-10-22T16:45:00+00:00"},
- "binary_sensor.demo_kids_window": {"state":"off","attributes":{"device_class":"window","friendly_name":"kids window"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_kitchen_motion": {"state":"on","attributes":{"friendly_name":"Kitchen motion","device_class":"motion"},"last_changed":"2026-10-22T17:39:00+00:00"},
- "binary_sensor.demo_kitchen_window": {"state":"off","attributes":{"device_class":"window","friendly_name":"kitchen window"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_landing_motion": {"state":"off","attributes":{"friendly_name":"Landing motion","device_class":"motion"},"last_changed":"2026-10-22T16:45:00+00:00"},
- "binary_sensor.demo_laundry_motion": {"state":"off","attributes":{"friendly_name":"Laundry motion","device_class":"motion"},"last_changed":"2026-10-22T16:45:00+00:00"},
- "binary_sensor.demo_living_motion": {"state":"off","attributes":{"friendly_name":"Living motion","device_class":"motion"},"last_changed":"2026-10-22T16:45:00+00:00"},
- "binary_sensor.demo_living_window": {"state":"off","attributes":{"device_class":"window","friendly_name":"living window"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_lounge_motion": {"state":"off","attributes":{"friendly_name":"Lounge motion","device_class":"motion"},"last_changed":"2026-10-22T16:45:00+00:00"},
- "binary_sensor.demo_lounge_window": {"state":"off","attributes":{"device_class":"window","friendly_name":"lounge window"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_master_window": {"state":"off","attributes":{"device_class":"window","friendly_name":"master window"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_office_radar": {"state":"off","attributes":{"friendly_name":"Office radar","device_class":"occupancy"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_office_window": {"state":"off","attributes":{"device_class":"window","friendly_name":"office window"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_patio_door": {"state":"off","attributes":{"device_class":"door","friendly_name":"patio door"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_storage_motion": {"state":"off","attributes":{"friendly_name":"Storage motion","device_class":"motion"},"last_changed":"2026-10-22T16:45:00+00:00"},
- "binary_sensor.demo_study_window": {"state":"off","attributes":{"device_class":"window","friendly_name":"study window"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "binary_sensor.demo_washer_vibration": {"state":"on","attributes":{"friendly_name":"Washer vibration","device_class":"vibration"},"last_changed":"2026-10-22T17:16:00+00:00"},
- "camera.demo_doorbell": {"state":"idle","attributes":{"friendly_name":"Doorbell camera"},"last_changed":"2026-10-22T02:40:00+00:00"},
- "camera.demo_driveway_camera": {"state":"idle","attributes":{"friendly_name":"Driveway camera"},"last_changed":"2026-10-22T02:40:00+00:00"},
- "camera.demo_garden_camera": {"state":"recording","attributes":{"friendly_name":"Garden camera"},"last_changed":"2026-10-22T02:40:00+00:00"},
- "climate.demo_gym_ac": {"state":"off","attributes":{"friendly_name":"Gym air conditioner","hvac_modes":["off","cool","heat"],"hvac_action":"off"},"last_changed":"2026-10-22T06:00:00+00:00"},
- "climate.demo_kids_radiator": {"state":"heat","attributes":{"friendly_name":"Kids radiator","hvac_action":"idle","current_temperature":20.4,"temperature":20},"last_changed":"2026-10-22T16:10:00+00:00"},
- "climate.demo_living_radiator": {"state":"heat","attributes":{"friendly_name":"Living radiator","hvac_action":"idle","current_temperature":21.8,"temperature":21},"last_changed":"2026-10-22T16:10:00+00:00"},
- "climate.demo_lounge_radiator": {"state":"heat","attributes":{"friendly_name":"Lounge radiator","hvac_action":"idle","current_temperature":21.5,"temperature":21},"last_changed":"2026-10-22T16:10:00+00:00"},
- "climate.demo_master_ac": {"state":"off","attributes":{"friendly_name":"Master air conditioner","hvac_modes":["off","cool","heat"],"hvac_action":"off"},"last_changed":"2026-10-22T02:40:00+00:00"},
- "climate.demo_thermostat": {"state":"heat","attributes":{"friendly_name":"Thermostat","hvac_action":"idle","current_temperature":19.8,"temperature":20,"hvac_modes":["off","heat"]},"last_changed":"2026-10-22T16:40:00+00:00"},
- "climate.demo_towel_rail": {"state":"heat","attributes":{"friendly_name":"Towel rail","hvac_action":"heating","current_temperature":23.6,"temperature":24},"last_changed":"2026-10-22T16:50:00+00:00"},
- "cover.demo_kids_blind": {"state":"open","attributes":{"friendly_name":"Kids blind","device_class":"blind","current_position":80},"last_changed":"2026-10-22T09:20:00+00:00"},
- "cover.demo_living_curtains": {"state":"open","attributes":{"device_class":"curtain"},"last_changed":"2026-10-22T11:00:00+00:00"},
- "cover.demo_master_blind": {"state":"open","attributes":{"friendly_name":"Master blind","device_class":"blind","current_position":100},"last_changed":"2026-10-22T09:20:00+00:00"},
- "cover.demo_office_blind": {"state":"open","attributes":{"friendly_name":"Office blind","device_class":"blind","current_position":100},"last_changed":"2026-10-22T09:20:00+00:00"},
- "device_tracker.demo_car": {"state":"home","attributes":{"source_type":"gps","friendly_name":"Car"},"last_changed":"2026-10-22T16:25:00+00:00"},
- "fan.demo_kids_fan": {"state":"off","attributes":{"friendly_name":"Kids fan","percentage":0},"last_changed":"2026-10-22T09:20:00+00:00"},
- "fan.demo_kitchen_hood": {"state":"off","attributes":{"friendly_name":"Cooker hood","percentage":0},"last_changed":"2026-10-22T15:10:00+00:00"},
- "light.demo_balcony": {"state":"off","attributes":{"friendly_name":"Balcony light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_bathroom": {"state":"off","attributes":{"friendly_name":"Bathroom light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_cellar": {"state":"off","attributes":{"friendly_name":"Cellar light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_cloakroom": {"state":"off","attributes":{"friendly_name":"Cloakroom light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_dining": {"state":"on","attributes":{"friendly_name":"Dining light","brightness":120,"color_mode":"color_temp","color_temp_kelvin":2700,"min_color_temp_kelvin":2200,"max_color_temp_kelvin":6500,"supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T16:05:00+00:00"},
- "light.demo_driveway": {"state":"off","attributes":{"friendly_name":"Driveway light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_garden": {"state":"off","attributes":{"friendly_name":"Garden light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_gym": {"state":"off","attributes":{"friendly_name":"Gym light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_hall": {"state":"on","attributes":{"friendly_name":"Hall light","brightness":90,"color_mode":"color_temp","color_temp_kelvin":2700,"min_color_temp_kelvin":2200,"max_color_temp_kelvin":6500,"supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T16:05:00+00:00"},
- "light.demo_kids": {"state":"on","attributes":{"friendly_name":"Kids light","brightness":60,"color_mode":"color_temp","color_temp_kelvin":2400,"min_color_temp_kelvin":2200,"max_color_temp_kelvin":6500,"supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T16:05:00+00:00"},
- "light.demo_kitchen": {"state":"on","attributes":{"friendly_name":"Kitchen light","brightness":220,"color_mode":"color_temp","color_temp_kelvin":3200,"min_color_temp_kelvin":2200,"max_color_temp_kelvin":6500,"supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T16:05:00+00:00"},
- "light.demo_landing": {"state":"off","attributes":{"friendly_name":"Landing light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_laundry": {"state":"off","attributes":{"friendly_name":"Laundry light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_living": {"state":"on","attributes":{"friendly_name":"Living light","brightness":150,"color_mode":"color_temp","color_temp_kelvin":2700,"min_color_temp_kelvin":2200,"max_color_temp_kelvin":6500,"supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T16:05:00+00:00"},
- "light.demo_lounge": {"state":"off","attributes":{"friendly_name":"Lounge light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_master": {"state":"off","attributes":{"friendly_name":"Master light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_office": {"state":"off","attributes":{"friendly_name":"Office light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_storage": {"state":"off","attributes":{"friendly_name":"Storage light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_study": {"state":"off","attributes":{"friendly_name":"Study light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_technical": {"state":"off","attributes":{"friendly_name":"Technical light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_terrace": {"state":"on","attributes":{"friendly_name":"Terrace light","brightness":140,"color_mode":"color_temp","color_temp_kelvin":2400,"min_color_temp_kelvin":2200,"max_color_temp_kelvin":6500,"supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T16:05:00+00:00"},
- "light.demo_wc": {"state":"off","attributes":{"friendly_name":"WC light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_wine_cellar": {"state":"off","attributes":{"friendly_name":"Wine cellar light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "light.demo_workshop": {"state":"off","attributes":{"friendly_name":"Workshop light","supported_color_modes":["color_temp"]},"last_changed":"2026-10-22T11:00:00+00:00"},
- "lock.demo_car_doors": {"state":"locked","attributes":{"friendly_name":"Car doors"},"last_changed":"2026-10-22T16:25:00+00:00"},
- "lock.demo_front_door": {"state":"locked","attributes":{"friendly_name":"Front door lock"},"last_changed":"2026-10-22T12:40:00+00:00"},
- "lock.demo_terrace_door": {"state":"locked","attributes":{"friendly_name":"Terrace door lock"},"last_changed":"2026-10-22T06:00:00+00:00"},
- "media_player.demo_gym_tv": {"state":"off","attributes":{"friendly_name":"Gym TV"},"last_changed":"2026-10-22T06:00:00+00:00"},
- "light.demo_gym_panel": {"state":"on","attributes":{"friendly_name":"Gym control screen"},"last_changed":"2026-10-22T06:00:00+00:00"},
- "media_player.demo_kids_speaker": {"state":"idle","attributes":{"friendly_name":"Kids media"},"last_changed":"2026-10-22T11:00:00+00:00"},
- "media_player.demo_living_speaker": {"state":"idle","attributes":{"friendly_name":"Living speaker","volume_level":0.3},"last_changed":"2026-10-22T12:40:00+00:00"},
- "media_player.demo_living_tv": {"state":"playing","attributes":{"friendly_name":"Living TV","media_title":"Evening news","media_content_type":"tvshow"},"last_changed":"2026-10-22T17:05:00+00:00"},
- "media_player.demo_lounge_speaker": {"state":"off","attributes":{"friendly_name":"Lounge speaker"},"last_changed":"2026-10-22T06:00:00+00:00"},
- "media_player.demo_lounge_tv": {"state":"off","attributes":{"friendly_name":"Lounge TV"},"last_changed":"2026-10-22T06:00:00+00:00"},
- "media_player.demo_office_media": {"state":"idle","attributes":{"friendly_name":"Office media"},"last_changed":"2026-10-22T13:40:00+00:00"},
- "person.demo_alex": {"state":"home","attributes":{"friendly_name":"Alex"},"last_changed":"2026-10-22T15:30:00+00:00"},
- "person.demo_sam": {"state":"not_home","attributes":{"friendly_name":"Sam"},"last_changed":"2026-10-22T14:20:00+00:00"},
- "sensor.demo_ap_basement": {"state":"on","attributes":{"friendly_name":"Basement access point"},"last_changed":"2026-10-21T08:20:00+00:00"},
- "sensor.demo_ap_first": {"state":"on","attributes":{"friendly_name":"First access point"},"last_changed":"2026-10-21T08:20:00+00:00"},
- "sensor.demo_ap_ground": {"state":"on","attributes":{"friendly_name":"Ground access point"},"last_changed":"2026-10-21T08:20:00+00:00"},
- "sensor.demo_bathroom_humidity": {"state":"66","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Bathroom humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_bathroom_temperature": {"state":"23.6","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Bathroom temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_boiler": {"state":"on","attributes":{"friendly_name":"Boiler"},"last_changed":"2026-10-22T12:40:00+00:00"},
- "sensor.demo_car_battery": {"state":"64","attributes":{"device_class":"battery","unit_of_measurement":"%","friendly_name":"Car battery"},"last_changed":"2026-10-22T17:25:00+00:00"},
- "sensor.demo_car_range": {"state":"210","attributes":{"device_class":"distance","unit_of_measurement":"km","friendly_name":"Car range"},"last_changed":"2026-10-22T17:25:00+00:00"},
- "sensor.demo_cellar_humidity": {"state":"54","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Cellar humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_cellar_temperature": {"state":"16.8","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Cellar temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_cloakroom_humidity": {"state":"46","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Cloakroom humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_cloakroom_temperature": {"state":"19.4","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Cloakroom temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_dining_humidity": {"state":"48","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Dining humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_dining_temperature": {"state":"21.2","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Dining temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_dishwasher": {"state":"running","attributes":{"friendly_name":"Dishwasher"},"last_changed":"2026-10-22T17:20:00+00:00"},
- "sensor.demo_gym_humidity": {"state":"50","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Gym humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_gym_temperature": {"state":"19","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Gym temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_hall_humidity": {"state":"45","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Hall humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_hall_temperature": {"state":"19.8","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Hall temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_heatpump_power": {"state":"620","attributes":{"device_class":"power","unit_of_measurement":"W","friendly_name":"Heat pump power"},"last_changed":"2026-10-22T17:34:00+00:00"},
- "sensor.demo_house_battery": {"state":"82","attributes":{"friendly_name":"House battery","device_class":"battery","unit_of_measurement":"%"},"last_changed":"2026-10-22T17:35:00+00:00"},
- "sensor.demo_inverter": {"state":"1.8","attributes":{"friendly_name":"Inverter","device_class":"power","unit_of_measurement":"kW"},"last_changed":"2026-10-22T17:35:00+00:00"},
- "sensor.demo_kids_humidity": {"state":"50","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Kids humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_kids_temperature": {"state":"20.4","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Kids temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_kitchen_humidity": {"state":"52","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Kitchen humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_kitchen_temperature": {"state":"22.6","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Kitchen temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_landing_humidity": {"state":"46","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Landing humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_landing_temperature": {"state":"20","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Landing temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_laundry_humidity": {"state":"62","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Laundry humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_laundry_temperature": {"state":"18.5","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Laundry temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_living_humidity": {"state":"47","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Living humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_living_temperature": {"state":"21.8","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Living temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_lounge_humidity": {"state":"47","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Lounge humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_lounge_temperature": {"state":"21.5","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Lounge temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_master_humidity": {"state":"49","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Master humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_master_temperature": {"state":"19.2","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Master temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_office_humidity": {"state":"44","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Office humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_office_pc": {"state":"on","attributes":{"friendly_name":"Office computer"},"last_changed":"2026-10-22T14:20:00+00:00"},
- "sensor.demo_office_printer": {"state":"idle","attributes":{"friendly_name":"Office printer"},"last_changed":"2026-10-22T13:40:00+00:00"},
- "sensor.demo_power_meter": {"state":"420","attributes":{"device_class":"power","unit_of_measurement":"W","state_class":"measurement","friendly_name":"Power meter"},"last_changed":"2026-10-22T17:37:00+00:00"},
- "sensor.demo_office_radar_x": {"state":"unavailable","attributes":{"unit_of_measurement":"mm"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "sensor.demo_office_radar_y": {"state":"unavailable","attributes":{"unit_of_measurement":"mm"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "sensor.demo_office_temperature": {"state":"21","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Office temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_outdoor_temperature": {"state":"12.4","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Outdoor temperature"},"last_changed":"2026-10-22T17:30:00+00:00"},
- "sensor.demo_server": {"state":"on","attributes":{"friendly_name":"Server"},"last_changed":"2026-10-21T08:20:00+00:00"},
- "sensor.demo_storage_humidity": {"state":"55","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Storage humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_storage_temperature": {"state":"16.5","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Storage temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_study_humidity": {"state":"45","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Study humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_study_pc": {"state":"off","attributes":{"friendly_name":"Study computer"},"last_changed":"2026-10-22T04:20:00+00:00"},
- "sensor.demo_study_temperature": {"state":"20.9","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Study temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_technical_humidity": {"state":"40","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Technical humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_technical_temperature": {"state":"22.5","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Technical temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_tv_power": {"state":"86","attributes":{"device_class":"power","unit_of_measurement":"W","friendly_name":"TV power"},"last_changed":"2026-10-22T17:10:00+00:00"},
- "sensor.demo_ups": {"state":"online","attributes":{"friendly_name":"UPS"},"last_changed":"2026-10-22T02:40:00+00:00"},
- "sensor.demo_wallbox": {"state":"charging","attributes":{"friendly_name":"Wallbox"},"last_changed":"2026-10-22T16:25:00+00:00"},
- "sensor.demo_washer_power": {"state":"412","attributes":{"device_class":"power","unit_of_measurement":"W","friendly_name":"Washer power"},"last_changed":"2026-10-22T17:20:00+00:00"},
- "sensor.demo_water_meter": {"state":"0.2","attributes":{"friendly_name":"Water meter","unit_of_measurement":"m³/h"},"last_changed":"2026-10-22T17:37:00+00:00"},
- "sensor.demo_wc_humidity": {"state":"55","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"WC humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_wc_temperature": {"state":"20.2","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"WC temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_wine_cellar_humidity": {"state":"68","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Wine cellar humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_wine_cellar_temperature": {"state":"13.5","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Wine cellar temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_workshop_humidity": {"state":"52","attributes":{"device_class":"humidity","unit_of_measurement":"%","friendly_name":"Workshop humidity"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "sensor.demo_workshop_temperature": {"state":"17.5","attributes":{"device_class":"temperature","unit_of_measurement":"°C","friendly_name":"Workshop temperature"},"last_changed":"2026-10-22T17:28:00+00:00"},
- "siren.demo_siren": {"state":"off","attributes":{"friendly_name":"Siren"},"last_changed":"2026-10-21T16:40:00+00:00"},
- "sun.sun": {"state":"above_horizon","attributes":{"elevation":6.5,"friendly_name":"Sun"},"last_changed":"2026-10-22T07:40:00+00:00"},
- "switch.demo_coffee": {"state":"off","attributes":{"friendly_name":"Coffee plug","device_class":"outlet"},"last_changed":"2026-10-22T09:40:00+00:00"},
- "switch.demo_hall_switch": {"state":"off","attributes":{"friendly_name":"Hall switch"},"last_changed":"2026-10-22T06:00:00+00:00"},
- "switch.demo_living_relay": {"state":"on","attributes":{"friendly_name":"Living relay"},"last_changed":"2026-10-22T16:05:00+00:00"},
- "switch.demo_tv": {"state":"on","attributes":{"friendly_name":"TV plug","device_class":"outlet"},"last_changed":"2026-10-22T17:05:00+00:00"},
- "switch.demo_washer": {"state":"on","attributes":{"friendly_name":"Washer plug","device_class":"outlet"},"last_changed":"2026-10-22T17:15:00+00:00"},
- "switch.demo_workshop_bench": {"state":"off","attributes":{"friendly_name":"Bench plug","device_class":"outlet"},"last_changed":"2026-10-22T02:40:00+00:00"},
- "vacuum.demo_robot": {"state":"docked","attributes":{"friendly_name":"Vacuum","battery_level":100},"last_changed":"2026-10-22T13:40:00+00:00"}
+  "alarm_control_panel.demo_alarm": {
+    "state": "armed_home",
+    "attributes": {
+      "friendly_name": "Alarm"
+    },
+    "last_changed": "2026-10-22T15:40:00+00:00"
+  },
+  "binary_sensor.demo_balcony_door": {
+    "state": "off",
+    "attributes": {
+      "device_class": "door",
+      "friendly_name": "balcony door"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_car_charging": {
+    "state": "on",
+    "attributes": {
+      "device_class": "battery_charging",
+      "friendly_name": "Car charging"
+    },
+    "last_changed": "2026-10-22T16:25:00+00:00"
+  },
+  "binary_sensor.demo_cellar_motion": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Cellar motion",
+      "device_class": "motion"
+    },
+    "last_changed": "2026-10-22T16:45:00+00:00"
+  },
+  "binary_sensor.demo_dining_door": {
+    "state": "off",
+    "attributes": {
+      "device_class": "door",
+      "friendly_name": "dining door"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_dining_window": {
+    "state": "on",
+    "attributes": {
+      "device_class": "window",
+      "friendly_name": "dining window"
+    },
+    "last_changed": "2026-10-22T16:30:00+00:00"
+  },
+  "binary_sensor.demo_driveway_motion": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Driveway motion",
+      "device_class": "motion"
+    },
+    "last_changed": "2026-10-22T15:40:00+00:00"
+  },
+  "binary_sensor.demo_front_door": {
+    "state": "off",
+    "attributes": {
+      "device_class": "door",
+      "friendly_name": "front door"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_garden_gate": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Garden gate",
+      "device_class": "door"
+    },
+    "last_changed": "2026-10-22T09:20:00+00:00"
+  },
+  "binary_sensor.demo_hall_motion": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Hall motion",
+      "device_class": "motion"
+    },
+    "last_changed": "2026-10-22T16:45:00+00:00"
+  },
+  "binary_sensor.demo_kids_window": {
+    "state": "off",
+    "attributes": {
+      "device_class": "window",
+      "friendly_name": "kids window"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_kitchen_motion": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Kitchen motion",
+      "device_class": "motion"
+    },
+    "last_changed": "2026-10-22T17:39:00+00:00"
+  },
+  "binary_sensor.demo_kitchen_window": {
+    "state": "off",
+    "attributes": {
+      "device_class": "window",
+      "friendly_name": "kitchen window"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_landing_motion": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Landing motion",
+      "device_class": "motion"
+    },
+    "last_changed": "2026-10-22T16:45:00+00:00"
+  },
+  "binary_sensor.demo_laundry_motion": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Laundry motion",
+      "device_class": "motion"
+    },
+    "last_changed": "2026-10-22T16:45:00+00:00"
+  },
+  "binary_sensor.demo_living_motion": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Living motion",
+      "device_class": "motion"
+    },
+    "last_changed": "2026-10-22T16:45:00+00:00"
+  },
+  "binary_sensor.demo_living_window": {
+    "state": "off",
+    "attributes": {
+      "device_class": "window",
+      "friendly_name": "living window"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_lounge_motion": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Lounge motion",
+      "device_class": "motion"
+    },
+    "last_changed": "2026-10-22T16:45:00+00:00"
+  },
+  "binary_sensor.demo_lounge_window": {
+    "state": "off",
+    "attributes": {
+      "device_class": "window",
+      "friendly_name": "lounge window"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_master_window": {
+    "state": "off",
+    "attributes": {
+      "device_class": "window",
+      "friendly_name": "master window"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_office_radar": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Office radar",
+      "device_class": "occupancy"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_office_window": {
+    "state": "off",
+    "attributes": {
+      "device_class": "window",
+      "friendly_name": "office window"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_patio_door": {
+    "state": "off",
+    "attributes": {
+      "device_class": "door",
+      "friendly_name": "patio door"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_storage_motion": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Storage motion",
+      "device_class": "motion"
+    },
+    "last_changed": "2026-10-22T16:45:00+00:00"
+  },
+  "binary_sensor.demo_study_window": {
+    "state": "off",
+    "attributes": {
+      "device_class": "window",
+      "friendly_name": "study window"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "binary_sensor.demo_washer_vibration": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Washer vibration",
+      "device_class": "vibration"
+    },
+    "last_changed": "2026-10-22T17:16:00+00:00"
+  },
+  "camera.demo_doorbell": {
+    "state": "idle",
+    "attributes": {
+      "friendly_name": "Doorbell camera"
+    },
+    "last_changed": "2026-10-22T02:40:00+00:00"
+  },
+  "camera.demo_driveway_camera": {
+    "state": "idle",
+    "attributes": {
+      "friendly_name": "Driveway camera"
+    },
+    "last_changed": "2026-10-22T02:40:00+00:00"
+  },
+  "camera.demo_garden_camera": {
+    "state": "recording",
+    "attributes": {
+      "friendly_name": "Garden camera"
+    },
+    "last_changed": "2026-10-22T02:40:00+00:00"
+  },
+  "climate.demo_gym_ac": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Gym air conditioner",
+      "hvac_modes": [
+        "off",
+        "cool",
+        "heat"
+      ],
+      "hvac_action": "off"
+    },
+    "last_changed": "2026-10-22T06:00:00+00:00"
+  },
+  "climate.demo_kids_radiator": {
+    "state": "heat",
+    "attributes": {
+      "friendly_name": "Kids radiator",
+      "hvac_action": "idle",
+      "current_temperature": 20.4,
+      "temperature": 20
+    },
+    "last_changed": "2026-10-22T16:10:00+00:00"
+  },
+  "climate.demo_living_radiator": {
+    "state": "heat",
+    "attributes": {
+      "friendly_name": "Living radiator",
+      "hvac_action": "idle",
+      "current_temperature": 21.8,
+      "temperature": 21
+    },
+    "last_changed": "2026-10-22T16:10:00+00:00"
+  },
+  "climate.demo_lounge_radiator": {
+    "state": "heat",
+    "attributes": {
+      "friendly_name": "Lounge radiator",
+      "hvac_action": "idle",
+      "current_temperature": 21.5,
+      "temperature": 21
+    },
+    "last_changed": "2026-10-22T16:10:00+00:00"
+  },
+  "climate.demo_master_ac": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Master air conditioner",
+      "hvac_modes": [
+        "off",
+        "cool",
+        "heat"
+      ],
+      "hvac_action": "off"
+    },
+    "last_changed": "2026-10-22T02:40:00+00:00"
+  },
+  "climate.demo_thermostat": {
+    "state": "heat",
+    "attributes": {
+      "friendly_name": "Thermostat",
+      "hvac_action": "idle",
+      "current_temperature": 19.8,
+      "temperature": 20,
+      "hvac_modes": [
+        "off",
+        "heat"
+      ]
+    },
+    "last_changed": "2026-10-22T16:40:00+00:00"
+  },
+  "climate.demo_towel_rail": {
+    "state": "heat",
+    "attributes": {
+      "friendly_name": "Towel rail",
+      "hvac_action": "heating",
+      "current_temperature": 23.6,
+      "temperature": 24
+    },
+    "last_changed": "2026-10-22T16:50:00+00:00"
+  },
+  "cover.demo_kids_blind": {
+    "state": "open",
+    "attributes": {
+      "friendly_name": "Kids blind",
+      "device_class": "blind",
+      "current_position": 80
+    },
+    "last_changed": "2026-10-22T09:20:00+00:00"
+  },
+  "cover.demo_living_curtains": {
+    "state": "open",
+    "attributes": {
+      "device_class": "curtain"
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "cover.demo_master_blind": {
+    "state": "open",
+    "attributes": {
+      "friendly_name": "Master blind",
+      "device_class": "blind",
+      "current_position": 100
+    },
+    "last_changed": "2026-10-22T09:20:00+00:00"
+  },
+  "cover.demo_office_blind": {
+    "state": "open",
+    "attributes": {
+      "friendly_name": "Office blind",
+      "device_class": "blind",
+      "current_position": 100
+    },
+    "last_changed": "2026-10-22T09:20:00+00:00"
+  },
+  "device_tracker.demo_car": {
+    "state": "home",
+    "attributes": {
+      "source_type": "gps",
+      "friendly_name": "Car"
+    },
+    "last_changed": "2026-10-22T16:25:00+00:00"
+  },
+  "fan.demo_kids_fan": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Kids fan",
+      "percentage": 0
+    },
+    "last_changed": "2026-10-22T09:20:00+00:00"
+  },
+  "fan.demo_kitchen_hood": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Cooker hood",
+      "percentage": 0
+    },
+    "last_changed": "2026-10-22T15:10:00+00:00"
+  },
+  "light.demo_balcony": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Balcony light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_bathroom": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Bathroom light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_cellar": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Cellar light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_cloakroom": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Cloakroom light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_dining": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Dining light",
+      "brightness": 120,
+      "color_mode": "color_temp",
+      "color_temp_kelvin": 2700,
+      "min_color_temp_kelvin": 2200,
+      "max_color_temp_kelvin": 6500,
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T16:05:00+00:00"
+  },
+  "light.demo_driveway": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Driveway light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_garden": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Garden light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_gym": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Gym light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_hall": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Hall light",
+      "brightness": 90,
+      "color_mode": "color_temp",
+      "color_temp_kelvin": 2700,
+      "min_color_temp_kelvin": 2200,
+      "max_color_temp_kelvin": 6500,
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T16:05:00+00:00"
+  },
+  "light.demo_kids": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Kids light",
+      "brightness": 60,
+      "color_mode": "color_temp",
+      "color_temp_kelvin": 2400,
+      "min_color_temp_kelvin": 2200,
+      "max_color_temp_kelvin": 6500,
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T16:05:00+00:00"
+  },
+  "light.demo_kitchen": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Kitchen light",
+      "brightness": 220,
+      "color_mode": "color_temp",
+      "color_temp_kelvin": 3200,
+      "min_color_temp_kelvin": 2200,
+      "max_color_temp_kelvin": 6500,
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T16:05:00+00:00"
+  },
+  "light.demo_landing": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Landing light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_laundry": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Laundry light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_living": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Living light",
+      "brightness": 150,
+      "color_mode": "color_temp",
+      "color_temp_kelvin": 2700,
+      "min_color_temp_kelvin": 2200,
+      "max_color_temp_kelvin": 6500,
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T16:05:00+00:00"
+  },
+  "light.demo_lounge": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Lounge light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_master": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Master light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_office": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Office light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_storage": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Storage light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_study": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Study light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_technical": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Technical light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_terrace": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Terrace light",
+      "brightness": 140,
+      "color_mode": "color_temp",
+      "color_temp_kelvin": 2400,
+      "min_color_temp_kelvin": 2200,
+      "max_color_temp_kelvin": 6500,
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T16:05:00+00:00"
+  },
+  "light.demo_wc": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "WC light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_wine_cellar": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Wine cellar light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "light.demo_workshop": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Workshop light",
+      "supported_color_modes": [
+        "color_temp"
+      ]
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "lock.demo_car_doors": {
+    "state": "locked",
+    "attributes": {
+      "friendly_name": "Car doors"
+    },
+    "last_changed": "2026-10-22T16:25:00+00:00"
+  },
+  "lock.demo_front_door": {
+    "state": "locked",
+    "attributes": {
+      "friendly_name": "Front door lock"
+    },
+    "last_changed": "2026-10-22T12:40:00+00:00"
+  },
+  "lock.demo_terrace_door": {
+    "state": "locked",
+    "attributes": {
+      "friendly_name": "Terrace door lock"
+    },
+    "last_changed": "2026-10-22T06:00:00+00:00"
+  },
+  "media_player.demo_gym_tv": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Gym TV"
+    },
+    "last_changed": "2026-10-22T06:00:00+00:00"
+  },
+  "light.demo_gym_panel": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Gym control screen"
+    },
+    "last_changed": "2026-10-22T06:00:00+00:00"
+  },
+  "media_player.demo_kids_speaker": {
+    "state": "idle",
+    "attributes": {
+      "friendly_name": "Kids media"
+    },
+    "last_changed": "2026-10-22T11:00:00+00:00"
+  },
+  "media_player.demo_living_speaker": {
+    "state": "idle",
+    "attributes": {
+      "friendly_name": "Living speaker",
+      "volume_level": 0.3
+    },
+    "last_changed": "2026-10-22T12:40:00+00:00"
+  },
+  "media_player.demo_living_tv": {
+    "state": "playing",
+    "attributes": {
+      "friendly_name": "Living TV",
+      "media_title": "Evening news",
+      "media_content_type": "tvshow"
+    },
+    "last_changed": "2026-10-22T17:05:00+00:00"
+  },
+  "media_player.demo_lounge_speaker": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Lounge speaker"
+    },
+    "last_changed": "2026-10-22T06:00:00+00:00"
+  },
+  "media_player.demo_lounge_tv": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Lounge TV"
+    },
+    "last_changed": "2026-10-22T06:00:00+00:00"
+  },
+  "media_player.demo_office_media": {
+    "state": "idle",
+    "attributes": {
+      "friendly_name": "Office media"
+    },
+    "last_changed": "2026-10-22T13:40:00+00:00"
+  },
+  "person.demo_alex": {
+    "state": "home",
+    "attributes": {
+      "friendly_name": "Alex"
+    },
+    "last_changed": "2026-10-22T15:30:00+00:00"
+  },
+  "person.demo_sam": {
+    "state": "not_home",
+    "attributes": {
+      "friendly_name": "Sam"
+    },
+    "last_changed": "2026-10-22T14:20:00+00:00"
+  },
+  "sensor.demo_ap_basement": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Basement access point"
+    },
+    "last_changed": "2026-10-21T08:20:00+00:00"
+  },
+  "sensor.demo_ap_first": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "First access point"
+    },
+    "last_changed": "2026-10-21T08:20:00+00:00"
+  },
+  "sensor.demo_ap_ground": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Ground access point"
+    },
+    "last_changed": "2026-10-21T08:20:00+00:00"
+  },
+  "sensor.demo_bathroom_humidity": {
+    "state": "66",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Bathroom humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_bathroom_temperature": {
+    "state": "23.6",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Bathroom temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_boiler": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Boiler"
+    },
+    "last_changed": "2026-10-22T12:40:00+00:00"
+  },
+  "sensor.demo_car_battery": {
+    "state": "64",
+    "attributes": {
+      "device_class": "battery",
+      "unit_of_measurement": "%",
+      "friendly_name": "Car battery"
+    },
+    "last_changed": "2026-10-22T17:25:00+00:00"
+  },
+  "sensor.demo_car_range": {
+    "state": "210",
+    "attributes": {
+      "device_class": "distance",
+      "unit_of_measurement": "km",
+      "friendly_name": "Car range"
+    },
+    "last_changed": "2026-10-22T17:25:00+00:00"
+  },
+  "sensor.demo_cellar_humidity": {
+    "state": "54",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Cellar humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_cellar_temperature": {
+    "state": "16.8",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Cellar temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_cloakroom_humidity": {
+    "state": "46",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Cloakroom humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_cloakroom_temperature": {
+    "state": "19.4",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Cloakroom temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_dining_humidity": {
+    "state": "48",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Dining humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_dining_temperature": {
+    "state": "21.2",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Dining temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_dishwasher": {
+    "state": "running",
+    "attributes": {
+      "friendly_name": "Dishwasher"
+    },
+    "last_changed": "2026-10-22T17:20:00+00:00"
+  },
+  "sensor.demo_gym_humidity": {
+    "state": "50",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Gym humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_gym_temperature": {
+    "state": "19",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Gym temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_hall_humidity": {
+    "state": "45",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Hall humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_hall_temperature": {
+    "state": "19.8",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Hall temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_heatpump_power": {
+    "state": "620",
+    "attributes": {
+      "device_class": "power",
+      "unit_of_measurement": "W",
+      "friendly_name": "Heat pump power"
+    },
+    "last_changed": "2026-10-22T17:34:00+00:00"
+  },
+  "sensor.demo_house_battery": {
+    "state": "82",
+    "attributes": {
+      "friendly_name": "House battery",
+      "device_class": "battery",
+      "unit_of_measurement": "%"
+    },
+    "last_changed": "2026-10-22T17:35:00+00:00"
+  },
+  "sensor.demo_inverter": {
+    "state": "1.8",
+    "attributes": {
+      "friendly_name": "Inverter",
+      "device_class": "power",
+      "unit_of_measurement": "kW"
+    },
+    "last_changed": "2026-10-22T17:35:00+00:00"
+  },
+  "sensor.demo_kids_humidity": {
+    "state": "50",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Kids humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_kids_temperature": {
+    "state": "20.4",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Kids temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_kitchen_humidity": {
+    "state": "52",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Kitchen humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_kitchen_temperature": {
+    "state": "22.6",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Kitchen temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_landing_humidity": {
+    "state": "46",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Landing humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_landing_temperature": {
+    "state": "20",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Landing temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_laundry_humidity": {
+    "state": "62",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Laundry humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_laundry_temperature": {
+    "state": "18.5",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Laundry temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_living_humidity": {
+    "state": "47",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Living humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_living_temperature": {
+    "state": "21.8",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Living temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_lounge_humidity": {
+    "state": "47",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Lounge humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_lounge_temperature": {
+    "state": "21.5",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Lounge temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_master_humidity": {
+    "state": "49",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Master humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_master_temperature": {
+    "state": "19.2",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Master temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_office_humidity": {
+    "state": "44",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Office humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_office_pc": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Office computer"
+    },
+    "last_changed": "2026-10-22T14:20:00+00:00"
+  },
+  "sensor.demo_office_printer": {
+    "state": "idle",
+    "attributes": {
+      "friendly_name": "Office printer"
+    },
+    "last_changed": "2026-10-22T13:40:00+00:00"
+  },
+  "sensor.demo_power_meter": {
+    "state": "420",
+    "attributes": {
+      "device_class": "power",
+      "unit_of_measurement": "W",
+      "state_class": "measurement",
+      "friendly_name": "Power meter"
+    },
+    "last_changed": "2026-10-22T17:37:00+00:00"
+  },
+  "sensor.demo_office_radar_x": {
+    "state": "unavailable",
+    "attributes": {
+      "unit_of_measurement": "mm"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "sensor.demo_office_radar_y": {
+    "state": "unavailable",
+    "attributes": {
+      "unit_of_measurement": "mm"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "sensor.demo_office_temperature": {
+    "state": "21",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Office temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_outdoor_temperature": {
+    "state": "12.4",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Outdoor temperature"
+    },
+    "last_changed": "2026-10-22T17:30:00+00:00"
+  },
+  "sensor.demo_server": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Server"
+    },
+    "last_changed": "2026-10-21T08:20:00+00:00"
+  },
+  "sensor.demo_storage_humidity": {
+    "state": "55",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Storage humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_storage_temperature": {
+    "state": "16.5",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Storage temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_study_humidity": {
+    "state": "45",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Study humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_study_pc": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Study computer"
+    },
+    "last_changed": "2026-10-22T04:20:00+00:00"
+  },
+  "sensor.demo_study_temperature": {
+    "state": "20.9",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Study temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_technical_humidity": {
+    "state": "40",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Technical humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_technical_temperature": {
+    "state": "22.5",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Technical temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_tv_power": {
+    "state": "86",
+    "attributes": {
+      "device_class": "power",
+      "unit_of_measurement": "W",
+      "friendly_name": "TV power"
+    },
+    "last_changed": "2026-10-22T17:10:00+00:00"
+  },
+  "sensor.demo_ups": {
+    "state": "online",
+    "attributes": {
+      "friendly_name": "UPS"
+    },
+    "last_changed": "2026-10-22T02:40:00+00:00"
+  },
+  "sensor.demo_wallbox": {
+    "state": "charging",
+    "attributes": {
+      "friendly_name": "Wallbox"
+    },
+    "last_changed": "2026-10-22T16:25:00+00:00"
+  },
+  "sensor.demo_washer_power": {
+    "state": "412",
+    "attributes": {
+      "device_class": "power",
+      "unit_of_measurement": "W",
+      "friendly_name": "Washer power"
+    },
+    "last_changed": "2026-10-22T17:20:00+00:00"
+  },
+  "sensor.demo_water_meter": {
+    "state": "0.2",
+    "attributes": {
+      "friendly_name": "Water meter",
+      "unit_of_measurement": "m³/h"
+    },
+    "last_changed": "2026-10-22T17:37:00+00:00"
+  },
+  "sensor.demo_wc_humidity": {
+    "state": "55",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "WC humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_wc_temperature": {
+    "state": "20.2",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "WC temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_wine_cellar_humidity": {
+    "state": "68",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Wine cellar humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_wine_cellar_temperature": {
+    "state": "13.5",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Wine cellar temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_workshop_humidity": {
+    "state": "52",
+    "attributes": {
+      "device_class": "humidity",
+      "unit_of_measurement": "%",
+      "friendly_name": "Workshop humidity"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "sensor.demo_workshop_temperature": {
+    "state": "17.5",
+    "attributes": {
+      "device_class": "temperature",
+      "unit_of_measurement": "°C",
+      "friendly_name": "Workshop temperature"
+    },
+    "last_changed": "2026-10-22T17:28:00+00:00"
+  },
+  "siren.demo_siren": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Siren"
+    },
+    "last_changed": "2026-10-21T16:40:00+00:00"
+  },
+  "sun.sun": {
+    "state": "above_horizon",
+    "attributes": {
+      "elevation": 6.5,
+      "friendly_name": "Sun"
+    },
+    "last_changed": "2026-10-22T07:40:00+00:00"
+  },
+  "switch.demo_coffee": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Coffee plug",
+      "device_class": "outlet"
+    },
+    "last_changed": "2026-10-22T09:40:00+00:00"
+  },
+  "switch.demo_hall_switch": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Hall switch"
+    },
+    "last_changed": "2026-10-22T06:00:00+00:00"
+  },
+  "switch.demo_living_relay": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Living relay"
+    },
+    "last_changed": "2026-10-22T16:05:00+00:00"
+  },
+  "switch.demo_tv": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "TV plug",
+      "device_class": "outlet"
+    },
+    "last_changed": "2026-10-22T17:05:00+00:00"
+  },
+  "switch.demo_washer": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Washer plug",
+      "device_class": "outlet"
+    },
+    "last_changed": "2026-10-22T17:15:00+00:00"
+  },
+  "switch.demo_workshop_bench": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Bench plug",
+      "device_class": "outlet"
+    },
+    "last_changed": "2026-10-22T02:40:00+00:00"
+  },
+  "vacuum.demo_robot": {
+    "state": "docked",
+    "attributes": {
+      "friendly_name": "Vacuum",
+      "battery_level": 100
+    },
+    "last_changed": "2026-10-22T13:40:00+00:00"
+  },
+  "sensor.demo_basement_co2": {
+    "state": "620",
+    "attributes": {
+      "friendly_name": "Basement CO2",
+      "unit_of_measurement": "ppm",
+      "device_class": "carbon_dioxide"
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "binary_sensor.demo_basement_smoke": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Basement smoke detector",
+      "device_class": "smoke"
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  }
 }

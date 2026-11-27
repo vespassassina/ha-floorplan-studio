@@ -5,7 +5,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { DEVICE_TYPE_LABELS, DEFAULT_FLOOR_HEIGHT, drawsEffect, FX_MAX, FX_MIN, DEFAULT_SLAB, deviceZDefault, FURNITURE_HEIGHTS, FURNITURE_Z, UNLINKED_BASE, furnitureHeight, carSpec, carTop, unlinkedHeight, MAX_HEIGHT, ROOM_OWNS, UNLINKED_HEIGHTS, wallHeight, doorCeiling, doorSpan, entitiesForType, groupKind, inside, mainEntitiesByDevice, placedEntities, roomHaBox, typeForEntity, UI_ICONS } from "../core";
 import { worktopIndex, worktopPts, worktopTurn, STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import { DOOR_KINDS, FLOOR_COLOURS, wallColourMap, wallEdgeKey, TEXTURES, FURNITURE_SYMBOLS, ROOM_KINDS, STAIR_SHAPES, WALL_KINDS, EDGE_KINDS, dist, edgeRooms, deleteEdge, onEdge, insertPoint, removePoint, rotatePoly, setEdgeKind, snapped, stairSteps } from "../core";
-import { CAR_MODELS, DEVICE_BODIES, ENERGY_KINDS, ENERGY_SHOWS, LAMP_BOUNDS, LAMP_KINDS, MAX_CAR_ATTACHED, MIN_MOISTURE, ROOF_SHAPES, ROOM_CORNERS, isEntityId, isLinkable, strictEntity, validate, type RoofShape } from "../core/schema";
+import { BADGE_KINDS, CAR_MODELS, DEVICE_BODIES, ENERGY_KINDS, ENERGY_SHOWS, LAMP_BOUNDS, LAMP_KINDS, MAX_CAR_ATTACHED, MIN_MOISTURE, ROOF_SHAPES, ROOM_CORNERS, isEntityId, isLinkable, strictEntity, validate, type BadgeKind, type RoofShape } from "../core/schema";
 import { LAMP_DEFAULTS, bodyOf, furniturePaintable } from "../core";
 import { boxOf, rectPts } from "../core/polygon";
 import type { CatalogEntry, Device, DeviceBody, DeviceType, Door, EdgeKind, EnergyKind, EnergyShow, Floor, Furniture, LampKind, StairDirection, HaBoxRow, HaData, Room, RoomKind, WallKind } from "../core";
@@ -826,11 +826,24 @@ function roomPanel(c: PanelCtx, i: number) {
  */
 const ROOM_SENSORS: [RoomSensorField, string, string][] = [["temps", "rtemp", "temperature sensors"], ["humidity", "rhum", "humidity sensors"], ["motion", "rmot", "motion sensors"], ["airQuality", "rair", "air quality sensors"], ["smoke", "rsmk", "smoke detectors"], ["power", "rpow", "power sensors"], ["water", "rwat", "water sensors"]];
 const BADGE_CORNER_NAMES: Record<string, string> = { off: "Off", nw: "Top left", ne: "Top right", sw: "Bottom left", se: "Bottom right" };
+const BADGE_SLOT_NAMES: Record<string, string> = { "": "Auto / empty", lights: "Lights", climate: "Climate", motion: "Motion", energy: "Energy", air: "Air quality", smoke: "Smoke / gas" };
+const BADGE_QUADS: [number, string, string][] = [[0, "rbs0", "Top-left"], [1, "rbs1", "Top-right"], [2, "rbs2", "Bottom-left"], [3, "rbs3", "Bottom-right"]];
 function roomBadgesPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
   if (!ROOM_OWNS[r.kind]) return nothing;
+  const cur = r.badges?.slots ?? [];
+  const setSlot = (q: number, v: string) => c.commit((f) => {
+    const b = f.rooms[i].badges;
+    if (!b) return;
+    const next: (BadgeKind | null)[] = [0, 1, 2, 3].map((k) => (k === q ? (v ? v as BadgeKind : null) : (b.slots?.[k] ?? null)));
+    if (next.some((x) => x !== null)) b.slots = next; else delete b.slots;
+  });
   return section(c, "room:badges", "Badges", html`
-    ${select("Corner", "rbadge", r.badges?.corner ?? "off", ["off", ...ROOM_CORNERS], (v) => c.commit((f) => { if (v === "off") delete f.rooms[i].badges; else f.rooms[i].badges = { corner: v as (typeof ROOM_CORNERS)[number] }; }), BADGE_CORNER_NAMES)}
+    ${select("Corner", "rbadge", r.badges?.corner ?? "off", ["off", ...ROOM_CORNERS], (v) => c.commit((f) => {
+      if (v === "off") delete f.rooms[i].badges;
+      else f.rooms[i].badges = { ...(f.rooms[i].badges ?? {}), corner: v as (typeof ROOM_CORNERS)[number] };
+    }), BADGE_CORNER_NAMES)}
+    ${r.badges ? html`<div class="grid2">${BADGE_QUADS.map(([q, id, lbl]) => select(lbl, id, cur[q] ?? "", ["", ...BADGE_KINDS], (v) => setSlot(q, v), BADGE_SLOT_NAMES))}</div>` : nothing}
   `);
 }
 function roomSensors(c: PanelCtx, i: number) {

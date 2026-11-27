@@ -347,5 +347,14 @@ const c: Catalogue = {
   "Alarm or hazard": "Alarm of gevaar",
   "Attention": "Aandacht",
   "Loading…": "Laden…",
+  "Air quality": "Luchtkwaliteit",
+  "Air quality bad": "Slechte luchtkwaliteit",
+  "Clear": "Veilig",
+  "No air sensor": "Geen luchtsensor",
+  "No climate device": "Geen klimaatapparaat",
+  "No smoke detector": "Geen rookmelder",
+  "Smoke / gas": "Rook / gas",
+  "Smoke / gas detected": "Rook / gas gedetecteerd",
+  "Smoke detector": "Rookmelder",
 };
 export default c;

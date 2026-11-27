@@ -28,15 +28,23 @@ export const MAX_PALETTE = 24;
 /** Most temperature, humidity or motion sensors one room may list. */
 export const MAX_ROOM_SENSORS = 20;
 
-/** B55.1: where a room's badges sit in its bounding box. */
+/** B55.1: where a room's badges sit in its bounding box; S98 adds air/smoke kinds and 4-quadrant slot picks. */
 export const ROOM_CORNERS = ["nw", "ne", "sw", "se"] as const;
 export type RoomCorner = (typeof ROOM_CORNERS)[number];
-export interface RoomBadges { corner: RoomCorner }
+export const BADGE_KINDS = ["lights", "climate", "motion", "energy", "air", "smoke"] as const;
+export type BadgeKind = (typeof BADGE_KINDS)[number];
+export type BadgeSlot = BadgeKind | null;
+export interface RoomBadges { corner: RoomCorner; /** S98: 4-quadrant slot picks [TL, TR, BL, BR]; omit for auto. */ slots?: BadgeSlot[] }
 /** Why a room's `badges` is not good, or null. `validate` and `migrate` both use it, so migrate keeps nothing validate refuses. Never throws. */
 export function roomBadgesProblem(v: unknown): string | null {
   if (typeof v !== "object" || v === null || Array.isArray(v)) return 'must be an object like { "corner": "nw" }';
-  const c = (v as { corner?: unknown }).corner;
-  return typeof c === "string" && (ROOM_CORNERS as readonly string[]).includes(c) ? null : `corner must be one of ${ROOM_CORNERS.join(", ")}`;
+  const o = v as { corner?: unknown; slots?: unknown };
+  if (typeof o.corner !== "string" || !(ROOM_CORNERS as readonly string[]).includes(o.corner)) return `corner must be one of ${ROOM_CORNERS.join(", ")}`;
+  if (o.slots !== undefined) {
+    if (!Array.isArray(o.slots) || o.slots.length === 0 || o.slots.length > 4) return "slots must be an array of 1 to 4 entries";
+    if (!o.slots.every((s) => s === null || (typeof s === "string" && (BADGE_KINDS as readonly string[]).includes(s)))) return `each slot must be null or one of ${BADGE_KINDS.join(", ")}`;
+  }
+  return null;
 }
 
 /** `area` is the HA area id, or empty for a custom shape. `entity` (custom shapes only) is the HA entity whose state the shape shows.

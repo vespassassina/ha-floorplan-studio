@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { BADGE_KINDS, BADGE_OF, badgeInfo, badgeKinds } from "../../src/core/room-badges";
-import { DEVICE_TYPES, type Device, type DeviceType, type Floor, type Pt } from "../../src/core/schema";
+import { BADGE_KINDS, BADGE_OF, badgeInfo, badgeKinds, roomBadges } from "../../src/core/room-badges";
+import { DEVICE_TYPES, roomBadgesProblem, type Device, type DeviceType, type Floor, type Pt } from "../../src/core/schema";
 import type { StateOverlay } from "../../src/core/render";
 
 // B55.2 (docs/specs/batch-s52.md F33, F35, F38; criterion 9): which device types feed a badge, and what its bubble says.
@@ -23,7 +23,7 @@ describe("BADGE_OF", () => {
   });
   it("maps the types the spec names, and nothing else to a badge", () => {
     const fed = DEVICE_TYPES.filter((t) => BADGE_OF[t] !== null).map((t) => `${t}:${BADGE_OF[t]}`).sort();
-    expect(fed).toEqual(["ac:climate", "climate:climate", "heater:climate", "light:lights", "motion:motion", "radar:motion"]);
+    expect(fed).toEqual(["ac:climate", "air_quality:air", "climate:climate", "heater:climate", "light:lights", "motion:motion", "radar:motion", "smoke:smoke"]);
   });
 });
 
@@ -152,5 +152,59 @@ describe("badgeInfo: hostile input", () => {
     expect(one(f, state, "lights")!.rows).toEqual(["1 of 1 on", '"><script>']);
     expect(() => badgeInfo(f, -1, { state, now: NOW })).not.toThrow();
     expect(() => badgeInfo(f, 0, { state: "x" as unknown as StateOverlay, now: NaN })).not.toThrow();
+  });
+});
+
+describe("S98: air quality, smoke, bar heaters, and 4-quadrant slots", () => {
+  it("counts bar heaters ({ a, b }) in climate badges", () => {
+    const bar = { id: "h1", type: "heater", entity: "climate.rad", name: "Radiator", a: [80, 100], b: [160, 100] } as unknown as Device;
+    const f = floor([bar]);
+    expect(badgeKinds(f, 0)).toEqual(["climate"]);
+    const b = one(f, { "climate.rad": st("heat", { hvac_action: "heating", temperature: 22 }) }, "climate")!;
+    expect(b.on).toBe(true);
+    expect(b.tone).toBe("heat");
+  });
+
+  it("supports air quality and smoke badges from room sensors and placed devices", () => {
+    const f = floor([dev("air_quality", "sensor.co2")], { smoke: ["binary_sensor.smk"] });
+    expect(badgeKinds(f, 0)).toEqual(["air", "smoke"]);
+    const bad = one(f, { "sensor.co2": st("1850", { unit_of_measurement: "ppm", device_class: "carbon_dioxide" }) }, "air")!;
+    expect(bad.on).toBe(true);
+    expect(bad.rows[0]).toContain("1850");
+    const ok = one(f, { "sensor.co2": st("500", { unit_of_measurement: "ppm", device_class: "carbon_dioxide" }) }, "air")!;
+    expect(ok.on).toBe(false);
+    const smk = one(f, { "binary_sensor.smk": st("on") }, "smoke")!;
+    expect(smk.on).toBe(true);
+    expect(smk.rows[0]).toBe("Smoke / gas detected");
+    const clr = one(f, { "binary_sensor.smk": st("off") }, "smoke")!;
+    expect(clr.on).toBe(false);
+    expect(clr.rows[0]).toBe("Clear");
+  });
+
+  it("validates 4-quadrant slots in roomBadgesProblem", () => {
+    expect(roomBadgesProblem({ corner: "nw", slots: ["lights", "air", null, "smoke"] })).toBeNull();
+    expect(roomBadgesProblem({ corner: "nw", slots: [] })).not.toBeNull();
+    expect(roomBadgesProblem({ corner: "nw", slots: ["lights", "air", "smoke", "motion", "energy"] })).not.toBeNull();
+    expect(roomBadgesProblem({ corner: "nw", slots: ["bogus"] })).not.toBeNull();
+  });
+
+  it("renders selected 4-quadrant slots in a 2x2 grid even before devices are placed", () => {
+    const f = floor([], { badges: { corner: "nw", slots: ["lights", "air", "smoke", "climate"] } });
+    expect(badgeKinds(f, 0)).toEqual(["lights", "air", "smoke", "climate"]);
+    const svgs = roomBadges({ f, o: { scale: 1, state: {} }, kt: 1, up: () => "", editor: false });
+    expect(svgs).toHaveLength(4);
+    expect(svgs[0]).toContain('data-cb="0:lights" data-q="0"');
+    expect(svgs[1]).toContain('data-cb="0:air" data-q="1"');
+    expect(svgs[2]).toContain('data-cb="0:smoke" data-q="2"');
+    expect(svgs[3]).toContain('data-cb="0:climate" data-q="3"');
+    const cxy = svgs.map((s) => {
+      const m = s.match(/cx="([^"]+)" cy="([^"]+)"/)!;
+      return [Number(m[1]), Number(m[2])] as [number, number];
+    });
+    // TL and TR share y; TL and BL share x; TR is right of TL; BL is below TL
+    expect(cxy[0][1]).toBeCloseTo(cxy[1][1], 3);
+    expect(cxy[0][0]).toBeCloseTo(cxy[2][0], 3);
+    expect(cxy[1][0]).toBeGreaterThan(cxy[0][0]);
+    expect(cxy[2][1]).toBeGreaterThan(cxy[0][1]);
   });
 });

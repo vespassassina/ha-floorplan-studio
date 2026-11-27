@@ -112,7 +112,7 @@ const COLOR_VAR: Partial<Record<DeviceType, string>> = {
   climate: "--fp-dev-climate", tv: "--fp-dev-tv", media: "--fp-dev-media",
   plug: "--fp-dev-plug", computer: "--fp-dev-computer", camera: "--fp-ink", person: "--fp-dev-person",
   vacuum: "--fp-dev-vacuum", fan: "--fp-dev-fan", car: "--fp-dev-car", speaker: "--fp-dev-speaker", radar: "--fp-dev-radar",
-  siren: "--fp-danger", alarm: "--fp-danger", // no token of their own: the danger red every theme already has
+  siren: "--fp-danger", alarm: "--fp-danger", air_quality: "--fp-warn", smoke: "--fp-danger", // no token of their own: the danger/warn tokens every theme already has
 };
 
 /** What `renderFloor` takes besides state, so the list reads a plug exactly as the plan does. */
@@ -143,7 +143,8 @@ function isActive(d: Device, state: StateOverlay | undefined, opts: ActiveOpts):
   if (rule === "never") return false;
   if (rule === "cleaning") return s === "cleaning";
   if (lk) return linkActive(lk.sym, lk.status); // a thirsty plant is listed though it is not drawn "on"
-  return classOf(d, { scale: 1, state, ...opts }) === "on";
+  const cls = classOf(d, { scale: 1, state, ...opts });
+  return cls === "on" || (d.type === "smoke" && cls === "danger");
 }
 
 /** A device's name for the list: its own plan name, else HA's `friendly_name`, else its entity id — the same

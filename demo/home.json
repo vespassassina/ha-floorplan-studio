@@ -1,1077 +1,4185 @@
 {
- "version": 2,
- "unit": "cm",
- "north": 0,
- "rotate": 0,
- "floors": {
-  "basement": {
-   "title": "Basement",
-   "outline": [[0,0],[1000,0],[1000,800],[0,800]],
-   "owk": ["external","external","external","external"],
-   "rooms": [
-    {"id":"room-basement-1","name":"Laundry","area":"laundry","kind":"room","pts":[[0,0],[300,0],[300,420],[0,420]],"wk":["external","wall","wall","external"],"temps":["sensor.demo_laundry_temperature"],"humidity":["sensor.demo_laundry_humidity"]},
-    {"id":"room-basement-2","name":"Storage","area":"storage","kind":"room","pts":[[300,0],[640,0],[640,420],[300,420]],"wk":["external","wall","wall","wall"],"temps":["sensor.demo_storage_temperature"],"humidity":["sensor.demo_storage_humidity"]},
-    {"id":"room-basement-3","name":"Gym","area":"gym","kind":"room","pts":[[640,0],[1000,0],[1000,420],[640,420]],"wk":["external","external","wall","wall"],"temps":["sensor.demo_gym_temperature"],"humidity":["sensor.demo_gym_humidity"]},
-    {"id":"room-basement-4","name":"Workshop","area":"workshop","kind":"room","pts":[[0,420],[300,420],[300,800],[0,800]],"wk":["wall","wall","external","external"],"temps":["sensor.demo_workshop_temperature"],"humidity":["sensor.demo_workshop_humidity"]},
-    {"id":"room-basement-5","name":"Cellar","area":"cellar","kind":"room","pts":[[300,420],[520,420],[520,800],[300,800]],"wk":["wall","wall","external","wall"],"temps":["sensor.demo_cellar_temperature"],"humidity":["sensor.demo_cellar_humidity"]},
-    {"id":"room-basement-6","name":"Technical","area":"technical","kind":"room","pts":[[520,420],[700,420],[700,800],[520,800]],"wk":["wall","wall","external","wall"],"temps":["sensor.demo_technical_temperature"],"humidity":["sensor.demo_technical_humidity"]},
-    {"id":"room-basement-7","name":"Wine cellar","area":"wine_cellar","kind":"room","pts":[[700,420],[1000,420],[1000,800],[700,800]],"wk":["wall","external","external","wall"],"temps":["sensor.demo_wine_cellar_temperature"],"humidity":["sensor.demo_wine_cellar_humidity"]}
-   ],
-   "walls": [],
-   "stairs": [
-    {"id":"stairs-basement-1","name":"Stairs","pts":[[310,440],[380,440],[380,680],[310,680]],"shape":"straight","steps":6,"rot":0}
-   ],
-   "doors": [
-    {"id":"door-basement-1","name":"Laundry door","kind":"door","a":[300,150],"b":[300,240]},
-    {"id":"door-basement-2","name":"Gym door","kind":"door","a":[640,150],"b":[640,240]},
-    {"id":"door-basement-3","name":"Cellar door","kind":"open","a":[410,420],"b":[490,420]},
-    {"id":"door-basement-4","name":"Workshop door","kind":"door","a":[300,700],"b":[300,790]},
-    {"id":"door-basement-5","name":"Technical door","kind":"door","a":[520,480],"b":[520,570]},
-    {"id":"door-basement-6","name":"Wine cellar door","kind":"door","a":[700,700],"b":[700,790]},
-    {"id":"door-basement-7","name":"Laundry light well","kind":"slit","a":[100,0],"b":[200,0]},
-    {"id":"door-basement-8","name":"Gym light well","kind":"slit","a":[740,0],"b":[820,0]},
-    {"id":"door-basement-9","name":"Gym light well 2","kind":"slit","a":[860,0],"b":[940,0]},
-    {"id":"door-basement-10","name":"Workshop light well","kind":"slit","a":[0,520],"b":[0,640]}
-   ],
-   "openings": [],
-   "extras": [],
-   "devices": [
-    {"id":"light-laundry","type":"light","entity":"light.demo_laundry","name":"Laundry light","x":150,"y":210},
-    {"id":"motion-laundry-motion","type":"motion","entity":"binary_sensor.demo_laundry_motion","name":"Laundry motion","x":40,"y":380},
-    {"id":"humidity-laundry-h","type":"humidity","entity":"sensor.demo_laundry_humidity","name":"Laundry humidity","x":260,"y":380},
-    {"id":"plug-washer","type":"plug","entity":"switch.demo_washer","name":"Washer plug","x":250,"y":60,"power":"sensor.demo_washer_power"},
-    {"id":"vibration-washer-vibration","type":"vibration","entity":"binary_sensor.demo_washer_vibration","name":"Washer vibration","x":200,"y":60},
-    {"id":"light-storage","type":"light","entity":"light.demo_storage","name":"Storage light","x":470,"y":210},
-    {"id":"motion-storage-motion","type":"motion","entity":"binary_sensor.demo_storage_motion","name":"Storage motion","x":470,"y":380},
-    {"id":"light-gym","type":"light","entity":"light.demo_gym","name":"Gym light","x":820,"y":210},
-    {"id":"ac-gym-ac","type":"ac","entity":"climate.demo_gym_ac","name":"Gym air conditioner","x":980,"y":60,"linked":[]},
-    {"id":"tv-gym-tv","type":"tv","entity":"media_player.demo_gym_tv","name":"Gym TV","x":820,"y":40},
-    {"id":"screen-gym","type":"screen","entity":"light.demo_gym_panel","name":"Gym control screen","x":652,"y":330},
-    {"id":"temp-gym-t","type":"temp","entity":"sensor.demo_gym_temperature","name":"Gym temperature","x":700,"y":380},
-    {"id":"light-workshop","type":"light","entity":"light.demo_workshop","name":"Workshop light","x":150,"y":560},
-    {"id":"plug-workshop-bench","type":"plug","entity":"switch.demo_workshop_bench","name":"Bench plug","x":200,"y":450},
-    {"id":"light-cellar","type":"light","entity":"light.demo_cellar","name":"Cellar light","x":460,"y":560},
-    {"id":"motion-cellar-motion","type":"motion","entity":"binary_sensor.demo_cellar_motion","name":"Cellar motion","x":440,"y":440},
-    {"id":"light-technical","type":"light","entity":"light.demo_technical","name":"Technical light","x":620,"y":620},
-    {"id":"boiler-boiler","type":"boiler","entity":"sensor.demo_boiler","name":"Boiler","x":560,"y":480},
-    {"id":"inverter-inverter","type":"inverter","entity":"sensor.demo_inverter","name":"Inverter","x":560,"y":570},
-    {"id":"battery-house-battery","type":"battery","entity":"sensor.demo_house_battery","name":"House battery","x":560,"y":660},
-    {"id":"ups-ups","type":"ups","entity":"sensor.demo_ups","name":"UPS","x":560,"y":750},
-    {"id":"server-server","type":"server","entity":"sensor.demo_server","name":"Server","x":650,"y":480},
-    {"id":"access-point-ap-basement","type":"access_point","entity":"sensor.demo_ap_basement","name":"Basement access point","x":650,"y":765},
-    {"id":"other-water-meter","type":"other","entity":"sensor.demo_water_meter","name":"Water meter","x":650,"y":570},
-    {"id":"power-meter-power-meter","type":"power_meter","entity":"sensor.demo_power_meter","name":"Power meter","x":650,"y":660},
-    {"id":"light-wine-cellar","type":"light","entity":"light.demo_wine_cellar","name":"Wine cellar light","x":800,"y":560},
-    {"id":"temp-wine-cellar-t","type":"temp","entity":"sensor.demo_wine_cellar_temperature","name":"Wine cellar temperature","x":740,"y":470},
-    {"id":"humidity-wine-cellar-h","type":"humidity","entity":"sensor.demo_wine_cellar_humidity","name":"Wine cellar humidity","x":760,"y":470}
-   ],
-   "furniture": [
-    {"id":"furniture-basement-1","symbol":"sink","x":100,"y":35,"rot":0,"w":90,"h":50},
-    {"id":"furniture-basement-2","symbol":"cabinet","x":30,"y":230,"rot":0,"w":50,"h":220},
-    {"id":"furniture-basement-3","symbol":"table","x":230,"y":340,"rot":0,"w":100,"h":60},
-    {"id":"furniture-basement-4","symbol":"cabinet","x":470,"y":30,"rot":0,"w":280,"h":50},
-    {"id":"furniture-basement-5","symbol":"cabinet","x":320,"y":340,"rot":0,"w":40,"h":120},
-    {"id":"furniture-basement-6","symbol":"cabinet","x":620,"y":340,"rot":0,"w":40,"h":120},
-    {"id":"furniture-basement-7","symbol":"table","x":470,"y":340,"rot":0,"w":120,"h":70},
-    {"id":"furniture-basement-8","symbol":"chair","x":760,"y":250,"rot":0,"w":60,"h":40},
-    {"id":"furniture-basement-9","symbol":"chair","x":880,"y":250,"rot":0,"w":60,"h":40},
-    {"id":"furniture-basement-10","symbol":"cabinet","x":980,"y":340,"rot":0,"w":40,"h":150},
-    {"id":"furniture-basement-11","symbol":"speaker","x":700,"y":40,"rot":0,"w":30,"h":30},
-    {"id":"furniture-basement-12","symbol":"tv","x":820,"y":28,"rot":0,"w":130,"h":18},
-    {"id":"furniture-basement-13","symbol":"table","x":110,"y":520,"rot":0,"w":180,"h":70},
-    {"id":"furniture-basement-14","symbol":"chair","x":235,"y":575,"rot":0,"w":45,"h":45},
-    {"id":"furniture-basement-15","symbol":"cabinet","x":30,"y":740,"rot":0,"w":40,"h":100},
-    {"id":"furniture-basement-16","symbol":"cabinet","x":500,"y":640,"rot":0,"w":30,"h":100},
-    {"id":"furniture-basement-17","symbol":"cabinet","x":680,"y":520,"rot":0,"w":30,"h":100},
-    {"id":"furniture-basement-18","symbol":"cabinet","x":680,"y":620,"rot":0,"w":30,"h":100},
-    {"id":"furniture-basement-19","symbol":"cabinet","x":980,"y":590,"rot":0,"w":30,"h":340},
-    {"id":"furniture-basement-20","symbol":"cabinet","x":850,"y":780,"rot":0,"w":220,"h":30},
-    {"id":"furniture-basement-21","symbol":"table","x":830,"y":700,"rot":0,"w":100,"h":60},
-    {"id":"furniture-basement-22","symbol":"chair","x":770,"y":700,"rot":0,"w":40,"h":40}
-   ],
-   "unlinked": []
-  },
-  "ground": {
-   "title": "Ground",
-   "outline": [[0,0],[1000,0],[1000,800],[0,800]],
-   "owk": ["external","external","external","external"],
-   "rooms": [
-    {"id":"room-ground-1","name":"Living","area":"living","kind":"room","pts":[[0,0],[520,0],[520,420],[0,420]],"wk":["external","none","wall","external"],"temps":["sensor.demo_living_temperature"],"humidity":["sensor.demo_living_humidity"]},
-    {"id":"room-ground-2","name":"Kitchen","area":"kitchen","kind":"room","pts":[[520,0],[1000,0],[1000,420],[680,420],[520,420]],"wk":["external","external","none","wall","none"],"temps":["sensor.demo_kitchen_temperature"],"humidity":["sensor.demo_kitchen_humidity"]},
-    {"id":"room-ground-3","name":"Dining","area":"dining","kind":"room","pts":[[680,420],[1000,420],[1000,800],[680,800]],"wk":["none","external","external","wall"],"temps":["sensor.demo_dining_temperature"],"humidity":["sensor.demo_dining_humidity"]},
-    {"id":"room-ground-4","name":"Hall","area":"hall","kind":"room","pts":[[300,420],[520,420],[520,800],[300,800]],"wk":["wall","wall","external","wall"],"temps":["sensor.demo_hall_temperature"],"humidity":["sensor.demo_hall_humidity"]},
-    {"id":"room-ground-5","name":"WC","area":"wc","kind":"room","pts":[[520,420],[680,420],[680,600],[520,600]],"wk":["wall","wall","wall","wall"],"temps":["sensor.demo_wc_temperature"],"humidity":["sensor.demo_wc_humidity"]},
-    {"id":"room-ground-6","name":"Cloakroom","area":"cloakroom","kind":"room","pts":[[520,600],[680,600],[680,800],[520,800]],"wk":["wall","wall","external","wall"],"temps":["sensor.demo_cloakroom_temperature"],"humidity":["sensor.demo_cloakroom_humidity"]},
-    {"id":"room-ground-7","name":"Office","area":"office","kind":"room","pts":[[0,420],[300,420],[300,800],[0,800]],"wk":["wall","wall","external","external"],"temps":["sensor.demo_office_temperature"],"humidity":["sensor.demo_office_humidity"]},
-    {"id":"room-ground-8","name":"Garden","area":"","kind":"garden","pts":[[1000,0],[1450,0],[1450,800],[1000,800]],"wk":["boundary","fence","fence","fence"]},
-    {"id":"room-ground-9","name":"Terrace","area":"","kind":"terrace","pts":[[1000,60],[1200,60],[1200,780],[1000,780]],"wk":["none","none","none","none"]},
-    {"id":"room-ground-10","name":"Pond","area":"","kind":"water","pts":[[1270,560],[1340,540],[1395,590],[1370,650],[1300,660],[1265,615]],"wk":["boundary","boundary","boundary","boundary","boundary","boundary"]},
-    {"id":"room-ground-11","name":"Front garden","area":"","kind":"garden","pts":[[0,800],[330,800],[330,1000],[0,1000]],"wk":["boundary","fence","fence","fence"]},
-    {"id":"room-ground-12","name":"Path","area":"","kind":"pavement","pts":[[330,800],[460,800],[460,1000],[330,1000]],"wk":["boundary","boundary","boundary","boundary"]},
-    {"id":"room-ground-13","name":"Driveway","area":"","kind":"pavement","pts":[[460,800],[1000,800],[1000,1000],[460,1000]],"wk":["boundary","boundary","boundary","boundary"]}
-   ],
-   "walls": [],
-   "stairs": [
-    {"id":"stairs-ground-1","name":"Stairs","pts":[[310,440],[380,440],[380,680],[310,680]],"shape":"straight","steps":6,"rot":0}
-   ],
-   "doors": [
-    {"id":"door-ground-1","name":"Front door","kind":"door","a":[350,800],"b":[450,800],"sensors":["binary_sensor.demo_front_door"],"locks":["lock.demo_front_door"]},
-    {"id":"door-ground-2","name":"Living window","kind":"window","a":[100,0],"b":[320,0],"sensors":["binary_sensor.demo_living_window"]},
-    {"id":"door-ground-3","name":"Living bay window","kind":"fullwindow","a":[0,120],"b":[0,320],"cover":"cover.demo_living_curtains"},
-    {"id":"door-ground-4","name":"Kitchen window","kind":"window","a":[600,0],"b":[820,0],"sensors":["binary_sensor.demo_kitchen_window"]},
-    {"id":"door-ground-5","name":"Patio door","kind":"glass","a":[1000,80],"b":[1000,260],"sensors":["binary_sensor.demo_patio_door"]},
-    {"id":"door-ground-6","name":"Dining terrace door","kind":"glass","a":[1000,520],"b":[1000,680],"sensors":["binary_sensor.demo_dining_door"]},
-    {"id":"door-ground-7","name":"Dining window","kind":"window","a":[740,800],"b":[920,800],"sensors":["binary_sensor.demo_dining_window"]},
-    {"id":"door-ground-8","name":"Cloakroom window","kind":"slit","a":[560,800],"b":[640,800]},
-    {"id":"door-ground-9","name":"Office window","kind":"window","a":[0,520],"b":[0,700],"sensors":["binary_sensor.demo_office_window"]},
-    {"id":"door-ground-10","name":"Office south window","kind":"window","a":[80,800],"b":[220,800]},
-    {"id":"door-ground-11","name":"Hall to Living","kind":"open","a":[410,420],"b":[490,420]},
-    {"id":"door-ground-12","name":"WC door","kind":"door","a":[520,450],"b":[520,530]},
-    {"id":"door-ground-13","name":"Cloakroom door","kind":"door","a":[520,650],"b":[520,730]},
-    {"id":"door-ground-14","name":"Office door","kind":"door","a":[300,700],"b":[300,790]}
-   ],
-   "openings": [],
-   "extras": [],
-   "devices": [
-    {"id":"light-living","type":"light","entity":"light.demo_living","name":"Living light","x":260,"y":200,"bound":"switch.demo_living_relay"},
-    {"id":"heater-living-radiator","type":"heater","entity":"climate.demo_living_radiator","name":"Living radiator","a":[10,130],"b":[10,300]},
-    {"id":"tv-living-tv","type":"tv","entity":"media_player.demo_living_tv","name":"Living TV","x":260,"y":50},
-    {"id":"plug-tv","type":"plug","entity":"switch.demo_tv","name":"TV plug","x":60,"y":390,"power":"sensor.demo_tv_power"},
-    {"id":"speaker-living-speaker","type":"speaker","entity":"media_player.demo_living_speaker","name":"Living speaker","x":460,"y":60},
-    {"id":"motion-living-motion","type":"motion","entity":"binary_sensor.demo_living_motion","name":"Living motion","x":480,"y":220},
-    {"id":"temp-living-t","type":"temp","entity":"sensor.demo_living_temperature","name":"Living temperature","x":400,"y":120},
-    {"id":"vacuum-robot","type":"vacuum","entity":"vacuum.demo_robot","name":"Vacuum","x":470,"y":385},
-    {"id":"person-alex","type":"person","entity":"person.demo_alex","name":"Alex","x":200,"y":360},
-    {"id":"person-sam","type":"person","entity":"person.demo_sam","name":"Sam","x":500,"y":330},
-    {"id":"light-kitchen","type":"light","entity":"light.demo_kitchen","name":"Kitchen light","x":760,"y":200},
-    {"id":"motion-kitchen-motion","type":"motion","entity":"binary_sensor.demo_kitchen_motion","name":"Kitchen motion","x":620,"y":360},
-    {"id":"temp-kitchen-t","type":"temp","entity":"sensor.demo_kitchen_temperature","name":"Kitchen temperature","x":980,"y":380},
-    {"id":"fan-kitchen-hood","type":"fan","entity":"fan.demo_kitchen_hood","name":"Cooker hood","x":850,"y":35},
-    {"id":"other-dishwasher","type":"other","entity":"sensor.demo_dishwasher","name":"Dishwasher","x":960,"y":35},
-    {"id":"plug-coffee","type":"plug","entity":"switch.demo_coffee","name":"Coffee plug","x":560,"y":40},
-    {"id":"light-dining","type":"light","entity":"light.demo_dining","name":"Dining light","x":840,"y":540},
-    {"id":"light-hall","type":"light","entity":"light.demo_hall","name":"Hall light","x":440,"y":560},
-    {"id":"switch-hall-switch","type":"switch","entity":"switch.demo_hall_switch","name":"Hall switch","x":495,"y":440},
-    {"id":"motion-hall-motion","type":"motion","entity":"binary_sensor.demo_hall_motion","name":"Hall motion","x":440,"y":760},
-    {"id":"camera-doorbell","type":"camera","entity":"camera.demo_doorbell","name":"Doorbell camera","x":330,"y":780},
-    {"id":"climate-thermostat","type":"climate","entity":"climate.demo_thermostat","name":"Thermostat","x":495,"y":620},
-    {"id":"alarm-alarm","type":"alarm","entity":"alarm_control_panel.demo_alarm","name":"Alarm","x":330,"y":700},
-    {"id":"siren-siren","type":"siren","entity":"siren.demo_siren","name":"Siren","x":450,"y":430},
-    {"id":"access-point-ap-ground","type":"access_point","entity":"sensor.demo_ap_ground","name":"Ground access point","x":330,"y":430},
-    {"id":"light-wc","type":"light","entity":"light.demo_wc","name":"WC light","x":600,"y":520},
-    {"id":"light-cloakroom","type":"light","entity":"light.demo_cloakroom","name":"Cloakroom light","x":600,"y":660},
-    {"id":"light-office","type":"light","entity":"light.demo_office","name":"Office light","x":150,"y":600},
-    {"id":"computer-office-pc","type":"computer","entity":"sensor.demo_office_pc","name":"Office computer","x":150,"y":470},
-    {"id":"printer-office-printer","type":"printer","entity":"sensor.demo_office_printer","name":"Office printer","x":270,"y":780},
-    {"id":"media-office-media","type":"media","entity":"media_player.demo_office_media","name":"Office media","x":60,"y":760},
-    {"id":"cover-office-blind","type":"cover","entity":"cover.demo_office_blind","name":"Office blind","x":100,"y":790},
-    {"id":"radar-office-radar","type":"radar","entity":"binary_sensor.demo_office_radar","name":"Office radar","x":270,"y":440,"targets":[{"x":"sensor.demo_office_radar_x","y":"sensor.demo_office_radar_y"}],"rot":135},
-    {"id":"light-terrace","type":"light","entity":"light.demo_terrace","name":"Terrace light","x":1100,"y":120},
-    {"id":"light-garden","type":"light","entity":"light.demo_garden","name":"Garden light","x":1320,"y":400},
-    {"id":"light-driveway","type":"light","entity":"light.demo_driveway","name":"Driveway light","x":980,"y":900},
-    {"id":"camera-driveway-camera","type":"camera","entity":"camera.demo_driveway_camera","name":"Driveway camera","x":470,"y":815,"rot":90},
-    {"id":"camera-garden-camera","type":"camera","entity":"camera.demo_garden_camera","name":"Garden camera","x":1010,"y":20,"rot":45},
-    {"id":"motion-driveway-motion","type":"motion","entity":"binary_sensor.demo_driveway_motion","name":"Driveway motion","x":540,"y":985},
-    {"id":"temp-outdoor-t","type":"temp","entity":"sensor.demo_outdoor_temperature","name":"Outdoor temperature","x":1180,"y":760},
-    {"id":"contact-garden-gate","type":"contact","entity":"binary_sensor.demo_garden_gate","name":"Garden gate","x":395,"y":995},
-    {"id":"lock-terrace-door","type":"lock","entity":"lock.demo_terrace_door","name":"Terrace door lock","x":1010,"y":170},
-    {"id":"car-wallbox","type":"car","entity":"sensor.demo_wallbox","name":"Wallbox","x":950,"y":830}
-   ],
-   "furniture": [
-    {"id":"furniture-ground-1","symbol":"tv","x":260,"y":28,"rot":0,"w":150,"h":20},
-    {"id":"furniture-ground-2","symbol":"sofa","x":260,"y":360,"rot":180,"w":210,"h":80},
-    {"id":"furniture-ground-3","symbol":"table","x":260,"y":288,"rot":0,"w":110,"h":40},
-    {"id":"furniture-ground-4","symbol":"chair","x":100,"y":300,"rot":0,"w":60,"h":60},
-    {"id":"furniture-ground-5","symbol":"chair","x":430,"y":300,"rot":0,"w":60,"h":60},
-    {"id":"furniture-ground-6","symbol":"cabinet","x":60,"y":395,"rot":0,"w":100,"h":40},
-    {"id":"furniture-ground-7","symbol":"tree","x":485,"y":35,"rot":0,"w":50,"h":50},
-    {"id":"furniture-ground-8","symbol":"speaker","x":460,"y":45,"rot":0,"w":28,"h":28},
-    {"id":"furniture-ground-9","symbol":"sink","x":760,"y":30,"rot":0,"w":120,"h":55},
-    {"id":"furniture-ground-10","symbol":"cabinet","x":600,"y":30,"rot":0,"w":100,"h":55},
-    {"id":"furniture-ground-11","symbol":"cabinet","x":920,"y":30,"rot":0,"w":120,"h":55},
-    {"id":"furniture-ground-12","symbol":"table","x":760,"y":300,"rot":0,"w":220,"h":80},
-    {"id":"furniture-ground-13","symbol":"chair","x":690,"y":365,"rot":0,"w":45,"h":45},
-    {"id":"furniture-ground-14","symbol":"chair","x":760,"y":365,"rot":0,"w":45,"h":45},
-    {"id":"furniture-ground-15","symbol":"chair","x":830,"y":365,"rot":0,"w":45,"h":45},
-    {"id":"furniture-ground-16","symbol":"table","x":840,"y":690,"rot":0,"w":170,"h":90},
-    {"id":"furniture-ground-17","symbol":"chair","x":722,"y":690,"rot":0,"w":45,"h":45},
-    {"id":"furniture-ground-18","symbol":"chair","x":958,"y":690,"rot":0,"w":45,"h":45},
-    {"id":"furniture-ground-19","symbol":"chair","x":800,"y":758,"rot":0,"w":45,"h":45},
-    {"id":"furniture-ground-20","symbol":"chair","x":880,"y":758,"rot":0,"w":45,"h":45},
-    {"id":"furniture-ground-21","symbol":"cabinet","x":702,"y":540,"rot":0,"w":30,"h":120},
-    {"id":"furniture-ground-22","symbol":"cabinet","x":503,"y":585,"rot":0,"w":30,"h":90},
-    {"id":"furniture-ground-23","symbol":"tree","x":330,"y":770,"rot":0,"w":45,"h":45},
-    {"id":"furniture-ground-24","symbol":"toilet","x":560,"y":570,"rot":0,"w":40,"h":55},
-    {"id":"furniture-ground-25","symbol":"sink","x":660,"y":452,"rot":90,"w":50,"h":30},
-    {"id":"furniture-ground-26","symbol":"cabinet","x":610,"y":780,"rot":0,"w":110,"h":30},
-    {"id":"furniture-ground-27","symbol":"table","x":150,"y":470,"rot":0,"w":170,"h":70},
-    {"id":"furniture-ground-28","symbol":"computer","x":150,"y":470,"rot":0,"w":60,"h":40},
-    {"id":"furniture-ground-29","symbol":"chair","x":150,"y":535,"rot":0,"w":50,"h":50},
-    {"id":"furniture-ground-30","symbol":"cabinet","x":275,"y":590,"rot":0,"w":40,"h":200},
-    {"id":"furniture-ground-31","symbol":"car","x":730,"y":905,"rot":0,"w":360,"h":165,"name":"Car","entity":"device_tracker.demo_car","model":"electric","color":"#6c8ebf","attached":["sensor.demo_car_battery","binary_sensor.demo_car_charging","lock.demo_car_doors","sensor.demo_car_range"]},
-    {"id":"furniture-ground-32","symbol":"tree","x":80,"y":880,"rot":0,"w":100,"h":100},
-    {"id":"furniture-ground-33","symbol":"tree","x":250,"y":940,"rot":0,"w":70,"h":70},
-    {"id":"furniture-ground-34","symbol":"tree","x":1330,"y":130,"rot":0,"w":120,"h":120},
-    {"id":"furniture-ground-35","symbol":"tree","x":1385,"y":420,"rot":0,"w":90,"h":90},
-    {"id":"furniture-ground-36","symbol":"tree","x":1245,"y":745,"rot":0,"w":90,"h":90},
-    {"id":"furniture-ground-37","symbol":"tree","x":1425,"y":740,"rot":0,"w":70,"h":70},
-    {"id":"furniture-ground-38","symbol":"patio-wood","x":1100,"y":250,"rot":0,"w":180,"h":340},
-    {"id":"furniture-ground-39","symbol":"table","x":1100,"y":250,"rot":0,"w":100,"h":100},
-    {"id":"furniture-ground-40","symbol":"chair","x":1100,"y":180,"rot":0,"w":40,"h":40},
-    {"id":"furniture-ground-41","symbol":"chair","x":1100,"y":320,"rot":0,"w":40,"h":40},
-    {"id":"furniture-ground-42","symbol":"chair","x":1040,"y":250,"rot":0,"w":40,"h":40},
-    {"id":"furniture-ground-43","symbol":"chair","x":1160,"y":250,"rot":0,"w":40,"h":40},
-    {"id":"furniture-ground-44","symbol":"patio-concrete","x":1100,"y":620,"rot":0,"w":180,"h":200},
-    {"id":"furniture-ground-45","symbol":"sofa","x":1100,"y":650,"rot":180,"w":160,"h":75},
-    {"id":"furniture-ground-46","symbol":"table","x":1100,"y":565,"rot":0,"w":70,"h":50}
-   ],
-   "unlinked": [
-    {"id":"unlinked-ground-1","type":"ac","name":"Heat pump","x":1425,"y":40,"rot":0,"scale":1,"attached":["sensor.demo_heatpump_power"]}
-   ]
-  },
-  "first": {
-   "title": "First",
-   "outline": [[0,0],[1000,0],[1000,800],[0,800]],
-   "owk": ["external","external","external","external"],
-   "rooms": [
-    {"id":"room-first-1","name":"Landing","area":"landing","kind":"room","pts":[[300,0],[440,0],[440,800],[300,800]],"wk":["external","wall","external","wall"],"temps":["sensor.demo_landing_temperature"],"humidity":["sensor.demo_landing_humidity"]},
-    {"id":"room-first-2","name":"Kids","area":"kids","kind":"room","pts":[[0,0],[300,0],[300,400],[0,400]],"wk":["external","wall","wall","external"],"temps":["sensor.demo_kids_temperature"],"humidity":["sensor.demo_kids_humidity"]},
-    {"id":"room-first-3","name":"Study","area":"study","kind":"room","pts":[[0,400],[300,400],[300,800],[0,800]],"wk":["wall","wall","external","external"],"temps":["sensor.demo_study_temperature"],"humidity":["sensor.demo_study_humidity"]},
-    {"id":"room-first-4","name":"Master","area":"master","kind":"room","pts":[[440,0],[800,0],[800,400],[440,400]],"wk":["external","wall","wall","wall"],"temps":["sensor.demo_master_temperature"],"humidity":["sensor.demo_master_humidity"]},
-    {"id":"room-first-5","name":"Bathroom","area":"bathroom","kind":"room","pts":[[800,0],[1000,0],[1000,400],[800,400]],"wk":["external","external","wall","wall"],"temps":["sensor.demo_bathroom_temperature"],"humidity":["sensor.demo_bathroom_humidity"]},
-    {"id":"room-first-6","name":"Lounge","area":"lounge","kind":"room","pts":[[440,400],[1000,400],[1000,800],[440,800]],"wk":["wall","external","external","wall"],"temps":["sensor.demo_lounge_temperature"],"humidity":["sensor.demo_lounge_humidity"]},
-    {"id":"room-first-7","name":"Balcony","area":"","kind":"terrace","pts":[[600,800],[960,800],[960,920],[600,920]],"wk":["none","parapet","parapet","parapet"]}
-   ],
-   "walls": [],
-   "stairs": [
-    {"id":"stairs-first-1","name":"Stairs","pts":[[310,440],[380,440],[380,680],[310,680]],"shape":"straight","steps":6,"rot":0}
-   ],
-   "doors": [
-    {"id":"door-first-1","name":"Kids window","kind":"window","a":[80,0],"b":[220,0],"sensors":["binary_sensor.demo_kids_window"]},
-    {"id":"door-first-2","name":"Kids west window","kind":"window","a":[0,120],"b":[0,280]},
-    {"id":"door-first-3","name":"Study window","kind":"window","a":[0,500],"b":[0,700],"sensors":["binary_sensor.demo_study_window"]},
-    {"id":"door-first-4","name":"Study south window","kind":"window","a":[80,800],"b":[220,800]},
-    {"id":"door-first-5","name":"Master window","kind":"window","a":[520,0],"b":[700,0],"sensors":["binary_sensor.demo_master_window"]},
-    {"id":"door-first-6","name":"Bathroom skylight","kind":"slit","a":[850,0],"b":[950,0]},
-    {"id":"door-first-7","name":"Bathroom window","kind":"window","a":[1000,100],"b":[1000,300]},
-    {"id":"door-first-8","name":"Lounge east window","kind":"window","a":[1000,460],"b":[1000,700],"sensors":["binary_sensor.demo_lounge_window"]},
-    {"id":"door-first-9","name":"Balcony door","kind":"glass","a":[640,800],"b":[760,800],"sensors":["binary_sensor.demo_balcony_door"]},
-    {"id":"door-first-10","name":"Lounge window","kind":"fullwindow","a":[800,800],"b":[940,800]},
-    {"id":"door-first-11","name":"Landing window","kind":"slit","a":[340,800],"b":[400,800]},
-    {"id":"door-first-12","name":"Master door","kind":"door","a":[440,100],"b":[440,190]},
-    {"id":"door-first-13","name":"Lounge door","kind":"door","a":[440,480],"b":[440,570]},
-    {"id":"door-first-14","name":"Kids door","kind":"door","a":[300,150],"b":[300,240]},
-    {"id":"door-first-15","name":"Study door","kind":"door","a":[300,500],"b":[300,590]},
-    {"id":"door-first-16","name":"Ensuite door","kind":"door","a":[800,150],"b":[800,240]}
-   ],
-   "openings": [],
-   "extras": [],
-   "devices": [
-    {"id":"light-landing","type":"light","entity":"light.demo_landing","name":"Landing light","x":370,"y":300},
-    {"id":"motion-landing-motion","type":"motion","entity":"binary_sensor.demo_landing_motion","name":"Landing motion","x":370,"y":120},
-    {"id":"access-point-ap-first","type":"access_point","entity":"sensor.demo_ap_first","name":"First access point","x":330,"y":20},
-    {"id":"light-kids","type":"light","entity":"light.demo_kids","name":"Kids light","x":150,"y":200},
-    {"id":"heater-kids-radiator","type":"heater","entity":"climate.demo_kids_radiator","name":"Kids radiator","a":[60,392],"b":[200,392]},
-    {"id":"cover-kids-blind","type":"cover","entity":"cover.demo_kids_blind","name":"Kids blind","x":150,"y":12},
-    {"id":"media-kids-speaker","type":"media","entity":"media_player.demo_kids_speaker","name":"Kids media","x":30,"y":30},
-    {"id":"fan-kids-fan","type":"fan","entity":"fan.demo_kids_fan","name":"Kids fan","x":260,"y":360},
-    {"id":"light-study","type":"light","entity":"light.demo_study","name":"Study light","x":150,"y":600},
-    {"id":"computer-study-pc","type":"computer","entity":"sensor.demo_study_pc","name":"Study computer","x":150,"y":770},
-    {"id":"light-master","type":"light","entity":"light.demo_master","name":"Master light","x":620,"y":260},
-    {"id":"temp-master-t","type":"temp","entity":"sensor.demo_master_temperature","name":"Master temperature","x":470,"y":30},
-    {"id":"ac-master-ac","type":"ac","entity":"climate.demo_master_ac","name":"Master air conditioner","x":620,"y":20},
-    {"id":"cover-master-blind","type":"cover","entity":"cover.demo_master_blind","name":"Master blind","x":610,"y":12},
-    {"id":"light-bathroom","type":"light","entity":"light.demo_bathroom","name":"Bathroom light","x":900,"y":250},
-    {"id":"humidity-bathroom-h","type":"humidity","entity":"sensor.demo_bathroom_humidity","name":"Bathroom humidity","x":830,"y":380},
-    {"id":"heater-towel-rail","type":"heater","entity":"climate.demo_towel_rail","name":"Towel rail","a":[990,215],"b":[990,300]},
-    {"id":"light-lounge","type":"light","entity":"light.demo_lounge","name":"Lounge light","x":700,"y":600},
-    {"id":"motion-lounge-motion","type":"motion","entity":"binary_sensor.demo_lounge_motion","name":"Lounge motion","x":900,"y":760},
-    {"id":"tv-lounge-tv","type":"tv","entity":"media_player.demo_lounge_tv","name":"Lounge TV","x":720,"y":420},
-    {"id":"speaker-lounge-speaker","type":"speaker","entity":"media_player.demo_lounge_speaker","name":"Lounge speaker","x":960,"y":430},
-    {"id":"heater-lounge-radiator","type":"heater","entity":"climate.demo_lounge_radiator","name":"Lounge radiator","a":[470,395],"b":[560,395]},
-    {"id":"light-balcony","type":"light","entity":"light.demo_balcony","name":"Balcony light","x":780,"y":870}
-   ],
-   "furniture": [
-    {"id":"furniture-first-1","symbol":"cabinet","x":425,"y":300,"rot":0,"w":30,"h":100},
-    {"id":"furniture-first-2","symbol":"tree","x":335,"y":740,"rot":0,"w":40,"h":40},
-    {"id":"furniture-first-3","symbol":"bed","x":235,"y":100,"rot":0,"w":90,"h":160},
-    {"id":"furniture-first-4","symbol":"table","x":70,"y":350,"rot":0,"w":100,"h":50},
-    {"id":"furniture-first-5","symbol":"chair","x":70,"y":300,"rot":0,"w":40,"h":40},
-    {"id":"furniture-first-6","symbol":"cabinet","x":170,"y":378,"rot":0,"w":120,"h":40},
-    {"id":"furniture-first-7","symbol":"table","x":150,"y":770,"rot":0,"w":140,"h":60},
-    {"id":"furniture-first-8","symbol":"computer","x":150,"y":770,"rot":0,"w":50,"h":35},
-    {"id":"furniture-first-9","symbol":"chair","x":150,"y":700,"rot":0,"w":45,"h":45},
-    {"id":"furniture-first-10","symbol":"cabinet","x":30,"y":450,"rot":0,"w":40,"h":80},
-    {"id":"furniture-first-11","symbol":"sofa","x":225,"y":450,"rot":0,"w":120,"h":70},
-    {"id":"furniture-first-12","symbol":"bed","x":620,"y":105,"rot":0,"w":180,"h":180},
-    {"id":"furniture-first-13","symbol":"cabinet","x":510,"y":40,"rot":0,"w":50,"h":40},
-    {"id":"furniture-first-14","symbol":"cabinet","x":730,"y":40,"rot":0,"w":50,"h":40},
-    {"id":"furniture-first-15","symbol":"cabinet","x":730,"y":375,"rot":0,"w":130,"h":40},
-    {"id":"furniture-first-16","symbol":"tv","x":560,"y":388,"rot":0,"w":100,"h":15},
-    {"id":"furniture-first-17","symbol":"chair","x":480,"y":300,"rot":0,"w":50,"h":50},
-    {"id":"furniture-first-18","symbol":"bathtub","x":905,"y":55,"rot":0,"w":190,"h":80},
-    {"id":"furniture-first-19","symbol":"shower","x":945,"y":350,"rot":0,"w":90,"h":90},
-    {"id":"furniture-first-20","symbol":"toilet","x":840,"y":345,"rot":0,"w":40,"h":60},
-    {"id":"furniture-first-21","symbol":"sink","x":975,"y":160,"rot":0,"w":40,"h":60},
-    {"id":"furniture-first-22","symbol":"tv","x":720,"y":413,"rot":0,"w":160,"h":20},
-    {"id":"furniture-first-23","symbol":"sofa","x":720,"y":690,"rot":180,"w":220,"h":90},
-    {"id":"furniture-first-24","symbol":"table","x":720,"y":505,"rot":0,"w":110,"h":50},
-    {"id":"furniture-first-25","symbol":"chair","x":570,"y":640,"rot":0,"w":60,"h":60},
-    {"id":"furniture-first-26","symbol":"cabinet","x":470,"y":720,"rot":0,"w":30,"h":120},
-    {"id":"furniture-first-27","symbol":"tree","x":975,"y":775,"rot":0,"w":50,"h":50},
-    {"id":"furniture-first-28","symbol":"speaker","x":960,"y":418,"rot":0,"w":28,"h":28},
-    {"id":"furniture-first-29","symbol":"patio-wood","x":780,"y":860,"rot":0,"w":340,"h":100},
-    {"id":"furniture-first-30","symbol":"table","x":780,"y":860,"rot":0,"w":60,"h":60},
-    {"id":"furniture-first-31","symbol":"chair","x":735,"y":860,"rot":0,"w":35,"h":35},
-    {"id":"furniture-first-32","symbol":"chair","x":825,"y":860,"rot":0,"w":35,"h":35}
-   ],
-   "unlinked": []
-  }
- },
- "catalog": [
-  {
-   "id": "light-laundry",
-   "floor": "basement",
-   "room": "Laundry",
-   "type": "light",
-   "name": "Laundry light",
-   "entity": "light.demo_laundry"
-  },
-  {
-   "id": "motion-laundry-motion",
-   "floor": "basement",
-   "room": "Laundry",
-   "type": "motion",
-   "name": "Laundry motion",
-   "entity": "binary_sensor.demo_laundry_motion"
-  },
-  {
-   "id": "humidity-laundry-h",
-   "floor": "basement",
-   "room": "Laundry",
-   "type": "humidity",
-   "name": "Laundry humidity",
-   "entity": "sensor.demo_laundry_humidity"
-  },
-  {
-   "id": "plug-washer",
-   "floor": "basement",
-   "room": "Laundry",
-   "type": "plug",
-   "name": "Washer plug",
-   "entity": "switch.demo_washer"
-  },
-  {
-   "id": "vibration-washer-vibration",
-   "floor": "basement",
-   "room": "Laundry",
-   "type": "vibration",
-   "name": "Washer vibration",
-   "entity": "binary_sensor.demo_washer_vibration"
-  },
-  {
-   "id": "light-storage",
-   "floor": "basement",
-   "room": "Storage",
-   "type": "light",
-   "name": "Storage light",
-   "entity": "light.demo_storage"
-  },
-  {
-   "id": "motion-storage-motion",
-   "floor": "basement",
-   "room": "Storage",
-   "type": "motion",
-   "name": "Storage motion",
-   "entity": "binary_sensor.demo_storage_motion"
-  },
-  {
-   "id": "light-gym",
-   "floor": "basement",
-   "room": "Gym",
-   "type": "light",
-   "name": "Gym light",
-   "entity": "light.demo_gym"
-  },
-  {
-   "id": "ac-gym-ac",
-   "floor": "basement",
-   "room": "Gym",
-   "type": "ac",
-   "name": "Gym air conditioner",
-   "entity": "climate.demo_gym_ac"
-  },
-  {
-   "id": "tv-gym-tv",
-   "floor": "basement",
-   "room": "Gym",
-   "type": "tv",
-   "name": "Gym TV",
-   "entity": "media_player.demo_gym_tv"
-  },
-  {
-   "id": "temp-gym-t",
-   "floor": "basement",
-   "room": "Gym",
-   "type": "temp",
-   "name": "Gym temperature",
-   "entity": "sensor.demo_gym_temperature"
-  },
-  {
-   "id": "light-workshop",
-   "floor": "basement",
-   "room": "Workshop",
-   "type": "light",
-   "name": "Workshop light",
-   "entity": "light.demo_workshop"
-  },
-  {
-   "id": "plug-workshop-bench",
-   "floor": "basement",
-   "room": "Workshop",
-   "type": "plug",
-   "name": "Bench plug",
-   "entity": "switch.demo_workshop_bench"
-  },
-  {
-   "id": "light-cellar",
-   "floor": "basement",
-   "room": "Cellar",
-   "type": "light",
-   "name": "Cellar light",
-   "entity": "light.demo_cellar"
-  },
-  {
-   "id": "motion-cellar-motion",
-   "floor": "basement",
-   "room": "Cellar",
-   "type": "motion",
-   "name": "Cellar motion",
-   "entity": "binary_sensor.demo_cellar_motion"
-  },
-  {
-   "id": "light-technical",
-   "floor": "basement",
-   "room": "Technical",
-   "type": "light",
-   "name": "Technical light",
-   "entity": "light.demo_technical"
-  },
-  {
-   "id": "boiler-boiler",
-   "floor": "basement",
-   "room": "Technical",
-   "type": "boiler",
-   "name": "Boiler",
-   "entity": "sensor.demo_boiler"
-  },
-  {
-   "id": "inverter-inverter",
-   "floor": "basement",
-   "room": "Technical",
-   "type": "inverter",
-   "name": "Inverter",
-   "entity": "sensor.demo_inverter"
-  },
-  {
-   "id": "battery-house-battery",
-   "floor": "basement",
-   "room": "Technical",
-   "type": "battery",
-   "name": "House battery",
-   "entity": "sensor.demo_house_battery"
-  },
-  {
-   "id": "ups-ups",
-   "floor": "basement",
-   "room": "Technical",
-   "type": "ups",
-   "name": "UPS",
-   "entity": "sensor.demo_ups"
-  },
-  {
-   "id": "server-server",
-   "floor": "basement",
-   "room": "Technical",
-   "type": "server",
-   "name": "Server",
-   "entity": "sensor.demo_server"
-  },
-  {
-   "id": "access-point-ap-basement",
-   "floor": "basement",
-   "room": "Technical",
-   "type": "access_point",
-   "name": "Basement access point",
-   "entity": "sensor.demo_ap_basement"
-  },
-  {
-   "id": "other-water-meter",
-   "floor": "basement",
-   "room": "Technical",
-   "type": "other",
-   "name": "Water meter",
-   "entity": "sensor.demo_water_meter"
-  },
-  {
-   "id": "power-meter-power-meter",
-   "floor": "basement",
-   "room": "Technical",
-   "type": "power_meter",
-   "name": "Power meter",
-   "entity": "sensor.demo_power_meter"
-  },
-  {
-   "id": "light-wine-cellar",
-   "floor": "basement",
-   "room": "Wine cellar",
-   "type": "light",
-   "name": "Wine cellar light",
-   "entity": "light.demo_wine_cellar"
-  },
-  {
-   "id": "temp-wine-cellar-t",
-   "floor": "basement",
-   "room": "Wine cellar",
-   "type": "temp",
-   "name": "Wine cellar temperature",
-   "entity": "sensor.demo_wine_cellar_temperature"
-  },
-  {
-   "id": "humidity-wine-cellar-h",
-   "floor": "basement",
-   "room": "Wine cellar",
-   "type": "humidity",
-   "name": "Wine cellar humidity",
-   "entity": "sensor.demo_wine_cellar_humidity"
-  },
-  {
-   "id": "light-living",
-   "floor": "ground",
-   "room": "Living",
-   "type": "light",
-   "name": "Living light",
-   "entity": "light.demo_living"
-  },
-  {
-   "id": "heater-living-radiator",
-   "floor": "ground",
-   "room": "Living",
-   "type": "heater",
-   "name": "Living radiator",
-   "entity": "climate.demo_living_radiator"
-  },
-  {
-   "id": "tv-living-tv",
-   "floor": "ground",
-   "room": "Living",
-   "type": "tv",
-   "name": "Living TV",
-   "entity": "media_player.demo_living_tv"
-  },
-  {
-   "id": "plug-tv",
-   "floor": "ground",
-   "room": "Living",
-   "type": "plug",
-   "name": "TV plug",
-   "entity": "switch.demo_tv"
-  },
-  {
-   "id": "speaker-living-speaker",
-   "floor": "ground",
-   "room": "Living",
-   "type": "speaker",
-   "name": "Living speaker",
-   "entity": "media_player.demo_living_speaker"
-  },
-  {
-   "id": "motion-living-motion",
-   "floor": "ground",
-   "room": "Living",
-   "type": "motion",
-   "name": "Living motion",
-   "entity": "binary_sensor.demo_living_motion"
-  },
-  {
-   "id": "temp-living-t",
-   "floor": "ground",
-   "room": "Living",
-   "type": "temp",
-   "name": "Living temperature",
-   "entity": "sensor.demo_living_temperature"
-  },
-  {
-   "id": "vacuum-robot",
-   "floor": "ground",
-   "room": "Living",
-   "type": "vacuum",
-   "name": "Vacuum",
-   "entity": "vacuum.demo_robot"
-  },
-  {
-   "id": "person-alex",
-   "floor": "ground",
-   "room": "Living",
-   "type": "person",
-   "name": "Alex",
-   "entity": "person.demo_alex"
-  },
-  {
-   "id": "person-sam",
-   "floor": "ground",
-   "room": "Living",
-   "type": "person",
-   "name": "Sam",
-   "entity": "person.demo_sam"
-  },
-  {
-   "id": "light-kitchen",
-   "floor": "ground",
-   "room": "Kitchen",
-   "type": "light",
-   "name": "Kitchen light",
-   "entity": "light.demo_kitchen"
-  },
-  {
-   "id": "motion-kitchen-motion",
-   "floor": "ground",
-   "room": "Kitchen",
-   "type": "motion",
-   "name": "Kitchen motion",
-   "entity": "binary_sensor.demo_kitchen_motion"
-  },
-  {
-   "id": "temp-kitchen-t",
-   "floor": "ground",
-   "room": "Kitchen",
-   "type": "temp",
-   "name": "Kitchen temperature",
-   "entity": "sensor.demo_kitchen_temperature"
-  },
-  {
-   "id": "fan-kitchen-hood",
-   "floor": "ground",
-   "room": "Kitchen",
-   "type": "fan",
-   "name": "Cooker hood",
-   "entity": "fan.demo_kitchen_hood"
-  },
-  {
-   "id": "other-dishwasher",
-   "floor": "ground",
-   "room": "Kitchen",
-   "type": "other",
-   "name": "Dishwasher",
-   "entity": "sensor.demo_dishwasher"
-  },
-  {
-   "id": "plug-coffee",
-   "floor": "ground",
-   "room": "Kitchen",
-   "type": "plug",
-   "name": "Coffee plug",
-   "entity": "switch.demo_coffee"
-  },
-  {
-   "id": "light-dining",
-   "floor": "ground",
-   "room": "Dining",
-   "type": "light",
-   "name": "Dining light",
-   "entity": "light.demo_dining"
-  },
-  {
-   "id": "light-hall",
-   "floor": "ground",
-   "room": "Hall",
-   "type": "light",
-   "name": "Hall light",
-   "entity": "light.demo_hall"
-  },
-  {
-   "id": "switch-hall-switch",
-   "floor": "ground",
-   "room": "Hall",
-   "type": "switch",
-   "name": "Hall switch",
-   "entity": "switch.demo_hall_switch"
-  },
-  {
-   "id": "motion-hall-motion",
-   "floor": "ground",
-   "room": "Hall",
-   "type": "motion",
-   "name": "Hall motion",
-   "entity": "binary_sensor.demo_hall_motion"
-  },
-  {
-   "id": "camera-doorbell",
-   "floor": "ground",
-   "room": "Hall",
-   "type": "camera",
-   "name": "Doorbell camera",
-   "entity": "camera.demo_doorbell"
-  },
-  {
-   "id": "climate-thermostat",
-   "floor": "ground",
-   "room": "Hall",
-   "type": "climate",
-   "name": "Thermostat",
-   "entity": "climate.demo_thermostat"
-  },
-  {
-   "id": "alarm-alarm",
-   "floor": "ground",
-   "room": "Hall",
-   "type": "alarm",
-   "name": "Alarm",
-   "entity": "alarm_control_panel.demo_alarm"
-  },
-  {
-   "id": "siren-siren",
-   "floor": "ground",
-   "room": "Hall",
-   "type": "siren",
-   "name": "Siren",
-   "entity": "siren.demo_siren"
-  },
-  {
-   "id": "access-point-ap-ground",
-   "floor": "ground",
-   "room": "Hall",
-   "type": "access_point",
-   "name": "Ground access point",
-   "entity": "sensor.demo_ap_ground"
-  },
-  {
-   "id": "light-wc",
-   "floor": "ground",
-   "room": "WC",
-   "type": "light",
-   "name": "WC light",
-   "entity": "light.demo_wc"
-  },
-  {
-   "id": "light-cloakroom",
-   "floor": "ground",
-   "room": "Cloakroom",
-   "type": "light",
-   "name": "Cloakroom light",
-   "entity": "light.demo_cloakroom"
-  },
-  {
-   "id": "light-office",
-   "floor": "ground",
-   "room": "Office",
-   "type": "light",
-   "name": "Office light",
-   "entity": "light.demo_office"
-  },
-  {
-   "id": "computer-office-pc",
-   "floor": "ground",
-   "room": "Office",
-   "type": "computer",
-   "name": "Office computer",
-   "entity": "sensor.demo_office_pc"
-  },
-  {
-   "id": "printer-office-printer",
-   "floor": "ground",
-   "room": "Office",
-   "type": "printer",
-   "name": "Office printer",
-   "entity": "sensor.demo_office_printer"
-  },
-  {
-   "id": "media-office-media",
-   "floor": "ground",
-   "room": "Office",
-   "type": "media",
-   "name": "Office media",
-   "entity": "media_player.demo_office_media"
-  },
-  {
-   "id": "cover-office-blind",
-   "floor": "ground",
-   "room": "Office",
-   "type": "cover",
-   "name": "Office blind",
-   "entity": "cover.demo_office_blind"
-  },
-  {
-   "id": "radar-office-radar",
-   "floor": "ground",
-   "room": "Office",
-   "type": "radar",
-   "name": "Office radar",
-   "entity": "binary_sensor.demo_office_radar"
-  },
-  {
-   "id": "light-terrace",
-   "floor": "ground",
-   "room": "Garden",
-   "type": "light",
-   "name": "Terrace light",
-   "entity": "light.demo_terrace"
-  },
-  {
-   "id": "light-garden",
-   "floor": "ground",
-   "room": "Garden",
-   "type": "light",
-   "name": "Garden light",
-   "entity": "light.demo_garden"
-  },
-  {
-   "id": "light-driveway",
-   "floor": "ground",
-   "room": "Driveway",
-   "type": "light",
-   "name": "Driveway light",
-   "entity": "light.demo_driveway"
-  },
-  {
-   "id": "camera-driveway-camera",
-   "floor": "ground",
-   "room": "Driveway",
-   "type": "camera",
-   "name": "Driveway camera",
-   "entity": "camera.demo_driveway_camera"
-  },
-  {
-   "id": "camera-garden-camera",
-   "floor": "ground",
-   "room": "Garden",
-   "type": "camera",
-   "name": "Garden camera",
-   "entity": "camera.demo_garden_camera"
-  },
-  {
-   "id": "motion-driveway-motion",
-   "floor": "ground",
-   "room": "Driveway",
-   "type": "motion",
-   "name": "Driveway motion",
-   "entity": "binary_sensor.demo_driveway_motion"
-  },
-  {
-   "id": "temp-outdoor-t",
-   "floor": "ground",
-   "room": "Garden",
-   "type": "temp",
-   "name": "Outdoor temperature",
-   "entity": "sensor.demo_outdoor_temperature"
-  },
-  {
-   "id": "contact-garden-gate",
-   "floor": "ground",
-   "room": "Path",
-   "type": "contact",
-   "name": "Garden gate",
-   "entity": "binary_sensor.demo_garden_gate"
-  },
-  {
-   "id": "lock-terrace-door",
-   "floor": "ground",
-   "room": "Garden",
-   "type": "lock",
-   "name": "Terrace door lock",
-   "entity": "lock.demo_terrace_door"
-  },
-  {
-   "id": "car-wallbox",
-   "floor": "ground",
-   "room": "Driveway",
-   "type": "car",
-   "name": "Wallbox",
-   "entity": "sensor.demo_wallbox"
-  },
-  {
-   "id": "light-landing",
-   "floor": "first",
-   "room": "Landing",
-   "type": "light",
-   "name": "Landing light",
-   "entity": "light.demo_landing"
-  },
-  {
-   "id": "motion-landing-motion",
-   "floor": "first",
-   "room": "Landing",
-   "type": "motion",
-   "name": "Landing motion",
-   "entity": "binary_sensor.demo_landing_motion"
-  },
-  {
-   "id": "access-point-ap-first",
-   "floor": "first",
-   "room": "Landing",
-   "type": "access_point",
-   "name": "First access point",
-   "entity": "sensor.demo_ap_first"
-  },
-  {
-   "id": "light-kids",
-   "floor": "first",
-   "room": "Kids",
-   "type": "light",
-   "name": "Kids light",
-   "entity": "light.demo_kids"
-  },
-  {
-   "id": "heater-kids-radiator",
-   "floor": "first",
-   "room": "Kids",
-   "type": "heater",
-   "name": "Kids radiator",
-   "entity": "climate.demo_kids_radiator"
-  },
-  {
-   "id": "cover-kids-blind",
-   "floor": "first",
-   "room": "Kids",
-   "type": "cover",
-   "name": "Kids blind",
-   "entity": "cover.demo_kids_blind"
-  },
-  {
-   "id": "media-kids-speaker",
-   "floor": "first",
-   "room": "Kids",
-   "type": "media",
-   "name": "Kids media",
-   "entity": "media_player.demo_kids_speaker"
-  },
-  {
-   "id": "fan-kids-fan",
-   "floor": "first",
-   "room": "Kids",
-   "type": "fan",
-   "name": "Kids fan",
-   "entity": "fan.demo_kids_fan"
-  },
-  {
-   "id": "light-study",
-   "floor": "first",
-   "room": "Study",
-   "type": "light",
-   "name": "Study light",
-   "entity": "light.demo_study"
-  },
-  {
-   "id": "computer-study-pc",
-   "floor": "first",
-   "room": "Study",
-   "type": "computer",
-   "name": "Study computer",
-   "entity": "sensor.demo_study_pc"
-  },
-  {
-   "id": "light-master",
-   "floor": "first",
-   "room": "Master",
-   "type": "light",
-   "name": "Master light",
-   "entity": "light.demo_master"
-  },
-  {
-   "id": "temp-master-t",
-   "floor": "first",
-   "room": "Master",
-   "type": "temp",
-   "name": "Master temperature",
-   "entity": "sensor.demo_master_temperature"
-  },
-  {
-   "id": "ac-master-ac",
-   "floor": "first",
-   "room": "Master",
-   "type": "ac",
-   "name": "Master air conditioner",
-   "entity": "climate.demo_master_ac"
-  },
-  {
-   "id": "cover-master-blind",
-   "floor": "first",
-   "room": "Master",
-   "type": "cover",
-   "name": "Master blind",
-   "entity": "cover.demo_master_blind"
-  },
-  {
-   "id": "light-bathroom",
-   "floor": "first",
-   "room": "Bathroom",
-   "type": "light",
-   "name": "Bathroom light",
-   "entity": "light.demo_bathroom"
-  },
-  {
-   "id": "humidity-bathroom-h",
-   "floor": "first",
-   "room": "Bathroom",
-   "type": "humidity",
-   "name": "Bathroom humidity",
-   "entity": "sensor.demo_bathroom_humidity"
-  },
-  {
-   "id": "heater-towel-rail",
-   "floor": "first",
-   "room": "Bathroom",
-   "type": "heater",
-   "name": "Towel rail",
-   "entity": "climate.demo_towel_rail"
-  },
-  {
-   "id": "light-lounge",
-   "floor": "first",
-   "room": "Lounge",
-   "type": "light",
-   "name": "Lounge light",
-   "entity": "light.demo_lounge"
-  },
-  {
-   "id": "motion-lounge-motion",
-   "floor": "first",
-   "room": "Lounge",
-   "type": "motion",
-   "name": "Lounge motion",
-   "entity": "binary_sensor.demo_lounge_motion"
-  },
-  {
-   "id": "tv-lounge-tv",
-   "floor": "first",
-   "room": "Lounge",
-   "type": "tv",
-   "name": "Lounge TV",
-   "entity": "media_player.demo_lounge_tv"
-  },
-  {
-   "id": "speaker-lounge-speaker",
-   "floor": "first",
-   "room": "Lounge",
-   "type": "speaker",
-   "name": "Lounge speaker",
-   "entity": "media_player.demo_lounge_speaker"
-  },
-  {
-   "id": "heater-lounge-radiator",
-   "floor": "first",
-   "room": "Master",
-   "type": "heater",
-   "name": "Lounge radiator",
-   "entity": "climate.demo_lounge_radiator"
-  },
-  {
-   "id": "light-balcony",
-   "floor": "first",
-   "room": "Balcony",
-   "type": "light",
-   "name": "Balcony light",
-   "entity": "light.demo_balcony"
-  }
- ]
+  "version": 2,
+  "unit": "cm",
+  "north": 0,
+  "rotate": 0,
+  "floors": {
+    "basement": {
+      "title": "Basement",
+      "outline": [
+        [
+          0,
+          0
+        ],
+        [
+          1000,
+          0
+        ],
+        [
+          1000,
+          800
+        ],
+        [
+          0,
+          800
+        ]
+      ],
+      "owk": [
+        "external",
+        "external",
+        "external",
+        "external"
+      ],
+      "rooms": [
+        {
+          "id": "room-basement-1",
+          "name": "Laundry",
+          "area": "laundry",
+          "kind": "room",
+          "pts": [
+            [
+              0,
+              0
+            ],
+            [
+              300,
+              0
+            ],
+            [
+              300,
+              420
+            ],
+            [
+              0,
+              420
+            ]
+          ],
+          "wk": [
+            "external",
+            "wall",
+            "wall",
+            "external"
+          ],
+          "temps": [
+            "sensor.demo_laundry_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_laundry_humidity"
+          ]
+        },
+        {
+          "id": "room-basement-2",
+          "name": "Storage",
+          "area": "storage",
+          "kind": "room",
+          "pts": [
+            [
+              300,
+              0
+            ],
+            [
+              640,
+              0
+            ],
+            [
+              640,
+              420
+            ],
+            [
+              300,
+              420
+            ]
+          ],
+          "wk": [
+            "external",
+            "wall",
+            "wall",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_storage_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_storage_humidity"
+          ]
+        },
+        {
+          "id": "room-basement-3",
+          "name": "Gym",
+          "area": "gym",
+          "kind": "room",
+          "pts": [
+            [
+              640,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              420
+            ],
+            [
+              640,
+              420
+            ]
+          ],
+          "wk": [
+            "external",
+            "external",
+            "wall",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_gym_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_gym_humidity"
+          ]
+        },
+        {
+          "id": "room-basement-4",
+          "name": "Workshop",
+          "area": "workshop",
+          "kind": "room",
+          "pts": [
+            [
+              0,
+              420
+            ],
+            [
+              300,
+              420
+            ],
+            [
+              300,
+              800
+            ],
+            [
+              0,
+              800
+            ]
+          ],
+          "wk": [
+            "wall",
+            "wall",
+            "external",
+            "external"
+          ],
+          "temps": [
+            "sensor.demo_workshop_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_workshop_humidity"
+          ]
+        },
+        {
+          "id": "room-basement-5",
+          "name": "Cellar",
+          "area": "cellar",
+          "kind": "room",
+          "pts": [
+            [
+              300,
+              420
+            ],
+            [
+              520,
+              420
+            ],
+            [
+              520,
+              800
+            ],
+            [
+              300,
+              800
+            ]
+          ],
+          "wk": [
+            "wall",
+            "wall",
+            "external",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_cellar_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_cellar_humidity"
+          ]
+        },
+        {
+          "id": "room-basement-6",
+          "name": "Technical",
+          "area": "technical",
+          "kind": "room",
+          "pts": [
+            [
+              520,
+              420
+            ],
+            [
+              700,
+              420
+            ],
+            [
+              700,
+              800
+            ],
+            [
+              520,
+              800
+            ]
+          ],
+          "wk": [
+            "wall",
+            "wall",
+            "external",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_technical_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_technical_humidity"
+          ]
+        },
+        {
+          "id": "room-basement-7",
+          "name": "Wine cellar",
+          "area": "wine_cellar",
+          "kind": "room",
+          "pts": [
+            [
+              700,
+              420
+            ],
+            [
+              1000,
+              420
+            ],
+            [
+              1000,
+              800
+            ],
+            [
+              700,
+              800
+            ]
+          ],
+          "wk": [
+            "wall",
+            "external",
+            "external",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_wine_cellar_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_wine_cellar_humidity"
+          ]
+        }
+      ],
+      "walls": [],
+      "stairs": [
+        {
+          "id": "stairs-basement-1",
+          "name": "Stairs",
+          "pts": [
+            [
+              310,
+              440
+            ],
+            [
+              380,
+              440
+            ],
+            [
+              380,
+              680
+            ],
+            [
+              310,
+              680
+            ]
+          ],
+          "shape": "straight",
+          "steps": 6,
+          "rot": 0
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-basement-1",
+          "name": "Laundry door",
+          "kind": "door",
+          "a": [
+            300,
+            150
+          ],
+          "b": [
+            300,
+            240
+          ]
+        },
+        {
+          "id": "door-basement-2",
+          "name": "Gym door",
+          "kind": "door",
+          "a": [
+            640,
+            150
+          ],
+          "b": [
+            640,
+            240
+          ]
+        },
+        {
+          "id": "door-basement-3",
+          "name": "Cellar door",
+          "kind": "open",
+          "a": [
+            410,
+            420
+          ],
+          "b": [
+            490,
+            420
+          ]
+        },
+        {
+          "id": "door-basement-4",
+          "name": "Workshop door",
+          "kind": "door",
+          "a": [
+            300,
+            700
+          ],
+          "b": [
+            300,
+            790
+          ]
+        },
+        {
+          "id": "door-basement-5",
+          "name": "Technical door",
+          "kind": "door",
+          "a": [
+            520,
+            480
+          ],
+          "b": [
+            520,
+            570
+          ]
+        },
+        {
+          "id": "door-basement-6",
+          "name": "Wine cellar door",
+          "kind": "door",
+          "a": [
+            700,
+            700
+          ],
+          "b": [
+            700,
+            790
+          ]
+        },
+        {
+          "id": "door-basement-7",
+          "name": "Laundry light well",
+          "kind": "slit",
+          "a": [
+            100,
+            0
+          ],
+          "b": [
+            200,
+            0
+          ]
+        },
+        {
+          "id": "door-basement-8",
+          "name": "Gym light well",
+          "kind": "slit",
+          "a": [
+            740,
+            0
+          ],
+          "b": [
+            820,
+            0
+          ]
+        },
+        {
+          "id": "door-basement-9",
+          "name": "Gym light well 2",
+          "kind": "slit",
+          "a": [
+            860,
+            0
+          ],
+          "b": [
+            940,
+            0
+          ]
+        },
+        {
+          "id": "door-basement-10",
+          "name": "Workshop light well",
+          "kind": "slit",
+          "a": [
+            0,
+            520
+          ],
+          "b": [
+            0,
+            640
+          ]
+        }
+      ],
+      "openings": [],
+      "extras": [],
+      "devices": [
+        {
+          "id": "light-laundry",
+          "type": "light",
+          "entity": "light.demo_laundry",
+          "name": "Laundry light",
+          "x": 150,
+          "y": 210
+        },
+        {
+          "id": "motion-laundry-motion",
+          "type": "motion",
+          "entity": "binary_sensor.demo_laundry_motion",
+          "name": "Laundry motion",
+          "x": 40,
+          "y": 380
+        },
+        {
+          "id": "humidity-laundry-h",
+          "type": "humidity",
+          "entity": "sensor.demo_laundry_humidity",
+          "name": "Laundry humidity",
+          "x": 260,
+          "y": 380
+        },
+        {
+          "id": "plug-washer",
+          "type": "plug",
+          "entity": "switch.demo_washer",
+          "name": "Washer plug",
+          "x": 250,
+          "y": 60,
+          "power": "sensor.demo_washer_power"
+        },
+        {
+          "id": "vibration-washer-vibration",
+          "type": "vibration",
+          "entity": "binary_sensor.demo_washer_vibration",
+          "name": "Washer vibration",
+          "x": 200,
+          "y": 60
+        },
+        {
+          "id": "light-storage",
+          "type": "light",
+          "entity": "light.demo_storage",
+          "name": "Storage light",
+          "x": 470,
+          "y": 210
+        },
+        {
+          "id": "motion-storage-motion",
+          "type": "motion",
+          "entity": "binary_sensor.demo_storage_motion",
+          "name": "Storage motion",
+          "x": 470,
+          "y": 380
+        },
+        {
+          "id": "light-gym",
+          "type": "light",
+          "entity": "light.demo_gym",
+          "name": "Gym light",
+          "x": 820,
+          "y": 210
+        },
+        {
+          "id": "ac-gym-ac",
+          "type": "ac",
+          "entity": "climate.demo_gym_ac",
+          "name": "Gym air conditioner",
+          "x": 980,
+          "y": 60,
+          "linked": []
+        },
+        {
+          "id": "tv-gym-tv",
+          "type": "tv",
+          "entity": "media_player.demo_gym_tv",
+          "name": "Gym TV",
+          "x": 820,
+          "y": 40
+        },
+        {
+          "id": "screen-gym",
+          "type": "screen",
+          "entity": "light.demo_gym_panel",
+          "name": "Gym control screen",
+          "x": 652,
+          "y": 330
+        },
+        {
+          "id": "temp-gym-t",
+          "type": "temp",
+          "entity": "sensor.demo_gym_temperature",
+          "name": "Gym temperature",
+          "x": 700,
+          "y": 380
+        },
+        {
+          "id": "light-workshop",
+          "type": "light",
+          "entity": "light.demo_workshop",
+          "name": "Workshop light",
+          "x": 150,
+          "y": 560
+        },
+        {
+          "id": "plug-workshop-bench",
+          "type": "plug",
+          "entity": "switch.demo_workshop_bench",
+          "name": "Bench plug",
+          "x": 200,
+          "y": 450
+        },
+        {
+          "id": "light-cellar",
+          "type": "light",
+          "entity": "light.demo_cellar",
+          "name": "Cellar light",
+          "x": 460,
+          "y": 560
+        },
+        {
+          "id": "motion-cellar-motion",
+          "type": "motion",
+          "entity": "binary_sensor.demo_cellar_motion",
+          "name": "Cellar motion",
+          "x": 440,
+          "y": 440
+        },
+        {
+          "id": "light-technical",
+          "type": "light",
+          "entity": "light.demo_technical",
+          "name": "Technical light",
+          "x": 620,
+          "y": 620
+        },
+        {
+          "id": "boiler-boiler",
+          "type": "boiler",
+          "entity": "sensor.demo_boiler",
+          "name": "Boiler",
+          "x": 560,
+          "y": 480
+        },
+        {
+          "id": "inverter-inverter",
+          "type": "inverter",
+          "entity": "sensor.demo_inverter",
+          "name": "Inverter",
+          "x": 560,
+          "y": 570
+        },
+        {
+          "id": "battery-house-battery",
+          "type": "battery",
+          "entity": "sensor.demo_house_battery",
+          "name": "House battery",
+          "x": 560,
+          "y": 660
+        },
+        {
+          "id": "ups-ups",
+          "type": "ups",
+          "entity": "sensor.demo_ups",
+          "name": "UPS",
+          "x": 560,
+          "y": 750
+        },
+        {
+          "id": "server-server",
+          "type": "server",
+          "entity": "sensor.demo_server",
+          "name": "Server",
+          "x": 650,
+          "y": 480
+        },
+        {
+          "id": "access-point-ap-basement",
+          "type": "access_point",
+          "entity": "sensor.demo_ap_basement",
+          "name": "Basement access point",
+          "x": 650,
+          "y": 765
+        },
+        {
+          "id": "other-water-meter",
+          "type": "other",
+          "entity": "sensor.demo_water_meter",
+          "name": "Water meter",
+          "x": 650,
+          "y": 570
+        },
+        {
+          "id": "power-meter-power-meter",
+          "type": "power_meter",
+          "entity": "sensor.demo_power_meter",
+          "name": "Power meter",
+          "x": 650,
+          "y": 660
+        },
+        {
+          "id": "light-wine-cellar",
+          "type": "light",
+          "entity": "light.demo_wine_cellar",
+          "name": "Wine cellar light",
+          "x": 800,
+          "y": 560
+        },
+        {
+          "id": "temp-wine-cellar-t",
+          "type": "temp",
+          "entity": "sensor.demo_wine_cellar_temperature",
+          "name": "Wine cellar temperature",
+          "x": 740,
+          "y": 470
+        },
+        {
+          "id": "humidity-wine-cellar-h",
+          "type": "humidity",
+          "entity": "sensor.demo_wine_cellar_humidity",
+          "name": "Wine cellar humidity",
+          "x": 760,
+          "y": 470
+        },
+        {
+          "id": "air-wine-cellar",
+          "type": "air_quality",
+          "entity": "sensor.demo_basement_co2",
+          "name": "Basement air quality",
+          "x": 720,
+          "y": 490
+        },
+        {
+          "id": "smoke-wine-cellar",
+          "type": "smoke",
+          "entity": "binary_sensor.demo_basement_smoke",
+          "name": "Basement smoke detector",
+          "x": 760,
+          "y": 490
+        }
+      ],
+      "furniture": [
+        {
+          "id": "furniture-basement-1",
+          "symbol": "sink",
+          "x": 100,
+          "y": 35,
+          "rot": 0,
+          "w": 90,
+          "h": 50
+        },
+        {
+          "id": "furniture-basement-2",
+          "symbol": "cabinet",
+          "x": 30,
+          "y": 230,
+          "rot": 0,
+          "w": 50,
+          "h": 220
+        },
+        {
+          "id": "furniture-basement-3",
+          "symbol": "table",
+          "x": 230,
+          "y": 340,
+          "rot": 0,
+          "w": 100,
+          "h": 60
+        },
+        {
+          "id": "furniture-basement-4",
+          "symbol": "cabinet",
+          "x": 470,
+          "y": 30,
+          "rot": 0,
+          "w": 280,
+          "h": 50
+        },
+        {
+          "id": "furniture-basement-5",
+          "symbol": "cabinet",
+          "x": 320,
+          "y": 340,
+          "rot": 0,
+          "w": 40,
+          "h": 120
+        },
+        {
+          "id": "furniture-basement-6",
+          "symbol": "cabinet",
+          "x": 620,
+          "y": 340,
+          "rot": 0,
+          "w": 40,
+          "h": 120
+        },
+        {
+          "id": "furniture-basement-7",
+          "symbol": "table",
+          "x": 470,
+          "y": 340,
+          "rot": 0,
+          "w": 120,
+          "h": 70
+        },
+        {
+          "id": "furniture-basement-8",
+          "symbol": "chair",
+          "x": 760,
+          "y": 250,
+          "rot": 0,
+          "w": 60,
+          "h": 40
+        },
+        {
+          "id": "furniture-basement-9",
+          "symbol": "chair",
+          "x": 880,
+          "y": 250,
+          "rot": 0,
+          "w": 60,
+          "h": 40
+        },
+        {
+          "id": "furniture-basement-10",
+          "symbol": "cabinet",
+          "x": 980,
+          "y": 340,
+          "rot": 0,
+          "w": 40,
+          "h": 150
+        },
+        {
+          "id": "furniture-basement-11",
+          "symbol": "speaker",
+          "x": 700,
+          "y": 40,
+          "rot": 0,
+          "w": 30,
+          "h": 30
+        },
+        {
+          "id": "furniture-basement-12",
+          "symbol": "tv",
+          "x": 820,
+          "y": 28,
+          "rot": 0,
+          "w": 130,
+          "h": 18
+        },
+        {
+          "id": "furniture-basement-13",
+          "symbol": "table",
+          "x": 110,
+          "y": 520,
+          "rot": 0,
+          "w": 180,
+          "h": 70
+        },
+        {
+          "id": "furniture-basement-14",
+          "symbol": "chair",
+          "x": 235,
+          "y": 575,
+          "rot": 0,
+          "w": 45,
+          "h": 45
+        },
+        {
+          "id": "furniture-basement-15",
+          "symbol": "cabinet",
+          "x": 30,
+          "y": 740,
+          "rot": 0,
+          "w": 40,
+          "h": 100
+        },
+        {
+          "id": "furniture-basement-16",
+          "symbol": "cabinet",
+          "x": 500,
+          "y": 640,
+          "rot": 0,
+          "w": 30,
+          "h": 100
+        },
+        {
+          "id": "furniture-basement-17",
+          "symbol": "cabinet",
+          "x": 680,
+          "y": 520,
+          "rot": 0,
+          "w": 30,
+          "h": 100
+        },
+        {
+          "id": "furniture-basement-18",
+          "symbol": "cabinet",
+          "x": 680,
+          "y": 620,
+          "rot": 0,
+          "w": 30,
+          "h": 100
+        },
+        {
+          "id": "furniture-basement-19",
+          "symbol": "cabinet",
+          "x": 980,
+          "y": 590,
+          "rot": 0,
+          "w": 30,
+          "h": 340
+        },
+        {
+          "id": "furniture-basement-20",
+          "symbol": "cabinet",
+          "x": 850,
+          "y": 780,
+          "rot": 0,
+          "w": 220,
+          "h": 30
+        },
+        {
+          "id": "furniture-basement-21",
+          "symbol": "table",
+          "x": 830,
+          "y": 700,
+          "rot": 0,
+          "w": 100,
+          "h": 60
+        },
+        {
+          "id": "furniture-basement-22",
+          "symbol": "chair",
+          "x": 770,
+          "y": 700,
+          "rot": 0,
+          "w": 40,
+          "h": 40
+        }
+      ],
+      "unlinked": []
+    },
+    "ground": {
+      "title": "Ground",
+      "outline": [
+        [
+          0,
+          0
+        ],
+        [
+          1000,
+          0
+        ],
+        [
+          1000,
+          800
+        ],
+        [
+          0,
+          800
+        ]
+      ],
+      "owk": [
+        "external",
+        "external",
+        "external",
+        "external"
+      ],
+      "rooms": [
+        {
+          "id": "room-ground-1",
+          "name": "Living",
+          "area": "living",
+          "kind": "room",
+          "pts": [
+            [
+              0,
+              0
+            ],
+            [
+              520,
+              0
+            ],
+            [
+              520,
+              420
+            ],
+            [
+              0,
+              420
+            ]
+          ],
+          "wk": [
+            "external",
+            "none",
+            "wall",
+            "external"
+          ],
+          "temps": [
+            "sensor.demo_living_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_living_humidity"
+          ]
+        },
+        {
+          "id": "room-ground-2",
+          "name": "Kitchen",
+          "area": "kitchen",
+          "kind": "room",
+          "pts": [
+            [
+              520,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              420
+            ],
+            [
+              680,
+              420
+            ],
+            [
+              520,
+              420
+            ]
+          ],
+          "wk": [
+            "external",
+            "external",
+            "none",
+            "wall",
+            "none"
+          ],
+          "temps": [
+            "sensor.demo_kitchen_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_kitchen_humidity"
+          ]
+        },
+        {
+          "id": "room-ground-3",
+          "name": "Dining",
+          "area": "dining",
+          "kind": "room",
+          "pts": [
+            [
+              680,
+              420
+            ],
+            [
+              1000,
+              420
+            ],
+            [
+              1000,
+              800
+            ],
+            [
+              680,
+              800
+            ]
+          ],
+          "wk": [
+            "none",
+            "external",
+            "external",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_dining_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_dining_humidity"
+          ]
+        },
+        {
+          "id": "room-ground-4",
+          "name": "Hall",
+          "area": "hall",
+          "kind": "room",
+          "pts": [
+            [
+              300,
+              420
+            ],
+            [
+              520,
+              420
+            ],
+            [
+              520,
+              800
+            ],
+            [
+              300,
+              800
+            ]
+          ],
+          "wk": [
+            "wall",
+            "wall",
+            "external",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_hall_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_hall_humidity"
+          ]
+        },
+        {
+          "id": "room-ground-5",
+          "name": "WC",
+          "area": "wc",
+          "kind": "room",
+          "pts": [
+            [
+              520,
+              420
+            ],
+            [
+              680,
+              420
+            ],
+            [
+              680,
+              600
+            ],
+            [
+              520,
+              600
+            ]
+          ],
+          "wk": [
+            "wall",
+            "wall",
+            "wall",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_wc_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_wc_humidity"
+          ]
+        },
+        {
+          "id": "room-ground-6",
+          "name": "Cloakroom",
+          "area": "cloakroom",
+          "kind": "room",
+          "pts": [
+            [
+              520,
+              600
+            ],
+            [
+              680,
+              600
+            ],
+            [
+              680,
+              800
+            ],
+            [
+              520,
+              800
+            ]
+          ],
+          "wk": [
+            "wall",
+            "wall",
+            "external",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_cloakroom_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_cloakroom_humidity"
+          ]
+        },
+        {
+          "id": "room-ground-7",
+          "name": "Office",
+          "area": "office",
+          "kind": "room",
+          "pts": [
+            [
+              0,
+              420
+            ],
+            [
+              300,
+              420
+            ],
+            [
+              300,
+              800
+            ],
+            [
+              0,
+              800
+            ]
+          ],
+          "wk": [
+            "wall",
+            "wall",
+            "external",
+            "external"
+          ],
+          "temps": [
+            "sensor.demo_office_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_office_humidity"
+          ]
+        },
+        {
+          "id": "room-ground-8",
+          "name": "Garden",
+          "area": "",
+          "kind": "garden",
+          "pts": [
+            [
+              1000,
+              0
+            ],
+            [
+              1450,
+              0
+            ],
+            [
+              1450,
+              800
+            ],
+            [
+              1000,
+              800
+            ]
+          ],
+          "wk": [
+            "boundary",
+            "fence",
+            "fence",
+            "fence"
+          ]
+        },
+        {
+          "id": "room-ground-9",
+          "name": "Terrace",
+          "area": "",
+          "kind": "terrace",
+          "pts": [
+            [
+              1000,
+              60
+            ],
+            [
+              1200,
+              60
+            ],
+            [
+              1200,
+              780
+            ],
+            [
+              1000,
+              780
+            ]
+          ],
+          "wk": [
+            "none",
+            "none",
+            "none",
+            "none"
+          ]
+        },
+        {
+          "id": "room-ground-10",
+          "name": "Pond",
+          "area": "",
+          "kind": "water",
+          "pts": [
+            [
+              1270,
+              560
+            ],
+            [
+              1340,
+              540
+            ],
+            [
+              1395,
+              590
+            ],
+            [
+              1370,
+              650
+            ],
+            [
+              1300,
+              660
+            ],
+            [
+              1265,
+              615
+            ]
+          ],
+          "wk": [
+            "boundary",
+            "boundary",
+            "boundary",
+            "boundary",
+            "boundary",
+            "boundary"
+          ]
+        },
+        {
+          "id": "room-ground-11",
+          "name": "Front garden",
+          "area": "",
+          "kind": "garden",
+          "pts": [
+            [
+              0,
+              800
+            ],
+            [
+              330,
+              800
+            ],
+            [
+              330,
+              1000
+            ],
+            [
+              0,
+              1000
+            ]
+          ],
+          "wk": [
+            "boundary",
+            "fence",
+            "fence",
+            "fence"
+          ]
+        },
+        {
+          "id": "room-ground-12",
+          "name": "Path",
+          "area": "",
+          "kind": "pavement",
+          "pts": [
+            [
+              330,
+              800
+            ],
+            [
+              460,
+              800
+            ],
+            [
+              460,
+              1000
+            ],
+            [
+              330,
+              1000
+            ]
+          ],
+          "wk": [
+            "boundary",
+            "boundary",
+            "boundary",
+            "boundary"
+          ]
+        },
+        {
+          "id": "room-ground-13",
+          "name": "Driveway",
+          "area": "",
+          "kind": "pavement",
+          "pts": [
+            [
+              460,
+              800
+            ],
+            [
+              1000,
+              800
+            ],
+            [
+              1000,
+              1000
+            ],
+            [
+              460,
+              1000
+            ]
+          ],
+          "wk": [
+            "boundary",
+            "boundary",
+            "boundary",
+            "boundary"
+          ]
+        }
+      ],
+      "walls": [],
+      "stairs": [
+        {
+          "id": "stairs-ground-1",
+          "name": "Stairs",
+          "pts": [
+            [
+              310,
+              440
+            ],
+            [
+              380,
+              440
+            ],
+            [
+              380,
+              680
+            ],
+            [
+              310,
+              680
+            ]
+          ],
+          "shape": "straight",
+          "steps": 6,
+          "rot": 0
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-ground-1",
+          "name": "Front door",
+          "kind": "door",
+          "a": [
+            350,
+            800
+          ],
+          "b": [
+            450,
+            800
+          ],
+          "sensors": [
+            "binary_sensor.demo_front_door"
+          ],
+          "locks": [
+            "lock.demo_front_door"
+          ]
+        },
+        {
+          "id": "door-ground-2",
+          "name": "Living window",
+          "kind": "window",
+          "a": [
+            100,
+            0
+          ],
+          "b": [
+            320,
+            0
+          ],
+          "sensors": [
+            "binary_sensor.demo_living_window"
+          ]
+        },
+        {
+          "id": "door-ground-3",
+          "name": "Living bay window",
+          "kind": "fullwindow",
+          "a": [
+            0,
+            120
+          ],
+          "b": [
+            0,
+            320
+          ],
+          "cover": "cover.demo_living_curtains"
+        },
+        {
+          "id": "door-ground-4",
+          "name": "Kitchen window",
+          "kind": "window",
+          "a": [
+            600,
+            0
+          ],
+          "b": [
+            820,
+            0
+          ],
+          "sensors": [
+            "binary_sensor.demo_kitchen_window"
+          ]
+        },
+        {
+          "id": "door-ground-5",
+          "name": "Patio door",
+          "kind": "glass",
+          "a": [
+            1000,
+            80
+          ],
+          "b": [
+            1000,
+            260
+          ],
+          "sensors": [
+            "binary_sensor.demo_patio_door"
+          ]
+        },
+        {
+          "id": "door-ground-6",
+          "name": "Dining terrace door",
+          "kind": "glass",
+          "a": [
+            1000,
+            520
+          ],
+          "b": [
+            1000,
+            680
+          ],
+          "sensors": [
+            "binary_sensor.demo_dining_door"
+          ]
+        },
+        {
+          "id": "door-ground-7",
+          "name": "Dining window",
+          "kind": "window",
+          "a": [
+            740,
+            800
+          ],
+          "b": [
+            920,
+            800
+          ],
+          "sensors": [
+            "binary_sensor.demo_dining_window"
+          ]
+        },
+        {
+          "id": "door-ground-8",
+          "name": "Cloakroom window",
+          "kind": "slit",
+          "a": [
+            560,
+            800
+          ],
+          "b": [
+            640,
+            800
+          ]
+        },
+        {
+          "id": "door-ground-9",
+          "name": "Office window",
+          "kind": "window",
+          "a": [
+            0,
+            520
+          ],
+          "b": [
+            0,
+            700
+          ],
+          "sensors": [
+            "binary_sensor.demo_office_window"
+          ]
+        },
+        {
+          "id": "door-ground-10",
+          "name": "Office south window",
+          "kind": "window",
+          "a": [
+            80,
+            800
+          ],
+          "b": [
+            220,
+            800
+          ]
+        },
+        {
+          "id": "door-ground-11",
+          "name": "Hall to Living",
+          "kind": "open",
+          "a": [
+            410,
+            420
+          ],
+          "b": [
+            490,
+            420
+          ]
+        },
+        {
+          "id": "door-ground-12",
+          "name": "WC door",
+          "kind": "door",
+          "a": [
+            520,
+            450
+          ],
+          "b": [
+            520,
+            530
+          ]
+        },
+        {
+          "id": "door-ground-13",
+          "name": "Cloakroom door",
+          "kind": "door",
+          "a": [
+            520,
+            650
+          ],
+          "b": [
+            520,
+            730
+          ]
+        },
+        {
+          "id": "door-ground-14",
+          "name": "Office door",
+          "kind": "door",
+          "a": [
+            300,
+            700
+          ],
+          "b": [
+            300,
+            790
+          ]
+        }
+      ],
+      "openings": [],
+      "extras": [],
+      "devices": [
+        {
+          "id": "light-living",
+          "type": "light",
+          "entity": "light.demo_living",
+          "name": "Living light",
+          "x": 260,
+          "y": 200,
+          "bound": "switch.demo_living_relay"
+        },
+        {
+          "id": "heater-living-radiator",
+          "type": "heater",
+          "entity": "climate.demo_living_radiator",
+          "name": "Living radiator",
+          "a": [
+            10,
+            130
+          ],
+          "b": [
+            10,
+            300
+          ]
+        },
+        {
+          "id": "tv-living-tv",
+          "type": "tv",
+          "entity": "media_player.demo_living_tv",
+          "name": "Living TV",
+          "x": 260,
+          "y": 50
+        },
+        {
+          "id": "plug-tv",
+          "type": "plug",
+          "entity": "switch.demo_tv",
+          "name": "TV plug",
+          "x": 60,
+          "y": 390,
+          "power": "sensor.demo_tv_power"
+        },
+        {
+          "id": "speaker-living-speaker",
+          "type": "speaker",
+          "entity": "media_player.demo_living_speaker",
+          "name": "Living speaker",
+          "x": 460,
+          "y": 60
+        },
+        {
+          "id": "motion-living-motion",
+          "type": "motion",
+          "entity": "binary_sensor.demo_living_motion",
+          "name": "Living motion",
+          "x": 480,
+          "y": 220
+        },
+        {
+          "id": "temp-living-t",
+          "type": "temp",
+          "entity": "sensor.demo_living_temperature",
+          "name": "Living temperature",
+          "x": 400,
+          "y": 120
+        },
+        {
+          "id": "vacuum-robot",
+          "type": "vacuum",
+          "entity": "vacuum.demo_robot",
+          "name": "Vacuum",
+          "x": 470,
+          "y": 385
+        },
+        {
+          "id": "person-alex",
+          "type": "person",
+          "entity": "person.demo_alex",
+          "name": "Alex",
+          "x": 200,
+          "y": 360
+        },
+        {
+          "id": "person-sam",
+          "type": "person",
+          "entity": "person.demo_sam",
+          "name": "Sam",
+          "x": 500,
+          "y": 330
+        },
+        {
+          "id": "light-kitchen",
+          "type": "light",
+          "entity": "light.demo_kitchen",
+          "name": "Kitchen light",
+          "x": 760,
+          "y": 200
+        },
+        {
+          "id": "motion-kitchen-motion",
+          "type": "motion",
+          "entity": "binary_sensor.demo_kitchen_motion",
+          "name": "Kitchen motion",
+          "x": 620,
+          "y": 360
+        },
+        {
+          "id": "temp-kitchen-t",
+          "type": "temp",
+          "entity": "sensor.demo_kitchen_temperature",
+          "name": "Kitchen temperature",
+          "x": 980,
+          "y": 380
+        },
+        {
+          "id": "fan-kitchen-hood",
+          "type": "fan",
+          "entity": "fan.demo_kitchen_hood",
+          "name": "Cooker hood",
+          "x": 850,
+          "y": 35
+        },
+        {
+          "id": "other-dishwasher",
+          "type": "other",
+          "entity": "sensor.demo_dishwasher",
+          "name": "Dishwasher",
+          "x": 960,
+          "y": 35
+        },
+        {
+          "id": "plug-coffee",
+          "type": "plug",
+          "entity": "switch.demo_coffee",
+          "name": "Coffee plug",
+          "x": 560,
+          "y": 40
+        },
+        {
+          "id": "light-dining",
+          "type": "light",
+          "entity": "light.demo_dining",
+          "name": "Dining light",
+          "x": 840,
+          "y": 540
+        },
+        {
+          "id": "light-hall",
+          "type": "light",
+          "entity": "light.demo_hall",
+          "name": "Hall light",
+          "x": 440,
+          "y": 560
+        },
+        {
+          "id": "switch-hall-switch",
+          "type": "switch",
+          "entity": "switch.demo_hall_switch",
+          "name": "Hall switch",
+          "x": 495,
+          "y": 440
+        },
+        {
+          "id": "motion-hall-motion",
+          "type": "motion",
+          "entity": "binary_sensor.demo_hall_motion",
+          "name": "Hall motion",
+          "x": 440,
+          "y": 760
+        },
+        {
+          "id": "camera-doorbell",
+          "type": "camera",
+          "entity": "camera.demo_doorbell",
+          "name": "Doorbell camera",
+          "x": 330,
+          "y": 780
+        },
+        {
+          "id": "climate-thermostat",
+          "type": "climate",
+          "entity": "climate.demo_thermostat",
+          "name": "Thermostat",
+          "x": 495,
+          "y": 620
+        },
+        {
+          "id": "alarm-alarm",
+          "type": "alarm",
+          "entity": "alarm_control_panel.demo_alarm",
+          "name": "Alarm",
+          "x": 330,
+          "y": 700
+        },
+        {
+          "id": "siren-siren",
+          "type": "siren",
+          "entity": "siren.demo_siren",
+          "name": "Siren",
+          "x": 450,
+          "y": 430
+        },
+        {
+          "id": "access-point-ap-ground",
+          "type": "access_point",
+          "entity": "sensor.demo_ap_ground",
+          "name": "Ground access point",
+          "x": 330,
+          "y": 430
+        },
+        {
+          "id": "light-wc",
+          "type": "light",
+          "entity": "light.demo_wc",
+          "name": "WC light",
+          "x": 600,
+          "y": 520
+        },
+        {
+          "id": "light-cloakroom",
+          "type": "light",
+          "entity": "light.demo_cloakroom",
+          "name": "Cloakroom light",
+          "x": 600,
+          "y": 660
+        },
+        {
+          "id": "light-office",
+          "type": "light",
+          "entity": "light.demo_office",
+          "name": "Office light",
+          "x": 150,
+          "y": 600
+        },
+        {
+          "id": "computer-office-pc",
+          "type": "computer",
+          "entity": "sensor.demo_office_pc",
+          "name": "Office computer",
+          "x": 150,
+          "y": 470
+        },
+        {
+          "id": "printer-office-printer",
+          "type": "printer",
+          "entity": "sensor.demo_office_printer",
+          "name": "Office printer",
+          "x": 270,
+          "y": 780
+        },
+        {
+          "id": "media-office-media",
+          "type": "media",
+          "entity": "media_player.demo_office_media",
+          "name": "Office media",
+          "x": 60,
+          "y": 760
+        },
+        {
+          "id": "cover-office-blind",
+          "type": "cover",
+          "entity": "cover.demo_office_blind",
+          "name": "Office blind",
+          "x": 100,
+          "y": 790
+        },
+        {
+          "id": "radar-office-radar",
+          "type": "radar",
+          "entity": "binary_sensor.demo_office_radar",
+          "name": "Office radar",
+          "x": 270,
+          "y": 440,
+          "targets": [
+            {
+              "x": "sensor.demo_office_radar_x",
+              "y": "sensor.demo_office_radar_y"
+            }
+          ],
+          "rot": 135
+        },
+        {
+          "id": "light-terrace",
+          "type": "light",
+          "entity": "light.demo_terrace",
+          "name": "Terrace light",
+          "x": 1100,
+          "y": 120
+        },
+        {
+          "id": "light-garden",
+          "type": "light",
+          "entity": "light.demo_garden",
+          "name": "Garden light",
+          "x": 1320,
+          "y": 400
+        },
+        {
+          "id": "light-driveway",
+          "type": "light",
+          "entity": "light.demo_driveway",
+          "name": "Driveway light",
+          "x": 980,
+          "y": 900
+        },
+        {
+          "id": "camera-driveway-camera",
+          "type": "camera",
+          "entity": "camera.demo_driveway_camera",
+          "name": "Driveway camera",
+          "x": 470,
+          "y": 815,
+          "rot": 90
+        },
+        {
+          "id": "camera-garden-camera",
+          "type": "camera",
+          "entity": "camera.demo_garden_camera",
+          "name": "Garden camera",
+          "x": 1010,
+          "y": 20,
+          "rot": 45
+        },
+        {
+          "id": "motion-driveway-motion",
+          "type": "motion",
+          "entity": "binary_sensor.demo_driveway_motion",
+          "name": "Driveway motion",
+          "x": 540,
+          "y": 985
+        },
+        {
+          "id": "temp-outdoor-t",
+          "type": "temp",
+          "entity": "sensor.demo_outdoor_temperature",
+          "name": "Outdoor temperature",
+          "x": 1180,
+          "y": 760
+        },
+        {
+          "id": "contact-garden-gate",
+          "type": "contact",
+          "entity": "binary_sensor.demo_garden_gate",
+          "name": "Garden gate",
+          "x": 395,
+          "y": 995
+        },
+        {
+          "id": "lock-terrace-door",
+          "type": "lock",
+          "entity": "lock.demo_terrace_door",
+          "name": "Terrace door lock",
+          "x": 1010,
+          "y": 170
+        },
+        {
+          "id": "car-wallbox",
+          "type": "car",
+          "entity": "sensor.demo_wallbox",
+          "name": "Wallbox",
+          "x": 950,
+          "y": 830
+        }
+      ],
+      "furniture": [
+        {
+          "id": "furniture-ground-1",
+          "symbol": "tv",
+          "x": 260,
+          "y": 28,
+          "rot": 0,
+          "w": 150,
+          "h": 20
+        },
+        {
+          "id": "furniture-ground-2",
+          "symbol": "sofa",
+          "x": 260,
+          "y": 360,
+          "rot": 180,
+          "w": 210,
+          "h": 80
+        },
+        {
+          "id": "furniture-ground-3",
+          "symbol": "table",
+          "x": 260,
+          "y": 288,
+          "rot": 0,
+          "w": 110,
+          "h": 40
+        },
+        {
+          "id": "furniture-ground-4",
+          "symbol": "chair",
+          "x": 100,
+          "y": 300,
+          "rot": 0,
+          "w": 60,
+          "h": 60
+        },
+        {
+          "id": "furniture-ground-5",
+          "symbol": "chair",
+          "x": 430,
+          "y": 300,
+          "rot": 0,
+          "w": 60,
+          "h": 60
+        },
+        {
+          "id": "furniture-ground-6",
+          "symbol": "cabinet",
+          "x": 60,
+          "y": 395,
+          "rot": 0,
+          "w": 100,
+          "h": 40
+        },
+        {
+          "id": "furniture-ground-7",
+          "symbol": "tree",
+          "x": 485,
+          "y": 35,
+          "rot": 0,
+          "w": 50,
+          "h": 50
+        },
+        {
+          "id": "furniture-ground-8",
+          "symbol": "speaker",
+          "x": 460,
+          "y": 45,
+          "rot": 0,
+          "w": 28,
+          "h": 28
+        },
+        {
+          "id": "furniture-ground-9",
+          "symbol": "sink",
+          "x": 760,
+          "y": 30,
+          "rot": 0,
+          "w": 120,
+          "h": 55
+        },
+        {
+          "id": "furniture-ground-10",
+          "symbol": "cabinet",
+          "x": 600,
+          "y": 30,
+          "rot": 0,
+          "w": 100,
+          "h": 55
+        },
+        {
+          "id": "furniture-ground-11",
+          "symbol": "cabinet",
+          "x": 920,
+          "y": 30,
+          "rot": 0,
+          "w": 120,
+          "h": 55
+        },
+        {
+          "id": "furniture-ground-12",
+          "symbol": "table",
+          "x": 760,
+          "y": 300,
+          "rot": 0,
+          "w": 220,
+          "h": 80
+        },
+        {
+          "id": "furniture-ground-13",
+          "symbol": "chair",
+          "x": 690,
+          "y": 365,
+          "rot": 0,
+          "w": 45,
+          "h": 45
+        },
+        {
+          "id": "furniture-ground-14",
+          "symbol": "chair",
+          "x": 760,
+          "y": 365,
+          "rot": 0,
+          "w": 45,
+          "h": 45
+        },
+        {
+          "id": "furniture-ground-15",
+          "symbol": "chair",
+          "x": 830,
+          "y": 365,
+          "rot": 0,
+          "w": 45,
+          "h": 45
+        },
+        {
+          "id": "furniture-ground-16",
+          "symbol": "table",
+          "x": 840,
+          "y": 690,
+          "rot": 0,
+          "w": 170,
+          "h": 90
+        },
+        {
+          "id": "furniture-ground-17",
+          "symbol": "chair",
+          "x": 722,
+          "y": 690,
+          "rot": 0,
+          "w": 45,
+          "h": 45
+        },
+        {
+          "id": "furniture-ground-18",
+          "symbol": "chair",
+          "x": 958,
+          "y": 690,
+          "rot": 0,
+          "w": 45,
+          "h": 45
+        },
+        {
+          "id": "furniture-ground-19",
+          "symbol": "chair",
+          "x": 800,
+          "y": 758,
+          "rot": 0,
+          "w": 45,
+          "h": 45
+        },
+        {
+          "id": "furniture-ground-20",
+          "symbol": "chair",
+          "x": 880,
+          "y": 758,
+          "rot": 0,
+          "w": 45,
+          "h": 45
+        },
+        {
+          "id": "furniture-ground-21",
+          "symbol": "cabinet",
+          "x": 702,
+          "y": 540,
+          "rot": 0,
+          "w": 30,
+          "h": 120
+        },
+        {
+          "id": "furniture-ground-22",
+          "symbol": "cabinet",
+          "x": 503,
+          "y": 585,
+          "rot": 0,
+          "w": 30,
+          "h": 90
+        },
+        {
+          "id": "furniture-ground-23",
+          "symbol": "tree",
+          "x": 330,
+          "y": 770,
+          "rot": 0,
+          "w": 45,
+          "h": 45
+        },
+        {
+          "id": "furniture-ground-24",
+          "symbol": "toilet",
+          "x": 560,
+          "y": 570,
+          "rot": 0,
+          "w": 40,
+          "h": 55
+        },
+        {
+          "id": "furniture-ground-25",
+          "symbol": "sink",
+          "x": 660,
+          "y": 452,
+          "rot": 90,
+          "w": 50,
+          "h": 30
+        },
+        {
+          "id": "furniture-ground-26",
+          "symbol": "cabinet",
+          "x": 610,
+          "y": 780,
+          "rot": 0,
+          "w": 110,
+          "h": 30
+        },
+        {
+          "id": "furniture-ground-27",
+          "symbol": "table",
+          "x": 150,
+          "y": 470,
+          "rot": 0,
+          "w": 170,
+          "h": 70
+        },
+        {
+          "id": "furniture-ground-28",
+          "symbol": "computer",
+          "x": 150,
+          "y": 470,
+          "rot": 0,
+          "w": 60,
+          "h": 40
+        },
+        {
+          "id": "furniture-ground-29",
+          "symbol": "chair",
+          "x": 150,
+          "y": 535,
+          "rot": 0,
+          "w": 50,
+          "h": 50
+        },
+        {
+          "id": "furniture-ground-30",
+          "symbol": "cabinet",
+          "x": 275,
+          "y": 590,
+          "rot": 0,
+          "w": 40,
+          "h": 200
+        },
+        {
+          "id": "furniture-ground-31",
+          "symbol": "car",
+          "x": 730,
+          "y": 905,
+          "rot": 0,
+          "w": 360,
+          "h": 165,
+          "name": "Car",
+          "entity": "device_tracker.demo_car",
+          "model": "electric",
+          "color": "#6c8ebf",
+          "attached": [
+            "sensor.demo_car_battery",
+            "binary_sensor.demo_car_charging",
+            "lock.demo_car_doors",
+            "sensor.demo_car_range"
+          ]
+        },
+        {
+          "id": "furniture-ground-32",
+          "symbol": "tree",
+          "x": 80,
+          "y": 880,
+          "rot": 0,
+          "w": 100,
+          "h": 100
+        },
+        {
+          "id": "furniture-ground-33",
+          "symbol": "tree",
+          "x": 250,
+          "y": 940,
+          "rot": 0,
+          "w": 70,
+          "h": 70
+        },
+        {
+          "id": "furniture-ground-34",
+          "symbol": "tree",
+          "x": 1330,
+          "y": 130,
+          "rot": 0,
+          "w": 120,
+          "h": 120
+        },
+        {
+          "id": "furniture-ground-35",
+          "symbol": "tree",
+          "x": 1385,
+          "y": 420,
+          "rot": 0,
+          "w": 90,
+          "h": 90
+        },
+        {
+          "id": "furniture-ground-36",
+          "symbol": "tree",
+          "x": 1245,
+          "y": 745,
+          "rot": 0,
+          "w": 90,
+          "h": 90
+        },
+        {
+          "id": "furniture-ground-37",
+          "symbol": "tree",
+          "x": 1425,
+          "y": 740,
+          "rot": 0,
+          "w": 70,
+          "h": 70
+        },
+        {
+          "id": "furniture-ground-38",
+          "symbol": "patio-wood",
+          "x": 1100,
+          "y": 250,
+          "rot": 0,
+          "w": 180,
+          "h": 340
+        },
+        {
+          "id": "furniture-ground-39",
+          "symbol": "table",
+          "x": 1100,
+          "y": 250,
+          "rot": 0,
+          "w": 100,
+          "h": 100
+        },
+        {
+          "id": "furniture-ground-40",
+          "symbol": "chair",
+          "x": 1100,
+          "y": 180,
+          "rot": 0,
+          "w": 40,
+          "h": 40
+        },
+        {
+          "id": "furniture-ground-41",
+          "symbol": "chair",
+          "x": 1100,
+          "y": 320,
+          "rot": 0,
+          "w": 40,
+          "h": 40
+        },
+        {
+          "id": "furniture-ground-42",
+          "symbol": "chair",
+          "x": 1040,
+          "y": 250,
+          "rot": 0,
+          "w": 40,
+          "h": 40
+        },
+        {
+          "id": "furniture-ground-43",
+          "symbol": "chair",
+          "x": 1160,
+          "y": 250,
+          "rot": 0,
+          "w": 40,
+          "h": 40
+        },
+        {
+          "id": "furniture-ground-44",
+          "symbol": "patio-concrete",
+          "x": 1100,
+          "y": 620,
+          "rot": 0,
+          "w": 180,
+          "h": 200
+        },
+        {
+          "id": "furniture-ground-45",
+          "symbol": "sofa",
+          "x": 1100,
+          "y": 650,
+          "rot": 180,
+          "w": 160,
+          "h": 75
+        },
+        {
+          "id": "furniture-ground-46",
+          "symbol": "table",
+          "x": 1100,
+          "y": 565,
+          "rot": 0,
+          "w": 70,
+          "h": 50
+        }
+      ],
+      "unlinked": [
+        {
+          "id": "unlinked-ground-1",
+          "type": "ac",
+          "name": "Heat pump",
+          "x": 1425,
+          "y": 40,
+          "rot": 0,
+          "scale": 1,
+          "attached": [
+            "sensor.demo_heatpump_power"
+          ]
+        }
+      ]
+    },
+    "first": {
+      "title": "First",
+      "outline": [
+        [
+          0,
+          0
+        ],
+        [
+          1000,
+          0
+        ],
+        [
+          1000,
+          800
+        ],
+        [
+          0,
+          800
+        ]
+      ],
+      "owk": [
+        "external",
+        "external",
+        "external",
+        "external"
+      ],
+      "rooms": [
+        {
+          "id": "room-first-1",
+          "name": "Landing",
+          "area": "landing",
+          "kind": "room",
+          "pts": [
+            [
+              300,
+              0
+            ],
+            [
+              440,
+              0
+            ],
+            [
+              440,
+              800
+            ],
+            [
+              300,
+              800
+            ]
+          ],
+          "wk": [
+            "external",
+            "wall",
+            "external",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_landing_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_landing_humidity"
+          ]
+        },
+        {
+          "id": "room-first-2",
+          "name": "Kids",
+          "area": "kids",
+          "kind": "room",
+          "pts": [
+            [
+              0,
+              0
+            ],
+            [
+              300,
+              0
+            ],
+            [
+              300,
+              400
+            ],
+            [
+              0,
+              400
+            ]
+          ],
+          "wk": [
+            "external",
+            "wall",
+            "wall",
+            "external"
+          ],
+          "temps": [
+            "sensor.demo_kids_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_kids_humidity"
+          ]
+        },
+        {
+          "id": "room-first-3",
+          "name": "Study",
+          "area": "study",
+          "kind": "room",
+          "pts": [
+            [
+              0,
+              400
+            ],
+            [
+              300,
+              400
+            ],
+            [
+              300,
+              800
+            ],
+            [
+              0,
+              800
+            ]
+          ],
+          "wk": [
+            "wall",
+            "wall",
+            "external",
+            "external"
+          ],
+          "temps": [
+            "sensor.demo_study_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_study_humidity"
+          ]
+        },
+        {
+          "id": "room-first-4",
+          "name": "Master",
+          "area": "master",
+          "kind": "room",
+          "pts": [
+            [
+              440,
+              0
+            ],
+            [
+              800,
+              0
+            ],
+            [
+              800,
+              400
+            ],
+            [
+              440,
+              400
+            ]
+          ],
+          "wk": [
+            "external",
+            "wall",
+            "wall",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_master_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_master_humidity"
+          ]
+        },
+        {
+          "id": "room-first-5",
+          "name": "Bathroom",
+          "area": "bathroom",
+          "kind": "room",
+          "pts": [
+            [
+              800,
+              0
+            ],
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              400
+            ],
+            [
+              800,
+              400
+            ]
+          ],
+          "wk": [
+            "external",
+            "external",
+            "wall",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_bathroom_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_bathroom_humidity"
+          ]
+        },
+        {
+          "id": "room-first-6",
+          "name": "Lounge",
+          "area": "lounge",
+          "kind": "room",
+          "pts": [
+            [
+              440,
+              400
+            ],
+            [
+              1000,
+              400
+            ],
+            [
+              1000,
+              800
+            ],
+            [
+              440,
+              800
+            ]
+          ],
+          "wk": [
+            "wall",
+            "external",
+            "external",
+            "wall"
+          ],
+          "temps": [
+            "sensor.demo_lounge_temperature"
+          ],
+          "humidity": [
+            "sensor.demo_lounge_humidity"
+          ]
+        },
+        {
+          "id": "room-first-7",
+          "name": "Balcony",
+          "area": "",
+          "kind": "terrace",
+          "pts": [
+            [
+              600,
+              800
+            ],
+            [
+              960,
+              800
+            ],
+            [
+              960,
+              920
+            ],
+            [
+              600,
+              920
+            ]
+          ],
+          "wk": [
+            "none",
+            "parapet",
+            "parapet",
+            "parapet"
+          ]
+        }
+      ],
+      "walls": [],
+      "stairs": [
+        {
+          "id": "stairs-first-1",
+          "name": "Stairs",
+          "pts": [
+            [
+              310,
+              440
+            ],
+            [
+              380,
+              440
+            ],
+            [
+              380,
+              680
+            ],
+            [
+              310,
+              680
+            ]
+          ],
+          "shape": "straight",
+          "steps": 6,
+          "rot": 0
+        }
+      ],
+      "doors": [
+        {
+          "id": "door-first-1",
+          "name": "Kids window",
+          "kind": "window",
+          "a": [
+            80,
+            0
+          ],
+          "b": [
+            220,
+            0
+          ],
+          "sensors": [
+            "binary_sensor.demo_kids_window"
+          ]
+        },
+        {
+          "id": "door-first-2",
+          "name": "Kids west window",
+          "kind": "window",
+          "a": [
+            0,
+            120
+          ],
+          "b": [
+            0,
+            280
+          ]
+        },
+        {
+          "id": "door-first-3",
+          "name": "Study window",
+          "kind": "window",
+          "a": [
+            0,
+            500
+          ],
+          "b": [
+            0,
+            700
+          ],
+          "sensors": [
+            "binary_sensor.demo_study_window"
+          ]
+        },
+        {
+          "id": "door-first-4",
+          "name": "Study south window",
+          "kind": "window",
+          "a": [
+            80,
+            800
+          ],
+          "b": [
+            220,
+            800
+          ]
+        },
+        {
+          "id": "door-first-5",
+          "name": "Master window",
+          "kind": "window",
+          "a": [
+            520,
+            0
+          ],
+          "b": [
+            700,
+            0
+          ],
+          "sensors": [
+            "binary_sensor.demo_master_window"
+          ]
+        },
+        {
+          "id": "door-first-6",
+          "name": "Bathroom skylight",
+          "kind": "slit",
+          "a": [
+            850,
+            0
+          ],
+          "b": [
+            950,
+            0
+          ]
+        },
+        {
+          "id": "door-first-7",
+          "name": "Bathroom window",
+          "kind": "window",
+          "a": [
+            1000,
+            100
+          ],
+          "b": [
+            1000,
+            300
+          ]
+        },
+        {
+          "id": "door-first-8",
+          "name": "Lounge east window",
+          "kind": "window",
+          "a": [
+            1000,
+            460
+          ],
+          "b": [
+            1000,
+            700
+          ],
+          "sensors": [
+            "binary_sensor.demo_lounge_window"
+          ]
+        },
+        {
+          "id": "door-first-9",
+          "name": "Balcony door",
+          "kind": "glass",
+          "a": [
+            640,
+            800
+          ],
+          "b": [
+            760,
+            800
+          ],
+          "sensors": [
+            "binary_sensor.demo_balcony_door"
+          ]
+        },
+        {
+          "id": "door-first-10",
+          "name": "Lounge window",
+          "kind": "fullwindow",
+          "a": [
+            800,
+            800
+          ],
+          "b": [
+            940,
+            800
+          ]
+        },
+        {
+          "id": "door-first-11",
+          "name": "Landing window",
+          "kind": "slit",
+          "a": [
+            340,
+            800
+          ],
+          "b": [
+            400,
+            800
+          ]
+        },
+        {
+          "id": "door-first-12",
+          "name": "Master door",
+          "kind": "door",
+          "a": [
+            440,
+            100
+          ],
+          "b": [
+            440,
+            190
+          ]
+        },
+        {
+          "id": "door-first-13",
+          "name": "Lounge door",
+          "kind": "door",
+          "a": [
+            440,
+            480
+          ],
+          "b": [
+            440,
+            570
+          ]
+        },
+        {
+          "id": "door-first-14",
+          "name": "Kids door",
+          "kind": "door",
+          "a": [
+            300,
+            150
+          ],
+          "b": [
+            300,
+            240
+          ]
+        },
+        {
+          "id": "door-first-15",
+          "name": "Study door",
+          "kind": "door",
+          "a": [
+            300,
+            500
+          ],
+          "b": [
+            300,
+            590
+          ]
+        },
+        {
+          "id": "door-first-16",
+          "name": "Ensuite door",
+          "kind": "door",
+          "a": [
+            800,
+            150
+          ],
+          "b": [
+            800,
+            240
+          ]
+        }
+      ],
+      "openings": [],
+      "extras": [],
+      "devices": [
+        {
+          "id": "light-landing",
+          "type": "light",
+          "entity": "light.demo_landing",
+          "name": "Landing light",
+          "x": 370,
+          "y": 300
+        },
+        {
+          "id": "motion-landing-motion",
+          "type": "motion",
+          "entity": "binary_sensor.demo_landing_motion",
+          "name": "Landing motion",
+          "x": 370,
+          "y": 120
+        },
+        {
+          "id": "access-point-ap-first",
+          "type": "access_point",
+          "entity": "sensor.demo_ap_first",
+          "name": "First access point",
+          "x": 330,
+          "y": 20
+        },
+        {
+          "id": "light-kids",
+          "type": "light",
+          "entity": "light.demo_kids",
+          "name": "Kids light",
+          "x": 150,
+          "y": 200
+        },
+        {
+          "id": "heater-kids-radiator",
+          "type": "heater",
+          "entity": "climate.demo_kids_radiator",
+          "name": "Kids radiator",
+          "a": [
+            60,
+            392
+          ],
+          "b": [
+            200,
+            392
+          ]
+        },
+        {
+          "id": "cover-kids-blind",
+          "type": "cover",
+          "entity": "cover.demo_kids_blind",
+          "name": "Kids blind",
+          "x": 150,
+          "y": 12
+        },
+        {
+          "id": "media-kids-speaker",
+          "type": "media",
+          "entity": "media_player.demo_kids_speaker",
+          "name": "Kids media",
+          "x": 30,
+          "y": 30
+        },
+        {
+          "id": "fan-kids-fan",
+          "type": "fan",
+          "entity": "fan.demo_kids_fan",
+          "name": "Kids fan",
+          "x": 260,
+          "y": 360
+        },
+        {
+          "id": "light-study",
+          "type": "light",
+          "entity": "light.demo_study",
+          "name": "Study light",
+          "x": 150,
+          "y": 600
+        },
+        {
+          "id": "computer-study-pc",
+          "type": "computer",
+          "entity": "sensor.demo_study_pc",
+          "name": "Study computer",
+          "x": 150,
+          "y": 770
+        },
+        {
+          "id": "light-master",
+          "type": "light",
+          "entity": "light.demo_master",
+          "name": "Master light",
+          "x": 620,
+          "y": 260
+        },
+        {
+          "id": "temp-master-t",
+          "type": "temp",
+          "entity": "sensor.demo_master_temperature",
+          "name": "Master temperature",
+          "x": 470,
+          "y": 30
+        },
+        {
+          "id": "ac-master-ac",
+          "type": "ac",
+          "entity": "climate.demo_master_ac",
+          "name": "Master air conditioner",
+          "x": 620,
+          "y": 20
+        },
+        {
+          "id": "cover-master-blind",
+          "type": "cover",
+          "entity": "cover.demo_master_blind",
+          "name": "Master blind",
+          "x": 610,
+          "y": 12
+        },
+        {
+          "id": "light-bathroom",
+          "type": "light",
+          "entity": "light.demo_bathroom",
+          "name": "Bathroom light",
+          "x": 900,
+          "y": 250
+        },
+        {
+          "id": "humidity-bathroom-h",
+          "type": "humidity",
+          "entity": "sensor.demo_bathroom_humidity",
+          "name": "Bathroom humidity",
+          "x": 830,
+          "y": 380
+        },
+        {
+          "id": "heater-towel-rail",
+          "type": "heater",
+          "entity": "climate.demo_towel_rail",
+          "name": "Towel rail",
+          "a": [
+            990,
+            215
+          ],
+          "b": [
+            990,
+            300
+          ]
+        },
+        {
+          "id": "light-lounge",
+          "type": "light",
+          "entity": "light.demo_lounge",
+          "name": "Lounge light",
+          "x": 700,
+          "y": 600
+        },
+        {
+          "id": "motion-lounge-motion",
+          "type": "motion",
+          "entity": "binary_sensor.demo_lounge_motion",
+          "name": "Lounge motion",
+          "x": 900,
+          "y": 760
+        },
+        {
+          "id": "tv-lounge-tv",
+          "type": "tv",
+          "entity": "media_player.demo_lounge_tv",
+          "name": "Lounge TV",
+          "x": 720,
+          "y": 420
+        },
+        {
+          "id": "speaker-lounge-speaker",
+          "type": "speaker",
+          "entity": "media_player.demo_lounge_speaker",
+          "name": "Lounge speaker",
+          "x": 960,
+          "y": 430
+        },
+        {
+          "id": "heater-lounge-radiator",
+          "type": "heater",
+          "entity": "climate.demo_lounge_radiator",
+          "name": "Lounge radiator",
+          "a": [
+            470,
+            395
+          ],
+          "b": [
+            560,
+            395
+          ]
+        },
+        {
+          "id": "light-balcony",
+          "type": "light",
+          "entity": "light.demo_balcony",
+          "name": "Balcony light",
+          "x": 780,
+          "y": 870
+        }
+      ],
+      "furniture": [
+        {
+          "id": "furniture-first-1",
+          "symbol": "cabinet",
+          "x": 425,
+          "y": 300,
+          "rot": 0,
+          "w": 30,
+          "h": 100
+        },
+        {
+          "id": "furniture-first-2",
+          "symbol": "tree",
+          "x": 335,
+          "y": 740,
+          "rot": 0,
+          "w": 40,
+          "h": 40
+        },
+        {
+          "id": "furniture-first-3",
+          "symbol": "bed",
+          "x": 235,
+          "y": 100,
+          "rot": 0,
+          "w": 90,
+          "h": 160
+        },
+        {
+          "id": "furniture-first-4",
+          "symbol": "table",
+          "x": 70,
+          "y": 350,
+          "rot": 0,
+          "w": 100,
+          "h": 50
+        },
+        {
+          "id": "furniture-first-5",
+          "symbol": "chair",
+          "x": 70,
+          "y": 300,
+          "rot": 0,
+          "w": 40,
+          "h": 40
+        },
+        {
+          "id": "furniture-first-6",
+          "symbol": "cabinet",
+          "x": 170,
+          "y": 378,
+          "rot": 0,
+          "w": 120,
+          "h": 40
+        },
+        {
+          "id": "furniture-first-7",
+          "symbol": "table",
+          "x": 150,
+          "y": 770,
+          "rot": 0,
+          "w": 140,
+          "h": 60
+        },
+        {
+          "id": "furniture-first-8",
+          "symbol": "computer",
+          "x": 150,
+          "y": 770,
+          "rot": 0,
+          "w": 50,
+          "h": 35
+        },
+        {
+          "id": "furniture-first-9",
+          "symbol": "chair",
+          "x": 150,
+          "y": 700,
+          "rot": 0,
+          "w": 45,
+          "h": 45
+        },
+        {
+          "id": "furniture-first-10",
+          "symbol": "cabinet",
+          "x": 30,
+          "y": 450,
+          "rot": 0,
+          "w": 40,
+          "h": 80
+        },
+        {
+          "id": "furniture-first-11",
+          "symbol": "sofa",
+          "x": 225,
+          "y": 450,
+          "rot": 0,
+          "w": 120,
+          "h": 70
+        },
+        {
+          "id": "furniture-first-12",
+          "symbol": "bed",
+          "x": 620,
+          "y": 105,
+          "rot": 0,
+          "w": 180,
+          "h": 180
+        },
+        {
+          "id": "furniture-first-13",
+          "symbol": "cabinet",
+          "x": 510,
+          "y": 40,
+          "rot": 0,
+          "w": 50,
+          "h": 40
+        },
+        {
+          "id": "furniture-first-14",
+          "symbol": "cabinet",
+          "x": 730,
+          "y": 40,
+          "rot": 0,
+          "w": 50,
+          "h": 40
+        },
+        {
+          "id": "furniture-first-15",
+          "symbol": "cabinet",
+          "x": 730,
+          "y": 375,
+          "rot": 0,
+          "w": 130,
+          "h": 40
+        },
+        {
+          "id": "furniture-first-16",
+          "symbol": "tv",
+          "x": 560,
+          "y": 388,
+          "rot": 0,
+          "w": 100,
+          "h": 15
+        },
+        {
+          "id": "furniture-first-17",
+          "symbol": "chair",
+          "x": 480,
+          "y": 300,
+          "rot": 0,
+          "w": 50,
+          "h": 50
+        },
+        {
+          "id": "furniture-first-18",
+          "symbol": "bathtub",
+          "x": 905,
+          "y": 55,
+          "rot": 0,
+          "w": 190,
+          "h": 80
+        },
+        {
+          "id": "furniture-first-19",
+          "symbol": "shower",
+          "x": 945,
+          "y": 350,
+          "rot": 0,
+          "w": 90,
+          "h": 90
+        },
+        {
+          "id": "furniture-first-20",
+          "symbol": "toilet",
+          "x": 840,
+          "y": 345,
+          "rot": 0,
+          "w": 40,
+          "h": 60
+        },
+        {
+          "id": "furniture-first-21",
+          "symbol": "sink",
+          "x": 975,
+          "y": 160,
+          "rot": 0,
+          "w": 40,
+          "h": 60
+        },
+        {
+          "id": "furniture-first-22",
+          "symbol": "tv",
+          "x": 720,
+          "y": 413,
+          "rot": 0,
+          "w": 160,
+          "h": 20
+        },
+        {
+          "id": "furniture-first-23",
+          "symbol": "sofa",
+          "x": 720,
+          "y": 690,
+          "rot": 180,
+          "w": 220,
+          "h": 90
+        },
+        {
+          "id": "furniture-first-24",
+          "symbol": "table",
+          "x": 720,
+          "y": 505,
+          "rot": 0,
+          "w": 110,
+          "h": 50
+        },
+        {
+          "id": "furniture-first-25",
+          "symbol": "chair",
+          "x": 570,
+          "y": 640,
+          "rot": 0,
+          "w": 60,
+          "h": 60
+        },
+        {
+          "id": "furniture-first-26",
+          "symbol": "cabinet",
+          "x": 470,
+          "y": 720,
+          "rot": 0,
+          "w": 30,
+          "h": 120
+        },
+        {
+          "id": "furniture-first-27",
+          "symbol": "tree",
+          "x": 975,
+          "y": 775,
+          "rot": 0,
+          "w": 50,
+          "h": 50
+        },
+        {
+          "id": "furniture-first-28",
+          "symbol": "speaker",
+          "x": 960,
+          "y": 418,
+          "rot": 0,
+          "w": 28,
+          "h": 28
+        },
+        {
+          "id": "furniture-first-29",
+          "symbol": "patio-wood",
+          "x": 780,
+          "y": 860,
+          "rot": 0,
+          "w": 340,
+          "h": 100
+        },
+        {
+          "id": "furniture-first-30",
+          "symbol": "table",
+          "x": 780,
+          "y": 860,
+          "rot": 0,
+          "w": 60,
+          "h": 60
+        },
+        {
+          "id": "furniture-first-31",
+          "symbol": "chair",
+          "x": 735,
+          "y": 860,
+          "rot": 0,
+          "w": 35,
+          "h": 35
+        },
+        {
+          "id": "furniture-first-32",
+          "symbol": "chair",
+          "x": 825,
+          "y": 860,
+          "rot": 0,
+          "w": 35,
+          "h": 35
+        }
+      ],
+      "unlinked": []
+    }
+  },
+  "catalog": [
+    {
+      "id": "light-laundry",
+      "floor": "basement",
+      "room": "Laundry",
+      "type": "light",
+      "name": "Laundry light",
+      "entity": "light.demo_laundry"
+    },
+    {
+      "id": "motion-laundry-motion",
+      "floor": "basement",
+      "room": "Laundry",
+      "type": "motion",
+      "name": "Laundry motion",
+      "entity": "binary_sensor.demo_laundry_motion"
+    },
+    {
+      "id": "humidity-laundry-h",
+      "floor": "basement",
+      "room": "Laundry",
+      "type": "humidity",
+      "name": "Laundry humidity",
+      "entity": "sensor.demo_laundry_humidity"
+    },
+    {
+      "id": "plug-washer",
+      "floor": "basement",
+      "room": "Laundry",
+      "type": "plug",
+      "name": "Washer plug",
+      "entity": "switch.demo_washer"
+    },
+    {
+      "id": "vibration-washer-vibration",
+      "floor": "basement",
+      "room": "Laundry",
+      "type": "vibration",
+      "name": "Washer vibration",
+      "entity": "binary_sensor.demo_washer_vibration"
+    },
+    {
+      "id": "light-storage",
+      "floor": "basement",
+      "room": "Storage",
+      "type": "light",
+      "name": "Storage light",
+      "entity": "light.demo_storage"
+    },
+    {
+      "id": "motion-storage-motion",
+      "floor": "basement",
+      "room": "Storage",
+      "type": "motion",
+      "name": "Storage motion",
+      "entity": "binary_sensor.demo_storage_motion"
+    },
+    {
+      "id": "light-gym",
+      "floor": "basement",
+      "room": "Gym",
+      "type": "light",
+      "name": "Gym light",
+      "entity": "light.demo_gym"
+    },
+    {
+      "id": "ac-gym-ac",
+      "floor": "basement",
+      "room": "Gym",
+      "type": "ac",
+      "name": "Gym air conditioner",
+      "entity": "climate.demo_gym_ac"
+    },
+    {
+      "id": "tv-gym-tv",
+      "floor": "basement",
+      "room": "Gym",
+      "type": "tv",
+      "name": "Gym TV",
+      "entity": "media_player.demo_gym_tv"
+    },
+    {
+      "id": "temp-gym-t",
+      "floor": "basement",
+      "room": "Gym",
+      "type": "temp",
+      "name": "Gym temperature",
+      "entity": "sensor.demo_gym_temperature"
+    },
+    {
+      "id": "light-workshop",
+      "floor": "basement",
+      "room": "Workshop",
+      "type": "light",
+      "name": "Workshop light",
+      "entity": "light.demo_workshop"
+    },
+    {
+      "id": "plug-workshop-bench",
+      "floor": "basement",
+      "room": "Workshop",
+      "type": "plug",
+      "name": "Bench plug",
+      "entity": "switch.demo_workshop_bench"
+    },
+    {
+      "id": "light-cellar",
+      "floor": "basement",
+      "room": "Cellar",
+      "type": "light",
+      "name": "Cellar light",
+      "entity": "light.demo_cellar"
+    },
+    {
+      "id": "motion-cellar-motion",
+      "floor": "basement",
+      "room": "Cellar",
+      "type": "motion",
+      "name": "Cellar motion",
+      "entity": "binary_sensor.demo_cellar_motion"
+    },
+    {
+      "id": "light-technical",
+      "floor": "basement",
+      "room": "Technical",
+      "type": "light",
+      "name": "Technical light",
+      "entity": "light.demo_technical"
+    },
+    {
+      "id": "boiler-boiler",
+      "floor": "basement",
+      "room": "Technical",
+      "type": "boiler",
+      "name": "Boiler",
+      "entity": "sensor.demo_boiler"
+    },
+    {
+      "id": "inverter-inverter",
+      "floor": "basement",
+      "room": "Technical",
+      "type": "inverter",
+      "name": "Inverter",
+      "entity": "sensor.demo_inverter"
+    },
+    {
+      "id": "battery-house-battery",
+      "floor": "basement",
+      "room": "Technical",
+      "type": "battery",
+      "name": "House battery",
+      "entity": "sensor.demo_house_battery"
+    },
+    {
+      "id": "ups-ups",
+      "floor": "basement",
+      "room": "Technical",
+      "type": "ups",
+      "name": "UPS",
+      "entity": "sensor.demo_ups"
+    },
+    {
+      "id": "server-server",
+      "floor": "basement",
+      "room": "Technical",
+      "type": "server",
+      "name": "Server",
+      "entity": "sensor.demo_server"
+    },
+    {
+      "id": "access-point-ap-basement",
+      "floor": "basement",
+      "room": "Technical",
+      "type": "access_point",
+      "name": "Basement access point",
+      "entity": "sensor.demo_ap_basement"
+    },
+    {
+      "id": "other-water-meter",
+      "floor": "basement",
+      "room": "Technical",
+      "type": "other",
+      "name": "Water meter",
+      "entity": "sensor.demo_water_meter"
+    },
+    {
+      "id": "power-meter-power-meter",
+      "floor": "basement",
+      "room": "Technical",
+      "type": "power_meter",
+      "name": "Power meter",
+      "entity": "sensor.demo_power_meter"
+    },
+    {
+      "id": "light-wine-cellar",
+      "floor": "basement",
+      "room": "Wine cellar",
+      "type": "light",
+      "name": "Wine cellar light",
+      "entity": "light.demo_wine_cellar"
+    },
+    {
+      "id": "temp-wine-cellar-t",
+      "floor": "basement",
+      "room": "Wine cellar",
+      "type": "temp",
+      "name": "Wine cellar temperature",
+      "entity": "sensor.demo_wine_cellar_temperature"
+    },
+    {
+      "id": "humidity-wine-cellar-h",
+      "floor": "basement",
+      "room": "Wine cellar",
+      "type": "humidity",
+      "name": "Wine cellar humidity",
+      "entity": "sensor.demo_wine_cellar_humidity"
+    },
+    {
+      "id": "light-living",
+      "floor": "ground",
+      "room": "Living",
+      "type": "light",
+      "name": "Living light",
+      "entity": "light.demo_living"
+    },
+    {
+      "id": "heater-living-radiator",
+      "floor": "ground",
+      "room": "Living",
+      "type": "heater",
+      "name": "Living radiator",
+      "entity": "climate.demo_living_radiator"
+    },
+    {
+      "id": "tv-living-tv",
+      "floor": "ground",
+      "room": "Living",
+      "type": "tv",
+      "name": "Living TV",
+      "entity": "media_player.demo_living_tv"
+    },
+    {
+      "id": "plug-tv",
+      "floor": "ground",
+      "room": "Living",
+      "type": "plug",
+      "name": "TV plug",
+      "entity": "switch.demo_tv"
+    },
+    {
+      "id": "speaker-living-speaker",
+      "floor": "ground",
+      "room": "Living",
+      "type": "speaker",
+      "name": "Living speaker",
+      "entity": "media_player.demo_living_speaker"
+    },
+    {
+      "id": "motion-living-motion",
+      "floor": "ground",
+      "room": "Living",
+      "type": "motion",
+      "name": "Living motion",
+      "entity": "binary_sensor.demo_living_motion"
+    },
+    {
+      "id": "temp-living-t",
+      "floor": "ground",
+      "room": "Living",
+      "type": "temp",
+      "name": "Living temperature",
+      "entity": "sensor.demo_living_temperature"
+    },
+    {
+      "id": "vacuum-robot",
+      "floor": "ground",
+      "room": "Living",
+      "type": "vacuum",
+      "name": "Vacuum",
+      "entity": "vacuum.demo_robot"
+    },
+    {
+      "id": "person-alex",
+      "floor": "ground",
+      "room": "Living",
+      "type": "person",
+      "name": "Alex",
+      "entity": "person.demo_alex"
+    },
+    {
+      "id": "person-sam",
+      "floor": "ground",
+      "room": "Living",
+      "type": "person",
+      "name": "Sam",
+      "entity": "person.demo_sam"
+    },
+    {
+      "id": "light-kitchen",
+      "floor": "ground",
+      "room": "Kitchen",
+      "type": "light",
+      "name": "Kitchen light",
+      "entity": "light.demo_kitchen"
+    },
+    {
+      "id": "motion-kitchen-motion",
+      "floor": "ground",
+      "room": "Kitchen",
+      "type": "motion",
+      "name": "Kitchen motion",
+      "entity": "binary_sensor.demo_kitchen_motion"
+    },
+    {
+      "id": "temp-kitchen-t",
+      "floor": "ground",
+      "room": "Kitchen",
+      "type": "temp",
+      "name": "Kitchen temperature",
+      "entity": "sensor.demo_kitchen_temperature"
+    },
+    {
+      "id": "fan-kitchen-hood",
+      "floor": "ground",
+      "room": "Kitchen",
+      "type": "fan",
+      "name": "Cooker hood",
+      "entity": "fan.demo_kitchen_hood"
+    },
+    {
+      "id": "other-dishwasher",
+      "floor": "ground",
+      "room": "Kitchen",
+      "type": "other",
+      "name": "Dishwasher",
+      "entity": "sensor.demo_dishwasher"
+    },
+    {
+      "id": "plug-coffee",
+      "floor": "ground",
+      "room": "Kitchen",
+      "type": "plug",
+      "name": "Coffee plug",
+      "entity": "switch.demo_coffee"
+    },
+    {
+      "id": "light-dining",
+      "floor": "ground",
+      "room": "Dining",
+      "type": "light",
+      "name": "Dining light",
+      "entity": "light.demo_dining"
+    },
+    {
+      "id": "light-hall",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "light",
+      "name": "Hall light",
+      "entity": "light.demo_hall"
+    },
+    {
+      "id": "switch-hall-switch",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "switch",
+      "name": "Hall switch",
+      "entity": "switch.demo_hall_switch"
+    },
+    {
+      "id": "motion-hall-motion",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "motion",
+      "name": "Hall motion",
+      "entity": "binary_sensor.demo_hall_motion"
+    },
+    {
+      "id": "camera-doorbell",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "camera",
+      "name": "Doorbell camera",
+      "entity": "camera.demo_doorbell"
+    },
+    {
+      "id": "climate-thermostat",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "climate",
+      "name": "Thermostat",
+      "entity": "climate.demo_thermostat"
+    },
+    {
+      "id": "alarm-alarm",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "alarm",
+      "name": "Alarm",
+      "entity": "alarm_control_panel.demo_alarm"
+    },
+    {
+      "id": "siren-siren",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "siren",
+      "name": "Siren",
+      "entity": "siren.demo_siren"
+    },
+    {
+      "id": "access-point-ap-ground",
+      "floor": "ground",
+      "room": "Hall",
+      "type": "access_point",
+      "name": "Ground access point",
+      "entity": "sensor.demo_ap_ground"
+    },
+    {
+      "id": "light-wc",
+      "floor": "ground",
+      "room": "WC",
+      "type": "light",
+      "name": "WC light",
+      "entity": "light.demo_wc"
+    },
+    {
+      "id": "light-cloakroom",
+      "floor": "ground",
+      "room": "Cloakroom",
+      "type": "light",
+      "name": "Cloakroom light",
+      "entity": "light.demo_cloakroom"
+    },
+    {
+      "id": "light-office",
+      "floor": "ground",
+      "room": "Office",
+      "type": "light",
+      "name": "Office light",
+      "entity": "light.demo_office"
+    },
+    {
+      "id": "computer-office-pc",
+      "floor": "ground",
+      "room": "Office",
+      "type": "computer",
+      "name": "Office computer",
+      "entity": "sensor.demo_office_pc"
+    },
+    {
+      "id": "printer-office-printer",
+      "floor": "ground",
+      "room": "Office",
+      "type": "printer",
+      "name": "Office printer",
+      "entity": "sensor.demo_office_printer"
+    },
+    {
+      "id": "media-office-media",
+      "floor": "ground",
+      "room": "Office",
+      "type": "media",
+      "name": "Office media",
+      "entity": "media_player.demo_office_media"
+    },
+    {
+      "id": "cover-office-blind",
+      "floor": "ground",
+      "room": "Office",
+      "type": "cover",
+      "name": "Office blind",
+      "entity": "cover.demo_office_blind"
+    },
+    {
+      "id": "radar-office-radar",
+      "floor": "ground",
+      "room": "Office",
+      "type": "radar",
+      "name": "Office radar",
+      "entity": "binary_sensor.demo_office_radar"
+    },
+    {
+      "id": "light-terrace",
+      "floor": "ground",
+      "room": "Garden",
+      "type": "light",
+      "name": "Terrace light",
+      "entity": "light.demo_terrace"
+    },
+    {
+      "id": "light-garden",
+      "floor": "ground",
+      "room": "Garden",
+      "type": "light",
+      "name": "Garden light",
+      "entity": "light.demo_garden"
+    },
+    {
+      "id": "light-driveway",
+      "floor": "ground",
+      "room": "Driveway",
+      "type": "light",
+      "name": "Driveway light",
+      "entity": "light.demo_driveway"
+    },
+    {
+      "id": "camera-driveway-camera",
+      "floor": "ground",
+      "room": "Driveway",
+      "type": "camera",
+      "name": "Driveway camera",
+      "entity": "camera.demo_driveway_camera"
+    },
+    {
+      "id": "camera-garden-camera",
+      "floor": "ground",
+      "room": "Garden",
+      "type": "camera",
+      "name": "Garden camera",
+      "entity": "camera.demo_garden_camera"
+    },
+    {
+      "id": "motion-driveway-motion",
+      "floor": "ground",
+      "room": "Driveway",
+      "type": "motion",
+      "name": "Driveway motion",
+      "entity": "binary_sensor.demo_driveway_motion"
+    },
+    {
+      "id": "temp-outdoor-t",
+      "floor": "ground",
+      "room": "Garden",
+      "type": "temp",
+      "name": "Outdoor temperature",
+      "entity": "sensor.demo_outdoor_temperature"
+    },
+    {
+      "id": "contact-garden-gate",
+      "floor": "ground",
+      "room": "Path",
+      "type": "contact",
+      "name": "Garden gate",
+      "entity": "binary_sensor.demo_garden_gate"
+    },
+    {
+      "id": "lock-terrace-door",
+      "floor": "ground",
+      "room": "Garden",
+      "type": "lock",
+      "name": "Terrace door lock",
+      "entity": "lock.demo_terrace_door"
+    },
+    {
+      "id": "car-wallbox",
+      "floor": "ground",
+      "room": "Driveway",
+      "type": "car",
+      "name": "Wallbox",
+      "entity": "sensor.demo_wallbox"
+    },
+    {
+      "id": "light-landing",
+      "floor": "first",
+      "room": "Landing",
+      "type": "light",
+      "name": "Landing light",
+      "entity": "light.demo_landing"
+    },
+    {
+      "id": "motion-landing-motion",
+      "floor": "first",
+      "room": "Landing",
+      "type": "motion",
+      "name": "Landing motion",
+      "entity": "binary_sensor.demo_landing_motion"
+    },
+    {
+      "id": "access-point-ap-first",
+      "floor": "first",
+      "room": "Landing",
+      "type": "access_point",
+      "name": "First access point",
+      "entity": "sensor.demo_ap_first"
+    },
+    {
+      "id": "light-kids",
+      "floor": "first",
+      "room": "Kids",
+      "type": "light",
+      "name": "Kids light",
+      "entity": "light.demo_kids"
+    },
+    {
+      "id": "heater-kids-radiator",
+      "floor": "first",
+      "room": "Kids",
+      "type": "heater",
+      "name": "Kids radiator",
+      "entity": "climate.demo_kids_radiator"
+    },
+    {
+      "id": "cover-kids-blind",
+      "floor": "first",
+      "room": "Kids",
+      "type": "cover",
+      "name": "Kids blind",
+      "entity": "cover.demo_kids_blind"
+    },
+    {
+      "id": "media-kids-speaker",
+      "floor": "first",
+      "room": "Kids",
+      "type": "media",
+      "name": "Kids media",
+      "entity": "media_player.demo_kids_speaker"
+    },
+    {
+      "id": "fan-kids-fan",
+      "floor": "first",
+      "room": "Kids",
+      "type": "fan",
+      "name": "Kids fan",
+      "entity": "fan.demo_kids_fan"
+    },
+    {
+      "id": "light-study",
+      "floor": "first",
+      "room": "Study",
+      "type": "light",
+      "name": "Study light",
+      "entity": "light.demo_study"
+    },
+    {
+      "id": "computer-study-pc",
+      "floor": "first",
+      "room": "Study",
+      "type": "computer",
+      "name": "Study computer",
+      "entity": "sensor.demo_study_pc"
+    },
+    {
+      "id": "light-master",
+      "floor": "first",
+      "room": "Master",
+      "type": "light",
+      "name": "Master light",
+      "entity": "light.demo_master"
+    },
+    {
+      "id": "temp-master-t",
+      "floor": "first",
+      "room": "Master",
+      "type": "temp",
+      "name": "Master temperature",
+      "entity": "sensor.demo_master_temperature"
+    },
+    {
+      "id": "ac-master-ac",
+      "floor": "first",
+      "room": "Master",
+      "type": "ac",
+      "name": "Master air conditioner",
+      "entity": "climate.demo_master_ac"
+    },
+    {
+      "id": "cover-master-blind",
+      "floor": "first",
+      "room": "Master",
+      "type": "cover",
+      "name": "Master blind",
+      "entity": "cover.demo_master_blind"
+    },
+    {
+      "id": "light-bathroom",
+      "floor": "first",
+      "room": "Bathroom",
+      "type": "light",
+      "name": "Bathroom light",
+      "entity": "light.demo_bathroom"
+    },
+    {
+      "id": "humidity-bathroom-h",
+      "floor": "first",
+      "room": "Bathroom",
+      "type": "humidity",
+      "name": "Bathroom humidity",
+      "entity": "sensor.demo_bathroom_humidity"
+    },
+    {
+      "id": "heater-towel-rail",
+      "floor": "first",
+      "room": "Bathroom",
+      "type": "heater",
+      "name": "Towel rail",
+      "entity": "climate.demo_towel_rail"
+    },
+    {
+      "id": "light-lounge",
+      "floor": "first",
+      "room": "Lounge",
+      "type": "light",
+      "name": "Lounge light",
+      "entity": "light.demo_lounge"
+    },
+    {
+      "id": "motion-lounge-motion",
+      "floor": "first",
+      "room": "Lounge",
+      "type": "motion",
+      "name": "Lounge motion",
+      "entity": "binary_sensor.demo_lounge_motion"
+    },
+    {
+      "id": "tv-lounge-tv",
+      "floor": "first",
+      "room": "Lounge",
+      "type": "tv",
+      "name": "Lounge TV",
+      "entity": "media_player.demo_lounge_tv"
+    },
+    {
+      "id": "speaker-lounge-speaker",
+      "floor": "first",
+      "room": "Lounge",
+      "type": "speaker",
+      "name": "Lounge speaker",
+      "entity": "media_player.demo_lounge_speaker"
+    },
+    {
+      "id": "heater-lounge-radiator",
+      "floor": "first",
+      "room": "Master",
+      "type": "heater",
+      "name": "Lounge radiator",
+      "entity": "climate.demo_lounge_radiator"
+    },
+    {
+      "id": "light-balcony",
+      "floor": "first",
+      "room": "Balcony",
+      "type": "light",
+      "name": "Balcony light",
+      "entity": "light.demo_balcony"
+    }
+  ]
 }

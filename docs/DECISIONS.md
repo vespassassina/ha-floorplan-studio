@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-28: Room corner badges visibility, air/smoke badges, and 4-quadrant slots (S98)
+
+1. Extended `BADGE_KINDS` (`src/core/schema.ts`, `src/core/room-badges.ts`) with `"air"` (`air_quality` devices and `Room.airQuality`) and `"smoke"` (`smoke` devices and `Room.smoke`), with live readings and alert rows (`airInfo`, `smokeInfo`) and `--fp-warn` / `--fp-danger` active styling.
+2. Fixed `devicesOf` in `src/core/room-badges.ts` to include bar devices (`{ a, b }`, e.g. bar heaters) via midpoint lookup, and strengthened active `.cb.on .cb-bg` ring contrast in `FLOORPLAN_CSS` (`src/core/render.ts`) so active badges stand out clearly on every theme.
+3. Added optional `RoomBadges.slots?: (BadgeKind | null)[]` (1..4 quadrants `[TL, TR, BL, BR]`, validated by `roomBadgesProblem`) rendered in a 2x2 quadrant grid (`quadAt`) even when a room has no matching devices yet, plus a 4-quadrant selector in Studio's Room > Badges panel (`src/editor/panels.ts`).
+4. Added S94/S98 translations to all 9 i18n catalogues (`src/card/i18n/*.ts`) and raised `LANG_CHUNK_LIMIT` from `5000` to `5500` B gz in `tests/card/size-budget.spec.ts` (`pl` measured `5047 B` gz).
+
 ## 2026-11-28: Street light unclipped spill and smooth atmospheric falloff (S97)
 
 1. Removed room/garden boundary clipping on `street` lights in 2D (`src/core/render.ts`) and 3D (`src/card/three/view3d.ts` uses the padded `gBox` at `z = 1.5` and feeds street lights into `glow.set` so they illuminate exterior house walls across the garden).
