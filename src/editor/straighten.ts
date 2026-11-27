@@ -1,4 +1,4 @@
-import { dist, type Floor, type Pt } from "../core";
+import { dist, movePoints, polys, type Floor, type Pt } from "../core";
 
 // S84: Straighten walls and merge collinear multi-segment walls (Studio-only, 0 B in floorplan-studio-card.js).
 
@@ -186,4 +186,48 @@ export function straightenFloorWalls(
   }
 
   return { floor: g, straightened };
+}
+
+// ---- S85: exact corner angle measurement & setting -------------------------------------------------------
+
+export const CORNER_ANGLE_PRESETS = [90, 45, 60, 120, 135, 180] as const;
+
+/** Unsigned angle (0..180°, 0.1° precision) between the two edges meeting at vertex `j` of polygon `pts`. */
+export function cornerAngleDeg(pts: readonly Pt[], j: number): number | null {
+  if (!Array.isArray(pts) || pts.length < 3 || j < 0 || j >= pts.length) return null;
+  const prev = pts[(j - 1 + pts.length) % pts.length]!;
+  const cur = pts[j]!;
+  const next = pts[(j + 1) % pts.length]!;
+  const ax = prev[0] - cur[0], ay = prev[1] - cur[1];
+  const bx = next[0] - cur[0], by = next[1] - cur[1];
+  const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by);
+  if (la < 1e-6 || lb < 1e-6) return null;
+  const dot = Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)));
+  return Math.round(((Math.acos(dot) * 180) / Math.PI) * 10) / 10;
+}
+
+/**
+ * Sets the angle at corner `j` of `poly` to `targetDeg` (1..180°) by rotating the outgoing leg (or incoming leg
+ * when `movePrev` is true) around the corner while preserving its length, moving coincident corners together.
+ */
+export function setCornerAngle(f: Floor, poly: string, j: number, targetDeg: number, movePrev = false): Floor {
+  if (!Number.isFinite(targetDeg) || targetDeg <= 0 || targetDeg > 180) return f;
+  const P = polys(f).find((x) => x.id === poly);
+  if (!P || P.pts.length < 3 || j < 0 || j >= P.pts.length) return f;
+  const n = P.pts.length;
+  const prevIdx = (j - 1 + n) % n, nextIdx = (j + 1) % n;
+  const cur = P.pts[j]!;
+  const anchor = movePrev ? P.pts[nextIdx]! : P.pts[prevIdx]!;
+  const moving = movePrev ? P.pts[prevIdx]! : P.pts[nextIdx]!;
+  const ax = anchor[0] - cur[0], ay = anchor[1] - cur[1];
+  const mx = moving[0] - cur[0], my = moving[1] - cur[1];
+  const la = Math.hypot(ax, ay), lm = Math.hypot(mx, my);
+  if (la < 1e-6 || lm < 1e-6) return f;
+  const cross = ax * my - ay * mx;
+  const sign = cross < 0 ? -1 : 1;
+  const baseAng = Math.atan2(ay, ax);
+  const newAng = baseAng + sign * ((targetDeg * Math.PI) / 180);
+  const to: Pt = [round(cur[0] + Math.cos(newAng) * lm), round(cur[1] + Math.sin(newAng) * lm)];
+  if (to[0] === moving[0] && to[1] === moving[1]) return f;
+  return movePoints(f, moving, to, false);
 }
