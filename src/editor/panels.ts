@@ -1048,14 +1048,32 @@ const LAMP_KIND_LABELS: Record<LampKind, string> = {
   spot: "Ceiling spot",
   pole: "Garden pole",
   flood: "Floodlight",
+  street: "Street light",
 };
+
+const LAMP_COLOUR_PRESETS: readonly [string, string][] = [
+  ["Sodium", "#ff9e3d"],
+  ["Warm LED", "#ffd28a"],
+  ["Cool LED", "#dceaff"],
+  ["Neon", "#ff4fd8"],
+];
 
 function lampFields(c: PanelCtx, i: number) {
   const d = c.st.f.devices[i];
   const lk = d.lamp, kind = lk?.kind;
   const setKind = (next: string) => c.commit((f) => {
     if (!next) delete f.devices[i].lamp;
-    else f.devices[i].lamp = { kind: next as LampKind };
+    else f.devices[i].lamp = next === "street" ? { kind: "street", color: "#ff9e3d", autoNight: true } : { kind: next as LampKind };
+  });
+  const setColor = (hex: string) => c.commit((f) => {
+    const cur = f.devices[i].lamp;
+    if (!cur) return;
+    if (hex) cur.color = hex; else delete cur.color;
+  });
+  const setAutoNight = (on: boolean) => c.commit((f) => {
+    const cur = f.devices[i].lamp;
+    if (!cur) return;
+    if (on) cur.autoNight = true; else delete cur.autoNight;
   });
   const numField = (id: string, label: string, key: "height" | "length" | "diameter" | "angle" | "reach", def: number, [min, max]: readonly [number, number]) => {
     const cur = lk?.[key];
@@ -1079,7 +1097,10 @@ function lampFields(c: PanelCtx, i: number) {
     ${kind === "pole" ? numField("vlampH", "pole height (cm)", "height", LAMP_DEFAULTS.pole.height, LAMP_BOUNDS.pole.height) : nothing}
     ${kind === "strip" ? numField("vlampLen", "strip length (cm)", "length", LAMP_DEFAULTS.strip.length, LAMP_BOUNDS.strip.length) : nothing}
     ${kind === "ceiling" ? numField("vlampDia", "diameter (cm)", "diameter", LAMP_DEFAULTS.ceiling.diameter, LAMP_BOUNDS.ceiling.diameter) : nothing}
-    ${kind === "flood" ? html`${numField("vlampAng", "cone angle (°)", "angle", LAMP_DEFAULTS.flood.angle, LAMP_BOUNDS.flood.angle)}${numField("vlampReach", "reach (cm)", "reach", LAMP_DEFAULTS.flood.reach, LAMP_BOUNDS.flood.reach)}` : nothing}`;
+    ${kind === "flood" ? html`${numField("vlampAng", "cone angle (°)", "angle", LAMP_DEFAULTS.flood.angle, LAMP_BOUNDS.flood.angle)}${numField("vlampReach", "reach (cm)", "reach", LAMP_DEFAULTS.flood.reach, LAMP_BOUNDS.flood.reach)}` : nothing}
+    ${kind === "street" ? html`${numField("vlampH", "pole height (cm)", "height", LAMP_DEFAULTS.street.height, LAMP_BOUNDS.street.height)}${numField("vlampReach", "reach (cm)", "reach", LAMP_DEFAULTS.street.reach, LAMP_BOUNDS.street.reach)}` : nothing}
+    ${lk ? html`<label for="vlampCol">light colour</label><div class="rotrow">${LAMP_COLOUR_PRESETS.map(([n, hex]) => html`<button class="btn" title=${`${n} (${hex})`} aria-pressed=${lk.color === hex ? "true" : "false"} @click=${() => setColor(hex)}>${n}</button>`)}<input id="vlampCol" type="color" .value=${live(lk.color ?? "#ff9e3d")} @change=${(e: Event) => setColor(val(e))}>${lk.color ? html`<button class="btn" @click=${() => setColor("")}>Auto</button>` : nothing}</div>
+      <label class="chk" title="Turn on automatically at night when no HA entity is linked"><input type="checkbox" id="vlampNight" .checked=${live(!!lk.autoNight)} @change=${(e: Event) => setAutoNight((e.target as HTMLInputElement).checked)}> Auto-on at night</label>` : nothing}`;
 }
 
 function devicePanel(c: PanelCtx, i: number) {

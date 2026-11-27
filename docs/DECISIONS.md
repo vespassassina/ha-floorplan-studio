@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: City and street lights (S88)
+
+1. Extended `LAMP_KINDS` with `"street"` (`height: 150..800 cm` default `420`, `reach: 100..1200 cm` default `450`) and added optional `color` (`#rrggbb`) and `autoNight: true` to `LampSpec` (`src/core/schema.ts`).
+2. Ambient street lights with `autoNight: true` and empty `entity` turn on automatically when `o.night` is true (`classOf` in `src/core/render.ts`) and emit their fixed colour (`lightFill`) in both 2D (`src/card/lamp/index.ts`) and 3D (`src/core/scene-build.ts` pole+arm+head, `src/card/three/fx.ts` pool reach).
+3. Added Studio `Add > Street light` (`src/editor/editor-draw.ts`, `src/editor/toolbar.ts`) and light-colour presets (Sodium `#ff9e3d`, Warm LED `#ffd28a`, Cool LED `#dceaff`, Neon `#ff4fd8`, custom hex) plus `Auto-on at night` checkbox in `src/editor/panels.ts`.
+
 ## 2026-11-27: Draggable Studio icon tool palette and Fullscreen mode (S87)
 
 1. Added `src/editor/tool-palette.ts` (`toolPaletteView`, persisted in `localStorage`) with a draggable, collapsible 8-tool icon rail (Select, Draw Room, Draw Wall, Door, Window, Ruler, 3D Split, Fullscreen) inside `.canvas` (`0 B` in card).

@@ -5093,3 +5093,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ### Sprint 87 (done): Draggable Studio icon palette & Fullscreen mode
 
 - [x] 2026-11-27 S87 `src/editor/tool-palette.ts` draggable/collapsible 8-tool icon rail in Studio + Fullscreen mode in Studio (`#fullscreenBtn`, shortcut `F`, `.fs-pop` fallback) and Card (`⋯` menu `Fullscreen`, 9 languages).
+
+---
+
+## Sprint 88 — City and street lights
+
+- [x] **S88.1** Street light `LampKind` (`"street"`), `LampSpec.color` + `autoNight`, 2D/3D pole+arm+lantern rendering, night light pools, and Studio `Add > Street light` + sodium/LED/neon presets.

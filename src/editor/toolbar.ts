@@ -213,6 +213,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
             <button class="btn" id="drawExtra" @click=${() => h.startDraw("extra")}>Draw structure line</button>
           </details>
           <button class="btn" id="addDevBtn" @click=${() => h.openAddDev()}>Device…</button>
+          <button class="btn" id="addStreetLight" title="Ambient city/street light (sodium, LED, neon) that glows at night" @click=${() => { h.addStreetLight(); h.closeMenus(); }}>Street light</button>
           ${sub("addFurn", "Furniture", furnitureMenu().map(([area, s]) => html`<div class="mh" role="presentation">${area}</div>${s.map((y) => html`<button class="btn" id=${`addFurn-${y}`} @click=${() => { h.addFurniture(y); h.closeMenus(); }}>${FURNITURE_LABELS[y]}</button>`)}`))}
           ${sub("addUnlDev", "Unlinked device", unlinkedItems(h))}
         </div></details>

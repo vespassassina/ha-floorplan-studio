@@ -462,8 +462,9 @@ function boundClassOf(d: Device, o: RenderOpts): Cls {
 export const LIGHT_COLOUR_MODES = ["hs", "xy", "rgb", "rgbw", "rgbww"];
 
 /** A light that is on takes its icon fill from `attributes.rgb_color` when it supports colour; `whiteOnly` forces pure white; unset otherwise so `--fp-on` / `--fp-aura` applies. */
-export function lightFill(s: StateOverlay[string] | undefined, d?: { whiteOnly?: true }): string | null {
+export function lightFill(s: StateOverlay[string] | undefined, d?: { whiteOnly?: true; lamp?: LampSpec }): string | null {
   if (d?.whiteOnly) return "#fff";
+  if (typeof d?.lamp?.color === "string" && COLOR.test(d.lamp.color)) return d.lamp.color;
   const a = s?.attributes, m = a?.supported_color_modes, cm = a?.color_mode, rgb = a?.rgb_color;
   if (Array.isArray(m) && m.length && !m.some((x) => LIGHT_COLOUR_MODES.includes(x as string))) return null;
   if (cm === "onoff" || cm === "brightness" || cm === "white") return null;
@@ -588,6 +589,7 @@ function plugOn(d: Device, o: RenderOpts, sw: StateOverlay[string]): boolean {
  *  disagree about which devices are "on" (CLAUDE.md finding 17). */
 export function classOf(d: Device, o: RenderOpts): Cls {
   if (d.type === "light" && d.bound) return boundClassOf(d, o);
+  if (d.type === "light" && d.lamp?.autoNight && !d.entity) return o.night ? "on" : "off";
   // S35.3: a car is on while it charges, even when its tracker is dead: the charging sensor is another entity (review finding 5).
   if (d.type === "car" && carStatus(d, o.state).charging) return "on";
   // B53.11: a linked appliance runs, a linked plant is thirsty; whatever the main entity's own state word is, a plug switch "on" is not "running".
@@ -1056,6 +1058,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     }
     if (lk.kind === "floor") return lk.height ?? 150;
     if (lk.kind === "pole") return lk.height ?? 80;
+    if (lk.kind === "street") return lk.height ?? 420;
     if (lk.kind === "desk") return 75;
     if (lk.kind === "flood") return 220;
     return 0;

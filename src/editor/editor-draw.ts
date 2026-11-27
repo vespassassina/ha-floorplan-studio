@@ -166,6 +166,16 @@ export function addFurniture(ed: FloorplanStudioEditor, symbol: string) {
   placedNote(ed, before, "Edited", `Added ${sym}`);
 }
 
+/** S88: places an ambient city/street light (sodium preset, auto-on at night, no HA entity needed). */
+export function addStreetLight(ed: FloorplanStudioEditor) {
+  stopDraw(ed);
+  const p = spawnDevice(ed), [x, y] = p, floor = ed.st.floor, before = counted(ed);
+  if (!ed.st.edit((f) => { f.devices.push({ id: newId(f, floor, "device", ed.st.layout), type: "light", entity: "", name: "Street light", x, y, lamp: { kind: "street", color: "#ff9e3d", autoNight: true } }); })) { ed.refused(); return; }
+  ensureVisible(ed, [x - 50, y - 50], [x + 50, y + 50]);
+  ed.st.sel = { t: "dev", i: ed.st.f.devices.length - 1 };
+  placedNote(ed, before, "Edited", "Added street light");
+}
+
 /** S4.25: places an unlinked appliance (a fixed icon by type, not tied to one entity's state). */
 export function addUnlinked(ed: FloorplanStudioEditor, type: string) {
   if (!(UNLINKED_TYPES as readonly string[]).includes(type)) return;

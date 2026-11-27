@@ -491,6 +491,14 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
         } else if (lk.kind === "flood") {
           const z0 = fin(dev.z) ? dev.z : 220; lampZ = z0;
           add("device", `${id}:flood`, type, { type: "prism", base: box(14, 10), z0, z1: z0 + 10 }, bodyRef, paint);
+        } else if (lk.kind === "street") {
+          const h = fin(lk.height) ? lk.height : 420, rad = (rot * Math.PI) / 180, fx = Math.sin(rad), fy = -Math.cos(rad);
+          lampZ = h;
+          const atOff = (d: number, w: number, l: number): Pt[] =>
+            ([[-w / 2, -l / 2], [w / 2, -l / 2], [w / 2, l / 2], [-w / 2, l / 2]] as Pt[]).map((q) => turnAbout([at[0] + fx * d + q[0], at[1] + fy * d + q[1]], rot, [at[0] + fx * d, at[1] + fy * d]));
+          add("device", `${id}:post`, type, { type: "prism", base: box(8, 8), z0: 0, z1: Math.max(20, h - 6) }, bodyRef, paint);
+          add("device", `${id}:arm`, type, { type: "prism", base: atOff(18, 6, 40), z0: Math.max(16, h - 10), z1: h - 4 }, bodyRef, paint);
+          add("device", `${id}:head`, type, { type: "prism", base: atOff(36, 16, 22), z0: Math.max(12, h - 14), z1: h - 4 }, bodyRef, paint);
         }
         add("device", id, type, { type: "point", at, z: lampZ }, ref, paint);
         return;
