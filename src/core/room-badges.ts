@@ -1,4 +1,4 @@
-import { ROOM_CORNERS, type Device, type DeviceType, type Floor, type Pt, type RoomCorner } from "./schema";
+import { BADGE_KINDS, ROOM_CORNERS, type BadgeKind, type BadgeSlot, type Device, type DeviceType, type Floor, type Pt, type RoomCorner } from "./schema";
 import { acMode, roomAt, classOf, inside, polyCentre, rotateAbout, ROOM_OWNS, WALL_WIDTH_EXTERNAL, type RenderOpts, type StateOverlay } from "./render";
 import { DEVICE_ICONS } from "./icons";
 import { esc, num } from "./fmt";
@@ -6,11 +6,11 @@ import { stateOf } from "./readings";
 import { meanText } from "./state-text";
 import { plugThreshold, wattsOf } from "./power";
 import { formatAge } from "./room-info";
+import { isAirQualityBad, isSmokeDetected } from "./air-quality";
 import { t } from "./i18n";
 
-/** B55.2 (docs/specs/batch-s52.md F33): a room's badges, left to right. */
-export const BADGE_KINDS = ["lights", "climate", "motion", "energy"] as const;
-export type BadgeKind = (typeof BADGE_KINDS)[number];
+/** B55.2 / S98: a room's badges, left to right or in 4 quadrants. */
+export { BADGE_KINDS, type BadgeKind };
 
 /**
  * Which badge a device of each type feeds, or null for none. A Record over `DeviceType`, so a new type does not compile until it is
@@ -20,9 +20,10 @@ export const BADGE_OF: Record<DeviceType, BadgeKind | null> = {
   light: "lights",
   climate: "climate", heater: "climate", ac: "climate",
   motion: "motion", radar: "motion",
+  air_quality: "air", smoke: "smoke",
   switch: null, plug: null, temp: null, humidity: null, contact: null, camera: null, tv: null, computer: null, media: null, cover: null, battery: null,
   inverter: null, server: null, access_point: null, lock: null, vibration: null, other: null, boiler: null, car: null, ups: null, printer: null,
-  speaker: null, person: null, vacuum: null, siren: null, alarm: null, fan: null, screen: null, power_meter: null, air_quality: null, smoke: null,
+  speaker: null, person: null, vacuum: null, siren: null, alarm: null, fan: null, screen: null, power_meter: null,
 };
 
 /** One icon's worth: lit or not, its colour tone (climate only) and the rows of its bubble. Plain text; whoever draws it escapes it. */
@@ -31,20 +32,36 @@ export type BadgeOpts = Pick<RenderOpts, "state" | "now" | "plugWatts">;
 
 const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x !== "") : []);
 
-/** The devices of kind `kind` whose icon sits in room `ri` (the room `roomAt` gives a tap, so the plan and the badge agree). */
+/** The devices of kind `kind` whose icon or bar midpoint sits in room `ri` (the room `roomAt` gives a tap, so the plan and the badge agree). */
 function devicesOf(f: Floor, ri: number, kind: BadgeKind): Device[] {
-  return (Array.isArray(f?.devices) ? f.devices : []).filter((d) => d && typeof d === "object" && BADGE_OF[d.type] === kind && "x" in d && roomAt(f, [d.x, d.y]) === ri);
+  return (Array.isArray(f?.devices) ? f.devices : []).filter((d) => {
+    if (!d || typeof d !== "object" || BADGE_OF[d.type] !== kind) return false;
+    const at: Pt | null = "a" in d && Array.isArray(d.a) && Array.isArray(d.b) ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : "x" in d ? [d.x, d.y] : null;
+    return !!at && Number.isFinite(at[0]) && Number.isFinite(at[1]) && roomAt(f, at) === ri;
+  });
 }
 
-/** The badges room `ri` has a source for, in drawing order. Needs no states, so the plan can place the icons before any state arrives. */
+/** Custom 4-quadrant slots when configured with at least one kind, or null for auto mode. */
+function customSlots(r: Floor["rooms"][number] | undefined): BadgeSlot[] | null {
+  const s = r?.badges?.slots;
+  if (!Array.isArray(s) || !s.length) return null;
+  const clean = s.slice(0, 4).map((x) => (typeof x === "string" && (BADGE_KINDS as readonly string[]).includes(x) ? (x as BadgeKind) : null));
+  return clean.some((x) => x !== null) ? clean : null;
+}
+
+/** The badges room `ri` shows, in drawing order. Needs no states, so the plan can place the icons before any state arrives. */
 export function badgeKinds(f: Floor, ri: number): BadgeKind[] {
   const r = Array.isArray(f?.rooms) ? f.rooms[ri] : undefined;
   if (!r || typeof r !== "object") return [];
+  const slots = customSlots(r);
+  if (slots) return [...new Set(slots.filter((x): x is BadgeKind => x !== null))];
   const has: Record<BadgeKind, boolean> = {
     lights: devicesOf(f, ri, "lights").length > 0,
     climate: devicesOf(f, ri, "climate").length > 0,
     motion: ids(r.motion).length > 0 || devicesOf(f, ri, "motion").length > 0,
     energy: ids(r.power).length > 0 || ids(r.water).length > 0,
+    air: ids(r.airQuality).length > 0 || devicesOf(f, ri, "air").length > 0,
+    smoke: ids(r.smoke).length > 0 || devicesOf(f, ri, "smoke").length > 0,
   };
   return BADGE_KINDS.filter((k) => has[k]);
 }
@@ -75,7 +92,7 @@ function climateRow(d: Device, o: RenderOpts): { tone: "" | "heat" | "cool"; tex
 function climateInfo(f: Floor, ri: number, o: RenderOpts): BadgeInfo {
   const all = devicesOf(f, ri, "climate"), rows = all.map((d) => ({ d, ...climateRow(d, o) }));
   const tone = rows.some((r) => r.tone === "heat") ? "heat" : rows.some((r) => r.tone === "cool") ? "cool" : "";
-  return { kind: "climate", title: t("Climate"), on: tone !== "", tone, rows: rows.map((r) => named(all.length > 1, label(r.d), r.text)) };
+  return { kind: "climate", title: t("Climate"), on: tone !== "", tone, rows: rows.length ? rows.map((r) => named(all.length > 1, label(r.d), r.text)) : [t("No climate device")] };
 }
 
 function motionInfo(f: Floor, ri: number, o: RenderOpts, now: number): BadgeInfo {
@@ -109,6 +126,49 @@ function energyInfo(f: Floor, ri: number, o: RenderOpts): BadgeInfo {
   };
 }
 
+function airInfo(f: Floor, ri: number, o: RenderOpts): BadgeInfo {
+  const r = f.rooms[ri], devs = devicesOf(f, ri, "air");
+  const sources = [...new Set([...ids(r.airQuality), ...devs.flatMap((d) => [d.entity, ...ids("airSensors" in d ? d.airSensors : undefined)])].filter(Boolean))];
+  const title = t("Air quality");
+  if (!sources.length) return { kind: "air", title, on: false, tone: "", rows: [t("No air sensor")] };
+  let bad = false;
+  const rows: string[] = [];
+  for (const e of sources) {
+    const s = stateOf(o.state, e), v = s?.state.trim() ?? "";
+    if (isAirQualityBad(s, e)) bad = true;
+    if (!s || !v || v === "unavailable" || v === "unknown") continue;
+    const unit = typeof s.attributes?.unit_of_measurement === "string" ? s.attributes.unit_of_measurement : "";
+    const who = typeof s.attributes?.friendly_name === "string" && s.attributes.friendly_name ? s.attributes.friendly_name : e;
+    rows.push(named(sources.length > 1, who, unit ? `${v} ${unit}` : v));
+  }
+  return { kind: "air", title, on: bad, tone: "", rows: rows.length ? rows : [bad ? t("Air quality bad") : t("No reading")] };
+}
+
+function smokeInfo(f: Floor, ri: number, o: RenderOpts): BadgeInfo {
+  const r = f.rooms[ri], devs = devicesOf(f, ri, "smoke");
+  const sources = [...new Set([...ids(r.smoke), ...devs.map((d) => d.entity)].filter(Boolean))];
+  const title = t("Smoke / gas");
+  if (!sources.length) return { kind: "smoke", title, on: false, tone: "", rows: [t("No smoke detector")] };
+  const tripped: string[] = [];
+  let anyLive = false;
+  for (const e of sources) {
+    const s = stateOf(o.state, e);
+    if (s && s.state !== "unavailable" && s.state !== "unknown") anyLive = true;
+    if (isSmokeDetected(s)) tripped.push(typeof s?.attributes?.friendly_name === "string" && s.attributes.friendly_name ? s.attributes.friendly_name : e);
+  }
+  if (tripped.length) return { kind: "smoke", title, on: true, tone: "", rows: [t("Smoke / gas detected"), ...(sources.length > 1 ? tripped : [])] };
+  return { kind: "smoke", title, on: false, tone: "", rows: [anyLive ? t("Clear") : t("Unavailable")] };
+}
+
+function infoOf(f: Floor, ri: number, k: BadgeKind, o: RenderOpts, now: number): BadgeInfo {
+  if (k === "lights") return lightsInfo(f, ri, o);
+  if (k === "climate") return climateInfo(f, ri, o);
+  if (k === "motion") return motionInfo(f, ri, o, now);
+  if (k === "air") return airInfo(f, ri, o);
+  if (k === "smoke") return smokeInfo(f, ri, o);
+  return energyInfo(f, ri, o);
+}
+
 /**
  * B55.2 (F35, F38): the badges of room `ri` and what each bubble says, for the states in `opts.state`. `opts.now` is the clock, or the
  * replay time in a replay, so "last motion" counts back from the moment on show. Never throws on a bad layout or state (finding 1).
@@ -119,13 +179,16 @@ export function badgeInfo(f: Floor, ri: number, opts: BadgeOpts): BadgeInfo[] {
   const now = typeof opts.now === "number" && Number.isFinite(opts.now) ? opts.now : Date.now();
   const state = opts.state && typeof opts.state === "object" ? (opts.state as StateOverlay) : undefined;
   const o = { ...opts, state, now } as RenderOpts;
-  return kinds.map((k) => (k === "lights" ? lightsInfo(f, ri, o) : k === "climate" ? climateInfo(f, ri, o) : k === "motion" ? motionInfo(f, ri, o, now) : energyInfo(f, ri, o)));
+  return kinds.map((k) => infoOf(f, ri, k, o, now));
 }
 
 // ---- B55.3 (F34, F36): the badges on the plan. Sizes are screen px; `kt` turns them into plan cm.
 const R_PX = 9, GAP_PX = 4, INSET_PX = 8, SLIDE_STEPS = 32;
 const BOLT = "M7,2V13H10V22L17,10H13L17,2H7Z"; // MDI "flash": DEVICE_ICONS has no energy glyph and the card imports no icon set at runtime
-const ICON_PATH: Record<BadgeKind, string> = { lights: DEVICE_ICONS.light, climate: DEVICE_ICONS.climate, motion: DEVICE_ICONS.motion, energy: BOLT };
+const ICON_PATH: Record<BadgeKind, string> = {
+  lights: DEVICE_ICONS.light, climate: DEVICE_ICONS.climate, motion: DEVICE_ICONS.motion,
+  energy: BOLT, air: DEVICE_ICONS.air_quality, smoke: DEVICE_ICONS.smoke,
+};
 
 /** A room's name as drawn: where, how big, how many letters. `label` is absent when the plan shows no names. */
 export interface NameBox { at: Pt; size: number; len: number }
@@ -137,6 +200,14 @@ function rowAt(box: [number, number, number, number], corner: RoomCorner, n: num
   const y = corner[0] === "n" ? y0 + edge : y1 - edge;
   const first = corner[1] === "w" ? x0 + edge : x1 - edge - (n - 1) * pitch;
   return Array.from({ length: n }, (_, i) => [first + i * pitch, y] as Pt);
+}
+
+/** Centres for a 2x2 quadrant grid [TL, TR, BL, BR] in a corner of the box. */
+function quadAt(box: [number, number, number, number], corner: RoomCorner, qs: number[], kt: number): Pt[] {
+  const [x0, y0, x1, y1] = box, edge = (INSET_PX + R_PX) * kt, pitch = (2 * R_PX + GAP_PX) * kt;
+  const gx = corner[1] === "w" ? x0 + edge : x1 - edge - pitch;
+  const gy = corner[0] === "n" ? y0 + edge : y1 - edge - pitch;
+  return qs.map((q) => [gx + (q % 2) * pitch, gy + Math.floor(q / 2) * pitch] as Pt);
 }
 
 const segDist = (p: Pt, a: Pt, b: Pt): number => {
@@ -161,7 +232,7 @@ function placed(pts: Pt[], row: Pt[], kt: number, name?: NameBox, turn = 0): Pt[
     && pts.every((a, i) => segDist(c, a, pts[(i + 1) % pts.length]) >= reach)
     && (!nb || (([x, y]) => Math.hypot(Math.max(nb[0] - x, 0, x - nb[2]), Math.max(nb[1] - y, 0, y - nb[3])) >= r)(inNameFrame(c)));
   if (row.every(clear)) return row;
-  const mid: Pt = [row.reduce((s, c) => s + c[0], 0) / row.length, row[0][1]], to = polyCentre(pts);
+  const mid: Pt = [row.reduce((s, c) => s + c[0], 0) / row.length, row.reduce((s, c) => s + c[1], 0) / row.length], to = polyCentre(pts);
   const slid = (t: number) => row.map((c) => [c[0] + (to[0] - mid[0]) * t, c[1] + (to[1] - mid[1]) * t] as Pt);
   for (let s = 1; s < SLIDE_STEPS; s++) if (slid(s / SLIDE_STEPS).every(clear)) return slid(s / SLIDE_STEPS);
   // The line met the name or a wall all the way: look everywhere, nearest the corner first.
@@ -187,12 +258,20 @@ export function roomBadges(d: BadgeDraw): string[] {
     if (!Array.isArray(p) || p.length < 3 || !p.every((q) => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]))) return;
     const infos = badgeInfo(d.f, ri, d.o);
     if (!infos.length) return;
+    const byKind = new Map(infos.map((b) => [b.kind, b]));
+    const slots = customSlots(room);
+    const items: { b: BadgeInfo; q?: number }[] = slots
+      ? slots.flatMap((k, q) => (k && byKind.has(k) ? [{ b: byKind.get(k)!, q }] : []))
+      : infos.map((b) => ({ b }));
+    if (!items.length) return;
     const box: [number, number, number, number] = [Math.min(...p.map((q) => q[0])), Math.min(...p.map((q) => q[1])), Math.max(...p.map((q) => q[0])), Math.max(...p.map((q) => q[1]))];
-    const centres = placed(p, rowAt(box, corner as RoomCorner, infos.length, d.kt), d.kt, d.label?.(ri), d.o.rotate?.deg);
-    infos.forEach((b, i) => {
+    const base = slots ? quadAt(box, corner as RoomCorner, items.map((it) => it.q!), d.kt) : rowAt(box, corner as RoomCorner, items.length, d.kt);
+    const centres = placed(p, base, d.kt, d.label?.(ri), d.o.rotate?.deg);
+    items.forEach(({ b, q }, i) => {
       const [cx, cy] = centres[i], r = R_PX * d.kt, s = (r * 1.3) / 24; // the glyph is a 24-unit box; 1.3 radii across leaves a margin inside the disc
       const cls = ["cb", `cb-${b.kind}`, b.on ? "on" : "", b.tone ? `cb-${b.tone}` : "", d.editor ? "cb-ed" : ""].filter(Boolean).join(" ");
-      out.push(`<g class="${cls}" data-cb="${ri}:${b.kind}" role="img" aria-label="${esc(b.title)}"${d.up(cx, cy)}><circle class="cb-bg" cx="${num(cx)}" cy="${num(cy)}" r="${num(r)}"/><path class="cb-i" d="${ICON_PATH[b.kind]}" transform="translate(${num(cx - 12 * s)} ${num(cy - 12 * s)}) scale(${num(s)})"/></g>`);
+      const qa = q === undefined ? "" : ` data-q="${q}"`;
+      out.push(`<g class="${cls}" data-cb="${ri}:${b.kind}"${qa} role="img" aria-label="${esc(b.title)}"${d.up(cx, cy)}><circle class="cb-bg" cx="${num(cx)}" cy="${num(cy)}" r="${num(r)}"/><path class="cb-i" d="${ICON_PATH[b.kind]}" transform="translate(${num(cx - 12 * s)} ${num(cy - 12 * s)}) scale(${num(s)})"/></g>`);
     });
   });
   return out;

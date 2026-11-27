@@ -38,10 +38,10 @@ describe("every device type states its far behaviour (finding 17)", () => {
   // makes the type alert is the proof that the class follows the attention rule, not a copy of it.
   const ALERT: Partial<Record<DeviceType, { state: string; attributes?: Record<string, unknown> }>> = {
     alarm: { state: "triggered" }, contact: { state: "on" }, cover: { state: "open", attributes: { device_class: "garage" } }, lock: { state: "unlocked" },
-    other: { state: "on", attributes: { device_class: "smoke" } },
+    other: { state: "on", attributes: { device_class: "smoke" } }, smoke: { state: "on" },
   };
   const FAR: Record<DeviceType, "idle hides; attention keeps" | "idle hides"> = Object.fromEntries(DEVICE_TYPES.map((t) => [t, ATTENTION_RULE[t] === "none" ? "idle hides" : "idle hides; attention keeps"])) as never;
-  const ent = (t: DeviceType) => (t === "other" ? "binary_sensor.x" : t === "alarm" ? "alarm_control_panel.x" : t === "cover" ? "cover.x" : t === "lock" ? "lock.x" : t === "contact" ? "binary_sensor.x" : `sensor.x`);
+  const ent = (t: DeviceType) => (t === "other" || t === "smoke" ? "binary_sensor.x" : t === "alarm" ? "alarm_control_panel.x" : t === "cover" ? "cover.x" : t === "lock" ? "lock.x" : t === "contact" ? "binary_sensor.x" : `sensor.x`);
   const one = (type: DeviceType, s: { state: string; attributes?: Record<string, unknown> } | undefined, extra = {}) => {
     const d = { id: "d", type, entity: ent(type), x: 500, y: 500, ...extra };
     const state = s ? { [d.entity]: { state: s.state, attributes: s.attributes ?? {}, last_changed: "2026-10-09T10:00:00Z" } } : undefined;

@@ -190,6 +190,7 @@ function ruleKind(d: Device, s: StateOverlay[string]): AttentionKind | null {
     case "open": return (d.type === "cover" ? coverActive(s) : v === "on") ? "open" : null;
     case "unlocked": return v === "unlocked" ? "unlocked" : v === "jammed" ? "jammed" : null;
     case "hazard": {
+      if (d.type === "smoke") return v === "on" ? "smoke" : null;
       const dc = attrs(s).device_class;
       if (!d.entity.startsWith("binary_sensor.") || v !== "on") return null;
       return typeof dc !== "string" ? null : LEAK_CLASSES.has(dc) ? "leak" : SMOKE_CLASSES.has(dc) ? "smoke" : null;

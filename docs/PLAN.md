@@ -5153,3 +5153,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ## Sprint 97 — Street light spill and smooth atmospheric falloff
 
 - [x] **S97.1** Removed garden/room boundary clip on `street` lights in 2D and 3D (now illuminates garden + house exterior), and added smooth multi-stop atmospheric falloff (`fp-street-falloff` in 2D, softer `pow(1-f, 2.8)` in 3D).
+
+---
+
+## Sprint 98 — Room badges visibility, air/smoke kinds, and 4-quadrant slots
+
+- [x] **S98.1** Fixed bar-heater badge detection and active `.cb.on` visibility, added `"air"` and `"smoke"` badge kinds with live bubble info, and added optional 4-quadrant `RoomBadges.slots` (`[TL, TR, BL, BR]`) with 2x2 rendering and Studio quadrant picker.

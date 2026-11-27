@@ -46,7 +46,7 @@ export function roomHazards(
 ): Map<number, RoomHazard> {
   const out = new Map<number, RoomHazard>();
   if (!state) return out;
-  const mark = (ri: number, key: "airBad" | "smoke") => {
+  const flag = (ri: number, key: "airBad" | "smoke") => {
     if (ri < 0) return;
     const cur = out.get(ri) ?? { airBad: false, smoke: false };
     cur[key] = true;
@@ -54,18 +54,18 @@ export function roomHazards(
   };
   (Array.isArray(f.rooms) ? f.rooms : []).forEach((r, i) => {
     if (!r) return;
-    if (Array.isArray(r.airQuality) && r.airQuality.some((e) => typeof e === "string" && isAirQualityBad(state[e], e))) mark(i, "airBad");
-    if (Array.isArray(r.smoke) && r.smoke.some((e) => typeof e === "string" && isSmokeDetected(state[e]))) mark(i, "smoke");
+    if (Array.isArray(r.airQuality) && r.airQuality.some((e) => typeof e === "string" && isAirQualityBad(state[e], e))) flag(i, "airBad");
+    if (Array.isArray(r.smoke) && r.smoke.some((e) => typeof e === "string" && isSmokeDetected(state[e]))) flag(i, "smoke");
   });
   for (const d of Array.isArray(f.devices) ? f.devices : []) {
     if (!d || (d.type !== "air_quality" && d.type !== "smoke")) continue;
     const at: Pt = "a" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [d.x, d.y];
     if (!Number.isFinite(at[0]) || !Number.isFinite(at[1])) continue;
     if (d.type === "smoke") {
-      if (isSmokeDetected(state[d.entity])) mark(roomOf(f, at), "smoke");
+      if (isSmokeDetected(state[d.entity])) flag(roomOf(f, at), "smoke");
     } else {
       const bad = isAirQualityBad(state[d.entity], d.entity) || (Array.isArray(d.airSensors) && d.airSensors.some((e) => typeof e === "string" && isAirQualityBad(state[e], e)));
-      if (bad) mark(roomOf(f, at), "airBad");
+      if (bad) flag(roomOf(f, at), "airBad");
     }
   }
   return out;
