@@ -7,7 +7,7 @@
 // pulls the shared code out into a chunk the card then loads up front (docs/DECISIONS.md, S12.3). A test iterates the core
 // unions (`ROOM_KINDS`, `WALL_KINDS`, `DEVICE_TYPES`, `FURNITURE_SYMBOLS`) so a new member fails until it is named here.
 const ROOM_KINDS = ["room", "garden", "pavement", "fill", "terrace", "water"] as const; // a zone and a structure have no floor of their own
-const WALL_KINDS = ["wall", "boundary", "external", "fence", "edge", "parapet"] as const;
+const WALL_KINDS = ["wall", "boundary", "external", "fence", "hedge", "edge", "parapet"] as const;
 const FURNITURE_SYMBOLS = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "sofa-l", "coffee-table", "bookcase", "buffet", "wardrobe", "dresser", "nightstand", "desk", "armchair", "counter", "stove", "fridge", "dishwasher", "washer", "dryer", "rug", "plant", "treadmill", "barbell-rack", "weight-rack", "chaise-longue", "cube-shelf", "mirror", "mirror-stand", "robot-vacuum", "robot-dock", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car", "worktop", "metal-shelf", "worktable", "wash-basin", "boiler", "water-tank"] as const;
 const DEVICE_TYPES = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan", "screen", "power_meter"] as const;
 
@@ -26,13 +26,13 @@ const ROOM: Record<string, string> = {
 const SHARE = "var(--fp-wall-side-share, 55%)";
 const side = (wall: string, extra: string) => `color-mix(in srgb, var(${wall}) ${extra}, var(--fp-bg))`;
 const WALL: Record<string, string> = {
-  wall: side("--fp-wall", SHARE), boundary: side("--fp-wall", SHARE), external: side("--fp-wall-external", `calc(${SHARE} + 5%)`), fence: "var(--fp-wall-fence)", edge: "var(--fp-wall-edge)", parapet: side("--fp-wall-external", `calc(${SHARE} + 5%)`),
+  wall: side("--fp-wall", SHARE), boundary: side("--fp-wall", SHARE), external: side("--fp-wall-external", `calc(${SHARE} + 5%)`), fence: "var(--fp-wall-fence)", hedge: "var(--fp-tree)", edge: "var(--fp-wall-edge)", parapet: side("--fp-wall-external", `calc(${SHARE} + 5%)`),
 };
 /** B53.9: a wall's own colour (`#rrggbb`) shaded as its kind is, so a coloured wall reads like a themed one and not like a slab of raw ink. */
 export const wallOwnCss = (role: string, hex: string): string | null => {
   const kind = role.slice(5);
   if (!role.startsWith("wall-") || !(kind in WALL)) return null;
-  if (kind === "fence" || kind === "edge") return hex;
+  if (kind === "fence" || kind === "hedge" || kind === "edge") return hex;
   return `color-mix(in srgb, ${hex} ${kind === "external" || kind === "parapet" ? `calc(${SHARE} + 5%)` : SHARE}, var(--fp-bg))`;
 };
 const FURNITURE: Record<string, string> = {

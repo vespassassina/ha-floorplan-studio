@@ -70,7 +70,7 @@ export const SCENE_FIELDS: Record<(typeof SCENE_DOMAINS)[number], readonly strin
  * to offer for the room besides the ones whose area is the room's own.
  */
 export interface RoomScene { id: string; name: string; items: SceneItem[] }
-export type WallKind = "wall" | "boundary" | "external" | "fence" | "edge" | "parapet";
+export type WallKind = "wall" | "boundary" | "external" | "fence" | "hedge" | "edge" | "parapet";
 /** A room edge is a wall kind, or "none": not drawn. The room stays closed for area and snapping. */
 export type EdgeKind = WallKind | "none";
 /** `locked` (S4.9): the segment's length is fixed. Dragging an endpoint then only pivots it, on an arc around the other endpoint. */
@@ -288,7 +288,7 @@ function farCoordinate(f: Record<string, any>): boolean {
 }
 
 export const ROOM_KINDS: readonly RoomKind[] = ["room", "garden", "pavement", "fill", "terrace", "structure", "zone", "water"];
-export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", "fence", "edge", "parapet"];
+export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", "fence", "hedge", "edge", "parapet"];
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const STAIR_DIRECTIONS: readonly StairDirection[] = ["up", "down", "both"];

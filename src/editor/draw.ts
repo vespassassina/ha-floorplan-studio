@@ -123,7 +123,7 @@ const round2 = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
  */
 export function roomKindFor(kinds: readonly WallKind[]): RoomKind {
   if (kinds.every((k) => k === "boundary")) return "zone";
-  if (kinds.every((k) => k === "fence" || k === "edge")) return "garden";
+  if (kinds.every((k) => k === "fence" || k === "hedge" || k === "edge")) return "garden";
   return "room";
 }
 
