@@ -25,6 +25,7 @@ import { contactShadows, groundBox } from "./shade";
 import { debugOnce } from "../../core/debug-once";
 import { breathAt, pulseAt } from "./ring";
 import { sunDir, sunLook, sunShadowBox } from "./sun";
+import { createWeatherFx, weatherMood } from "./weather";
 import { createSunPatches } from "./patches";
 import { MAX_SUN_PATCHES, sunPatches } from "./sunpatch";
 
@@ -207,7 +208,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   let pieceBodies: PieceBody[] = [];
   let devBodies: { index: number; type: string; body: string; mesh: Mesh; mat: MeshLambertMaterial; rest: Color; lit: Mesh[]; on: boolean }[] = [];
   let ballIdx: number[] = [], ballRest: Color[] = [], anchors: Anchors = { devices: new Map(), rooms: new Map() };
-  const overlay = createOverlay(container), pools = createPools(scene), rings = createRings(scene), glow = createGlow(scene), suns = createSunPatches(scene);
+  const overlay = createOverlay(container), pools = createPools(scene), rings = createRings(scene), glow = createGlow(scene), suns = createSunPatches(scene), weatherFx = createWeatherFx(scene);
+  let precipitating = false, lastWeatherT = 0;
   /** S38.4: the sun the patches were last built for, and what else they depend on; `sunBuilds` counts the builds (a test hook). */
   let patchSun = "", sunBuilds = 0, patchAz = 0, patchEl = 0;
   // ---- floor textures (S13): the meshes that wear one, and the rasters (made once, kept for the view). A mesh shows the texture's flat colour until its raster is ready.
@@ -272,6 +274,11 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       // The motion edge breathes while a pulse plays: one frame asks for the next, and the one that ends it sets the held value.
       if (pulsing) pulsing = applyRings();
       if (breathing) applyBreath();
+      if (precipitating && !reduced() && document.visibilityState !== "hidden") {
+        const nowT = performance.now();
+        weatherFx.step(lastWeatherT ? (nowT - lastWeatherT) / 1000 : 0.05);
+        lastWeatherT = nowT;
+      } else lastWeatherT = 0;
       renderer.render(scene, camera);
       const { w, h } = size();
       overlay.place(project, hidden, w, h);
@@ -285,7 +292,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       return;
     }
     if (pulsing) want();
-    else if (breathing) wantBreath();
+    else if (breathing || (precipitating && !reduced() && document.visibilityState !== "hidden")) wantBreath();
   };
   // A breath alone moves one emissive on a 2.4 s sine: about 15 frames a second is enough, and a wall tablet may charge a car all night.
   // Anything else that animates (a pulse, a glide) asks for the next display frame itself.
@@ -942,6 +949,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     hemi.color.setHex(L.night ? 0xb6cdf2 : 0xf2f7ff);
     hemi.groundColor.setHex(L.night ? 0x3e3a36 : 0xcabca8);
     const sunNow = applySun(L, mode);
+    const mood = weatherMood(L.weather);
+    if (mood.sunScale < 1) sun.intensity *= mood.sunScale;
+    if (!L.night && mood.hemiSky !== null) hemi.color.setHex(mood.hemiSky);
+    precipitating = weatherFx.set(mood, plan?.bounds ?? null, paintOf("backdrop", undefined).colour.getHex());
     const lit = L.lights.map((l) => ({ room: l.room, at: l.at, rgb: rgbOf(l.rgb), level: l.level, device: l.device, scale: l.scale ?? 1, lamp: l.lamp }));
     lifts = roomLifts(lit, mode.boost);
     heatTint = floorHeat(L.heated);
@@ -1243,6 +1254,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       pools.dispose();
       glow.dispose();
       suns.dispose();
+      weatherFx.dispose();
       rasters.dispose();
       overlay.dispose();
       renderer.dispose();
@@ -1303,6 +1315,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       /** S38.3: the directional light as three has it (position is its direction in three's frame), the colour as sRGB hex, and the hemisphere light's strength. */
       light: () => ({ x: sunVec[0], y: sunVec[1], z: sunVec[2], intensity: sun.intensity, colour: hexOf(sun.color), hemi: hemi.intensity }),
       shadows: () => ({ enabled: renderer.shadowMap.enabled, casting: sun.castShadow, updates: shadowUpdates }),
+      weather: () => ({ kind: weatherFx.kind(), particles: weatherFx.count(), fog: !!scene.fog }),
       /** S32.1: the camera as the card would store it ({ az, polar, zoom, dx, dz }; zoom is a multiple of the fit). */
       camera: () => api.camera(),
       setBelow: (floors: unknown, mode: string) => api.setBelow(floors, mode),

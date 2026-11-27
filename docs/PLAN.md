@@ -5069,3 +5069,7 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ### Sprint 81 (done): 2D sun wedge and outdoor directional shadows
 
 - [x] 2026-11-27 S81 2D sun wedge (`--fp-sun-wedge`) and outdoor directional shadows (masked house outline, trees, parked cars) in `src/core/render.ts`, fed by `this._sun()` in `floorplan-studio-card.ts` (`139,703 B` gz, cap `140,000 B`).
+
+### Sprint 82 (done): 3D weather atmosphere
+
+- [x] 2026-11-27 S82 `src/card/three/weather.ts` wired into `view3d.ts` and `host.ts`: live overcast lighting, `FogExp2` mist, animated 3D rain streaks and drifting snowflakes driven by `weather.*` (`0 B` added to card, respects `prefers-reduced-motion` and tab visibility).
