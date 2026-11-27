@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: 3D outdoor sun casting and house/tree/car shadows (S80)
+
+1. Enabled on-demand `PCFSoftShadowMap` (`1024×1024`, `autoUpdate = false`, updating only when geometry, cutaway, away state, or sun angle changes by ≥ 1°) inside the lazy `floorplan-studio-3d-<hash>.js` chunk (`0 B` added to `floorplan-studio-card.js`).
+2. Walls, fences, openings/door leaves, tree crowns (`InstancedMesh`), tree trunks, cars (only while home/opaque), and tall furniture cast shadows onto outdoor rooms (`garden`, `terrace`, `pavement`, `water`), indoor floors, slabs, walls, and the exterior ground plane. Shadows turn off automatically at night or when the sun is below the horizon, and low elevations clamp to `8°` (`SHADOW_MIN_EL`) for clean shadow-map resolution.
+
 ## 2026-11-26: Import from `ha-floorplan` SVGs in Studio (S79)
 
 1. Added `src/editor/svg-import.ts` (`importHaFloorplanSvg`, Studio-only, 0 B added to `floorplan-studio-card.js`) wired to `File > Import SVG…` (`#impSvg`). Parses SVG safely via `DOMParser` with hard caps (`5 MB`, `4,000` nodes, `200` rooms, `500` devices), composes ancestor `transform` matrices, extracts closed shapes (`<rect>`, `<polygon>`, `<path>`) as rooms, extracts elements/groups with HA entity IDs as placed devices, and loads an unlocked plan in one undo step.

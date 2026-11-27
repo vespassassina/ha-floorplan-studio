@@ -5061,3 +5061,7 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ### Sprint 79 (done): Import from `ha-floorplan` SVGs
 
 - [x] 2026-11-26 S79 `src/editor/svg-import.ts` (`importHaFloorplanSvg`) wired to Studio `File > Import SVG…` (`#impSvg`): safe `DOMParser` with size/node/room/device caps, ancestor transform composition, room polygon extraction, HA entity ID device placement with type inference, and single-step undo (0 B added to card).
+
+### Sprint 80 (done): 3D outdoor sun casting and house/tree/car shadows
+
+- [x] 2026-11-27 S80 On-demand `PCFSoftShadowMap` in `src/card/three/view3d.ts` + `sunShadowBox` in `src/card/three/sun.ts`: house walls, tree crowns/trunks, cars, and furniture cast live directional sun shadows onto gardens, terraces, pavements, walls, and the ground plane (`0 B` added to card, zero orbit shadow-pass cost).
