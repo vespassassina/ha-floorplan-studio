@@ -28,6 +28,7 @@ import { scrollRow, pulse, onSearchPick, toggleSide, onOutlineQuery, onOutlineTo
 import { renameFloor, moveFloor, deleteFloor, undo, setColour, openLink, closeLink, linkRows, applyLink, rotatePlan, centre, moveCurrentFloor, askDeleteFloor, startAddFloor, onNewFloorKey, spawnDevice } from "./editor-actions";
 import { closeAlign, openAlign, alignPreview, applyAlign, alignStairInfo, alignStairs, setAlignStep, moveAlign, turnAlign, setAlignOffset, setAlignRotation, resetAlignOffset, ghostOpts } from "./editor-align";
 import { save, exportJson, saveDone, reset, loadDemo, roomsFromAreas, adoptLayout, openFile, importSvgFile, firstRunDemo, firstRunBlank } from "./editor-file";
+import type { RulerState } from "./ruler";
 import { planFixed, setPlanLocked, attachEntity, attachToRoom, rotateTexture, rotateItem, scaleTexture } from "./editor-changes";
 import { openPlace, openScene, closeCtxMenu, toggleDevCols, dragHead, toggleHa, toggleHaSync, toggleAttention, closePlace, placeIndex, setAsideMode, placeGo, openAddDev, closeAddDev, pickAddDev, toggleInstallCode, copyCardView, devColsView, haView, haSyncView, attentionView, closeScene, saveSceneDraft, trySceneDraft, restoreSceneDraft, captureSceneDraft, migrateLegacyScenes, loadExistingScene, migrateHueSceneDraft, installCodeView } from "./editor-popups";
 import { getActionRegistry, type CustomAction } from "./custom-actions";
@@ -185,6 +186,8 @@ export class FloorplanStudioEditor extends LitElement {
   /** S7.11: Edit, Trace image: whether its panel is open; the two points of a Scale step (null when not scaling); the Export tick, for this session only. */
   traceOpen = false;
   traceScale: Pt[] | null = null;
+  /** S83: interactive measurement ruler state; null when ruler mode is off. */
+  ruler: RulerState | null = null;
   /** S40.2: Move is on, so a drag on the plan moves the trace image and the arrows nudge it. Off on Hide, Remove, Scale, a closed panel and Escape. */
   traceMove = false;
   exportTrace = false;
@@ -481,6 +484,9 @@ export class FloorplanStudioEditor extends LitElement {
     .zoom .btn svg{width:16px;height:16px;display:block;margin:0 auto}
     .canvas>svg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
     .canvas>svg.drawing,.canvas>svg.drawing *{cursor:crosshair}
+    .ruler-ln{stroke:var(--fp-primary,#1f6699);stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}
+    .ruler-pt{fill:var(--fp-bg,#fff);stroke:var(--fp-primary,#1f6699);stroke-width:2;vector-effect:non-scaling-stroke}
+    .ruler-lbl{fill:var(--fp-ink,#222);font-weight:600;paint-order:stroke;stroke:var(--fp-bg,#fff);stroke-width:4px;stroke-linejoin:round}
     /* S7.11 / S49: see-through room fills under svg.tracing live in FLOORPLAN_CSS for both editor and card. */
     /* S58.1: 3D view replaces the canvas; toggle back to 2D via the same top button */
     .canvas.in3d>svg,.canvas.in3d>.zoom{display:none}
@@ -931,6 +937,17 @@ export class FloorplanStudioEditor extends LitElement {
   adoptLayout(x: unknown, status: string): boolean { return adoptLayout(this, x, status); } // editor-file.ts
   openFile(ev: Event) { return openFile(this, ev); } // editor-file.ts
   importSvgFile(ev: Event) { return importSvgFile(this, ev); } // editor-file.ts
+  toggleRuler() {
+    if (this.ruler) {
+      this.ruler = null;
+      this.status = "Ruler off";
+    } else {
+      if (this.draw) stopDraw(this);
+      this.ruler = { a: null, b: null, locked: false };
+      this.status = "Ruler: click two points to measure (Alt to unsnap, Esc to exit)";
+    }
+    this.requestUpdate();
+  }
 
   // ---- drawing -------------------------------------------------------------
 
@@ -960,7 +977,7 @@ export class FloorplanStudioEditor extends LitElement {
       <div class="ed">
         ${sideView(this, find.tree)}
         <div class=${`canvas${this.open3d ? " in3d" : ""}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label=${`Floor plan, ${f.title || st.floor}`} class=${[this.draw ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @animationend=${this.onSwitchEnd} @dblclick=${this.onDblClick} @contextmenu=${(e: MouseEvent) => { e.preventDefault(); if (!this.ctxMenu) openCtxMenuAt(this, e.clientX, e.clientY); }}>${unsafeSVG(body)}</svg>
+          <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label=${`Floor plan, ${f.title || st.floor}`} class=${[this.draw || this.ruler ? "drawing" : "", f.trace?.on === true ? "tracing" : ""].filter(Boolean).join(" ")} viewBox=${viewBox} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @animationend=${this.onSwitchEnd} @dblclick=${this.onDblClick} @contextmenu=${(e: MouseEvent) => { e.preventDefault(); if (!this.ctxMenu) openCtxMenuAt(this, e.clientX, e.clientY); }}>${unsafeSVG(body)}</svg>
           <!-- After the plan svg in the DOM, not before: specs and code that ask for "the first svg" must get the plan, not a button icon. It sits on top by z-index. -->
           <div class="zoom" role="group" aria-label="Zoom">
             <button class="btn" id="zin" title="Zoom in" aria-label="Zoom in" @click=${() => zoomBy(this, 1 / 1.25)}>+</button>

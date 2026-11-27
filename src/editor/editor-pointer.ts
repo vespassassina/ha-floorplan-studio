@@ -10,6 +10,7 @@ import { offerAreaMove } from "./editor-ha";
 import { marqueeHits } from "./selection";
 import { closeCtxMenu } from "./editor-popups";
 import { ctxTargetFor } from "./ctx-menu";
+import { formatRulerMeasure } from "./ruler";
 import type { FloorplanStudioEditor } from "./editor-app";
 
 // ---- the pointer: press, move, release, double-click, wheel, hit tests and the corner snap ---------------
@@ -139,6 +140,20 @@ export const onDown = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
   const p = ed.toSvg(ev);
   // S7.11: a Scale step takes the next two clicks as its points, raw (no snap: they sit on the image, not the plan), and nothing else.
   if (ed.traceScale) { if (ed.traceScale.length < 2) { ed.traceScale.push(p); traceStep(ed); } return; }
+  // S83: interactive ruler clicks (snapped unless Alt held; never modifies layout or undo stack).
+  if (ed.ruler) {
+    const pt = ev.altKey ? round(p) : round(snapPoint(f, p, { threshold: 14 / ed.scale, grid: st.snapGrid, exclude: [], neighbours: ed.ruler.a ? [ed.ruler.a] : [] }));
+    if (!ed.ruler.a || ed.ruler.locked) {
+      ed.ruler = { a: pt, b: pt, locked: false };
+      ed.status = "Ruler: click second point (Alt to unsnap, Esc to exit)";
+    } else {
+      const a = ed.ruler.a;
+      ed.ruler = { a, b: pt, locked: true };
+      ed.status = formatRulerMeasure(a, pt).status;
+    }
+    ed.requestUpdate();
+    return;
+  }
   // S40.2: with Move on, the press is the image's alone: no wall, room or device under it takes it.
   if (ed.moving) {
     const t = f.trace;
@@ -333,6 +348,13 @@ export function begin(ed: FloorplanStudioEditor, d: { moved: boolean }) {
 
 export const onMove = (ed: FloorplanStudioEditor, ev: PointerEvent) => {
   const d = ed.drag, st = ed.st;
+  if (!d && ed.ruler?.a && !ed.ruler.locked) {
+    const p = ed.toSvg(ev);
+    const pt = ev.altKey ? round(p) : round(snapPoint(st.f, p, { threshold: 14 / ed.scale, grid: st.snapGrid, exclude: [], neighbours: [ed.ruler.a] }));
+    ed.ruler = { ...ed.ruler, b: pt };
+    ed.requestUpdate();
+    return;
+  }
   if (!d && ed.draw) { ed.hover = ed.aim = snapDraw(ed, ed.draw, ed.toSvg(ev), ev.altKey); ed.requestUpdate(); return; }
   if (!d) return;
   if (d.type === "pan") {

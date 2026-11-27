@@ -5073,3 +5073,7 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ### Sprint 82 (done): 3D weather atmosphere
 
 - [x] 2026-11-27 S82 `src/card/three/weather.ts` wired into `view3d.ts` and `host.ts`: live overcast lighting, `FogExp2` mist, animated 3D rain streaks and drifting snowflakes driven by `weather.*` (`0 B` added to card, respects `prefers-reduced-motion` and tab visibility).
+
+### Sprint 83 (done): Studio interactive measurement ruler tool
+
+- [x] 2026-11-27 S83 `src/editor/ruler.ts` wired into Studio `View > Ruler` (`#ruler`, shortcut `M`, `Esc` to exit): two-point snapped distance measurement in `m`/`cm` + `Δx`/`Δy` (`0 B` added to card).

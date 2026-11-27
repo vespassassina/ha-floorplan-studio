@@ -228,6 +228,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
             ${GRID_VALUES.map((g) => html`<button class="chip keep" data-grid=${g} aria-pressed=${pressed(st.snapGrid === g)} @click=${() => { st.setGrid(g); h.requestUpdate(); }}>${g ? `${g} cm` : "None"}</button>`)}</div>
           <button class="chip" id="mgrid" aria-pressed=${pressed(st.measure)} title="A faint 50 cm grid with metre markers, behind the plan" @click=${() => { st.setMeasure(!st.measure); h.requestUpdate(); }}>Measure grid</button>
           <button class="chip" id="lens" aria-pressed=${pressed(st.showLen)} @click=${() => { st.showLen = !st.showLen; h.requestUpdate(); }}>Lengths</button>
+          <button class="chip" id="ruler" aria-pressed=${pressed(!!h.ruler)} title="Click two points to measure distance (shortcut: M)" @click=${() => h.toggleRuler()}>Ruler</button>
           ${sub("labelsSub", "Labels", html`
             <button class="chip" id="names" aria-pressed=${pressed(st.showNames)} title="Show every visible device's name on the plan" @click=${() => { st.showNames = !st.showNames; h.requestUpdate(); }}>Device names</button>
             <button class="chip" id="labels" aria-pressed=${pressed(st.labels)} title="Show the names and values on the plan. Off leaves only the items and sensors." @click=${() => { st.setLabels(!st.labels); h.requestUpdate(); }}>Names and values</button>`)}
