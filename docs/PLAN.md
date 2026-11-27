@@ -5111,3 +5111,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ## Sprint 90 — Carports and extensible sun covers / awnings
 
 - [x] **S90.1** Added `"carport"` (wall-attached + 4 poles on long side + translucent polycarbonate roof in 2D/3D) and `"awning"` (wall-mounted extensible sun cover that scales dynamically with linked HA `cover.*` `current_position`).
+
+---
+
+## Sprint 91 — Garden houses and sheds
+
+- [x] **S91.1** Added `"garden-house"` standalone outdoor building (`300 x 250 x 260 cm`, pitched gable roof with overhang in 2D/3D, custom paint/texture, optional HA entity link, listed under `Add > Furniture > Outdoor`).

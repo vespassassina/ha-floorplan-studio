@@ -56,7 +56,7 @@ describe("B53.5: furnitureBlocks", () => {
   it("makes legs and plinths dark and nothing else", () => {
     for (const s of FURNITURE_SYMBOLS) {
       const dark = furnitureBlocks(piece(s, 173, 61)).filter((b) => b.tone === "dark");
-      const want = ["table", "coffee-table", "chair", "desk", "metal-shelf", "wash-basin"].includes(s) ? 4 : s === "worktable" ? 5 : s === "carport" ? 6 : s === "awning" ? 3 : ["cabinet", "sink", "buffet", "wardrobe", "dresser", "nightstand", "counter", "stove", "dishwasher", "plant", "shower", "mirror-stand"].includes(s) ? 1 : ["treadmill", "weight-rack", "boiler"].includes(s) ? 2 : s === "barbell-rack" ? 8 : 0;
+      const want = ["table", "coffee-table", "chair", "desk", "metal-shelf", "wash-basin", "garden-house"].includes(s) ? 4 : s === "worktable" ? 5 : s === "carport" ? 6 : s === "awning" ? 3 : ["cabinet", "sink", "buffet", "wardrobe", "dresser", "nightstand", "counter", "stove", "dishwasher", "plant", "shower", "mirror-stand"].includes(s) ? 1 : ["treadmill", "weight-rack", "boiler"].includes(s) ? 2 : s === "barbell-rack" ? 8 : 0;
       expect(dark.length, s).toBe(want);
     }
   });

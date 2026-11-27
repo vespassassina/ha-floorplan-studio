@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Garden houses and sheds (S91)
+
+1. Added `"garden-house"` (`300 x 250 x 260 cm`) to `FURNITURE_SYMBOLS` (`src/core/schema.ts`, `heights.ts`, `solids.ts`, `icons.ts`, `furniture-blocks.ts`, `card/three/palette.ts`, `editor/furniture-menu.ts`).
+2. Renders in 2D with a pitched gable roof ridge, overhang, shingle lines, and doorway notch, and in 3D as a 5-block standalone structure (foundation plinth, inset cabin walls, and 3-tier stepped pitched roof overhang) with custom paint/texture and optional HA entity link.
+
 ## 2026-11-27: Carports and extensible sun covers/awnings (S90)
 
 1. Added `"carport"` (`520 x 300 x 250 cm`) and `"awning"` (`400 x 250 x 240 cm`) to `FURNITURE_SYMBOLS` (`src/core/schema.ts`, `heights.ts`, `solids.ts`, `icons.ts`, `furniture-blocks.ts`, `card/three/palette.ts`, `editor/furniture-menu.ts`).
