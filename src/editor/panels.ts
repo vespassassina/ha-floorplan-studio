@@ -59,7 +59,7 @@ export function typeOptions(pairs: readonly [DeviceType, string][] = TYPE_LABELS
   return html`${popular.map(opt)}${popular.length && rest.length ? html`<hr>` : nothing}${rest.map(opt)}`;
 }
 
-export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", edge: "Outdoor edge", parapet: "Balcony wall (parapet)", none: "Not drawn" };
+export const WALL_LABELS: Record<EdgeKind, string> = { wall: "Internal wall", boundary: "Dotted boundary", external: "External wall", fence: "Fence", hedge: "Hedge (living)", edge: "Outdoor edge", parapet: "Balcony wall (parapet)", none: "Not drawn" };
 
 export interface PanelCtx {
   st: EditorState;
@@ -510,11 +510,16 @@ function edgeDelete(c: PanelCtx, s: Extract<Sel, { t: "edge" }>, a: [number, num
  * B53.9: the colour of one wall (a room or outline edge, or a free wall): a colour input, the palette, and Default. Each pick is
  * one undo step through `EditorState.paintEdge`, and a new colour joins the palette. `cur` is the wall's own colour, if it has one.
  */
-function wallColourRow(c: PanelCtx, poly: string, i: number, cur: string | undefined, id: string) {
+const FENCE_PRESETS: readonly [string, string][] = [["Cedar", "#8c5a32"], ["Anthracite", "#3a3d42"], ["White", "#e8e6e1"], ["Forest green", "#355e3b"], ["Slate", "#6b7280"]];
+const HEDGE_PRESETS: readonly [string, string][] = [["Boxwood", "#4b7a3f"], ["Laurel", "#355e3b"], ["Privet", "#648f48"], ["Autumn", "#8c6d3b"]];
+
+function wallColourRow(c: PanelCtx, poly: string, i: number, cur: string | undefined, id: string, kind?: EdgeKind) {
   const own = cur?.toLowerCase() ?? "", custom = c.st.layout.palette ?? [];
   const pick = (hex: string | null) => edited(c, c.st.paintEdge(poly, i, hex));
   const swatch = (hex: string, name: string, extra = "") => html`<button class=${`sw${extra}`} type="button" title=${name} aria-label=${name} aria-pressed=${String(own === hex)} style="background:${hex}" @click=${() => pick(hex)}></button>`;
+  const presets = kind === "fence" ? FENCE_PRESETS : kind === "hedge" ? HEDGE_PRESETS : null;
   return html`<label for=${id}>colour</label><input id=${id} type="color" .value=${live(own || "#8b8578")} @change=${(e: Event) => pick(val(e))}>
+    ${presets ? html`<div class="rotrow" role="group" aria-label=${`${kind} presets`}>${presets.map(([n, hex]) => html`<button class="btn" type="button" title=${`${n} (${hex})`} aria-pressed=${String(own === hex)} @click=${() => pick(hex)}>${n}</button>`)}</div>` : nothing}
     <div class="swatches" role="group" aria-label="Wall colours">${FLOOR_COLOURS.map((k) => swatch(k.hex, k.name))}${custom.map((hex) => swatch(hex, `Custom ${hex}`, " custom"))}</div>
     <p>${button(`${id}x`, "Default", () => pick(null))}</p>`;
 }
@@ -535,7 +540,7 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
     ${editable ? heading("Identity") : nothing}
     ${editable ? html`<label for="ek">kind</label><select id="ek" .value=${live(kind)} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as EdgeKind))}>${EDGE_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
     ${heading("Appearance")}
-    ${editable && kind !== "none" ? wallColourRow(c, s.poly, s.i, wallColourMap(c.st.f).get(wallEdgeKey(a, b)), "ecol") : nothing}
+    ${editable && kind !== "none" ? wallColourRow(c, s.poly, s.i, wallColourMap(c.st.f).get(wallEdgeKey(a, b)), "ecol", kind) : nothing}
     ${number(c, "length (m)", "elen", (dist(a, b) / 100).toFixed(2), (m) => set({ length: m }))}
     ${hint(`angle ${ang.toFixed(1)}°`, true)}
     <div class="row">${button("mkh", "Make horizontal", () => set({ axis: "h" }))}${button("mkv", "Make vertical", () => set({ axis: "v" }))}</div>
@@ -563,7 +568,7 @@ function wallPanel(c: PanelCtx, i: number) {
     }}>${WALL_KINDS.map((k) => html`<option value=${k} ?selected=${k === w.kind}>${WALL_LABELS[k]}</option>`)}<option value="opening">Opening (a gap in the wall)</option></select>
     <div class="grid2"><div>${number(c, "length (m)", "wlen", (dist(w.a, w.b) / 100).toFixed(2), (m) => set({ length: m }))}</div><div>${heightField(c, "height (cm)", "wht", w.height, wallHeight(c.st.f, { ...w, height: undefined }), heightSetter(c, "walls", i, "height"))}</div></div>
     ${heading("Appearance")}
-    ${wallColourRow(c, "w", i, w.color, "wcol")}
+    ${wallColourRow(c, "w", i, w.color, "wcol", w.kind)}
     <div class="row">${button("wh", "Make horizontal", () => set({ axis: "h" }))}${button("wv", "Make vertical", () => set({ axis: "v" }))}</div>
     ${lockField(c, "wlock", "walls", i)}
     ${angleField(c, "wrot", "walls", i)}

@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Living hedges and multi-colour fences (S89)
+
+1. Added `"hedge"` to `WALL_KINDS` (`src/core/schema.ts`, default height `160 cm` in `src/core/heights.ts`, 2D/3D thickness `45 cm` in `src/core/render.ts` and `src/core/scene-build.ts`, green foliage CSS `.e.hedge` / `.eh.hedge` / `.ws.hedge`, 3D palette `var(--fp-tree)` in `src/card/three/palette.ts`). Enclosing an area with hedges/fences auto-classifies as a Garden (`src/editor/draw.ts`).
+2. Added quick fence colour presets (Cedar, Anthracite, White, Forest green, Slate) and living hedge foliage presets (Boxwood, Laurel, Privet, Autumn) in `wallColourRow` (`src/editor/panels.ts`, Studio-only, `0 B` in card).
+
 ## 2026-11-27: City and street lights (S88)
 
 1. Extended `LAMP_KINDS` with `"street"` (`height: 150..800 cm` default `420`, `reach: 100..1200 cm` default `450`) and added optional `color` (`#rrggbb`) and `autoNight: true` to `LampSpec` (`src/core/schema.ts`).

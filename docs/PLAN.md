@@ -5099,3 +5099,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ## Sprint 88 — City and street lights
 
 - [x] **S88.1** Street light `LampKind` (`"street"`), `LampSpec.color` + `autoNight`, 2D/3D pole+arm+lantern rendering, night light pools, and Studio `Add > Street light` + sodium/LED/neon presets.
+
+---
+
+## Sprint 89 — Living hedges and multi-colour fences
+
+- [x] **S89.1** Added `"hedge"` `WallKind` (45 cm thick foliage wall in 2D/2.5D/3D, 160 cm default height, shadow-casting in 3D) and quick colour presets for fences and hedges in Studio.
