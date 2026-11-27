@@ -148,7 +148,7 @@ export function clearDraft() {
 }
 
 /** The room list a device of `type` moves into (S11.2): temperature, humidity and motion devices only. */
-const roomFieldOf = (type: DeviceType | undefined): RoomSensorField | undefined => (type === "temp" ? "temps" : type === "humidity" ? "humidity" : type === "motion" ? "motion" : undefined);
+const roomFieldOf = (type: DeviceType | undefined): RoomSensorField | undefined => (type === "temp" ? "temps" : type === "humidity" ? "humidity" : type === "motion" ? "motion" : type === "air_quality" ? "airQuality" : type === "smoke" ? "smoke" : undefined);
 
 export function polyPts(f: Floor, poly: string): Pt[] | undefined {
   if (poly === "o") return f.outline;
@@ -1266,7 +1266,7 @@ export class EditorState {
     const used = new Set<string>();
     for (const fl of Object.values(this.layout.floors)) for (const o of fl.rooms) if (o.id !== r.id) for (const e of o[field] ?? []) used.add(e);
     if (field === "power" || field === "water") return this.withPlanRoom(this.meterChoices(field).filter((c) => !used.has(c.entity)));
-    const type: DeviceType = field === "temps" ? "temp" : field;
+    const type: DeviceType = field === "temps" ? "temp" : field === "airQuality" ? "air_quality" : field;
     return [...this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity)), ...this.withPlanRoom(this.unattachedHaChoices(type).filter((c) => !used.has(c.entity)))];
   }
 

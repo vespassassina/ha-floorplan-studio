@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-27: Air quality sensor, smoke detector, and room warning signs (S94)
+
+1. Added `"air_quality"` and `"smoke"` to `DEVICE_TYPES` (`src/core/schema.ts`, `icons.ts`, `heights.ts`, `ha.ts`, `active.ts`, `attention.ts`, `categories.ts`, etc.), plus room-attached lists `Room.airQuality` and `Room.smoke` and multi-sensor `Device.airSensors` (CO2, VOC, formaldehyde, PM2.5, PM5, PM10, CO, gas, AQI).
+2. Added `src/core/air-quality.ts` (`isAirQualityBad`, `isSmokeDetected`, `roomHazards`) and 2D room warning badges in `src/core/render.ts`: a small yellow warning triangle (`.room-warn-air`, scale `0.72`) when air quality is very bad, and a bigger red warning triangle (`.room-warn-smoke`, scale `1.25`) when smoke is detected.
+3. Wired Studio room sensor pickers (`airQuality`, `smoke`) and device "Attach to room" support (`src/editor/panels.ts`, `src/editor/state.ts`, `src/editor/ops.ts`).
+4. Raised `CARD_GROWTH_LIMIT` to `53220` (`<= 144,000 B` gz; measured `143,017 B`) and `FORM_CHUNK_LIMIT` to `30,000 B` gz (measured `29,051 B`) in `tests/card/size-budget.spec.ts` to cover S91–S94 schema and renderer additions.
+
 ## 2026-11-27: Aerial and drone roof photo import (S93)
 
 1. Added `src/editor/aerial-roof.ts` (`fitTraceToRoof`, `alignTraceToNorth`, `calibrateTraceFromTwoPoints`, `simplifyRoofOutline`, Studio-only, `0 B` in card) and wired `File > Import aerial / drone photo…`, `Align to North` (rotates North-up Google Maps imagery about its centre to `layout.north`), `Fit to outline`, and `Trace roof outline…` into `traceView` (`src/editor/editor-trace.ts`, `src/editor/toolbar.ts`).

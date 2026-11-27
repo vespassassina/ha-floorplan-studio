@@ -40,6 +40,11 @@ const TYPE_RULES: Partial<Record<DeviceType, { domain: string; dcs?: string[]; n
   screen: [{ domain: "light" }, { domain: "switch" }, { domain: "sensor" }, { domain: "binary_sensor" }], // a wall tablet shows up as its backlight, its power plug or a sensor
   battery: [{ domain: "sensor", dcs: ["battery"] }],
   power_meter: [{ domain: "sensor", dcs: ["power", "energy"] }],
+  air_quality: [
+    { domain: "sensor", dcs: ["carbon_dioxide", "carbon_monoxide", "volatile_organic_compounds", "volatile_organic_compounds_parts", "pm25", "pm10", "pm1", "aqi", "gas", "nitrous_oxide", "nitrogen_dioxide", "ozone", "sulphur_dioxide"] },
+    { domain: "binary_sensor", dcs: ["carbon_monoxide", "gas"] },
+  ],
+  smoke: [{ domain: "binary_sensor", dcs: ["smoke"] }],
   person: [{ domain: "person" }, { domain: "device_tracker" }],
   // S7.9: the radar's own entity is its presence sensor, typically a binary_sensor.*occupancy; the target x/y pairs
   // are picked separately in the editor panel, not offered here (entitiesForType has no notion of a pair).
@@ -88,11 +93,13 @@ export function typeForEntity(e: HaData["entities"][number], ha?: Pick<HaData, "
       if (e.dc === "temperature") return "temp";
       if (e.dc === "humidity") return "humidity";
       if (e.dc === "battery") return "battery";
+      if (e.dc && ["carbon_dioxide", "carbon_monoxide", "volatile_organic_compounds", "volatile_organic_compounds_parts", "pm25", "pm10", "pm1", "aqi"].includes(e.dc)) return "air_quality";
       return "other";
     case "binary_sensor":
       if (e.dc === "motion" || e.dc === "occupancy" || e.dc === "presence") return "motion";
       if (e.dc === "door" || e.dc === "window" || e.dc === "garage_door" || e.dc === "opening") return "contact";
       if (e.dc === "vibration") return "vibration";
+      if (e.dc === "smoke") return "smoke";
       return "other";
     default: return "other";
   }
@@ -132,7 +139,7 @@ function isMotionGroup(g: HaData["entities"][number], all: unknown, path: string
  * Noise: `other` is anything the plan has no icon of its own for (power, energy, illuminance, signal, a group, a
  * script...); a `battery` is a reading of another device, not a thing in the room; a `person` is not placed by area.
  */
-export const AREA_PLACEABLE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "inverter", "server", "access_point", "lock", "vibration", "boiler", "car", "ups", "printer", "speaker", "radar", "vacuum", "siren", "alarm", "fan", "screen", "power_meter"]);
+export const AREA_PLACEABLE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "inverter", "server", "access_point", "lock", "vibration", "boiler", "car", "ups", "printer", "speaker", "radar", "vacuum", "siren", "alarm", "fan", "screen", "power_meter", "air_quality", "smoke"]);
 export const AREA_NOISE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["other", "battery", "person"]);
 
 /** S8.1: the entities of HA area `area` that are not on the plan yet and that the plan has an icon for. Never throws. */

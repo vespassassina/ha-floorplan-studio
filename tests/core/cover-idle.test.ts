@@ -26,6 +26,8 @@ const WEARS_ON: Record<DeviceType, [state: string, attrs: Record<string, unknown
   fan: ["on", {}, true], // S33.1: --fp-dev-fan
   screen: ["on", {}, true], // B53.7: --fp-dev-screen
   power_meter: ["120", {}, false],
+  air_quality: ["1800", { device_class: "carbon_dioxide" }, true],
+  smoke: ["on", { device_class: "smoke" }, false], // wears "danger", not "on"
 };
 
 describe("covers with no garage, gate or door class draw idle (curtains, blinds, shutters)", () => {

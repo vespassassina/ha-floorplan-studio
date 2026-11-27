@@ -22,7 +22,7 @@ export const BADGE_OF: Record<DeviceType, BadgeKind | null> = {
   motion: "motion", radar: "motion",
   switch: null, plug: null, temp: null, humidity: null, contact: null, camera: null, tv: null, computer: null, media: null, cover: null, battery: null,
   inverter: null, server: null, access_point: null, lock: null, vibration: null, other: null, boiler: null, car: null, ups: null, printer: null,
-  speaker: null, person: null, vacuum: null, siren: null, alarm: null, fan: null, screen: null, power_meter: null,
+  speaker: null, person: null, vacuum: null, siren: null, alarm: null, fan: null, screen: null, power_meter: null, air_quality: null, smoke: null,
 };
 
 /** One icon's worth: lit or not, its colour tone (climate only) and the rows of its bubble. Plain text; whoever draws it escapes it. */

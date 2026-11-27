@@ -26,6 +26,7 @@ const CASE: Record<DeviceType, { entity: string; kind: Kind }> = {
   siren: { entity: "siren.x", kind: "confirm-off" }, alarm: { entity: "alarm_control_panel.x", kind: "none" },
   fan: { entity: "fan.x", kind: "confirm-off" }, // S33.1: Turn on and Turn off; OFF asks first like every non-light
   screen: { entity: "light.x", kind: "none" }, // B53.7: a control screen never toggles (NO_TOGGLE); a tap opens more-info
+  air_quality: { entity: "sensor.x", kind: "none" }, smoke: { entity: "binary_sensor.x", kind: "none" },
 };
 
 describe("popupOp: the default operation per device type", () => {
