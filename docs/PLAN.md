@@ -5159,3 +5159,9 @@ Spec: `docs/specs/kiosk-polish-s65.md`. Card gzip `137,996` B (`<= 138,000` B).
 ## Sprint 98 — Room badges visibility, air/smoke kinds, and 4-quadrant slots
 
 - [x] **S98.1** Fixed bar-heater badge detection and active `.cb.on` visibility, added `"air"` and `"smoke"` badge kinds with live bubble info, and added optional 4-quadrant `RoomBadges.slots` (`[TL, TR, BL, BR]`) with 2x2 rendering and Studio quadrant picker.
+
+---
+
+## Sprint 99 — Demo home upgrade, screenshots, and README refresh
+
+- [x] **S99.1** Upgraded `demo/home.json` and `demo/home-states.json` across ground and first floors with carport, extensible awnings, garden house, hedges, coloured fence, street lamp, air quality & smoke sensors, and 4-quadrant room badges; regenerated `docs/img/*.png` + added `card-outdoor-2-5d.png` and `card-first-floor.png`; updated `README.md`.

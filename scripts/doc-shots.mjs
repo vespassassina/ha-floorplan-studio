@@ -25,7 +25,9 @@ const cardJs = cardSource(); // the card with its Overview chunk inlined (a page
 const hass = homeHass();
 const errors = [];
 
-const browser = await chromium.launch();
+const BRAVE = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
+const execPath = process.env.PW_BROWSER || (existsSync(BRAVE) ? BRAVE : undefined);
+const browser = await chromium.launch(execPath ? { executablePath: execPath } : undefined);
 try {
   // card-overview.png: the demo ground floor, blueprint theme, a light and the motion sensor on.
   {
@@ -56,6 +58,10 @@ try {
     ["card-labels-off", { view: "2d", labels: false }],
     // Text turns with the plan only as a position, never as an angle, so it stays readable.
     ["card-rotated-45", { view: "2d", rotation: 45 }],
+    // S99: upgraded demo home — evening outdoor 2.5D (carport, awning, garden house, hedges, street light spill)
+    ["card-outdoor-2-5d", { view: "2.5d", night: true, theme: "home" }],
+    // S99: upgraded demo home — First floor 2D (4-quadrant room badges, air-quality warning, balcony awning)
+    ["card-first-floor", { floor: "first", view: "2d", theme: "home" }],
   ];
   for (const [name, extra] of variants) {
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce" });

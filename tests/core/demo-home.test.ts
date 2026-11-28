@@ -22,11 +22,11 @@ function entitiesOf(l: Layout): Set<string> {
   for (const f of Object.values(l.floors)) {
     for (const d of f.devices) {
       add(d.entity); add(d.bound); add(d.motion); add(d.power); add(d.room);
-      list(d.trvs); list(d.tempSensors); list(d.linked);
+      list(d.trvs); list(d.tempSensors); list(d.linked); list(d.airSensors);
       for (const t of d.targets ?? []) { add(t.x); add(t.y); }
     }
     for (const d of f.doors) { list(d.sensors); list(d.vibration); list(d.locks); add(d.cover); }
-    for (const r of f.rooms) { add(r.entity); list(r.temps); list(r.humidity); list(r.motion); list(r.haScenes); for (const s of r.scenes ?? []) for (const it of s.items) add(it.entity); }
+    for (const r of f.rooms) { add(r.entity); list(r.temps); list(r.humidity); list(r.motion); list(r.airQuality); list(r.smoke); list(r.power); list(r.water); list(r.haScenes); for (const s of r.scenes ?? []) for (const it of s.items) add(it.entity); }
     for (const m of f.furniture) { add(m.entity); list(m.attached); }
     for (const u of f.unlinked) list(u.attached);
   }

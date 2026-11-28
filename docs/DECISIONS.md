@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-11-28: Upgraded demo home, refreshed screenshots, and README update (S99)
+
+1. Upgraded `demo/home.json` and `demo/home-states.json` across `ground` and `first` floors with carport, HA-linked extensible terrace and balcony awnings (`cover.demo_terrace_awning`, `cover.demo_balcony_awning`), garden house, living grass hedges, coloured cedar garden fence, warm sodium street lamp, air-quality and smoke sensors (including an active CO2 warning in Master), and 4-quadrant room corner badges.
+2. Updated `scripts/doc-shots.mjs` with automatic Brave Browser fallback when Playwright's default Chromium binary is absent, regenerated `docs/img/*.png`, added `docs/img/card-outdoor-2-5d.png` and `docs/img/card-first-floor.png`, and updated `README.md` with all S88–S98 features.
+
 ## 2026-11-28: Room corner badges visibility, air/smoke badges, and 4-quadrant slots (S98)
 
 1. Extended `BADGE_KINDS` (`src/core/schema.ts`, `src/core/room-badges.ts`) with `"air"` (`air_quality` devices and `Room.airQuality`) and `"smoke"` (`smoke` devices and `Room.smoke`), with live readings and alert rows (`airInfo`, `smokeInfo`) and `--fp-warn` / `--fp-danger` active styling.
