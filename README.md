@@ -9,7 +9,15 @@ What is wrong comes first (an open window, an armed alarm), then what is on.
 Installable through HACS. Needs Home Assistant 2025.6 or later. Releases are
 in [`CHANGELOG.md`](CHANGELOG.md). MIT licence.
 
-![The demo home in 3D, ground floor on an evening: cutaway walls, lit lamps, a car on the drive.](docs/img/card-3d.png)
+![The demo home in 3D, ground floor on an evening: cutaway walls, lit lamps, carport over the charging car, extensible terrace awning, garden house, hedges, and street light.](docs/img/card-3d.png)
+
+## Outdoor, garden, and multi-floor details
+
+Two-floor showcase from the demo home: the ground floor in 2.5D with a carport, HA-linked extensible terrace awning, garden house, living hedges, coloured fence, street light spill, and 4-quadrant room badges; and the first floor with 4-quadrant badges, an active air-quality warning in Master, and a balcony awning.
+
+![The demo ground floor in 2.5D: carport, extensible terrace awning, garden house, living hedges, street light, and 4-quadrant room badges.](docs/img/card-outdoor-2-5d.png)
+
+![The demo first floor in 2D: 4-quadrant room corner badges, active air-quality warning in Master, heating badge in Bathroom, and balcony awning.](docs/img/card-first-floor.png)
 
 ## On a phone
 
@@ -110,6 +118,22 @@ One key, `theme:`. Every plan below is the same ground floor.
   The same panel gives three lines for a strategy dashboard instead, which
   Home Assistant rebuilds on every load, so a floor you add later shows up on
   its own.
+- **Outdoor and garden.** Add city/street lights (sodium, neon, LED, or custom
+  hex colour) with smooth, unclipped atmospheric light spill across garden and
+  house walls; living grass hedges and multi-colour fences; carports on 4 poles
+  with a translucent polycarbonate roof; wall-mounted extensible awnings linked
+  to Home Assistant `cover` entities; and garden houses.
+- **Roofs and floor alignment.** Add a dedicated roof floor with smooth lofted
+  multi-wing roof planes (`gable`, `hip`, `shed`, `flat`), variable wall height
+  under the roof (`0–250 cm`), skylights, chimneys, solar panels, and roof vents.
+  Import a Google Maps or drone photo (`File → Import aerial / drone photo…`)
+  with Align to North, Fit to outline, and Trace roof outline. Align any floor
+  to either the floor below or the floor above (`Floors → Align to floor above…`).
+- **Air quality, smoke/gas, and 4-quadrant room badges.** Place or attach
+  `air_quality` sensors (CO2, VOC, formaldehyde, PM2.5/PM5/PM10, CO, gas, AQI)
+  and `smoke` detectors to rooms for yellow air-quality and red smoke warning
+  signs. Enable corner badges per room and pick what goes in each of the 4
+  quadrants (lights, climate, motion, energy, air quality, smoke/gas).
 - **Heat map.** A card key `heat_map` (and View, Heat map in the editor, and the card's ⋯ menu) fills each room by its
   temperature or humidity on a fixed scale, with the value and a legend. Live readings, no history.
 - **Temperature range.** Set a house min and max in the floor panel's Temperature range, and a room may override it in its

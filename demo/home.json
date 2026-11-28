@@ -953,6 +953,18 @@
           ],
           "humidity": [
             "sensor.demo_living_humidity"
+          ],
+          "badges": {
+            "corner": "nw",
+            "slots": [
+              "lights",
+              "climate",
+              "motion",
+              "air"
+            ]
+          },
+          "airQuality": [
+            "sensor.demo_living_co2"
           ]
         },
         {
@@ -994,6 +1006,24 @@
           ],
           "humidity": [
             "sensor.demo_kitchen_humidity"
+          ],
+          "badges": {
+            "corner": "ne",
+            "slots": [
+              "lights",
+              "energy",
+              "air",
+              "smoke"
+            ]
+          },
+          "airQuality": [
+            "sensor.demo_kitchen_voc"
+          ],
+          "smoke": [
+            "binary_sensor.demo_kitchen_smoke"
+          ],
+          "power": [
+            "sensor.demo_kitchen_power"
           ]
         },
         {
@@ -1174,6 +1204,18 @@
           ],
           "humidity": [
             "sensor.demo_office_humidity"
+          ],
+          "badges": {
+            "corner": "sw",
+            "slots": [
+              "lights",
+              "climate",
+              "energy",
+              null
+            ]
+          },
+          "power": [
+            "sensor.demo_office_power"
           ]
         },
         {
@@ -1201,9 +1243,15 @@
           ],
           "wk": [
             "boundary",
-            "fence",
+            "hedge",
             "fence",
             "fence"
+          ],
+          "wc": [
+            null,
+            null,
+            "#6b4c35",
+            "#6b4c35"
           ]
         },
         {
@@ -1301,9 +1349,9 @@
           ],
           "wk": [
             "boundary",
-            "fence",
-            "fence",
-            "fence"
+            "hedge",
+            "hedge",
+            "hedge"
           ]
         },
         {
@@ -1967,6 +2015,19 @@
           "name": "Wallbox",
           "x": 950,
           "y": 830
+        },
+        {
+          "id": "light-street-lamp",
+          "type": "light",
+          "entity": "light.demo_street_lamp",
+          "name": "Street lamp",
+          "x": 470,
+          "y": 985,
+          "lamp": {
+            "kind": "street",
+            "reach": 650,
+            "color": "#ffaa33"
+          }
         }
       ],
       "furniture": [
@@ -2280,11 +2341,11 @@
         {
           "id": "furniture-ground-34",
           "symbol": "tree",
-          "x": 1330,
-          "y": 130,
+          "x": 1265,
+          "y": 85,
           "rot": 0,
-          "w": 120,
-          "h": 120
+          "w": 100,
+          "h": 100
         },
         {
           "id": "furniture-ground-35",
@@ -2393,6 +2454,39 @@
           "rot": 0,
           "w": 70,
           "h": 50
+        },
+        {
+          "id": "furniture-ground-47",
+          "symbol": "carport",
+          "x": 730,
+          "y": 900,
+          "w": 460,
+          "h": 190,
+          "rot": 0,
+          "height": 245,
+          "label": "Carport"
+        },
+        {
+          "id": "furniture-ground-48",
+          "symbol": "awning",
+          "x": 1090,
+          "y": 250,
+          "w": 300,
+          "h": 180,
+          "rot": 270,
+          "entity": "cover.demo_terrace_awning",
+          "label": "Terrace awning"
+        },
+        {
+          "id": "furniture-ground-49",
+          "symbol": "garden-house",
+          "x": 1335,
+          "y": 275,
+          "w": 180,
+          "h": 160,
+          "rot": 270,
+          "height": 240,
+          "label": "Garden house"
         }
       ],
       "unlinked": [
@@ -2579,6 +2673,18 @@
           ],
           "humidity": [
             "sensor.demo_master_humidity"
+          ],
+          "badges": {
+            "corner": "ne",
+            "slots": [
+              "lights",
+              "climate",
+              "air",
+              null
+            ]
+          },
+          "airQuality": [
+            "sensor.demo_master_co2"
           ]
         },
         {
@@ -2615,7 +2721,16 @@
           ],
           "humidity": [
             "sensor.demo_bathroom_humidity"
-          ]
+          ],
+          "badges": {
+            "corner": "nw",
+            "slots": [
+              "lights",
+              "climate",
+              null,
+              null
+            ]
+          }
         },
         {
           "id": "room-first-6",
@@ -2651,6 +2766,18 @@
           ],
           "humidity": [
             "sensor.demo_lounge_humidity"
+          ],
+          "badges": {
+            "corner": "se",
+            "slots": [
+              "lights",
+              "climate",
+              "motion",
+              "smoke"
+            ]
+          },
+          "smoke": [
+            "binary_sensor.demo_lounge_smoke"
           ]
         },
         {
@@ -3431,6 +3558,17 @@
           "rot": 0,
           "w": 35,
           "h": 35
+        },
+        {
+          "id": "furniture-first-33",
+          "symbol": "awning",
+          "x": 780,
+          "y": 855,
+          "w": 300,
+          "h": 110,
+          "rot": 0,
+          "entity": "cover.demo_balcony_awning",
+          "label": "Balcony awning"
         }
       ],
       "unlinked": []

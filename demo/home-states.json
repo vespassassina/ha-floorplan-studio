@@ -1355,5 +1355,97 @@
       "device_class": "smoke"
     },
     "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "cover.demo_terrace_awning": {
+    "state": "open",
+    "attributes": {
+      "friendly_name": "Terrace awning",
+      "device_class": "awning",
+      "current_position": 75
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "cover.demo_balcony_awning": {
+    "state": "open",
+    "attributes": {
+      "friendly_name": "Balcony awning",
+      "device_class": "awning",
+      "current_position": 60
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "light.demo_street_lamp": {
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Street lamp",
+      "brightness": 215,
+      "rgb_color": [
+        255,
+        178,
+        72
+      ]
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "sensor.demo_living_co2": {
+    "state": "540",
+    "attributes": {
+      "friendly_name": "Living CO2",
+      "unit_of_measurement": "ppm",
+      "device_class": "carbon_dioxide"
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "sensor.demo_kitchen_voc": {
+    "state": "180",
+    "attributes": {
+      "friendly_name": "Kitchen VOC",
+      "unit_of_measurement": "µg/m³",
+      "device_class": "volatile_organic_compounds"
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "binary_sensor.demo_kitchen_smoke": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Kitchen smoke detector",
+      "device_class": "smoke"
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "sensor.demo_kitchen_power": {
+    "state": "680",
+    "attributes": {
+      "friendly_name": "Kitchen power",
+      "unit_of_measurement": "W",
+      "device_class": "power"
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "sensor.demo_office_power": {
+    "state": "145",
+    "attributes": {
+      "friendly_name": "Office power",
+      "unit_of_measurement": "W",
+      "device_class": "power"
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "sensor.demo_master_co2": {
+    "state": "1620",
+    "attributes": {
+      "friendly_name": "Master CO2",
+      "unit_of_measurement": "ppm",
+      "device_class": "carbon_dioxide"
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
+  },
+  "binary_sensor.demo_lounge_smoke": {
+    "state": "off",
+    "attributes": {
+      "friendly_name": "Lounge smoke detector",
+      "device_class": "smoke"
+    },
+    "last_changed": "2026-10-04T09:30:15Z"
   }
 }
