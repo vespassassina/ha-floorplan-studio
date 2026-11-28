@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.63.0 - 2026-11-28
+
+Air quality & smoke sensors, smooth lofted multi-wing roofs, Align to floor above, unclipped smooth street light spill, 4-quadrant room badges, and upgraded demo home & README (Sprints 94–99):
+
+- **Air quality sensor, smoke detector & room warning signs (S94):** Added `"air_quality"` (CO2, VOC, formaldehyde, PM2.5/PM5/PM10, CO, gas, AQI) and `"smoke"` device types, room-attached `Room.airQuality` and `Room.smoke`, multi-sensor `Device.airSensors`, small yellow air-quality warning triangles and bigger red smoke warning triangles on rooms, HA auto-detection, and Studio room sensor pickers.
+- **Smooth lofted multi-wing roofs & roof fixes (S95):** Replaced stepped roof tiers with smooth `{ type: "loft" }` straight sloped planes (`gable`, `hip`, `shed`), added variable `RoofSpec.wallHeight` (`0–250 cm`, default `0`), removed stairs and parapet walls from roof floors, and enabled multi-wing angled roofs (one oriented loft per roof room polygon, with flat `terrace` sections).
+- **Align to floor above (S96):** Added `Floors > Align to floor above…` reusing Studio's full alignment mode (ghost overlay, auto-align, move/turn, stairs, external wall, copy perimeter/stairs) against the floor above.
+- **Street light spill & smooth atmospheric falloff (S97):** Removed garden/room boundary clipping on `street` lights in 2D and 3D so street lights illuminate exterior house walls across the garden, with a softer multi-stop atmospheric falloff.
+- **Room corner badges visibility, air/smoke kinds & 4-quadrant slots (S98):** Fixed bar-heater badge detection and active `.cb.on` ring contrast, added `"air"` and `"smoke"` badge kinds with live bubble info and translations across all 9 languages, and added optional 4-quadrant `RoomBadges.slots` (`[TL, TR, BL, BR]`) with 2×2 rendering and a Studio quadrant selector.
+- **Demo home & README refresh (S99):** Upgraded `demo/home.json` and `demo/home-states.json` across ground and first floors with carport, HA-linked extensible terrace and balcony awnings, garden house, living hedges, coloured fence, warm sodium street lamp, air-quality/smoke sensors, and 4-quadrant room badges; regenerated `docs/img/*.png` and updated `README.md`.
+
 ## 0.62.0 - 2026-11-27
 
 Dedicated roof floor, roof fixtures, and aerial/drone roof photo import (Sprints 92–93):
